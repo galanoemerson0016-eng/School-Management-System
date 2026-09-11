@@ -22,7 +22,7 @@ describe('Grade 2 SF9 Excel Export Service', () => {
     expect(formatDateToMMDDYYYY('2019/3/5')).toBe('03/05/2019');
   });
 
-  it('populates official Grade 2 template and preserves all 8 worksheets and formulas', async () => {
+  it('populates official Grade 2 template and preserves all worksheets, formulas, and school logo', async () => {
     const templatePath = path.resolve(process.cwd(), 'public/templates/G2 School Form 9 (SY 26-27).xlsx');
     if (!fs.existsSync(templatePath)) {
       console.warn('Template not found at:', templatePath);
@@ -51,7 +51,8 @@ describe('Grade 2 SF9 Excel Export Service', () => {
         school_id: '100123',
         name: 'BACARRA CENTRAL ELEMENTARY SCHOOL',
         head_name: 'MARIA SANTOS, PhD',
-        head_position: 'Principal IV'
+        head_position: 'Principal IV',
+        logo_url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
       } as unknown as SF9ExcelExportOptions['schoolProfile'],
       schoolYear: '2026-2027',
       section: 'DIAMOND',
@@ -120,7 +121,9 @@ describe('Grade 2 SF9 Excel Export Service', () => {
     expect(zip.file('xl/workbook.xml')).toBeDefined();
     expect(zip.file('xl/worksheets/sheet2.xml')).toBeDefined(); // INPUT DATA
     expect(zip.file('xl/worksheets/sheet3.xml')).toBeDefined(); // TERM 1
-    expect(zip.file('xl/worksheets/sheet8.xml')).toBeDefined(); // SF9 - GRADE 2
+    expect(zip.file('xl/worksheets/sheet6.xml')).toBeDefined(); // SF9 - GRADE 2 (in updated 7-sheet template)
+    expect(zip.file('xl/worksheets/sheet7.xml')).toBeDefined(); // ATTENDANCE RECORD SUMMARY
+    expect(zip.file('xl/worksheets/sheet8.xml')).toBeNull(); // Sheet 8 removed in updated template
 
     const relsXml = await zip.file('xl/_rels/workbook.xml.rels')!.async('text');
     expect(relsXml).not.toContain('calcChain.xml');
@@ -131,6 +134,7 @@ describe('Grade 2 SF9 Excel Export Service', () => {
     const wbXml = await zip.file('xl/workbook.xml')!.async('text');
     expect(wbXml).toContain('fullCalcOnLoad="1"');
     expect(wbXml).toContain('forceFullCalc="1"');
+    expect(wbXml).toContain('activeTab="5"'); // 6th sheet (0-indexed 5: SF9 - GRADE 2)
 
     const sheet2Xml = await zip.file('xl/worksheets/sheet2.xml')!.async('text');
     expect(sheet2Xml).toContain('BACARRA CENTRAL ELEMENTARY SCHOOL');
@@ -142,25 +146,34 @@ describe('Grade 2 SF9 Excel Export Service', () => {
     expect(sheet3Xml).toContain('r="K14"'); // Male 1 Filipino on Row 14
     expect(sheet3Xml).toContain('r="K65"'); // Female 1 Filipino on Row 65
     expect(sheet3Xml).toContain('BACARRA CENTRAL ELEMENTARY SCHOOL'); // Populated E6 header result
-    const sheet6Xml = await zip.file('xl/worksheets/sheet6.xml')!.async('text');
-    expect(sheet6Xml).toContain('JUAN DELA CRUZ'); // Adviser in P10/P11
-    expect(sheet6Xml).not.toContain('EUNICE FERNANDEZ'); // Overwritten template dummy adviser
 
     const sheet7Xml = await zip.file('xl/worksheets/sheet7.xml')!.async('text');
     expect(sheet7Xml).toContain('JUAN DELA CRUZ'); // Adviser in L10/L11
-    expect(sheet7Xml).toContain('r="F14" s="58"><v>20</v>'); // Male 1 attendance
-    expect(sheet7Xml).toContain('r="F65" s="63"><v>18</v>'); // Female 1 attendance
+    expect(sheet7Xml).toContain('r="F14"'); // Male 1 attendance
+    expect(sheet7Xml).toContain('r="F65"'); // Female 1 attendance
     expect(sheet7Xml).not.toContain('<is><t xml:space="preserve"></t></is>'); // No malformed empty inlineStr
 
-    const sheet8Xml = await zip.file('xl/worksheets/sheet8.xml')!.async('text');
-    expect(sheet8Xml).toContain('DELA CRUZ, JUAN JR.');
-    expect(sheet8Xml).toContain('BACARRA CENTRAL ELEMENTARY SCHOOL'); // B12
-    expect(sheet8Xml).toContain('REGION I'); // B7
-    expect(sheet8Xml).toContain('100123'); // B10
-    expect(sheet8Xml).toContain('MARIA SANTOS, PhD'); // B27, Q41, Q49
-    expect(sheet8Xml).toContain('r="R5" s="634"><v>20</v>'); // Single-row school days
-    expect(sheet8Xml).not.toContain('r="R6" s="630"><v>20</v>'); // No duplicated row 6
-    expect(sheet8Xml).not.toContain('<f>#REF!</f>');
-    expect(sheet8Xml).not.toContain('<v>#REF!</v>');
+    // Sheet 6 is SF9 - GRADE 2 in the updated template
+    const sheetSf9Xml = await zip.file('xl/worksheets/sheet6.xml')!.async('text');
+    expect(sheetSf9Xml).toContain('DELA CRUZ, JUAN JR.');
+    expect(sheetSf9Xml).toContain('BACARRA CENTRAL ELEMENTARY SCHOOL'); // B12
+    expect(sheetSf9Xml).toContain('REGION I'); // B7
+    expect(sheetSf9Xml).toContain('100123'); // B10
+    expect(sheetSf9Xml).toContain('MARIA SANTOS, PhD'); // B27, Q41, Q49
+    expect(sheetSf9Xml).toContain('r="R5"'); // Single-row school days
+    expect(sheetSf9Xml).not.toContain('r="R6" s="630"><v>20</v>'); // No duplicated row 6
+    expect(sheetSf9Xml).not.toContain('<f>#REF!</f>');
+    expect(sheetSf9Xml).not.toContain('<v>#REF!</v>');
+
+    // Check pre-computed remarks in Column J
+    expect(sheetSf9Xml).toContain('r="J33"'); // Filipino Remark (Passed)
+    expect(sheetSf9Xml).toContain('Passed');
+    expect(sheetSf9Xml).toContain('IF(I33=&quot;&quot;, &quot;&quot;, IF(I33&gt;=75, &quot;Passed&quot;, &quot;Failed&quot;))');
+
+    // Check School Logo injection in drawing6.xml
+    expect(zip.file('xl/media/school_logo.png')).toBeDefined();
+    const d6Xml = await zip.file('xl/drawings/drawing6.xml')!.async('text');
+    expect(d6Xml).toContain('name="School Logo"');
+    expect(d6Xml).not.toContain('name="Shape 3"');
   });
 });

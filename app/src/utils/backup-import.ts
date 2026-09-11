@@ -227,7 +227,7 @@ export async function restoreBackupToFirestore(
         }
 
         // Restore localStorage items if present in comprehensive payload
-        if (backup.payload.localStorageData) {
+        if (backup.payload.localStorageData && (!selected || selected.size === 0 || selected.has('localStorageData'))) {
             restoreBackupLocalStorage(backup.payload.localStorageData);
         }
     } catch (error) {

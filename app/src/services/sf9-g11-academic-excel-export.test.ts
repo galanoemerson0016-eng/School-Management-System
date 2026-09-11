@@ -207,10 +207,66 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     expect(sheet5Xml).toContain('r="K15"');
     expect(sheet5Xml).toContain('r="Q15"'); // Male 1 Academic Elective 3
 
-    // Sheet 6: FINAL GRADES
+    // Workbook active tab is set to SF9 (index 5)
+    const wbXml = await zip.file('xl/workbook.xml')!.async('text');
+    expect(wbXml).toContain('activeTab="5"');
+
+    // Sheet 6: SF9 - GRADE 11 ACADEMIC (DepEd updated template places SF9 on Sheet 6)
     const sheet6Xml = await zip.file('xl/worksheets/sheet6.xml')!.async('text');
+    // Ensure #REF! and #VALUE! cells are eliminated
+    expect(sheet6Xml).not.toContain('<f>#REF!</f>');
+    expect(sheet6Xml).not.toContain('<v>#REF!</v>');
+    expect(sheet6Xml).not.toContain('#VALUE!');
+
+    // Learner information
     expect(sheet6Xml).toContain('DELA CRUZ');
-    expect(sheet6Xml).toContain('CLARA, MARIA');
+    expect(sheet6Xml).toContain('JUAN');
+    expect(sheet6Xml).toContain('100000000001');
+
+    // School Profile
+    expect(sheet6Xml).toContain('BACARRA NATIONAL COMPREHENSIVE HIGH SCHOOL');
+    expect(sheet6Xml).toContain('r="B9"'); // District in B9
+    expect(sheet6Xml).toContain('r="B12"'); // School Name in B12
+    expect(sheet6Xml).toContain('r="B15"'); // School Year in B15
+    expect(sheet6Xml).toMatch(/<c\s+r="A12"[^>]*\/>/); // A12 is empty
+    expect(sheet6Xml).toMatch(/<c\s+r="A15"[^>]*\/>/); // A15 is empty
+    expect(sheet6Xml).toContain('r="E19"'); // Track in E19
+
+    // Learning area grades populated in formula results
+    expect(sheet6Xml).toContain('r="F34"'); // T1 Effective Communication
+    expect(sheet6Xml).toContain('r="F36"'); // T1 Gen Math
+
+    // Modern Column Layout: Column I Units, Column J Final Grades, Column K Remarks, Column L Weighted Points
+    expect(sheet6Xml).toContain('r="I33"'); // Combined Comm Units (6)
+    expect(sheet6Xml).toContain('r="I36"'); // Gen Math Units (6)
+    expect(sheet6Xml).toContain('r="I41"'); // Elective 1 Units (3)
+    expect(sheet6Xml).toContain('r="I44"'); // Total Units (39)
+
+    // Final Grades formulas in Column J
+    expect(sheet6Xml).toContain('ROUND((F33+H33+G33)*(I33/3)/I33,0)'); // Combined Communication formula in Row 33
+    expect(sheet6Xml).toContain('ROUND((F36+H36+G36)*(I36/3)/I36,0)'); // Core Final Grade formula in Row 36
+    expect(sheet6Xml).toContain('ROUND((F41+H41+G41)*I41/I41,0)'); // Elective 1 Final Grade formula in Row 41
+    expect(sheet6Xml).toContain('ROUND(L44/I44,0)'); // General Average Final Grade formula in Row 44
+
+    // Remarks formulas and cached results in Column K
+    expect(sheet6Xml).toContain('IF(J36&gt;=75, "Passed", "Failed")'); // Core Subject Remarks formula
+    expect(sheet6Xml).toContain('MIN(J33,J36:J39,J41:J43)&gt;=85'); // Academic Excellence no grade below 85 check
+    expect(sheet6Xml).toContain('Promoted with Academic Excellence Award'); // General Average Academic Excellence Remarks formula
+    expect(sheet6Xml).toContain('>Promoted with Academic Excellence Award<'); // General Average cached remarks
+    expect(sheet6Xml).toContain('>Passed<'); // Core Subject cached remarks
+    expect(sheet6Xml).toContain('r="K41" s="569"'); // Elective 1 Remarks formatted with non-bold style 569
+
+    // Weighted Points formulas in Column L
+    expect(sheet6Xml).toContain('SUM(L33:L43)'); // Total Weighted Points formula in Row 44
+    expect(sheet6Xml).toContain('r="L33"');
+    expect(sheet6Xml).toContain('r="L44"');
+
+    // Attendance dynamic lookup formulas in Sheet 6
+    expect(sheet6Xml).toContain("VLOOKUP(C17,'ATTENDANCE RECORD SUMMARY'!$C$14:$P$114,4,0)");
+    expect(sheet6Xml).toContain('SUM(R5:AB6)'); // Attendance sum for Class Days
+    expect(sheet6Xml).toContain('SUM(R7:AB8)'); // Attendance sum for Days Present
+    expect(sheet6Xml).toContain('ABS(AC5-AC7)'); // Attendance sum for Days Absent
+    expect(sheet6Xml).toContain('IF(R7="","",ABS(R5-R7))'); // Repaired Absent formula in R9
 
     // Sheet 7: ATTENDANCE RECORD SUMMARY
     const sheet7Xml = await zip.file('xl/worksheets/sheet7.xml')!.async('text');
@@ -223,40 +279,9 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     expect(sheet7Xml).toContain('r="F65"'); // Female 1 June attendance
     expect(sheet7Xml).toContain('r="P65"'); // Female 1 April attendance
 
-    // Sheet 8: SF9 - GRADE 11 ACADEMIC
+    // Sheet 8: HELPER
     const sheet8Xml = await zip.file('xl/worksheets/sheet8.xml')!.async('text');
-    // Ensure #REF! cells are eliminated
-    expect(sheet8Xml).not.toContain('<f>#REF!</f>');
-    expect(sheet8Xml).not.toContain('<v>#REF!</v>');
-    // Ensure learning area grades are populated in formula results
-    expect(sheet8Xml).toContain('r="F34"'); // T1 Effective Communication
-    expect(sheet8Xml).toContain('r="F36"'); // T1 Gen Math
-    expect(sheet8Xml).toContain('BACARRA NATIONAL COMPREHENSIVE HIGH SCHOOL');
-    expect(sheet8Xml).toContain('r="B9"'); // District in B9
-    expect(sheet8Xml).toContain('r="B12"'); // School Name in B12
-    expect(sheet8Xml).toContain('r="B15"'); // School Year in B15
-    expect(sheet8Xml).toMatch(/<c\s+r="A12"[^>]*\/>/); // A12 is empty
-    expect(sheet8Xml).toMatch(/<c\s+r="A15"[^>]*\/>/); // A15 is empty
-    expect(sheet8Xml).toContain('r="E19"'); // Track in E19
-
-    // Attendance dynamic lookup formulas in Sheet 8
-    expect(sheet8Xml).toContain("VLOOKUP(C17,'ATTENDANCE RECORD SUMMARY'!$C$14:$P$114,4,0)");
-    expect(sheet8Xml).toContain('IF(OR(R5="",R7=""),"",IF(R5&gt;=R7,R5-R7,0))');
-    expect(sheet8Xml).toContain('SUM(R5:AB5)'); // 1D attendance sum for Class Days
-    expect(sheet8Xml).toContain('SUM(R7:AB7)'); // 1D attendance sum for Days Present
-    expect(sheet8Xml).toContain('SUM(R9:AB9)'); // 1D attendance sum for Days Absent
-
-    // Final Grades & Remarks formulas
-    expect(sheet8Xml).toContain('ROUND(AVERAGE(F34:F35),0)'); // Combined Communication formula in Row 33
-    expect(sheet8Xml).toContain('ROUND(AVERAGE(F34:H34),0)'); // Core Final Grade formula
-    expect(sheet8Xml).toContain('IF(F41="","",F41)'); // Elective 1 Final Grade formula
-    expect(sheet8Xml).toContain('ROUND(AVERAGE(I33,I36:I39,I41:I43),0)'); // General Average Final Grade formula
-    expect(sheet8Xml).toContain('IF(I34&gt;=75,"Passed","Failed")'); // Core Subject Remarks formula
-    expect(sheet8Xml).toContain('MIN(I33,I36:I39,I41:I43)&gt;=85'); // Academic Excellence no grade below 85 check
-    expect(sheet8Xml).toContain('Promoted with Academic Excellence Award'); // General Average Academic Excellence Remarks formula
-    expect(sheet8Xml).toContain('>Promoted with Academic Excellence Award<'); // General Average cached remarks
-    expect(sheet8Xml).toContain('>Passed<'); // Core Subject cached remarks
-    expect(sheet8Xml).toContain('r="J41" s="569"'); // Elective 1 Remarks formatted with non-bold style 569
+    expect(sheet8Xml).toBeDefined();
 
     // Styles: General Average centered & Bookman Old Style font without quotes
     const stylesXml = await zip.file('xl/styles.xml')!.async('text');
@@ -265,11 +290,11 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     expect(stylesXml).not.toContain("val=\"Bookman Old Style'\"");
     expect(stylesXml).toContain('val="Bookman Old Style"');
 
-    // Drawing: Shape 4 placeholder replaced with official School Logo pic
-    const drawing8Xml = await zip.file('xl/drawings/drawing8.xml')!.async('text');
-    expect(drawing8Xml).toContain('name="School Logo"');
-    expect(drawing8Xml).not.toContain('name="Shape 4"');
-    expect(drawing8Xml).not.toContain('Insert School Logo');
+    // Drawing: Shape 4 placeholder in drawing6.xml replaced with official School Logo pic
+    const drawing6Xml = await zip.file('xl/drawings/drawing6.xml')!.async('text');
+    expect(drawing6Xml).toContain('name="School Logo"');
+    expect(drawing6Xml).not.toContain('name="Shape 4"');
+    expect(drawing6Xml).not.toContain('Insert School Logo');
     expect(zip.file('xl/media/school_logo.png')).not.toBeNull();
   }, 30000);
 });

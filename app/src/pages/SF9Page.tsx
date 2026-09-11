@@ -20,14 +20,19 @@ import { db } from '../services/database';
 import { resolveStudentQuarterGrade, isMatchingSubject, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
 import { computeStudentAttendance } from '../utils/sf9-attendance';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3, FileSpreadsheet, Bug } from 'lucide-react';
+import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3, FileSpreadsheet, Bug, RefreshCcw } from 'lucide-react';
 import { exportSF9ToExcel, exportSF9BatchToExcel } from '../services/sf9-excel-export';
 import { isGrade1 } from '../services/sf9-g1-excel-export';
 import type { SF9ExcelExportOptions } from '../services/sf9-excel-export';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
 import { formatLearnerName } from '../utils/student-name';
-import { getShsSubjectUnitInfo, getCurriculumTemplatesForSection } from '../lib/curriculum';
+import { getShsSubjectUnitInfo, getCurriculumTemplatesForSection, getDefaultTermForSubject } from '../lib/curriculum';
+import {
+    SF9Template2Document,
+    SF9Template2BatchDocument,
+} from '../components/sf9/SF9Template2Document';
+import type { SF9Template2LearnerData } from '../components/sf9/sf9Template2Utils';
 const isKeyStage1 = (gradeLevel: string) => {
     const gl = (gradeLevel || '').toLowerCase();
     if (gl.includes('grade')) {
@@ -691,7 +696,8 @@ function computeStudentGrades(
         const hasMapehComponents = sectionDbSubjects.some(s => {
             const n = normalizeSubjectName(s.subject_name);
             return n.includes('musicandarts') || n.includes('musicarts') || 
-                   n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth');
+                   n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth') ||
+                   n === 'music' || n === 'arts' || n === 'physicaleducation' || n === 'health' || n === 'pe';
         });
 
         if (hasMapehComponents && !hasMapehHeader) {
@@ -954,14 +960,38 @@ function computeStudentGrades(
             if (canonical) seenInBase.add(canonical);
             uniqueBase.push(s);
         }
-        const sortedBase = sortSubjects(uniqueBase, s => s.name);
+        // Subject Ordering: Respect explicit order in sectionObj.taught_subjects if configured from Grade Management,
+        // otherwise fall back to Global Standard DepEd Ordering
+        let sortedBase: typeof uniqueBase;
+        if (taughtRaw.length > 1) {
+            const getTaughtIndex = (subName: string) => {
+                const norm = normalizeSubjectName(subName);
+                return taughtRaw.findIndex(t => {
+                    const normT = normalizeSubjectName(t);
+                    if (normT === norm) return true;
+                    if (norm === 'mapeh' && (normT.includes('music') || normT.includes('pe') || normT.includes('arts') || normT.includes('health'))) return true;
+                    return isMatchingSubject(t, '', subName);
+                });
+            };
+            sortedBase = [...uniqueBase].sort((a, b) => {
+                const idxA = getTaughtIndex(a.name);
+                const idxB = getTaughtIndex(b.name);
+                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                if (idxA !== -1) return -1;
+                if (idxB !== -1) return 1;
+                return 0;
+            });
+        } else {
+            sortedBase = sortSubjects(uniqueBase, s => s.name);
+        }
         
         // 2. Identify and group MAPEH
         const mapehComponents = sortedBase.filter(s => {
             const n = normalizeSubjectName(s.name);
             return n !== 'mapeh' && (
                 n.includes('musicandarts') || n.includes('musicarts') || 
-                n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth')
+                n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth') ||
+                n === 'music' || n === 'arts' || n === 'physicaleducation' || n === 'health' || n === 'pe'
             );
         });
 
@@ -1005,8 +1035,10 @@ function computeStudentGrades(
             if (normalizedTarget.includes('edukasyonsapagpapakatao') && (normalizedDb === 'values' || normalizedDb.includes('valueseducation'))) return true;
             
             // MAPEH Component fuzzy matches
-            if (normalizedTarget.includes('musicandarts') && (normalizedDb.includes('musicandarts') || normalizedDb.includes('musicarts'))) return true;
-            if (normalizedTarget.includes('physicaleducationandhealth') && (normalizedDb.includes('physicaleducation') || normalizedDb.includes('peandhealth') || normalizedDb.includes('pehealth'))) return true;
+            if ((normalizedTarget.includes('musicandarts') || normalizedTarget === 'musicarts') && 
+                (normalizedDb.includes('musicandarts') || normalizedDb.includes('musicarts') || normalizedDb === 'music' || normalizedDb === 'arts')) return true;
+            if ((normalizedTarget.includes('physicaleducationandhealth') || normalizedTarget === 'peandhealth' || normalizedTarget === 'pehealth') && 
+                (normalizedDb.includes('physicaleducation') || normalizedDb.includes('peandhealth') || normalizedDb.includes('pehealth') || normalizedDb === 'health' || normalizedDb === 'pe')) return true;
             
             return false;
         });
@@ -2285,6 +2317,10 @@ export function SF9Page() {
 
     const [selectedSection, setSelectedSection] = useState('');
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+    const [selectedStudentB, setSelectedStudentB] = useState<Student | null>(null);
+    const [selectedTemplate, setSelectedTemplate] = useState<'template1' | 'template2'>(() => {
+        return (localStorage.getItem('formease-sf9-template') as 'template1' | 'template2') || 'template2';
+    });
     const [pageSize, setPageSize] = useState<'A4' | 'LETTER'>('A4');
     const [isValuesModalOpen, setIsValuesModalOpen] = useState(false);
     const [modalQuarter, setModalQuarter] = useState<1 | 2 | 3>(1);
@@ -2297,6 +2333,8 @@ export function SF9Page() {
     const [isPending] = useTransition();
     const [isLayoutModalOpen, setIsLayoutModalOpen] = useState(false);
     const [layoutModalInitialTab, setLayoutModalInitialTab] = useState<'subjects' | 'signatures'>('subjects');
+    const [isSyncingFromGrading, setIsSyncingFromGrading] = useState(false);
+    const [syncVersion, setSyncVersion] = useState(0);
 
     // Local Signature Preview States
     const [showAdviserSig, setShowAdviserSig] = useState(true);
@@ -2597,11 +2635,14 @@ export function SF9Page() {
                 ...selectedSectionObj,
                 section_metadata: {
                     ...selectedSectionObj.section_metadata,
-                    sf9SubjectSelections: selections,
+                    sf9SubjectSelections: Object.keys(selections).length > 0 ? selections : undefined,
                     sf9SignatureSettings: sigSettings
                 }
             };
             await useAppStore.getState().updateSection(updatedSection);
+
+            // Force visual re-render with updated syncVersion
+            setSyncVersion(v => v + 1);
 
             // Immediately update local signature states to the saved values
             // so the PDF preview reflects the new settings without a reload.
@@ -2655,9 +2696,10 @@ export function SF9Page() {
     const females = useMemo(() => sectionStudents.filter(s => s.gender === 'Female').sort((a, b) => a.last_name.localeCompare(b.last_name)), [sectionStudents]);
 
     const studentGrades = useMemo(() => {
+        void syncVersion;
         if (!selectedStudent || !selectedSectionObj) return { subjects: [], grades: {} };
         return computeStudentGrades(selectedStudent, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
-    }, [selectedStudent, selectedSectionObj, gradingSheetRecords, activeSchoolYear, subjects, schoolProfile, currentSubjectSelections]);
+    }, [selectedStudent, selectedSectionObj, gradingSheetRecords, activeSchoolYear, subjects, schoolProfile, currentSubjectSelections, syncVersion]);
 
     // Automatically resolve default suggestion tone from student grades when modal state changes
     useEffect(() => {
@@ -2697,6 +2739,48 @@ export function SF9Page() {
         const getQComment = (q: number) => observedValues.find(v => v.student_lrn === selectedStudent.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
         const studentComments = [getQComment(1), getQComment(2), getQComment(3)];
 
+        if (selectedTemplate === 'template2') {
+            const learnerA: SF9Template2LearnerData = {
+                student: selectedStudent,
+                grades: studentGrades.grades || {},
+                subjects: subjects.filter(s => s.section_id === selectedSectionObj?.id),
+                comments: studentComments,
+                attendance,
+            };
+
+            let learnerB: SF9Template2LearnerData | null = null;
+            if (selectedStudentB && selectedSectionObj) {
+                const attendanceB = computeStudentAttendance(selectedStudentB, sf2Sheets, activeSchoolYear, selectedSectionObj, attendanceRecords);
+                const getQCommentB = (q: number) => observedValues.find(v => v.student_lrn === selectedStudentB.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
+                const studentCommentsB = [getQCommentB(1), getQCommentB(2), getQCommentB(3)];
+                const studentGradesB = computeStudentGrades(selectedStudentB, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
+
+                learnerB = {
+                    student: selectedStudentB,
+                    grades: studentGradesB.grades || {},
+                    subjects: subjects.filter(s => s.section_id === selectedSectionObj?.id),
+                    comments: studentCommentsB,
+                    attendance: attendanceB,
+                };
+            }
+
+            return (
+                <SF9Template2Document
+                    learnerA={learnerA}
+                    learnerB={learnerB}
+                    schoolProfile={schoolProfile}
+                    schoolYear={activeSchoolYear}
+                    section={resolvedSectionName}
+                    gradeLevel={selectedStudent.grade_level}
+                    adviser={adviserName}
+                    principal={schoolProfile.head_name || ''}
+                    principalTitle={schoolProfile.head_position || 'School Head'}
+                    pageSize={pageSize}
+                    logoUrl={schoolProfile.logo_url || ''}
+                />
+            );
+        }
+
         return (
             <SF9ExactDocument 
                 student={selectedStudent} 
@@ -2734,7 +2818,7 @@ export function SF9Page() {
                 hideHeadName={hideHeadName}
             />
         );
-    }, [selectedStudent, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, g1RemarksState, observedValues, sf2Sheets, attendanceRecords, pageSize, sections, printMode, showAdviserSig, showHeadSig, adviserSigWidth, adviserSigHeight, adviserSigOffset, headSigWidth, headSigHeight, headSigOffset, hideLearnerInfo, hideAttendance, hideGrades, hideAdviserName, hideHeadName]);
+    }, [selectedStudent, selectedStudentB, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, g1RemarksState, observedValues, sf2Sheets, attendanceRecords, pageSize, sections, printMode, showAdviserSig, showHeadSig, adviserSigWidth, adviserSigHeight, adviserSigOffset, headSigWidth, headSigHeight, headSigOffset, hideLearnerInfo, hideAttendance, hideGrades, hideAdviserName, hideHeadName, selectedTemplate, subjects, currentSubjectSelections, gradingSheetRecords]);
 
     const handleCloseLayoutModal = () => {
         if (selectedSectionObj) {
@@ -2757,6 +2841,97 @@ export function SF9Page() {
         }
         setIsLayoutModalOpen(false);
     };
+
+    const handleSyncFromGradeManagement = useCallback(async () => {
+        if (!selectedSectionObj) {
+            useAppStore.getState().showNotification('Please select a section to sync.', 'info');
+            return;
+        }
+
+        setIsSyncingFromGrading(true);
+        try {
+            // 1. Fetch fresh grading records, class records, sections, and subjects directly from IndexedDB
+            const [freshGradingRecords, freshClassRecords, freshSections, freshRawSubjects] = await Promise.all([
+                db.getAllRecords<ClassRecord>('gradingSheetRecords'),
+                db.getAllRecords<ClassRecord>('classRecords'),
+                db.getAllRecords<Section>('sections'),
+                db.getAllRecords<Subject>('subjects')
+            ]);
+
+            const freshSubjects: Subject[] = freshRawSubjects.map(s => ({
+                ...s,
+                term: s.term !== undefined && s.term !== null ? s.term : getDefaultTermForSubject(s.subject_name, s.grade_level)
+            }));
+
+            // Update app store state so all components immediately have the latest records
+            useAppStore.setState({
+                gradingSheetRecords: freshGradingRecords,
+                classRecords: freshClassRecords,
+                sections: freshSections,
+                subjects: freshSubjects
+            });
+
+            // 2. Find the current section from fresh sections
+            const latestSection = freshSections.find(s => s.id === selectedSectionObj.id) || selectedSectionObj;
+
+            // 3. Synchronize subject order & custom layout:
+            // Reset static slot overrides so SF9 dynamically adopts Grade Management's taught_subjects and ordering
+            const currentTaught = latestSection.taught_subjects || [];
+
+            if (latestSection.section_metadata?.sf9SubjectSelections) {
+                const updatedSection = {
+                    ...latestSection,
+                    section_metadata: {
+                        ...latestSection.section_metadata,
+                        sf9SubjectSelections: undefined
+                    }
+                };
+                await useAppStore.getState().updateSection(updatedSection);
+            }
+
+            // 4. Force re-calculation by incrementing syncVersion
+            setSyncVersion(v => v + 1);
+
+            // 5. Count total synchronized grades for this section
+            const sectionGradesCount = freshGradingRecords.filter(r =>
+                (r.section_id === latestSection.id || r.section_id === latestSection.section_name) &&
+                (!activeSchoolYear || !r.school_year || r.school_year === activeSchoolYear) &&
+                Number(r.final_grade) > 0
+            ).length;
+
+            // 6. Calculate official learning areas count (combining MAPEH components into 1 official subject for Grades 1-10)
+            const sectionGradeNum = parseInt((latestSection.section_grade_level || '').replace(/\D/g, '')) || 0;
+            const isSHS = sectionGradeNum === 11 || sectionGradeNum === 12;
+
+            const isMapehComp = (name: string) => {
+                const n = name.toLowerCase().replace(/[^a-z]/g, '');
+                return (
+                    n.includes('musicandarts') || n.includes('musicarts') || (n.includes('music') && n.includes('arts')) ||
+                    n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth') ||
+                    n === 'music' || n === 'arts' || n === 'pe' || n === 'health'
+                );
+            };
+
+            let officialSubjectCount = currentTaught.length;
+            if (!isSHS && currentTaught.length > 0) {
+                const hasMapehOrComponents = currentTaught.some(s => s.trim().toUpperCase() === 'MAPEH' || isMapehComp(s));
+                const nonMapehTaught = currentTaught.filter(s => s.trim().toUpperCase() !== 'MAPEH' && !isMapehComp(s));
+                officialSubjectCount = nonMapehTaught.length + (hasMapehOrComponents ? 1 : 0);
+            }
+
+            const subjectCount = officialSubjectCount > 0 ? officialSubjectCount : (currentTaught.length > 0 ? currentTaught.length : 'curriculum');
+
+            useAppStore.getState().showNotification(
+                `Successfully synced subjects and grades from Grade Management! (${subjectCount} subjects, ${sectionGradesCount} grades loaded)`,
+                'success'
+            );
+        } catch (error) {
+            console.error('Failed to sync SF9 from Grade Management:', error);
+            useAppStore.getState().showNotification('Failed to sync from Grade Management. Please try again.', 'error');
+        } finally {
+            setIsSyncingFromGrading(false);
+        }
+    }, [selectedSectionObj, activeSchoolYear]);
 
     const handlePrint = useCallback(async () => {
         if (!selectedStudent || !singleDocument || isShsSf9Section) return;
@@ -2824,6 +2999,44 @@ export function SF9Page() {
                 useAppStore.getState().showNotification('No students found to generate.', 'error');
                 setIsGeneratingBatch(false);
                 setBatchProgress(0);
+                return;
+            }
+
+            if (selectedTemplate === 'template2') {
+                const learnersData: SF9Template2LearnerData[] = sortedStudents.map((st) => {
+                    const { grades: stGrades } = computeStudentGrades(st, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
+                    const stAttendance = computeStudentAttendance(st, sf2Sheets, activeSchoolYear, selectedSectionObj, attendanceRecords);
+                    const getQComment = (q: number) => observedValues.find(v => v.student_lrn === st.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
+                    return {
+                        student: st,
+                        grades: stGrades,
+                        subjects: subjects.filter(s => s.section_id === selectedSectionObj?.id),
+                        comments: [getQComment(1), getQComment(2), getQComment(3)],
+                        attendance: stAttendance,
+                    };
+                });
+
+                const batchDoc = (
+                    <SF9Template2BatchDocument
+                        learners={learnersData}
+                        schoolProfile={schoolProfile}
+                        schoolYear={activeSchoolYear}
+                        section={selectedSectionObj.section_name}
+                        gradeLevel={selectedSectionObj.section_grade_level}
+                        adviser={adviserName}
+                        principal={schoolProfile.head_name || ''}
+                        principalTitle={schoolProfile.head_position || 'School Head'}
+                        pageSize={pageSize}
+                        logoUrl={schoolProfile.logo_url || ''}
+                    />
+                );
+
+                const { pdf: renderPdf } = await import('@react-pdf/renderer');
+                const blob = await renderPdf(batchDoc).toBlob();
+                const url = URL.createObjectURL(blob);
+                setBatchBlobUrl(url);
+                setBatchProgress(100);
+                setShowCompletionModal(true);
                 return;
             }
 
@@ -3217,7 +3430,7 @@ export function SF9Page() {
              {/* Sticky Premium Top Toolbar */}
              <div className="z-20 bg-white/80 dark:bg-[#0d1225]/90 backdrop-blur-2xl border-b border-slate-200/70 dark:border-white/10 shadow-[0_4px_20px_rgba(15,23,42,0.04)] relative print:hidden shrink-0 w-full">
                 <div className="absolute top-0 left-0 right-0 h-0.5 bg-linear-to-r from-blue-500 via-indigo-500 to-cyan-500 z-30" />
-                <div className="flex items-center justify-between w-full h-13 px-2.5 sm:px-4 gap-1.5 sm:gap-2 select-none">
+                <div className="flex items-center justify-between w-full h-11 px-2 sm:px-3 gap-1 sm:gap-1.5 select-none overflow-x-auto custom-scrollbar">
                     
                     {/* Identity & Context (Left) */}
                     <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 min-w-0">
@@ -3232,18 +3445,19 @@ export function SF9Page() {
                         {!isBatchReady && (
                             <div className="relative group shrink-0">
                                 <select 
-                                    className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-2 pr-6 text-[9.5px] font-bold text-slate-900 dark:text-white outline-none focus:ring-1.5 focus:ring-blue-500/30 focus:border-blue-500 cursor-pointer max-w-32.5 sm:max-w-38.75 lg:max-w-43.75 truncate"
+                                    className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-2 pr-5 text-[9px] font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500/30 focus:border-blue-500 cursor-pointer max-w-28 sm:max-w-34 lg:max-w-40 truncate"
                                     value={selectedSection}
                                     onChange={(e) => {
                                         setSelectedSection(e.target.value);
                                         setSelectedStudent(null);
+                                        setSelectedStudentB(null);
                                     }}
                                     title="Select Advisory Section"
                                 >
                                     <option value="">Select Section</option>
                                     {filteredSections.map(s => (
                                         <option key={s.id} value={s.id}>
-                                            {s.section_grade_level} - {s.section_name}
+                                             {s.section_grade_level} - {s.section_name}
                                         </option>
                                     ))}
                                 </select>
@@ -3251,24 +3465,74 @@ export function SF9Page() {
                             </div>
                         )}
 
+                        {/* Template Dropdown */}
+                        <div className="relative group shrink-0">
+                            <select
+                                className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-2 pr-5 text-[9px] font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500/30 focus:border-blue-500 cursor-pointer w-23 sm:w-25 truncate"
+                                value={selectedTemplate}
+                                onChange={(e) => {
+                                    const val = e.target.value as 'template1' | 'template2';
+                                    setSelectedTemplate(val);
+                                    localStorage.setItem('formease-sf9-template', val);
+                                }}
+                                title="Choose SF9 Report Card Template"
+                            >
+                                <option value="template1">Template</option>
+                                <option value="template2">Template 2</option>
+                            </select>
+                            <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        </div>
+
+                        {/* Learner 1 (Left Copy) Dropdown */}
                         {!isBatchReady && (
                             <div className="relative group shrink-0">
                                 <select 
-                                    className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-2 pr-6 text-[9.5px] font-bold text-slate-900 dark:text-white outline-none focus:ring-1.5 focus:ring-blue-500/30 focus:border-blue-500 cursor-pointer max-w-35 sm:max-w-42.5 lg:max-w-50 truncate disabled:opacity-30"
+                                    className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-2 pr-5 text-[9px] font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500/30 focus:border-blue-500 cursor-pointer max-w-28 sm:max-w-34 lg:max-w-40 truncate disabled:opacity-30"
                                     value={selectedStudent?.lrn || ''}
                                     onChange={(e) => setSelectedStudent(students.find(s => s.lrn === e.target.value) || null)}
                                     disabled={!selectedSection || isShsSf9Section}
-                                    title="Select Learner"
+                                    title={selectedTemplate === 'template2' ? "Select 1st Copy Learner (Left Side)" : "Select Learner"}
                                 >
-                                    <option value="">{isShsSf9Section ? 'Template Locked' : 'Select Learner'}</option>
+                                    <option value="">{isShsSf9Section ? 'Template Locked' : (selectedTemplate === 'template2' ? 'Copy 1 (Left)' : 'Select Learner')}</option>
                                     {males.length > 0 && (
                                         <optgroup label="MALE">
-                                            {males.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
+                                             {males.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
                                         </optgroup>
                                     )}
                                     {females.length > 0 && (
                                         <optgroup label="FEMALE">
-                                            {females.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
+                                             {females.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
+                                        </optgroup>
+                                    )}
+                                </select>
+                                <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            </div>
+                        )}
+
+                        {/* Learner 2 (Right Copy) Dropdown - Template 2 Only */}
+                        {selectedTemplate === 'template2' && !isBatchReady && (
+                            <div className="relative group shrink-0">
+                                <select 
+                                    className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-2 pr-5 text-[9px] font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500/30 focus:border-blue-500 cursor-pointer max-w-28 sm:max-w-34 lg:max-w-40 truncate disabled:opacity-30"
+                                    value={selectedStudentB?.lrn || ''}
+                                    onChange={(e) => {
+                                        const lrn = e.target.value;
+                                        setSelectedStudentB(students.find(s => s.lrn === lrn) || null);
+                                    }}
+                                    disabled={!selectedSection || !selectedStudent || isShsSf9Section}
+                                    title="Select 2nd Copy Learner (Right Side)"
+                                >
+                                    <option value="">
+                                        {selectedStudent ? `Copy 2: Same (${selectedStudent.last_name})` : 'Copy 2 (Right)'}
+                                    </option>
+                                    {males.length > 0 && (
+                                        <optgroup label="MALE">
+                                             {males.map(s => <option key={s.lrn} value={s.lrn}>2: {s.last_name}, {s.first_name}</option>)}
+                                        </optgroup>
+                                    )}
+                                    {females.length > 0 && (
+                                        <optgroup label="FEMALE">
+                                             {females.map(s => <option key={s.lrn} value={s.lrn}>2: {s.last_name}, {s.first_name}</option>)}
                                         </optgroup>
                                     )}
                                 </select>
@@ -3284,7 +3548,7 @@ export function SF9Page() {
                                 <select
                                     value={printMode}
                                     onChange={(e) => setPrintMode(e.target.value as SF9PrintMode)}
-                                    className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-2 pr-5 text-[9px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+                                    className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-1.5 pr-4 text-[8.5px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
                                     title="Report Term Filter"
                                 >
                                     <option value="full">Full Report</option>
@@ -3292,7 +3556,7 @@ export function SF9Page() {
                                     <option value="term2">Term 2</option>
                                     <option value="term3">Term 3</option>
                                 </select>
-                                <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" />
                             </div>
                         )}
 
@@ -3300,7 +3564,7 @@ export function SF9Page() {
                             <select
                                 value={pageSize}
                                 onChange={(e) => setPageSize(e.target.value as 'A4' | 'LETTER')}
-                                className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-1.5 pr-4.5 text-[9px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer w-14"
+                                className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-1.5 pr-4 text-[8.5px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer w-13"
                                 title="Page Size"
                             >
                                 <option value="A4">A4</option>
@@ -3309,15 +3573,43 @@ export function SF9Page() {
                             <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" />
                         </div>
 
+                        {/* Portrait 2-Up Badge for Template 2 */}
+                        {selectedTemplate === 'template2' && (
+                            <div
+                                className="h-7.5 px-2 rounded-lg border text-[8px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0 bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800"
+                                title="Template 2 renders in 2-Up Portrait format (Page 1: 2 Fronts, Page 2: 2 Backs - Duplex Aligned)"
+                            >
+                                <Layout className="w-3 h-3 text-blue-500" />
+                                <span>2-Up Portrait</span>
+                            </div>
+                        )}
+
                         {/* Layout Modal Button */}
                         <button
                             onClick={() => { setLayoutModalInitialTab('subjects'); setIsLayoutModalOpen(true); }}
-                            className="h-7.5 px-2 rounded-lg bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/15 hover:border-indigo-300 text-slate-700 dark:text-slate-200 text-[8.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1 shadow-xs shrink-0 active:scale-95"
+                            className="h-7.5 px-2 rounded-lg bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/15 hover:border-indigo-300 text-slate-700 dark:text-slate-200 text-[8px] font-black uppercase tracking-wider transition-all flex items-center gap-1 shadow-xs shrink-0 active:scale-95"
                             title="SF9 Subject Order, Signatures & Display Options"
                         >
-                            <Settings2 className="w-3.5 h-3.5 text-indigo-500" />
+                            <Settings2 className="w-3 h-3 text-indigo-500" />
                             <span>Layout</span>
                         </button>
+
+                        {/* Sync from Grade Management Button (shown when no single document or in batch mode) */}
+                        {(!singleDocument || isBatchReady) && (
+                            <button
+                                onClick={handleSyncFromGradeManagement}
+                                disabled={isSyncingFromGrading}
+                                className={`h-7.5 px-2 rounded-lg border text-[8px] font-black uppercase tracking-wider transition-all flex items-center gap-1 shadow-xs shrink-0 active:scale-95 cursor-pointer ${
+                                    isSyncingFromGrading
+                                        ? 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-white/5 dark:text-slate-500 dark:border-white/10 cursor-wait'
+                                        : 'bg-white dark:bg-white/10 border-slate-200 dark:border-white/10 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-300 text-slate-700 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-300'
+                                }`}
+                                title="Sync subjects and grades based on Grade Management"
+                            >
+                                <RefreshCcw className={`w-3 h-3 text-emerald-600 dark:text-emerald-400 ${isSyncingFromGrading ? 'animate-spin' : ''}`} />
+                                <span>{isSyncingFromGrading ? 'Syncing...' : 'Sync'}</span>
+                            </button>
+                        )}
                     </div>
 
                     {/* Data and Actions (Right) */}
@@ -3325,11 +3617,11 @@ export function SF9Page() {
                         {selectedStudent && !isBatchReady && !isShsSf9Section && !isGrade1Level(selectedStudent.grade_level) && (
                             <button
                                 onClick={() => { setPendingChanges({}); setIsValuesModalOpen(true); }}
-                                className="h-7.5 px-2 rounded-lg bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 text-[8.5px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center gap-1 shadow-xs shrink-0 active:scale-95"
+                                className="h-7.5 px-2 rounded-lg bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 text-[8px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center gap-1 shadow-xs shrink-0 active:scale-95"
                                 title="Edit Core Values & General Average Remarks"
                             >
                                 <Edit3 className="w-3 h-3 text-blue-500" />
-                                <span className="hidden xl:inline">{isGrade1to10 ? 'Remarks' : 'Values'}</span>
+                                <span className="hidden sm:inline">{isGrade1to10 ? 'Remarks' : 'Values'}</span>
                             </button>
                         )}
 
@@ -3337,7 +3629,7 @@ export function SF9Page() {
                             <div className="flex items-center bg-slate-100 dark:bg-white/10 p-0.5 rounded-lg border border-slate-200 dark:border-white/10 shrink-0 h-7.5">
                                 <button
                                     onClick={handleSpeak}
-                                    className={`h-full px-1.5 rounded-md flex items-center gap-1 text-[9px] font-black transition-all ${isSpeaking ? 'bg-red-500 text-white animate-pulse' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'}`}
+                                    className={`h-full px-1 rounded-md flex items-center gap-1 text-[8.5px] font-black transition-all ${isSpeaking ? 'bg-red-500 text-white animate-pulse' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'}`}
                                     title={isSpeaking ? "Stop Reading" : `Read Grades Aloud (${speechRate}x)`}
                                 >
                                     {isSpeaking ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
@@ -3345,7 +3637,7 @@ export function SF9Page() {
                                 <select
                                     value={speechRate}
                                     onChange={(e) => setSpeechRate(Number(e.target.value))}
-                                    className="bg-transparent text-[8.5px] font-black text-slate-500 dark:text-slate-400 outline-none cursor-pointer pr-1"
+                                    className="bg-transparent text-[8px] font-black text-slate-500 dark:text-slate-400 outline-none cursor-pointer pr-0.5"
                                     title="Speech Rate"
                                 >
                                     <option value="1">1x</option>
@@ -3361,14 +3653,14 @@ export function SF9Page() {
                             <button
                                 onClick={() => setIsBatchReady(false)}
                                 disabled={isShsSf9Section}
-                                className={`px-2 h-full rounded-md text-[8px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 ${!isBatchReady ? 'bg-white dark:bg-white/20 text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500 dark:text-slate-400'}`}
+                                className={`px-1.5 h-full rounded-md text-[7.5px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 ${!isBatchReady ? 'bg-white dark:bg-white/20 text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500 dark:text-slate-400'}`}
                             >
                                 Indiv
                             </button>
                             <button
                                 onClick={() => { setIsBatchReady(true); setSelectedStudent(null); }}
                                 disabled={isShsSf9Section}
-                                className={`px-2 h-full rounded-md text-[8px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 ${isBatchReady ? 'bg-white dark:bg-white/20 text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500 dark:text-slate-400'}`}
+                                className={`px-1.5 h-full rounded-md text-[7.5px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 ${isBatchReady ? 'bg-white dark:bg-white/20 text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500 dark:text-slate-400'}`}
                             >
                                 Batch
                             </button>
@@ -3382,7 +3674,7 @@ export function SF9Page() {
                                             setTempG1Remarks(g1RemarksState);
                                             setIsG1ModalOpen(true);
                                         }}
-                                        className="h-7.5 px-2.5 rounded-lg bg-purple-600 text-white font-black text-[8px] uppercase tracking-wider shadow-xs hover:bg-purple-700 active:scale-95 transition-all flex items-center gap-1 whitespace-nowrap shrink-0"
+                                        className="h-7.5 px-2 rounded-lg bg-purple-600 text-white font-black text-[8px] uppercase tracking-wider shadow-xs hover:bg-purple-700 active:scale-95 transition-all flex items-center gap-1 whitespace-nowrap shrink-0"
                                         title="Edit Grade 1 Learner Progress"
                                     >
                                         <Edit3 className="w-3 h-3" />
@@ -3391,25 +3683,39 @@ export function SF9Page() {
                                 )}
                                 <button
                                     onClick={handlePrint}
-                                    className="h-7.5 px-2.5 sm:px-3 rounded-lg bg-blue-600 text-white font-black text-[8.5px] uppercase tracking-wider shadow-sm hover:bg-blue-700 active:scale-95 disabled:opacity-30 transition-all flex items-center gap-1 group whitespace-nowrap"
+                                    className="h-7.5 px-2 sm:px-2.5 rounded-lg bg-blue-600 text-white font-black text-[8px] uppercase tracking-wider shadow-sm hover:bg-blue-700 active:scale-95 disabled:opacity-30 transition-all flex items-center gap-1 group whitespace-nowrap"
+                                    title="Print Official SF9"
                                 >
                                     <Printer className="w-3 h-3" />
-                                    <span>Print SF9</span>
+                                    <span>Print</span>
                                 </button>
                                 <PDFDownloadLink
                                     document={singleDocument}
                                     fileName={`SF9_${selectedSectionObj?.section_name || 'Record'}_${selectedStudent?.last_name || 'Student'}_${activeSchoolYear}.pdf`}
-                                    className="h-7.5 w-7.5 rounded-lg bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 hover:text-slate-900 dark:hover:text-white border border-slate-200/60 dark:border-white/10 transition-all flex items-center justify-center shrink-0 active:scale-95"
+                                    className="h-7.5 w-7 rounded-lg bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 hover:text-slate-900 dark:hover:text-white border border-slate-200/60 dark:border-white/10 transition-all flex items-center justify-center shrink-0 active:scale-95"
                                     title="Download PDF"
                                 >
                                     <Download className="w-3 h-3" />
                                 </PDFDownloadLink>
                                 <button
                                     onClick={handleExcelExport}
-                                    className="h-7.5 w-7.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 hover:text-emerald-700 border border-emerald-200/60 dark:border-emerald-700/30 transition-all flex items-center justify-center shrink-0 active:scale-95"
+                                    className="h-7.5 w-7 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 hover:text-emerald-700 border border-emerald-200/60 dark:border-emerald-700/30 transition-all flex items-center justify-center shrink-0 active:scale-95"
                                     title="Export to Excel"
                                 >
                                     <FileSpreadsheet className="w-3 h-3" />
+                                </button>
+                                <button
+                                    onClick={handleSyncFromGradeManagement}
+                                    disabled={isSyncingFromGrading}
+                                    className={`h-7.5 px-2 rounded-lg border transition-all flex items-center gap-1 shrink-0 active:scale-95 text-[8px] font-black uppercase tracking-wider cursor-pointer ${
+                                        isSyncingFromGrading
+                                            ? 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-white/5 dark:text-slate-500 dark:border-white/10 cursor-wait'
+                                            : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 hover:text-emerald-700 border-emerald-200/60 dark:border-emerald-700/30'
+                                    }`}
+                                    title="Sync subjects and grades from Grade Management"
+                                >
+                                    <RefreshCcw className={`w-3 h-3 ${isSyncingFromGrading ? 'animate-spin' : ''}`} />
+                                    <span>{isSyncingFromGrading ? 'Syncing...' : 'Sync'}</span>
                                 </button>
                                 <button
                                     onClick={() => {
@@ -3420,11 +3726,11 @@ export function SF9Page() {
                                             }
                                         }));
                                     }}
-                                    className="h-7.5 px-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 hover:text-amber-700 border border-amber-200/60 dark:border-amber-700/30 transition-all flex items-center gap-1 shrink-0 active:scale-95 text-[9px] font-black uppercase tracking-wider cursor-pointer"
+                                    className="h-7.5 px-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 hover:text-amber-700 border border-amber-200/60 dark:border-amber-700/30 transition-all flex items-center gap-1 shrink-0 active:scale-95 text-[8px] font-black uppercase tracking-wider cursor-pointer"
                                     title="Inspect & Debug Grade Sync"
                                 >
                                     <Bug className="w-3 h-3" />
-                                    <span className="hidden xl:inline">Inspect Sync</span>
+                                    <span>Inspect</span>
                                 </button>
                             </div>
                         )}
@@ -3503,7 +3809,7 @@ export function SF9Page() {
                     ) : selectedStudent && singleDocument && !isBatchReady ? (
                         <div className="absolute inset-0 bg-white">
                             <PDFViewer 
-                                key={`${selectedStudent.lrn}_${selectedSectionObj?.id || ''}_${showAdviserSig}_${adviserSigWidth}_${adviserSigHeight}_${adviserSigOffset}_${showHeadSig}_${headSigWidth}_${headSigHeight}_${headSigOffset}_${hideLearnerInfo}_${hideAttendance}_${hideGrades}_${hideAdviserName}_${hideHeadName}_${printMode}_${pageSize}`}
+                                key={`${selectedStudent.lrn}_${selectedTemplate}_${selectedSectionObj?.id || ''}_${syncVersion}_${showAdviserSig}_${adviserSigWidth}_${adviserSigHeight}_${adviserSigOffset}_${showHeadSig}_${headSigWidth}_${headSigHeight}_${headSigOffset}_${hideLearnerInfo}_${hideAttendance}_${hideGrades}_${hideAdviserName}_${hideHeadName}_${printMode}_${pageSize}`}
                                 width="100%" 
                                 height="100%" 
                                 showToolbar={false} 
@@ -3564,7 +3870,9 @@ export function SF9Page() {
                                         </div>
                                         <div>
                                             <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Layout</div>
-                                            <div className="text-2xl font-black text-slate-900 text-nowrap">{pageSize === 'A4' ? 'A4' : 'Letter'} Landscape</div>
+                                            <div className="text-2xl font-black text-slate-900 text-nowrap">
+                                                {pageSize === 'A4' ? 'A4' : 'Letter'} {selectedTemplate === 'template2' ? 'Portrait' : 'Landscape'}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -3601,6 +3909,18 @@ export function SF9Page() {
                                     >
                                         <FileSpreadsheet className="w-4 h-4" />
                                         <span>Export Excel Batch</span>
+                                    </motion.button>
+
+                                    <motion.button
+                                        initial={{ y: 20, opacity: 0 }}
+                                        animate={{ y: 0, opacity: 1 }}
+                                        onClick={handleSyncFromGradeManagement}
+                                        disabled={isPending || isSyncingFromGrading}
+                                        className="px-7 py-3.5 rounded-xl text-slate-700 dark:text-slate-200 font-black text-[11px] uppercase tracking-[0.2em] shadow-lg bg-white dark:bg-white/10 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-700 dark:hover:text-emerald-300 border border-slate-200 dark:border-white/10 hover:border-emerald-300 hover:scale-105 active:scale-95 transition-all flex items-center gap-2.5 cursor-pointer"
+                                        title="Sync latest subjects and grades from Grade Management before batch generation"
+                                    >
+                                        <RefreshCcw className={`w-4 h-4 text-emerald-600 dark:text-emerald-400 ${isSyncingFromGrading ? 'animate-spin' : ''}`} />
+                                        <span>{isSyncingFromGrading ? 'Syncing...' : 'Sync From Grade Mgmt'}</span>
                                     </motion.button>
                                 </div>
                             )}
@@ -4530,7 +4850,22 @@ function SF9LayoutModal({
 
                 <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
                     {activeTab === 'subjects' ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                                <p className="text-[11px] text-slate-500 font-medium">
+                                    Assign custom slots or reset to follow Grade Management.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => setLocalSelections({})}
+                                    className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                                    title="Reset rows to dynamically follow Grade Management order"
+                                >
+                                    <RefreshCcw className="w-3 h-3" />
+                                    <span>Reset to Grade Mgmt</span>
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {Array.from({ length: 13 }).map((_, idx) => {
                                 const slotNum = idx;
                                 return (
@@ -4555,6 +4890,7 @@ function SF9LayoutModal({
                                     </div>
                                 );
                             })}
+                            </div>
                         </div>
                     ) : activeTab === 'signatures' ? (
                         <div className="space-y-8">

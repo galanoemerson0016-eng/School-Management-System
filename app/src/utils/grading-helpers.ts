@@ -5,9 +5,10 @@ import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet
 import { ACTIVE_TERMS } from '../lib/terms';
 import { isDescriptiveGrading, getSubjectCluster, getWeights, computeExamsWeightedScore, transmuteGrade, normalizeScores } from '../lib/grading';
 import { getCanonicalSubjectKey } from '../lib/subjectConfig';
+import { isGmrcVeSubject } from '../services/ecr-excel-export';
 import { useAppStore } from '../stores';
 
-function isQuarterMatch(recQuarter: unknown, targetQuarter: number): boolean {
+export function isQuarterMatch(recQuarter: unknown, targetQuarter: number): boolean {
     if (recQuarter === undefined || recQuarter === null || recQuarter === '') return false;
     const num = Number(recQuarter);
     if (!isNaN(num) && num === targetQuarter) return true;
@@ -18,8 +19,18 @@ function isQuarterMatch(recQuarter: unknown, targetQuarter: number): boolean {
 export function cleanSubjectQuery(input: string): string {
     if (!input) return '';
     let str = input.trim();
-    if (str.startsWith('virtual-')) {
-        str = str.substring(8);
+
+    // Detect opaque indexed subject IDs: subj-{section-id}-{index}
+    // These are auto-generated DB keys (e.g. "subj-sec-g5-rizal-3") that don't
+    // encode subject names. They must NOT be semantically matched because
+    // getCanonicalSubjectKey would strip the trailing index and treat ALL subjects
+    // in the same section as identical (e.g. Filipino, AP, EPP all become "subjsecg5rizal").
+    if (/^subj-.+-\d+$/.test(str)) {
+        return '';
+    }
+
+    if (str.startsWith('virtual-') || str.startsWith('virtual_')) {
+        str = str.replace(/^virtual[-_]/, '');
         const lastHyphen = str.lastIndexOf('-');
         if (lastHyphen > 0) {
             str = str.substring(0, lastHyphen);
@@ -105,6 +116,12 @@ export function isMatchingSubject(
         const otherNum = compareOther.match(/[1-4]/)?.[0] || '';
         if (targetNum || otherNum) {
             if (targetNum !== otherNum) return false;
+        } else {
+            // In Elementary & JHS (no 1-4 semester numbers):
+            // Dual "PE and Health" must not match individual "Physical Education" (without health)
+            const isDualTarget = (compareTarget.includes('physical') || compareTarget.includes('pe')) && compareTarget.includes('health');
+            const isDualOther = (compareOther.includes('physical') || compareOther.includes('pe')) && compareOther.includes('health');
+            if (isDualTarget !== isDualOther) return false;
         }
 
         // Distinct SSHS sports electives protection (e.g. Physical Education 1 (Fitness and Recreation))
@@ -134,6 +151,136 @@ export function isMatchingSubject(
     }
 
     return false;
+}
+
+/**
+ * Safely compares two subject records or subject representations (ID + Name)
+ * to determine if they refer to the exact same subject.
+ * Unlike isMatchingSubject(query, recordId, recordName), isSameSubject
+ * treats both Subject A and Subject B as peers and prevents false cross-subject matches.
+ */
+export function isSameSubject(
+    subIdA?: string,
+    subNameA?: string,
+    subIdB?: string,
+    subNameB?: string
+): boolean {
+    const idA = (subIdA || '').trim();
+    const nameA = (subNameA || '').trim();
+    const idB = (subIdB || '').trim();
+    const nameB = (subNameB || '').trim();
+
+    // Guard: Both must have at least one identifier
+    if (!idA && !nameA) return false;
+    if (!idB && !nameB) return false;
+
+    // 1. Direct ID match (both non-empty and identical)
+    if (idA && idB && idA === idB) return true;
+
+    // 2. Direct name match (exact or normalized alphanumeric)
+    if (nameA && nameB) {
+        if (nameA.toLowerCase() === nameB.toLowerCase()) return true;
+        const normNameA = nameA.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const normNameB = nameB.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (normNameA && normNameB && normNameA === normNameB) return true;
+    }
+
+    // 3. Normalized Cleaned ID match (e.g. virtual-filipino-sec-g5 vs virtual-filipino-sec-other)
+    const cleanedIdA = cleanSubjectQuery(idA).toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanedIdB = cleanSubjectQuery(idB).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (cleanedIdA && cleanedIdB && cleanedIdA === cleanedIdB) return true;
+
+    // 4. Match using isMatchingSubject query checks:
+    // Try Querying B with A's name, then A's ID
+    if (nameA && isMatchingSubject(nameA, idB, nameB)) return true;
+    if (idA && isMatchingSubject(idA, idB, nameB)) return true;
+
+    // Try Querying A with B's name, then B's ID
+    if (nameB && isMatchingSubject(nameB, idA, nameA)) return true;
+    if (idB && isMatchingSubject(idB, idA, nameA)) return true;
+
+    return false;
+}
+
+/**
+ * Determines whether a subject is part of the teacher's active teaching load in a given section.
+ * - If section.teaching_subjects is defined and has subjects, only those subjects (and subcomponents for MAPEH/ECMK)
+ *   are in the teacher's personal teaching load.
+ * - If section.teaching_subjects is defined and empty ([]), the teacher has NO teaching load in this section
+ *   (i.e. pure adviser; all subjects belong to other subject teachers and are manually input).
+ * - If section.subject_name is set (legacy single/comma-separated teaching load), matches against it.
+ * - If section.teaching_subjects is undefined (legacy unmigrated section), checks if there are active classRecords
+ *   belonging to that subject in the section.
+ */
+export function isSubjectInTeachingLoad(
+    subject: { id?: string; subject_name?: string; code?: string; name?: string } | string,
+    section: Section | null | undefined,
+    classRecords?: ClassRecord[]
+): boolean {
+    if (!section) return false;
+
+    const subjectName = typeof subject === 'string'
+        ? subject
+        : (subject.subject_name || subject.name || '');
+    const subjectId = typeof subject === 'string'
+        ? subject
+        : (subject.id || '');
+    const normSub = (subjectName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // 1. Explicit teaching_subjects configuration on the section
+    if (section.teaching_subjects !== undefined) {
+        if (section.teaching_subjects.length === 0) {
+            // Explicitly empty: adviser teaches NO subjects in this section
+            return false;
+        }
+
+        return section.teaching_subjects.some(t => {
+            const normT = (t || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (!normT) return false;
+            if (normT === normSub || normT.includes(normSub) || normSub.includes(normT)) return true;
+            if (isMatchingSubject(t, subjectId, subjectName)) return true;
+
+            // MAPEH composite & components matching:
+            // If teaching MAPEH, then Music & Arts, PE & Health, and components are included
+            if (normT === 'mapeh') {
+                return normSub.includes('music') || normSub.includes('arts') || 
+                       normSub.includes('pe') || normSub.includes('health') || 
+                       normSub.includes('physical');
+            }
+            // If teaching Music and Arts or PE & Health, MAPEH composite is partially in load
+            if (normSub === 'mapeh') {
+                return normT.includes('music') || normT.includes('arts') || 
+                       normT.includes('pe') || normT.includes('health') || 
+                       normT.includes('physical');
+            }
+            // Effective Communication / Mabisang Komunikasyon matching:
+            if (normT.includes('effectivecommunication') && normSub.includes('effectivecommunication')) return true;
+            if (normT.includes('mabisangkomunikasyon') && normSub.includes('mabisangkomunikasyon')) return true;
+
+            return false;
+        });
+    }
+
+    // 2. Legacy section.subject_name
+    if (section.subject_name) {
+        const parts = section.subject_name.split(',').map(s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
+        if (parts.some(p => p && (p === normSub || p.includes(normSub) || normSub.includes(p)))) {
+            return true;
+        }
+    }
+
+    // 3. Fallback if teaching_subjects is completely undefined (legacy unmigrated section):
+    // Check if the teacher has any classRecords for this section and subject
+    if (classRecords && classRecords.length > 0) {
+        return classRecords.some(r =>
+            r.section_id === section.id &&
+            isSameSubject(r.subject_id, r.subject_name, subjectId, subjectName) &&
+            (Number(r.final_grade) > 0 || (r.written_works && r.written_works.length > 0) || (r.performance_tasks && r.performance_tasks.length > 0))
+        );
+    }
+
+    // Default for advisory when teaching_subjects is not set at all and no records:
+    return true;
 }
 
 /**
@@ -198,7 +345,7 @@ export function resolveStudentQuarterGrade(
     const studentGradingRecords = gradingSheetRecords.filter(r => r.student_lrn === studentLrn || String(r.student_lrn).trim() === normLrn);
 
     // Fast exit if student has no records and not a composite parent
-    const isCompositeCandidate = depth === 0 && (
+    const isCompositeCandidate = depth <= 1 && (
         normTarget === 'mapeh' ||
         normTarget.includes('musicandarts') || normTarget === 'musicarts' ||
         normTarget.includes('physicaleducationandhealth') || normTarget === 'peandhealth' || normTarget === 'pehealth' ||
@@ -229,6 +376,7 @@ export function resolveStudentQuarterGrade(
     }
 
     const isSubjectMatch = (rSubId: string, rSubName?: string) => {
+        if (isSameSubject(subjectIdOrName, resolvedSubjectName, rSubId, rSubName)) return true;
         return isMatchingSubject(subjectIdOrName, rSubId, rSubName, resolvedSubjectName);
     };
 
@@ -241,6 +389,61 @@ export function resolveStudentQuarterGrade(
         );
     }
 
+    // Priority 1: Check gradingSheetRecords (Official consolidated grades from Grade Management)
+    let gRecord = studentGradingRecords.find(r =>
+        r.subject_id === subjectIdOrName &&
+        isQuarterMatch(r.quarter, quarter) &&
+        (!schoolYear || !r.school_year || r.school_year === schoolYear || r.school_year.includes(schoolYear) || schoolYear.includes(r.school_year || ''))
+    );
+
+    if (!gRecord) {
+        gRecord = studentGradingRecords.find(r =>
+            isSubjectMatch(r.subject_id, r.subject_name) &&
+            isQuarterMatch(r.quarter, quarter) &&
+            (!schoolYear || !r.school_year || r.school_year === schoolYear || r.school_year.includes(schoolYear) || schoolYear.includes(r.school_year || ''))
+        );
+    }
+
+    if (gRecord && gRecord.final_grade && Number(gRecord.final_grade) > 0) {
+        return Number(gRecord.final_grade);
+    }
+
+    // Priority 2: Check classRecords for saved transmuted final_grade (Authoritative from E-Class Record)
+    if (cRecord && cRecord.final_grade && Number(cRecord.final_grade) > 0) {
+        // Ghost record protection: If score containers exist (written_works, performance_tasks, quarterly_exam, summative_tests),
+        // verify that the record actually contains at least one encoded score. In DepEd E-Class Records, a quarterly grade
+        // cannot exist without raw scores. An empty score container with a non-zero final_grade is a headless/ghost record.
+        const hasScoreContainers =
+            cRecord.written_works !== undefined ||
+            cRecord.performance_tasks !== undefined ||
+            cRecord.quarterly_exam !== undefined ||
+            (cRecord as ClassRecord & { summative_tests?: (number | string)[] }).summative_tests !== undefined;
+
+        if (hasScoreContainers) {
+            const isValidScore = (s: number | string | null | undefined) =>
+                s !== '' && s !== null && s !== undefined && !isNaN(Number(s));
+
+            const rawWw = Array.isArray(cRecord.written_works) ? cRecord.written_works : [];
+            const rawPt = Array.isArray(cRecord.performance_tasks) ? cRecord.performance_tasks : [];
+            const rawQa = cRecord.quarterly_exam;
+            const rawSt = (cRecord as ClassRecord & { summative_tests?: (number | string)[] }).summative_tests;
+
+            const hasAnyScores =
+                rawWw.some(isValidScore) ||
+                rawPt.some(isValidScore) ||
+                (isValidScore(rawQa) && Number(rawQa) > 0) ||
+                (Array.isArray(rawSt) && rawSt.some(isValidScore));
+
+            if (hasAnyScores) {
+                return Number(cRecord.final_grade);
+            }
+        } else {
+            // Minimal synthetic mock records in unit tests where score arrays weren't defined
+            return Number(cRecord.final_grade);
+        }
+    }
+
+    // Priority 3: Fallback calculation from raw scores + HPS (only if final_grade is missing or 0)
     if (cRecord) {
         // Collect all possible section identifiers for this record
         const targetSecTokens = new Set<string>();
@@ -333,12 +536,6 @@ export function resolveStudentQuarterGrade(
             const cluster = getSubjectCluster(subjectName, sectionGradeLevel, sectionTrack);
             const weights = getWeights(cluster, { subject_name: subjectName } as Subject);
 
-            const wwPS = wwTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (wwTotalScore / wwTotalHPS) * 100));
-            const ptPS = ptTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (ptTotalScore / ptTotalHPS) * 100));
-
-            const wwWS = wwPS * (weights.written_works || 0);
-            const ptWS = ptPS * (weights.performance_tasks || 0);
-
             const parseNumOrNull = (val: number | string | null | undefined): number | null => {
                 if (val === '' || val === null || val === undefined) return null;
                 const n = Number(val);
@@ -352,10 +549,58 @@ export function resolveStudentQuarterGrade(
             const teScore = parseNumOrNull(normQaScores[2]);
             const teHPS = Number(hps_qa[2]) || 0;
 
-            const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, cluster);
-            const qaWS = qaPS * (weights.quarterly_exam || 0);
+            const isGmrc = isGmrcVeSubject(subjectName);
 
-            const initialGrade = Math.min(100, Math.max(0, wwWS + ptWS + qaWS));
+            let initialGrade = 0;
+
+            if (isGmrc) {
+                // DepEd GMRC/VE Template 5-domain split matching ECR_Template_GMRC_VE_G2_G10.xlsx
+                const sWwCogTotal = rawWw.slice(0, 5).reduce<number>((a, b) => a + (isValidScore(b) ? Number(b) : 0), 0);
+                const hpsWwCogTotal = hps_ww.slice(0, 5).reduce((a, b) => a + b, 0);
+                const wwCogPS = hpsWwCogTotal === 0 ? 0 : Math.min(100, Math.max(0, (sWwCogTotal / hpsWwCogTotal) * 100));
+                const wwCogWS = wwCogPS * 0.10;
+
+                const sWwAffTotal = rawWw.slice(5, 10).reduce<number>((a, b) => a + (isValidScore(b) ? Number(b) : 0), 0);
+                const hpsWwAffTotal = hps_ww.slice(5, 10).reduce((a, b) => a + b, 0);
+                const wwAffPS = hpsWwAffTotal === 0 ? 0 : Math.min(100, Math.max(0, (sWwAffTotal / hpsWwAffTotal) * 100));
+                const wwAffWS = wwAffPS * 0.10;
+
+                const sPtCogTotal = rawPt.slice(0, 3).reduce<number>((a, b) => a + (isValidScore(b) ? Number(b) : 0), 0);
+                const hpsPtCogTotal = hps_pt.slice(0, 3).reduce((a, b) => a + b, 0);
+                const ptCogPS = hpsPtCogTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtCogTotal / hpsPtCogTotal) * 100));
+                const ptCogWS = ptCogPS * 0.10;
+
+                const sPtAffTotal = rawPt.slice(3, 6).reduce<number>((a, b) => a + (isValidScore(b) ? Number(b) : 0), 0);
+                const hpsPtAffTotal = hps_pt.slice(3, 6).reduce((a, b) => a + b, 0);
+                const ptAffPS = hpsPtAffTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtAffTotal / hpsPtAffTotal) * 100));
+                const ptAffWS = ptAffPS * 0.10;
+
+                const sPtBehTotal = rawPt.slice(6, 9).reduce<number>((a, b) => a + (isValidScore(b) ? Number(b) : 0), 0);
+                const hpsPtBehTotal = hps_pt.slice(6, 9).reduce((a, b) => a + b, 0);
+                const ptBehPS = hpsPtBehTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtBehTotal / hpsPtBehTotal) * 100));
+                const ptBehWS = ptBehPS * 0.30;
+
+                // DepEd Template: AQ19 (ST1 WS) + AR19 (ST2 WS) + AS19 (TE WS) = AT19 (Exam PS) -> AU19 = AT19 * 0.30
+                const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score)) ? (st1Score / st1HPS) * 30 : 0;
+                const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score)) ? (st2Score / st2HPS) * 30 : 0;
+                const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore)) ? (teScore / teHPS) * 40 : 0;
+                const qaPS = st1WS + st2WS + teWS;
+                const qaWS = qaPS * 0.30;
+
+                initialGrade = Math.min(100, Math.max(0, wwCogWS + wwAffWS + ptCogWS + ptAffWS + ptBehWS + qaWS));
+            } else {
+                const wwPS = wwTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (wwTotalScore / wwTotalHPS) * 100));
+                const ptPS = ptTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (ptTotalScore / ptTotalHPS) * 100));
+
+                const wwWS = wwPS * (weights.written_works || 0);
+                const ptWS = ptPS * (weights.performance_tasks || 0);
+
+                const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, cluster);
+                const qaWS = qaPS * (weights.quarterly_exam || 0);
+
+                initialGrade = Math.min(100, Math.max(0, wwWS + ptWS + qaWS));
+            }
+
             const hasHps = wwTotalHPS > 0 || ptTotalHPS > 0 || st1HPS > 0 || st2HPS > 0 || teHPS > 0;
 
             if (hasScores && hasHps) {
@@ -363,46 +608,41 @@ export function resolveStudentQuarterGrade(
                 if (transmuted > 0) return transmuted;
             }
         }
-
-        if (cRecord.final_grade && Number(cRecord.final_grade) > 0) {
-            return Number(cRecord.final_grade);
-        }
-    }
-
-    // 2. Check gradingSheetRecords (using student-scoped records)
-    let gRecord = studentGradingRecords.find(r =>
-        r.subject_id === subjectIdOrName &&
-        isQuarterMatch(r.quarter, quarter) &&
-        (!schoolYear || !r.school_year || r.school_year === schoolYear || r.school_year.includes(schoolYear) || schoolYear.includes(r.school_year || ''))
-    );
-
-    if (!gRecord) {
-        gRecord = studentGradingRecords.find(r =>
-            isSubjectMatch(r.subject_id, r.subject_name) &&
-            isQuarterMatch(r.quarter, quarter) &&
-            (!schoolYear || !r.school_year || r.school_year === schoolYear || r.school_year.includes(schoolYear) || schoolYear.includes(r.school_year || ''))
-        );
-    }
-
-    if (gRecord && gRecord.final_grade && Number(gRecord.final_grade) > 0) {
-        return Number(gRecord.final_grade);
     }
 
     // 3. Composite / Parent Subject Fallback (e.g. MAPEH, Music & Arts, PE & Health, EC/MK)
-    if (depth === 0) {
+    if (depth <= 1) {
         // MAPEH
         if (normTarget === 'mapeh') {
-            const ma = resolveStudentQuarterGrade(studentLrn, 'Music and Arts', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
-            const pe = resolveStudentQuarterGrade(studentLrn, 'Physical Education and Health', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
+            // First resolve Music & Arts
+            let ma = resolveStudentQuarterGrade(studentLrn, 'Music and Arts', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
+            if (ma === 0) {
+                const m = resolveStudentQuarterGrade(studentLrn, 'Music', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
+                const a = resolveStudentQuarterGrade(studentLrn, 'Arts', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
+                if (m > 0 && a > 0) ma = Math.round((m + a) / 2);
+                else if (m > 0) ma = m;
+                else if (a > 0) ma = a;
+            }
+
+            // Next resolve PE & Health
+            let pe = resolveStudentQuarterGrade(studentLrn, 'Physical Education and Health', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
+            if (pe === 0) {
+                const p = resolveStudentQuarterGrade(studentLrn, 'Physical Education', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
+                const h = resolveStudentQuarterGrade(studentLrn, 'Health', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
+                if (p > 0 && h > 0) pe = Math.round((p + h) / 2);
+                else if (p > 0) pe = p;
+                else if (h > 0) pe = h;
+            }
+
             if (ma > 0 && pe > 0) return Math.round((ma + pe) / 2);
             if (ma > 0) return ma;
             if (pe > 0) return pe;
 
-            // Fallback for 4 separate MAPEH components (old curriculum)
-            const m = resolveStudentQuarterGrade(studentLrn, 'Music', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
-            const a = resolveStudentQuarterGrade(studentLrn, 'Arts', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
-            const p = resolveStudentQuarterGrade(studentLrn, 'Physical Education', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
-            const h = resolveStudentQuarterGrade(studentLrn, 'Health', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
+            // Fallback across all 4 individual components if neither half resolved cleanly
+            const m = resolveStudentQuarterGrade(studentLrn, 'Music', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
+            const a = resolveStudentQuarterGrade(studentLrn, 'Arts', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
+            const p = resolveStudentQuarterGrade(studentLrn, 'Physical Education', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
+            const h = resolveStudentQuarterGrade(studentLrn, 'Health', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
             const components = [m, a, p, h].filter(v => v > 0);
             if (components.length > 0) {
                 return Math.round(components.reduce((x, y) => x + y, 0) / components.length);
@@ -411,8 +651,8 @@ export function resolveStudentQuarterGrade(
 
         // Music and Arts composite from individual Music and Arts
         if (normTarget.includes('musicandarts') || normTarget === 'musicarts') {
-            const m = resolveStudentQuarterGrade(studentLrn, 'Music', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
-            const a = resolveStudentQuarterGrade(studentLrn, 'Arts', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
+            const m = resolveStudentQuarterGrade(studentLrn, 'Music', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
+            const a = resolveStudentQuarterGrade(studentLrn, 'Arts', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
             if (m > 0 && a > 0) return Math.round((m + a) / 2);
             if (m > 0) return m;
             if (a > 0) return a;
@@ -421,8 +661,8 @@ export function resolveStudentQuarterGrade(
         // Physical Education and Health composite from individual PE and Health (Elementary / JHS MAPEH only)
         const isSHSPEH = normTarget.includes('healthoptimizing') || normTarget.startsWith('hope') || /[1-4]$/.test(normTarget);
         if (!isSHSPEH && (normTarget.includes('physicaleducationandhealth') || normTarget === 'peandhealth' || normTarget === 'pehealth')) {
-            const p = resolveStudentQuarterGrade(studentLrn, 'Physical Education', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
-            const h = resolveStudentQuarterGrade(studentLrn, 'Health', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
+            const p = resolveStudentQuarterGrade(studentLrn, 'Physical Education', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
+            const h = resolveStudentQuarterGrade(studentLrn, 'Health', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
             if (p > 0 && h > 0) return Math.round((p + h) / 2);
             if (p > 0) return p;
             if (h > 0) return h;
@@ -430,8 +670,8 @@ export function resolveStudentQuarterGrade(
 
         // Effective Communication & Mabisang Komunikasyon
         if (normTarget.includes('effectivecommunication') && normTarget.includes('mabisangkomunikasyon')) {
-            const ec = resolveStudentQuarterGrade(studentLrn, 'Effective Communication', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
-            const mk = resolveStudentQuarterGrade(studentLrn, 'Mabisang Komunikasyon', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
+            const ec = resolveStudentQuarterGrade(studentLrn, 'Effective Communication', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
+            const mk = resolveStudentQuarterGrade(studentLrn, 'Mabisang Komunikasyon', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
             if (ec > 0 && mk > 0) return Math.round((ec + mk) / 2);
             if (ec > 0) return ec;
             if (mk > 0) return mk;

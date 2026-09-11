@@ -1,19 +1,20 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../stores';
 import { useAuthStore } from '../stores/auth-store';
 import { useSF10Store } from '../stores/sf10-store';
-import type { Student, Section } from '../types';
+import { db } from '../services/database';
+import type { Student, Section, Subject, ClassRecord } from '../types';
+import { getDefaultTermForSubject } from '../lib/curriculum';
 import SF10SpecRenderer from '../components/SF10SpecRenderer';
 import SF10JHSRenderer from '../components/SF10JHSRenderer';
 import { mapStudentToSpecData } from '../utils/sf10Mapper';
 import { mapStudentToShsSf10Data } from '../utils/shsSf10Mapper';
-import { ArrowLeft, Printer, FileText, Plus, Minus, History, ChevronDown, Clock3, Bug } from 'lucide-react';
+import { ArrowLeft, Printer, FileText, Plus, Minus, ChevronDown, Bug, RefreshCcw, Clock3 } from 'lucide-react';
 import { canAccessSF9Section, filterSF9Sections } from '../lib/rbac';
-import { SF10HistoricalDataModal } from '../components/SF10HistoricalDataModal';
 
 export function SF10Page() {
-    const { students, sections, subjects, gradingSheetRecords, teachers, schoolProfile, activeSchoolYear, setCurrentView } = useAppStore();
+    const { students, sections, subjects, gradingSheetRecords, classRecords, teachers, schoolProfile, activeSchoolYear, setCurrentView } = useAppStore();
     const { user } = useAuthStore();
     const { overrides, setOverride, clearOverrides } = useSF10Store();
     
@@ -21,11 +22,8 @@ export function SF10Page() {
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [zoom, setZoom] = useState(1);
-    const [showHistoricalModal, setShowHistoricalModal] = useState(false);
-
-
-
-
+    const [isSyncingFromGrading, setIsSyncingFromGrading] = useState(false);
+    const [syncVersion, setSyncVersion] = useState(0);
 
     const handlePrintSF10 = () => {
         if (!selectedStudent) return;
@@ -79,7 +77,6 @@ export function SF10Page() {
         return groups;
     }, [sortedSections]);
 
-
     const selectedSectionObj = useMemo(() => {
         return sections.find((s) => s.section_name === selectedSection || s.id === selectedSection);
     }, [sections, selectedSection]);
@@ -100,7 +97,8 @@ export function SF10Page() {
     }, [selectedStudent?.grade_level, selectedSectionObj?.section_grade_level]);
 
     const canEditCurrentSection = useMemo(() => {
-        if (!selectedSectionObj) return false;
+        if (!user) return false;
+        if (!selectedSectionObj) return true;
         return canAccessSF9Section(user, selectedSectionObj);
     }, [user, selectedSectionObj]);
 
@@ -116,6 +114,8 @@ export function SF10Page() {
     const studentKey = selectedStudent?.lrn || '';
 
     const specData = useMemo(() => {
+        // Re-evaluate whenever syncVersion changes after Grade Management sync
+        void syncVersion;
         const overrideKey = `${studentKey}_page_${currentPage}`;
         const currentOverrides = overrides[overrideKey] || {};
         if (!selectedStudent) return null;
@@ -129,6 +129,7 @@ export function SF10Page() {
             sections,
             teachers,
             gradingSheetRecords,
+            classRecords,
             subjects,
         }) : mapStudentToSpecData({
             student: selectedStudent,
@@ -137,6 +138,7 @@ export function SF10Page() {
             sections,
             teachers,
             gradingSheetRecords,
+            classRecords,
             subjects,
         });
         
@@ -170,7 +172,7 @@ export function SF10Page() {
 
         // Combine everything: prefer nested structure but fallback to flat keys for getVal compatibility
         return { ...mergedData, ...currentOverrides };
-    }, [selectedStudent, schoolProfile, activeSchoolYear, sections, teachers, gradingSheetRecords, subjects, overrides, studentKey, currentPage]);
+    }, [selectedStudent, schoolProfile, activeSchoolYear, sections, teachers, gradingSheetRecords, classRecords, subjects, overrides, studentKey, currentPage, syncVersion]);
 
     const handleCellUpdate = (path: string, value: string) => {
         if (!selectedStudent) return;
@@ -187,140 +189,236 @@ export function SF10Page() {
         }
     };
 
+    const handleSyncFromGradeManagement = useCallback(async () => {
+        if (!selectedSectionObj) {
+            useAppStore.getState().showNotification('Please select an advisory section first.', 'info');
+            return;
+        }
+
+        setIsSyncingFromGrading(true);
+        try {
+            // 1. Fetch fresh IndexedDB records directly into app state
+            const [freshGradingRecords, freshClassRecords, freshSections, freshRawSubjects] = await Promise.all([
+                db.getAllRecords<ClassRecord>('gradingSheetRecords'),
+                db.getAllRecords<ClassRecord>('classRecords'),
+                db.getAllRecords<Section>('sections'),
+                db.getAllRecords<Subject>('subjects')
+            ]);
+
+            const freshSubjects: Subject[] = (freshRawSubjects || []).map((s: Subject) => ({
+                ...s,
+                term: s.term !== undefined && s.term !== null ? s.term : getDefaultTermForSubject(s.subject_name, s.grade_level)
+            }));
+
+            // Update app store state so all components immediately have the latest records
+            useAppStore.setState({
+                gradingSheetRecords: freshGradingRecords || [],
+                classRecords: freshClassRecords || [],
+                sections: freshSections || [],
+                subjects: freshSubjects
+            });
+
+            // 2. Find the current section from fresh sections
+            const latestSection = (freshSections || []).find((s: Section) => s.id === selectedSectionObj.id) || selectedSectionObj;
+
+            // 3. Synchronize subject order & custom layout:
+            // Reset static slot overrides so SF10 dynamically adopts Grade Management's taught_subjects and ordering
+            const currentTaught = latestSection.taught_subjects || [];
+
+            if (latestSection.section_metadata?.sf10SubjectSelections) {
+                const updatedSection = {
+                    ...latestSection,
+                    section_metadata: {
+                        ...latestSection.section_metadata,
+                        sf10SubjectSelections: undefined
+                    }
+                };
+                await useAppStore.getState().updateSection(updatedSection);
+            }
+
+            // 4. Force re-calculation by incrementing syncVersion
+            setSyncVersion(v => v + 1);
+
+            // 5. Count total synchronized grades for this section
+            const sectionGradesCount = (freshGradingRecords || []).filter((r: ClassRecord) =>
+                (r.section_id === latestSection.id || r.section_id === latestSection.section_name) &&
+                (!activeSchoolYear || !r.school_year || r.school_year === activeSchoolYear) &&
+                Number(r.final_grade) > 0
+            ).length;
+
+            // 6. Calculate official learning areas count (combining MAPEH components into 1 official subject for Grades 1-10)
+            const sectionGradeNum = parseInt((latestSection.section_grade_level || '').replace(/\D/g, '')) || 0;
+            const isSHS = sectionGradeNum === 11 || sectionGradeNum === 12;
+
+            const isMapehComp = (name: string) => {
+                const n = name.toLowerCase().replace(/[^a-z]/g, '');
+                return (
+                    n.includes('musicandarts') || n.includes('musicarts') || (n.includes('music') && n.includes('arts')) ||
+                    n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth') ||
+                    n === 'music' || n === 'arts' || n === 'pe' || n === 'health'
+                );
+            };
+
+            let officialSubjectCount = currentTaught.length;
+            if (!isSHS && currentTaught.length > 0) {
+                const hasMapehOrComponents = currentTaught.some((s: string) => s.trim().toUpperCase() === 'MAPEH' || isMapehComp(s));
+                const nonMapehTaught = currentTaught.filter((s: string) => s.trim().toUpperCase() !== 'MAPEH' && !isMapehComp(s));
+                officialSubjectCount = nonMapehTaught.length + (hasMapehOrComponents ? 1 : 0);
+            }
+
+            const subjectCount = officialSubjectCount > 0 ? officialSubjectCount : (currentTaught.length > 0 ? currentTaught.length : 'curriculum');
+
+            useAppStore.getState().showNotification(
+                `Successfully synced subjects and grades from Grade Management! (${subjectCount} subjects, ${sectionGradesCount} grades loaded)`,
+                'success'
+            );
+        } catch (error) {
+            console.error('Failed to sync SF10 from Grade Management:', error);
+            useAppStore.getState().showNotification('Failed to sync from Grade Management. Please try again.', 'error');
+        } finally {
+            setIsSyncingFromGrading(false);
+        }
+    }, [selectedSectionObj, activeSchoolYear]);
+
     return (
         <div className="sf10-print-root flex flex-col h-full bg-linear-to-br from-slate-50 via-blue-50/40 to-indigo-50/30 dark:from-[#080d1a] dark:via-[#0b1329] dark:to-[#0d1630] relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
              {/* Sticky Premium Top Toolbar */}
-             <div className="z-20 bg-white/75 dark:bg-[#0d1225]/90 backdrop-blur-2xl border-b border-slate-200/70 dark:border-white/10 shadow-[0_8px_28px_rgba(15,23,42,0.05)] relative print:hidden shrink-0 w-full">
-                <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-500 via-indigo-500 to-cyan-500 z-30" />
-                <div className="flex items-center justify-start w-full h-18 select-none relative px-3 lg:px-4 gap-2.5 lg:gap-3 overflow-x-auto scrollbar-none">
+             <div className="z-20 bg-white/80 dark:bg-[#0d1225]/90 backdrop-blur-2xl border-b border-slate-200/70 dark:border-white/10 shadow-[0_4px_20px_rgba(15,23,42,0.04)] relative print:hidden shrink-0 w-full">
+                <div className="absolute top-0 left-0 right-0 h-0.5 bg-linear-to-r from-blue-500 via-indigo-500 to-cyan-500 z-30" />
+                <div className="flex items-center justify-between w-full h-11 px-2 sm:px-3 gap-1 sm:gap-1.5 select-none overflow-x-auto custom-scrollbar">
                     
                     {/* Identity & Context Branding (Left Most Edge) */}
-                    <div className="flex items-center gap-2 lg:gap-3 shrink-0">
+                    <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 min-w-0">
                         <button 
                             onClick={() => setCurrentView('school-forms')}
-                            className="w-8 h-8 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 hover:text-slate-900 dark:hover:text-white transition-all group shrink-0 active:scale-95 duration-200"
+                            className="w-7.5 h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 hover:text-slate-900 dark:hover:text-white transition-all group shrink-0 active:scale-95 duration-200"
                             title="Back to Hub"
                         >
-                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+                            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
                         </button>
-                        <div className="flex flex-col shrink-0">
-                            <h2 className="text-[11px] lg:text-[12px] font-black text-slate-900 dark:text-white uppercase tracking-tight leading-none mb-1">SF10 Record</h2>
-                            <p className="text-[7.5px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest leading-none">Permanent Academic Record</p>
+                        <div className="flex flex-col shrink-0 mr-1">
+                            <h2 className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-tight leading-none mb-0.5">SF10 Record</h2>
+                            <p className="text-[7px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider leading-none">Permanent Record</p>
                         </div>
-                    </div>
 
-                    <div className="h-6 w-px bg-slate-200 dark:bg-white/10 shrink-0 mx-0.5" />
-                        
-                    {/* Section and Student Selectors */}
-                    {sortedSections.length >= 1 && (
+                        {sortedSections.length >= 1 && (
+                            <div className="relative group shrink-0">
+                                <select 
+                                    className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-2 pr-5 text-[9px] font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500/30 focus:border-blue-500 cursor-pointer max-w-28 sm:max-w-34 lg:max-w-40 truncate"
+                                    value={selectedSection}
+                                    onChange={(e) => { setSelectedSection(e.target.value); setSelectedStudent(null); }}
+                                    title="Select Advisory Section"
+                                >
+                                    <option value="">Choose Section</option>
+                                    {Object.entries(groupedSections).map(([group, groupSections]) => (
+                                        groupSections.length > 0 && (
+                                            <optgroup key={group} label={group}>
+                                                {groupSections.map(s => (
+                                                    <option key={s.id} value={s.section_name}>
+                                                        {s.section_grade_level} - {s.section_name}
+                                                    </option>
+                                                ))}
+                                            </optgroup>
+                                        )
+                                    ))}
+                                </select>
+                                <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            </div>
+                        )}
+
                         <div className="relative group shrink-0">
                             <select 
-                                className="appearance-none h-9 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 hover:border-slate-300 dark:hover:border-white/20 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white dark:focus:bg-white/15 transition-all cursor-pointer min-w-30 lg:min-w-33.75 duration-200"
-                                value={selectedSection}
-                                onChange={(e) => { setSelectedSection(e.target.value); setSelectedStudent(null); }}
+                                className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-2 pr-5 text-[9px] font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500/30 focus:border-blue-500 cursor-pointer max-w-30 sm:max-w-38 lg:max-w-46 truncate disabled:opacity-30"
+                                value={selectedStudent?.lrn || ''}
+                                onChange={(e) => setSelectedStudent(students.find(s => s.lrn === e.target.value) || null)}
+                                disabled={!selectedSection || isShsSection}
+                                title="Select Student"
                             >
-                                <option value="">Choose Section</option>
-                                {Object.entries(groupedSections).map(([group, groupSections]) => (
-                                    groupSections.length > 0 && (
-                                        <optgroup key={group} label={group}>
-                                            {groupSections.map(s => (
-                                                <option key={s.id} value={s.section_name}>
-                                                    {s.section_grade_level} - {s.section_name}
-                                                </option>
-                                            ))}
-                                        </optgroup>
-                                    )
-                                ))}
+                                <option value="">{isShsSection ? 'Template Locked' : 'Select Student'}</option>
+                                {males.length > 0 && (
+                                    <optgroup label="MALE">
+                                        {males.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
+                                    </optgroup>
+                                )}
+                                {females.length > 0 && (
+                                    <optgroup label="FEMALE">
+                                        {females.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
+                                    </optgroup>
+                                )}
                             </select>
-                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
+                            <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                         </div>
-                    )}
-
-                    <div className="relative group shrink-0">
-                        <select 
-                            className="appearance-none h-9 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 hover:border-slate-300 dark:hover:border-white/20 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white dark:focus:bg-white/15 transition-all cursor-pointer min-w-35 lg:min-w-38.75 max-w-50 truncate disabled:opacity-30 duration-200"
-                            value={selectedStudent?.lrn || ''}
-                            onChange={(e) => setSelectedStudent(students.find(s => s.lrn === e.target.value) || null)}
-                            disabled={!selectedSection || isShsSection}
-                        >
-                            <option value="">{isShsSection ? 'Template Locked' : 'Select Student'}</option>
-                            {males.length > 0 && (
-                                <optgroup label="MALE">
-                                    {males.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
-                                </optgroup>
-                            )}
-                            {females.length > 0 && (
-                                <optgroup label="FEMALE">
-                                    {females.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
-                                </optgroup>
-                            )}
-                        </select>
-                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
                     </div>
 
-                    <div className="h-6 w-px bg-slate-200 dark:bg-white/10 shrink-0 mx-0.5" />
-
                     {/* View & Formatting Controls (Center) */}
-                    {selectedStudent && (
-                        <>
-                            <div className="flex bg-slate-100 dark:bg-white/10 p-0.5 rounded-xl border border-slate-200 dark:border-white/10 h-9 shrink-0">
-                                <button
-                                    onClick={() => setCurrentPage(1)}
-                                    className={`px-3.5 h-full rounded-lg text-[8.5px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 ${currentPage === 1 ? 'bg-white dark:bg-white/20 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white'}`}
-                                >
-                                    Page 1
-                                </button>
-                                <button
-                                    onClick={() => setCurrentPage(2)}
-                                    className={`px-3.5 h-full rounded-lg text-[8.5px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 ${currentPage === 2 ? 'bg-white dark:bg-white/20 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white'}`}
-                                >
-                                    Page 2
-                                </button>
-                            </div>
+                    <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                        {selectedStudent && (
+                            <>
+                                <div className="flex bg-slate-100 dark:bg-white/10 p-0.5 rounded-lg border border-slate-200 dark:border-white/10 h-7.5 shrink-0">
+                                    <button
+                                        onClick={() => setCurrentPage(1)}
+                                        className={`px-2 h-full rounded-md text-[7.5px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 ${currentPage === 1 ? 'bg-white dark:bg-white/20 text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white'}`}
+                                    >
+                                        Page 1
+                                    </button>
+                                    <button
+                                        onClick={() => setCurrentPage(2)}
+                                        className={`px-2 h-full rounded-md text-[7.5px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 ${currentPage === 2 ? 'bg-white dark:bg-white/20 text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white'}`}
+                                    >
+                                        Page 2
+                                    </button>
+                                </div>
 
-                            <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/10 p-0.5 rounded-xl border border-slate-200 dark:border-white/10 shrink-0">
-                                <button 
-                                    onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
-                                    className="w-7 h-7 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/15 rounded-lg transition-all shadow-sm active:scale-90 duration-200"
-                                    title="Zoom Out"
-                                >
-                                    <Minus className="w-3 h-3" />
-                                </button>
-                                <span className="text-[9px] font-black text-slate-900 dark:text-white w-8 text-center tabular-nums">
-                                    {Math.round(zoom * 100)}%
-                                </span>
-                                <button 
-                                    onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                                    className="w-7 h-7 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/15 rounded-lg transition-all shadow-sm active:scale-90 duration-200"
-                                    title="Zoom In"
-                                >
-                                    <Plus className="w-3 h-3" />
-                                </button>
-                            </div>
-                        </>
-                    )}
+                                <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/10 p-0.5 rounded-lg border border-slate-200 dark:border-white/10 shrink-0 h-7.5">
+                                    <button 
+                                        onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
+                                        className="w-6 h-6 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/15 rounded-md transition-all shadow-xs active:scale-90"
+                                        title="Zoom Out"
+                                    >
+                                        <Minus className="w-3 h-3" />
+                                    </button>
+                                    <span className="text-[8.5px] font-black text-slate-900 dark:text-white w-7 text-center tabular-nums">
+                                        {Math.round(zoom * 100)}%
+                                    </span>
+                                    <button 
+                                        onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
+                                        className="w-6 h-6 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/15 rounded-md transition-all shadow-xs active:scale-90"
+                                        title="Zoom In"
+                                    >
+                                        <Plus className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            </>
+                        )}
+
+                        {/* Sync Button from Grade Management (visible whenever a section is selected!) */}
+                        {selectedSectionObj && (
+                            <button
+                                onClick={handleSyncFromGradeManagement}
+                                disabled={isSyncingFromGrading}
+                                className={`h-7.5 px-2 rounded-lg border text-[8px] font-black uppercase tracking-wider transition-all flex items-center gap-1 shadow-xs shrink-0 active:scale-95 cursor-pointer ${
+                                    isSyncingFromGrading
+                                        ? 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-white/5 dark:text-slate-500 dark:border-white/10 cursor-wait'
+                                        : 'bg-white dark:bg-white/10 border-slate-200 dark:border-white/10 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-300 text-slate-700 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-300'
+                                }`}
+                                title="Sync subjects and grades based on Grade Management"
+                            >
+                                <RefreshCcw className={`w-3 h-3 text-emerald-600 dark:text-emerald-400 ${isSyncingFromGrading ? 'animate-spin' : ''}`} />
+                                <span>{isSyncingFromGrading ? 'Syncing...' : 'Sync'}</span>
+                            </button>
+                        )}
+                    </div>
 
                     {/* Data and Actions (Right) */}
                     {selectedStudent && (
-                        <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
-                            {/* Divider between Center and Right */}
-                            <div className="h-6 w-px bg-slate-200 dark:bg-white/10 shrink-0 mx-0.5" />
-                            <button
-                                onClick={() => setShowHistoricalModal(true)}
-                                disabled={!selectedStudent || isShsSf10Selection}
-                                className="h-9 px-2.5 rounded-xl bg-slate-100 dark:bg-white/10 hover:bg-slate-900 dark:hover:bg-white/20 text-slate-500 dark:text-slate-300 hover:text-white font-black text-[8.5px] uppercase tracking-wider disabled:opacity-30 transition-all flex items-center gap-1 shadow-sm shrink-0 duration-200 active:scale-95 border border-slate-200/40 dark:border-white/10"
-                                title="Edit Previous SF10 Records (Historical Data)"
-                            >
-                                <History className="w-3.5 h-3.5" />
-                                History
-                            </button>
+                        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                             <button
                                 onClick={handleResetOverrides}
                                 disabled={!selectedStudent || isShsSf10Selection}
-                                className="h-9 px-2.5 rounded-xl bg-slate-100 dark:bg-white/10 hover:bg-red-50 dark:hover:bg-red-500/20 text-slate-500 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400 font-black text-[8.5px] uppercase tracking-wider disabled:opacity-30 transition-all flex items-center gap-1 shadow-sm shrink-0 duration-200 active:scale-95 border border-slate-200/40 dark:border-white/10"
+                                className="h-7.5 px-2 rounded-lg bg-slate-100 dark:bg-white/10 hover:bg-red-50 dark:hover:bg-red-500/20 text-slate-600 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400 font-black text-[8px] uppercase tracking-wider disabled:opacity-30 transition-all flex items-center gap-1 shadow-xs shrink-0 active:scale-95 border border-slate-200/40 dark:border-white/10"
                                 title="Reset all manual edits for this page"
                             >
-                                Reset
+                                <span>Reset</span>
                             </button>
                             
                             <button
@@ -332,22 +430,21 @@ export function SF10Page() {
                                         }
                                     }));
                                 }}
-                                className="h-9 px-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 hover:text-amber-700 border border-amber-200/60 dark:border-amber-700/30 transition-all flex items-center gap-1 shrink-0 active:scale-95 text-[8.5px] font-black uppercase tracking-wider cursor-pointer"
+                                className="h-7.5 px-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 hover:text-amber-700 border border-amber-200/60 dark:border-amber-700/30 transition-all flex items-center gap-1 shrink-0 active:scale-95 text-[8px] font-black uppercase tracking-wider cursor-pointer"
                                 title="Inspect & Debug Grade Sync"
                             >
                                 <Bug className="w-3 h-3" />
-                                <span className="hidden sm:inline">Inspect Sync</span>
+                                <span>Inspect</span>
                             </button>
 
-                            <div className="h-6 w-px bg-slate-200 dark:bg-white/10 shrink-0" />
-                            
                             <button
                                 onClick={handlePrintSF10}
                                 disabled={!selectedStudent || isShsSf10Selection}
-                                className="h-9 px-3.5 lg:px-4 rounded-xl bg-blue-600 text-white font-black text-[8.5px] uppercase tracking-wider shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:scale-[1.01] active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1 group whitespace-nowrap duration-200"
+                                className="h-7.5 px-2.5 sm:px-3 rounded-lg bg-blue-600 text-white font-black text-[8px] uppercase tracking-wider shadow-sm hover:bg-blue-700 active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1 group whitespace-nowrap"
+                                title="Print Official SF10"
                             >
                                 <Printer className="w-3 h-3 group-hover:translate-y-0.5 transition-transform" />
-                                Print
+                                <span>Print</span>
                             </button>
                         </div>
                     )}
@@ -477,12 +574,14 @@ export function SF10Page() {
                                             pageNumber={currentPage}
                                             data={specData}
                                             onUpdate={handleCellUpdate}
+                                            dbSubjects={subjects}
                                         />
                                     ) : (
                                         <SF10JHSRenderer
                                             pageNumber={currentPage}
                                             data={specData}
                                             onUpdate={handleCellUpdate}
+                                            dbSubjects={subjects}
                                         />
                                     )}
                                 </div>
@@ -533,13 +632,7 @@ export function SF10Page() {
                 </div>
              </div>
 
-             {showHistoricalModal && selectedStudent && (
-                 <SF10HistoricalDataModal
-                    student={selectedStudent}
-                    schoolProfile={schoolProfile}
-                    onClose={() => setShowHistoricalModal(false)}
-                 />
-             )}
+
 
 
 

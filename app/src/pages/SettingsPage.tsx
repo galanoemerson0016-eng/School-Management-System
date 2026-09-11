@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore, useAppStore, initializeAppStore, useUpdateStore } from '../stores';
 import { db } from '../services/database';
-import { Database, User, Shield, Upload, History, Cloud, Info, Sparkles, Sun, Moon, Monitor, Download, MessageSquare, FileSpreadsheet, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Database, User, Shield, Upload, History, Cloud, Info, Sparkles, Sun, Moon, Monitor, Download, MessageSquare, FileSpreadsheet, RefreshCw, CheckCircle2, Archive } from 'lucide-react';
 import { AboutPage } from './AboutPage';
 import { SmsGatewaySettings } from '../components/settings/SmsGatewaySettings';
 import { AutoBackupManager, type AutomatedBackupEntry } from '../services/AutoBackupManager';
@@ -26,6 +26,8 @@ import {
     type DatabaseRecordCounts
 } from '../services/database-rescue-export';
 import type { Student, AttendanceRecord, ClassRecord } from '../types';
+import { downloadMasterExcelBackup } from '../services/master-excel-backup';
+import { generatePreUpdateSafetyVault } from '../services/pre-update-safety';
 
 interface FsBackupEntry {
     filename: string;
@@ -816,6 +818,58 @@ export function SettingsPage() {
             setIsExporting(false);
             setShowExportOptions(false);
             setCurrentBackup(null);
+        }
+    };
+
+    // Master Excel & Pre-Update Safety Vault
+    const [isExportingMasterExcel, setIsExportingMasterExcel] = useState(false);
+    const [isExportingSafetyVault, setIsExportingSafetyVault] = useState(false);
+
+    const handleExportMasterExcel = async () => {
+        setIsExportingMasterExcel(true);
+        try {
+            const backup = await createComprehensiveBackup(
+                schoolProfile,
+                schoolYears,
+                activeSchoolYear,
+                enrollments,
+                students,
+                studentProfiles,
+                sections,
+                subjects,
+                classRecords,
+                gradingSheetRecords,
+                observedValues,
+                hpsRecords,
+                sf2Sheets,
+                announcements,
+                attendanceRecords,
+                user?.email || 'unknown',
+            );
+            await downloadMasterExcelBackup(backup);
+            alert('✅ Master Excel Backup (.xlsx) generated successfully!\n\nAll learners, sections, subjects, class records, and attendance have been exported into clean, human-readable Excel worksheets.');
+        } catch (error) {
+            console.error('Master Excel export failed:', error);
+            alert('Master Excel export failed: ' + (error instanceof Error ? error.message : String(error)));
+        } finally {
+            setIsExportingMasterExcel(false);
+        }
+    };
+
+    const handleDownloadCompleteSafetyVault = async () => {
+        setIsExportingSafetyVault(true);
+        try {
+            const res = await generatePreUpdateSafetyVault();
+            if (res.success) {
+                alert(`✅ Complete Pre-Update Safety Vault (.zip) generated and downloaded!\n\nSaved as: ${res.zipFilename}\n\nContents:\n• Master Excel Workbook (.xlsx)\n• Section Consolidated Grading Sheets (PDF & Excel)\n• E-Class Records Index\n• Full System Restore Backup (.json)\n• Verification Manifest & Integrity Checksums`);
+            } else {
+                alert('⚠️ Safety Vault generation completed with warnings: ' + (res.error || 'Unknown issue'));
+            }
+        } catch (error) {
+            console.error('Safety Vault generation failed:', error);
+            alert('Safety Vault generation failed: ' + (error instanceof Error ? error.message : String(error)));
+        } finally {
+            setIsExportingSafetyVault(false);
         }
     };
 
@@ -2304,31 +2358,28 @@ export function SettingsPage() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
                                     {/* Option 1: Full Export */}
                                     <div className="h-full rounded-2xl border border-indigo-500/30 bg-linear-to-br from-indigo-50/20 to-white dark:from-indigo-950/10 dark:to-[#0d1225] p-5 shadow-xs flex flex-col justify-between hover:border-indigo-500/50 transition-all">
                                         <div className="space-y-3">
                                             <div className="flex items-center justify-between gap-2">
                                                 <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-extrabold text-xs tracking-wide">
                                                     <Database className="w-4 h-4 shrink-0" />
-                                                    <span>1. Full Database Export</span>
+                                                    <span>1. Full DB Backup</span>
                                                 </div>
                                                 <span className="rounded-full bg-indigo-600 text-white text-[9px] font-black px-2.5 py-0.5 uppercase tracking-wider shrink-0 shadow-xs">
-                                                    Recommended
+                                                    System Restore
                                                 </span>
                                             </div>
                                             <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                Generates a single comprehensive <span className="font-extrabold text-indigo-600 dark:text-indigo-400">.json</span> file containing all student profiles, sections, subjects, grades, attendance, and settings.
+                                                Generates a comprehensive <span className="font-extrabold text-indigo-600 dark:text-indigo-400">.json</span> file containing all profiles, sections, subjects, grades, and system state for 1-click restore.
                                             </p>
                                             <ul className="text-[10px] space-y-1 font-semibold text-slate-400">
                                                 <li className="flex items-center gap-1.5">
-                                                    <span className="text-emerald-500 font-bold">✓</span> Complete, standalone file
+                                                    <span className="text-emerald-500 font-bold">✓</span> Complete standalone restore
                                                 </li>
                                                 <li className="flex items-center gap-1.5">
-                                                    <span className="text-emerald-500 font-bold">✓</span> Perfect for USB flash drives
-                                                </li>
-                                                <li className="flex items-center gap-1.5">
-                                                    <span className="text-emerald-500 font-bold">✓</span> Transfer between computers
+                                                    <span className="text-emerald-500 font-bold">✓</span> Fast import to any device
                                                 </li>
                                             </ul>
                                         </div>
@@ -2337,12 +2388,50 @@ export function SettingsPage() {
                                         </div>
                                     </div>
 
-                                    {/* Option 2: Cloud Sync */}
+                                    {/* Option 2: Human-Readable Master Excel & Safety Vault */}
+                                    <div className="h-full rounded-2xl border border-emerald-500/30 bg-linear-to-br from-emerald-50/20 to-white dark:from-emerald-950/10 dark:to-[#0d1225] p-5 shadow-xs flex flex-col justify-between hover:border-emerald-500/50 transition-all">
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs tracking-wide">
+                                                    <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                                                    <span>2. Master Excel & Vault</span>
+                                                </div>
+                                                <span className="rounded-full bg-emerald-600 text-white text-[9px] font-black px-2.5 py-0.5 uppercase tracking-wider shrink-0 shadow-xs">
+                                                    Human-Readable
+                                                </span>
+                                            </div>
+                                            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                Multi-tab Excel workbook with styled DepEd headers, plus PDF consolidated grade sheets. Perfect for teachers who want to open and inspect records in Excel.
+                                            </p>
+                                            <ul className="text-[10px] space-y-1 font-semibold text-slate-400">
+                                                <li className="flex items-center gap-1.5">
+                                                    <span className="text-emerald-500 font-bold">✓</span> DepEd Navy styled tables
+                                                </li>
+                                                <li className="flex items-center gap-1.5">
+                                                    <span className="text-emerald-500 font-bold">✓</span> PDF printable archives
+                                                </li>
+                                                <li className="flex items-center gap-1.5">
+                                                    <span className="text-emerald-500 font-bold">✓</span> Auto-saved before updates
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        <div className="pt-3 border-t border-slate-100 dark:border-white/5 mt-4 flex justify-between items-center">
+                                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">Offline Secondary</span>
+                                            <button 
+                                                onClick={handleExportMasterExcel}
+                                                className="text-[10px] font-extrabold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 hover:underline cursor-pointer"
+                                            >
+                                                Export Excel →
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Option 3: Cloud Sync */}
                                     <div className="h-full rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-5 shadow-xs flex flex-col justify-between hover:border-slate-300 dark:hover:border-white/10 transition-all">
                                         <div className="space-y-3">
                                             <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400 font-extrabold text-xs tracking-wide">
                                                 <Cloud className="w-4 h-4 shrink-0" />
-                                                <span>2. Cloud Sync</span>
+                                                <span>3. Cloud Sync</span>
                                             </div>
                                             <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
                                                 Syncs your active portal database securely to your linked personal Google Drive account. Run restorations with a single click.
@@ -2352,30 +2441,27 @@ export function SettingsPage() {
                                                     <span className="text-emerald-500 font-bold">✓</span> Off-site secure cloud storage
                                                 </li>
                                                 <li className="flex items-center gap-1.5">
-                                                    <span className="text-emerald-500 font-bold">✓</span> Protects against device damage
-                                                </li>
-                                                <li className="flex items-center gap-1.5">
                                                     <span className="text-emerald-500 font-bold">✓</span> Fast cloud restore list
                                                 </li>
                                             </ul>
                                         </div>
                                         <div className="pt-3 border-t border-slate-100 dark:border-white/5 mt-4 flex justify-between items-center">
-                                            <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400">Auto Offsite Backup</span>
+                                            <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400">Auto Offsite</span>
                                             <button 
                                                 onClick={() => setActiveTab('cloud')}
                                                 className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline cursor-pointer"
                                             >
-                                                Configure Cloud →
+                                                Configure →
                                             </button>
                                         </div>
                                     </div>
 
-                                    {/* Option 3: Local Checkpoints */}
+                                    {/* Option 4: Local Checkpoints */}
                                     <div className="h-full rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-5 shadow-xs flex flex-col justify-between hover:border-slate-300 dark:hover:border-white/10 transition-all">
                                         <div className="space-y-3">
                                             <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400 font-extrabold text-xs tracking-wide">
                                                 <History className="w-4 h-4 shrink-0" />
-                                                <span>3. Local Checkpoints</span>
+                                                <span>4. Local Checkpoints</span>
                                             </div>
                                             <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
                                                 Automatic offline snapshots saved to browser memory or local computer folders. Ideal for quick undo points.
@@ -2387,13 +2473,10 @@ export function SettingsPage() {
                                                 <li className="flex items-center gap-1.5">
                                                     <span className="text-emerald-500 font-bold">✓</span> Pre-update rollbacks
                                                 </li>
-                                                <li className="flex items-center gap-1.5">
-                                                    <span className="text-emerald-500 font-bold">✓</span> Instant localized restore
-                                                </li>
                                             </ul>
                                         </div>
                                         <div className="pt-3 border-t border-slate-100 dark:border-white/5 mt-4 flex justify-between items-center">
-                                            <span className="text-[10px] font-bold text-violet-600 dark:text-violet-400">Local Undo Snapshots</span>
+                                            <span className="text-[10px] font-bold text-violet-600 dark:text-violet-400">Local Snapshots</span>
                                             <button 
                                                 onClick={() => {
                                                     setShowEmergencyRollbacks(true);
@@ -2404,7 +2487,7 @@ export function SettingsPage() {
                                                 }}
                                                 className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline cursor-pointer"
                                             >
-                                                View Snapshots ↓
+                                                View ↓
                                             </button>
                                         </div>
                                     </div>
@@ -2459,8 +2542,46 @@ export function SettingsPage() {
 
                                             <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2.5 mt-2">
                                                 <p className="text-[10px] text-amber-600 dark:text-amber-300 font-extrabold leading-relaxed">
-                                                    Keep this downloaded backup file safe in an external drive (e.g. USB flash drive) or secure cloud storage.
+                                                    Keep your downloaded backup files safe in an external drive (e.g. USB flash drive) or secure cloud storage.
                                                 </p>
+                                            </div>
+
+                                            {/* Human-Readable Master Excel & Pre-Update Safety Vault Section */}
+                                            <div className="p-4 rounded-2xl bg-linear-to-br from-emerald-500/10 via-teal-500/5 to-indigo-500/10 border-2 border-emerald-500/30 dark:border-emerald-500/20 space-y-3 mt-3">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="p-1.5 rounded-lg bg-emerald-600 text-white shadow-xs">
+                                                            <FileSpreadsheet className="w-4 h-4" />
+                                                        </div>
+                                                        <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wide">
+                                                            Secondary Human-Readable Backup & Pre-Update Safety Vault
+                                                        </span>
+                                                    </div>
+                                                    <span className="self-start sm:self-auto text-[10px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/70 px-2.5 py-0.5 rounded-full border border-emerald-300/50">
+                                                        Excel (.xlsx) + PDFs + Zip
+                                                    </span>
+                                                </div>
+                                                <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
+                                                    Need a backup you can easily open and understand in Microsoft Excel? Export all learners, sections, subjects, grades, SF10, and attendance into a clean, human-readable Excel workbook with DepEd Navy headers, or download a complete Safety Vault (.zip) before updating.
+                                                </p>
+                                                <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+                                                    <button
+                                                        onClick={handleExportMasterExcel}
+                                                        disabled={isExportingMasterExcel}
+                                                        className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 text-xs font-black uppercase tracking-wider transition-all shadow-sm shadow-emerald-600/20 disabled:opacity-50 cursor-pointer"
+                                                    >
+                                                        <FileSpreadsheet className="h-4 w-4" />
+                                                        {isExportingMasterExcel ? 'Generating Master Excel...' : 'Export Master Excel Backup (.xlsx)'}
+                                                    </button>
+                                                    <button
+                                                        onClick={handleDownloadCompleteSafetyVault}
+                                                        disabled={isExportingSafetyVault}
+                                                        className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 text-xs font-black uppercase tracking-wider transition-all shadow-sm shadow-indigo-600/20 disabled:opacity-50 cursor-pointer"
+                                                    >
+                                                        <Archive className="h-4 w-4" />
+                                                        {isExportingSafetyVault ? 'Packaging Safety Vault...' : 'Download Safety Vault (.zip)'}
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
 

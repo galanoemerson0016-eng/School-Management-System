@@ -1,5 +1,6 @@
 import type { Section, Subject, User, UserRole } from '../types';
 import { isMatchingSubject } from '../utils/grading-helpers';
+import { isSubjectAllowedForProgram } from './curriculum';
 
 export type AppView =
     | 'dashboard'
@@ -245,9 +246,21 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
         return [];
     }
 
-    // Fallback for advisory sections without explicit teaching load restrictions: return all active subjects for that grade level
+    // Fallback for advisory sections without explicit teaching load restrictions: return subjects for that grade level
     const directlyLinked = activeSubjects.filter((subject) => subject.section_id === section.id);
-    const gradeMatches = activeSubjects.filter(s => s.grade_level === section.section_grade_level);
+    let gradeMatches = activeSubjects.filter(s => s.grade_level === section.section_grade_level);
+
+    if (section.taught_subjects && section.taught_subjects.length > 1) {
+        const taughtSet = new Set(section.taught_subjects.map(t => t.trim().toLowerCase()));
+        gradeMatches = gradeMatches.filter(s => 
+            taughtSet.has(s.subject_name.trim().toLowerCase()) || 
+            section.taught_subjects!.some(t => isMatchingSubject(t, s.id, s.subject_name)) ||
+            (hasMapehInTeaching && isMapehRelated(s.subject_name))
+        );
+    } else if (section.program) {
+        gradeMatches = gradeMatches.filter(s => isSubjectAllowedForProgram(s.subject_name, section.section_grade_level, section.program));
+    }
+
     const combined = [...directlyLinked, ...gradeMatches];
     const unique: Subject[] = [];
     const seen = new Set<string>();

@@ -120,7 +120,9 @@ const STANDARD_SUBJECTS = {
     { name: 'General Mathematics', code: '' },
     { name: 'General Science', code: '' },
     { name: 'Life and Career Skills', code: '' },
-    { name: 'Pag-aaral ng Kasaysayan at Lipunang Pilipino', code: '' }
+    { name: 'Pag-aaral ng Kasaysayan at Lipunang Pilipino', code: '' },
+    { name: 'Physical Education and Health 1', code: '' },
+    { name: 'Physical Education and Health 2', code: '' }
   ] as CurriculumSubject[],
   Grade12: [
     // Core Subjects
@@ -242,20 +244,21 @@ export function getSubjectsForGrade(gradeLevel: string | number, customCurriculu
   
   let result: CurriculumSubject[] = [];
   
+  let isFromCustom = false;
   // Check custom curriculum first
   if (customCurriculum) {
-    if (grade === 'grade 1' && customCurriculum.grade_1_subjects) result = customCurriculum.grade_1_subjects;
-    else if (grade === 'grade 2' && customCurriculum.grade_2_subjects) result = customCurriculum.grade_2_subjects;
-    else if (grade === 'grade 3' && customCurriculum.grade_3_subjects) result = customCurriculum.grade_3_subjects;
-    else if (grade === 'grade 4' && customCurriculum.grade_4_subjects) result = customCurriculum.grade_4_subjects;
-    else if (grade === 'grade 5' && customCurriculum.grade_5_subjects) result = customCurriculum.grade_5_subjects;
-    else if (grade === 'grade 6' && customCurriculum.grade_6_subjects) result = customCurriculum.grade_6_subjects;
-    else if (grade === 'grade 7' && customCurriculum.grade_7_subjects) result = customCurriculum.grade_7_subjects;
-    else if (grade === 'grade 8' && customCurriculum.grade_8_subjects) result = customCurriculum.grade_8_subjects;
-    else if (grade === 'grade 9' && customCurriculum.grade_9_subjects) result = customCurriculum.grade_9_subjects;
-    else if (grade === 'grade 10' && customCurriculum.grade_10_subjects) result = customCurriculum.grade_10_subjects;
-    else if (grade === 'grade 11' && customCurriculum.grade_11_subjects) result = customCurriculum.grade_11_subjects;
-    else if (grade === 'grade 12' && customCurriculum.grade_12_subjects) result = customCurriculum.grade_12_subjects;
+    if (grade === 'grade 1' && customCurriculum.grade_1_subjects?.length) { result = customCurriculum.grade_1_subjects; isFromCustom = true; }
+    else if (grade === 'grade 2' && customCurriculum.grade_2_subjects?.length) { result = customCurriculum.grade_2_subjects; isFromCustom = true; }
+    else if (grade === 'grade 3' && customCurriculum.grade_3_subjects?.length) { result = customCurriculum.grade_3_subjects; isFromCustom = true; }
+    else if (grade === 'grade 4' && customCurriculum.grade_4_subjects?.length) { result = customCurriculum.grade_4_subjects; isFromCustom = true; }
+    else if (grade === 'grade 5' && customCurriculum.grade_5_subjects?.length) { result = customCurriculum.grade_5_subjects; isFromCustom = true; }
+    else if (grade === 'grade 6' && customCurriculum.grade_6_subjects?.length) { result = customCurriculum.grade_6_subjects; isFromCustom = true; }
+    else if (grade === 'grade 7' && customCurriculum.grade_7_subjects?.length) { result = customCurriculum.grade_7_subjects; isFromCustom = true; }
+    else if (grade === 'grade 8' && customCurriculum.grade_8_subjects?.length) { result = customCurriculum.grade_8_subjects; isFromCustom = true; }
+    else if (grade === 'grade 9' && customCurriculum.grade_9_subjects?.length) { result = customCurriculum.grade_9_subjects; isFromCustom = true; }
+    else if (grade === 'grade 10' && customCurriculum.grade_10_subjects?.length) { result = customCurriculum.grade_10_subjects; isFromCustom = true; }
+    else if (grade === 'grade 11' && customCurriculum.grade_11_subjects?.length) { result = customCurriculum.grade_11_subjects; isFromCustom = true; }
+    else if (grade === 'grade 12' && customCurriculum.grade_12_subjects?.length) { result = customCurriculum.grade_12_subjects; isFromCustom = true; }
   }
 
   if (result.length === 0) {
@@ -288,6 +291,11 @@ export function getSubjectsForGrade(gradeLevel: string | number, customCurriculu
     return true;
   });
 
+  // Preserve teacher's customized arrangement if explicitly configured
+  if (isFromCustom) {
+    return unique;
+  }
+
   return sortSubjects(unique, (s) => s.name);
 }
 
@@ -298,9 +306,12 @@ export function getSubjectsForGrade(gradeLevel: string | number, customCurriculu
 export function getSF10RowsForGrade(gradeLevel: string | number, customCurriculum?: SchoolCurriculum, options?: { useOldCurriculum?: boolean }) {
   let subjects = getSubjectsForGrade(gradeLevel, customCurriculum);
 
-  // Override with old curriculum (pre-MATATAG) for previous JHS grade records
+  // Override with old curriculum (pre-MATATAG) for previous JHS grade records ONLY if no custom curriculum was set
   const gradeNumCheck = parseInt(String(gradeLevel).match(/\d+/)?.[0] || String(gradeLevel)) || 0;
-  if (options?.useOldCurriculum && gradeNumCheck >= 7 && gradeNumCheck <= 9) {
+  const gradeKey = `grade_${gradeNumCheck}_subjects` as keyof SchoolCurriculum;
+  const hasCustomCurriculumForGrade = customCurriculum && Array.isArray(customCurriculum[gradeKey]) && (customCurriculum[gradeKey] as CurriculumSubject[]).length > 0;
+
+  if (!hasCustomCurriculumForGrade && options?.useOldCurriculum && gradeNumCheck >= 7 && gradeNumCheck <= 9) {
     subjects = [...OLD_CURRICULUM_JHS_SUBJECTS];
   }
 
@@ -343,7 +354,11 @@ export function getSF10RowsForGrade(gradeLevel: string | number, customCurriculu
   const componentIndices: number[] = [];
   subjects.forEach((s, i) => {
     const norm = normalizeSubjectName(s.name);
-    if (s.code === 'MAPEH' || norm.includes('musicandarts') || norm.includes('musicarts') || norm.includes('physicaleducationandhealth') || norm.includes('physicaleducationhealth') || norm.includes('pehealth') || (norm.includes('physicaleducation') && norm.includes('health')) || (norm.includes('pe') && norm.includes('health'))) {
+    if (s.code === 'MAPEH' || 
+        norm.includes('musicandarts') || norm.includes('musicarts') || 
+        norm.includes('physicaleducationandhealth') || norm.includes('physicaleducationhealth') || norm.includes('pehealth') || 
+        (norm.includes('physicaleducation') && norm.includes('health')) || (norm.includes('pe') && norm.includes('health')) ||
+        norm === 'music' || norm === 'arts' || norm === 'physicaleducation' || norm === 'health' || norm === 'pe') {
       componentIndices.push(i);
     }
   });
@@ -413,7 +428,11 @@ export function getSF9SubjectsForGrade(gradeLevel: string | number, customCurric
   
   // Normalized names for identification
   const mapehNorm = 'mapeh';
-  const componentsNorms = ['musicandarts', 'musicarts', 'physicaleducationandhealth', 'peandhealth', 'pehealth'];
+  const componentsNorms = [
+    'musicandarts', 'musicarts',
+    'physicaleducationandhealth', 'peandhealth', 'pehealth',
+    'music', 'arts', 'physicaleducation', 'health'
+  ];
 
   // Identify components in the curriculum
   const componentIndices = subjects.map((s, i) => {
@@ -564,8 +583,8 @@ export function getStandardSubjectPriority(name: string): number {
     if (normalized === 'physicaleducation') return 83;
     if (normalized === 'health') return 84;
     
-    // 6. Specialization (Always Last)
-    if (normalized.includes('specialization')) return 1000;
+    // 6. TVE Specialization (Always Last among standard subjects)
+    if (normalized.includes('tvespecialization') || normalized.includes('sptve')) return 1000;
 
     // Others (General electives, etc.)
     return 500;

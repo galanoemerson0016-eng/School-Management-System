@@ -25,6 +25,8 @@ import {
 } from '../../utils/grading-helpers';
 import { DiagnosticReporter, type SubmissionResult } from '../../services/diagnostic-reporter';
 
+const isEcmkParent = (name: string) => name.toLowerCase().includes('effective communication') && name.toLowerCase().includes('mabisang komunikasyon');
+
 interface GradeSyncInspectorModalProps {
   isOpen?: boolean;
   onClose?: () => void;
@@ -197,7 +199,24 @@ export function GradeSyncInspectorModal({
 
     const candidates: Subject[] = [...sectionSpecific, ...genericGradeSubjects];
 
-    // 3. Fallback: If no subjects exist in DB for this grade level, load standard curriculum subjects
+    // 3. Section taught_subjects merge (for Senior High School or custom section subjects)
+    const taughtRaw = selectedSectionObj.taught_subjects || [];
+    if (taughtRaw.length > 0) {
+      for (const tName of taughtRaw) {
+        const alreadyHas = candidates.some(s => isMatchingSubject(tName, s.id, s.subject_name));
+        if (!alreadyHas) {
+          candidates.push({
+            id: `virtual_${tName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+            subject_name: tName,
+            grade_level: gradeLevelStr,
+            section_id: selectedSectionObj.id,
+            term: 'all'
+          } as Subject);
+        }
+      }
+    }
+
+    // 4. Fallback: If no subjects exist in DB for this grade level, load standard curriculum subjects
     if (candidates.length === 0) {
       const standardList = getSubjectsForGrade(gradeLevelStr);
       for (const item of standardList) {
@@ -211,6 +230,42 @@ export function GradeSyncInspectorModal({
           } as Subject);
         }
       }
+    }
+
+    // 5. Special Case: Ensure MAPEH parent header exists if components exist (Grades 1-10)
+    const isSHS = sectionGradeNum === 11 || sectionGradeNum === 12;
+    if (!isSHS) {
+      const hasMapehHeader = candidates.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
+      const hasMapehComponents = candidates.some(s => {
+        const n = normalizeSubjectName(s.subject_name);
+        return n.includes('musicandarts') || n.includes('musicarts') || 
+               n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth') ||
+               n === 'music' || n === 'arts' || n === 'physicaleducation' || n === 'health' || n === 'pe';
+      });
+
+      if (hasMapehComponents && !hasMapehHeader) {
+        candidates.push({
+          id: `virtual-mapeh-${selectedSectionObj.id}`,
+          subject_name: 'MAPEH',
+          grade_level: gradeLevelStr,
+          section_id: selectedSectionObj.id,
+          term: 'all'
+        } as Subject);
+      }
+    }
+
+    // 6. Special Case: Ensure EC/MK composite parent exists if both components exist
+    const hasEcmkHeader = candidates.some(s => isEcmkParent(s.subject_name));
+    const hasEc = candidates.some(s => normalizeSubjectName(s.subject_name) === 'effectivecommunication');
+    const hasMk = candidates.some(s => normalizeSubjectName(s.subject_name) === 'mabisangkomunikasyon');
+    if (hasEc && hasMk && !hasEcmkHeader) {
+      candidates.push({
+        id: `virtual-ecmk-${selectedSectionObj.id}`,
+        subject_name: 'Effective Communication & Mabisang Komunikasyon',
+        grade_level: gradeLevelStr,
+        section_id: selectedSectionObj.id,
+        term: 'all'
+      } as Subject);
     }
 
     candidates.sort((a, b) => {
@@ -280,17 +335,20 @@ export function GradeSyncInspectorModal({
     if (ecrMatches.length > 0) {
       const cRec = ecrMatches[0];
       ecrRecordId = cRec.id;
-      if (cRec.final_grade && Number(cRec.final_grade) > 0) {
-        ecrStoredFinalGrade = Number(cRec.final_grade);
-      }
-
       const rawWw = (cRec.written_works || []).map(v => (v !== undefined && v !== null ? v : ''));
       const rawPt = (cRec.performance_tasks || []).map(v => (v !== undefined && v !== null ? v : ''));
       const rawQa = cRec.quarterly_exam !== undefined && cRec.quarterly_exam !== null ? cRec.quarterly_exam : '';
       const rawSt = (cRec as ClassRecord & { summative_tests?: (number | string)[] }).summative_tests || [];
 
       const isValidScore = (v: unknown): boolean => v !== '' && v !== null && v !== undefined && !isNaN(Number(v));
-      const hasScores = rawWw.some(isValidScore) || rawPt.some(isValidScore) || isValidScore(rawQa) || rawSt.some(isValidScore);
+      const hasScores = rawWw.some(isValidScore) || rawPt.some(isValidScore) || (isValidScore(rawQa) && Number(rawQa) > 0) || rawSt.some(isValidScore);
+
+      if (hasScores && cRec.final_grade && Number(cRec.final_grade) > 0) {
+        ecrStoredFinalGrade = Number(cRec.final_grade);
+      } else if (!hasScores && cRec.final_grade && Number(cRec.final_grade) > 0) {
+        discrepancies.push(`Ghost grade detected: E-Class Record holds stored grade (${cRec.final_grade}) without any raw scores.`);
+        recommendations.push(`Encode student scores in E-Class Record or run Database Diagnostics to clean ghost records.`);
+      }
 
       if (hasScores) {
         // Find HPS
@@ -350,6 +408,27 @@ export function GradeSyncInspectorModal({
       }
     }
 
+    const norm = normalizeSubjectName(subject.subject_name);
+    const isCompositeParent = norm === 'mapeh' || isEcmkParent(subject.subject_name);
+
+    // If no direct gradeManagementValue exists for a composite parent, dynamically resolve from components in gradingSheetRecords
+    if (gradeManagementValue === null && isCompositeParent) {
+      const gmComp = resolveStudentQuarterGrade(
+        student.lrn,
+        subject.id,
+        q,
+        activeSchoolYear,
+        [], // No ECR fallback
+        gradingSheetRecords, // Strictly from Grade Management saved records
+        hpsRecords,
+        gradeLevel,
+        track
+      );
+      if (gmComp > 0) {
+        gradeManagementValue = gmComp;
+      }
+    }
+
     const isVirtualSubject = subject.id.startsWith('virtual-') || subject.id.startsWith('curriculum-');
 
     // 3. Overall Resolution for All Modules
@@ -383,11 +462,10 @@ export function GradeSyncInspectorModal({
     }
 
     // Grade Slip MAPEH exclusion
-    const norm = normalizeSubjectName(subject.subject_name);
     const isComponent = (
       norm.includes('musicandarts') || norm.includes('musicarts') ||
       norm.includes('physicaleducationandhealth') || norm.includes('peandhealth') || norm.includes('pehealth') ||
-      norm === 'music' || norm === 'arts' || norm === 'physicaleducation' || norm === 'health'
+      norm === 'music' || norm === 'arts' || norm === 'physicaleducation' || norm === 'health' || norm === 'pe'
     );
     const gradeSlipExcludedFromAvg = isComponent || subject.subject_name.startsWith('*');
 
@@ -508,6 +586,102 @@ export function GradeSyncInspectorModal({
   const handleSyncSubject = async (student: Student, subject: Subject, targetGrade: number) => {
     try {
       const validQuarter = (selectedQuarter === 2 ? 2 : selectedQuarter === 3 ? 3 : 1) as 1 | 2 | 3;
+      const norm = normalizeSubjectName(subject.subject_name);
+
+      // Special Case 1: MAPEH parent syncs component subjects rather than an orphaned parent row
+      if (norm === 'mapeh') {
+        const compSubjects = sectionSubjects.filter(s => {
+          const sn = normalizeSubjectName(s.subject_name);
+          return sn !== 'mapeh' && (
+            sn.includes('musicandarts') || sn.includes('musicarts') ||
+            sn.includes('physicaleducationandhealth') || sn.includes('peandhealth') || sn.includes('pehealth') ||
+            sn === 'music' || sn === 'arts' || sn === 'physicaleducation' || sn === 'health' || sn === 'pe'
+          );
+        });
+
+        let syncedAny = false;
+        for (const comp of compSubjects) {
+          const compGrade = resolveStudentQuarterGrade(
+            student.lrn,
+            comp.id,
+            validQuarter,
+            activeSchoolYear,
+            classRecords,
+            [], // Strictly compute from teacher ECR
+            hpsRecords,
+            selectedSectionObj?.section_grade_level,
+            selectedSectionObj?.track
+          );
+
+          if (compGrade > 0) {
+            syncedAny = true;
+            await updateGradingSheetRecord({
+              id: `${student.lrn}_${comp.id}_${validQuarter}_${activeSchoolYear}`,
+              student_lrn: student.lrn,
+              section_id: selectedSectionObj?.id || '',
+              subject_id: comp.id,
+              subject_name: comp.subject_name,
+              quarter: validQuarter,
+              school_year: activeSchoolYear,
+              final_grade: compGrade,
+              written_works: [],
+              performance_tasks: [],
+              quarterly_exam: 0
+            });
+          }
+        }
+
+        if (syncedAny) {
+          showNotification(`Synced MAPEH component records to Grade Management!`, 'success');
+          return;
+        }
+      }
+
+      // Special Case 2: EC/MK composite parent syncs both Effective Communication & Mabisang Komunikasyon
+      if (isEcmkParent(subject.subject_name)) {
+        const compSubjects = sectionSubjects.filter(s => {
+          const sn = normalizeSubjectName(s.subject_name);
+          return sn === 'effectivecommunication' || sn === 'mabisangkomunikasyon';
+        });
+
+        let syncedAny = false;
+        for (const comp of compSubjects) {
+          const compGrade = resolveStudentQuarterGrade(
+            student.lrn,
+            comp.id,
+            validQuarter,
+            activeSchoolYear,
+            classRecords,
+            [],
+            hpsRecords,
+            selectedSectionObj?.section_grade_level,
+            selectedSectionObj?.track
+          );
+
+          if (compGrade > 0) {
+            syncedAny = true;
+            await updateGradingSheetRecord({
+              id: `${student.lrn}_${comp.id}_${validQuarter}_${activeSchoolYear}`,
+              student_lrn: student.lrn,
+              section_id: selectedSectionObj?.id || '',
+              subject_id: comp.id,
+              subject_name: comp.subject_name,
+              quarter: validQuarter,
+              school_year: activeSchoolYear,
+              final_grade: compGrade,
+              written_works: [],
+              performance_tasks: [],
+              quarterly_exam: 0
+            });
+          }
+        }
+
+        if (syncedAny) {
+          showNotification(`Synced EC & MK component records to Grade Management!`, 'success');
+          return;
+        }
+      }
+
       const recordId = `${student.lrn}_${subject.id}_${validQuarter}_${activeSchoolYear}`;
       const record: ClassRecord = {
         id: recordId,
@@ -554,7 +728,18 @@ export function GradeSyncInspectorModal({
       const { updateClassRecord } = useAppStore.getState();
 
       for (const row of inspectionRows) {
-        const target = row.breakdown.ecrTransmutedGrade || row.breakdown.ecrStoredFinalGrade || row.breakdown.gradeManagementResolved;
+        const norm = normalizeSubjectName(row.subject.subject_name);
+        // If composite parent, let individual component rows handle the sync or delegate to handleSyncSubject
+        if (norm === 'mapeh' || isEcmkParent(row.subject.subject_name)) {
+          const target = row.breakdown.ecrTransmutedGrade || row.breakdown.ecrStoredFinalGrade;
+          if (target && target > 0) {
+            await handleSyncSubject(selectedStudentObj, row.subject, target);
+            syncedCount++;
+          }
+          continue;
+        }
+
+        const target = row.breakdown.ecrTransmutedGrade || row.breakdown.ecrStoredFinalGrade;
         if (target && target > 0) {
           const recordId = `${selectedStudentObj.lrn}_${row.subject.id}_${validQuarter}_${activeSchoolYear}`;
           const record: ClassRecord = {

@@ -5,15 +5,16 @@ import {
     BookOpen, Binary, Beaker, Globe, Compass, GraduationCap, 
     ChevronRight, ArrowLeft, Plus, Settings,
     CheckCircle2, BookText, X, Trash2, ArrowRight, ChevronLeft,
-    Search, Eye, EyeOff, Users, Shield, ShieldCheck, ShieldAlert, Layers, Sparkles
+    Search, Eye, EyeOff, Users, Shield, ShieldCheck, ShieldAlert, Layers, Sparkles,
+    AlertTriangle, Scale
 } from 'lucide-react';
-import type { Subject } from '../types';
+import type { Subject, ClassRecord, HPSRecord } from '../types';
 import type { LucideIcon } from 'lucide-react';
 import { canEditClassesAndSubjects } from '../lib/rbac';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
 import { isMatchingSubject, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
-import { generateDeterministicSubjectId } from '../utils/grade-reconciliation';
+import { generateDeterministicSubjectId, reconcileOrphanedGradesAndSubjects } from '../utils/grade-reconciliation';
 
 const GRADE_METADATA: Record<string, { icon: LucideIcon; color: string; description: string; bg: string }> = {
     'Grade 1': { icon: BookOpen, color: 'from-pink-500 to-rose-600', bg: 'bg-pink-50', description: 'Emerging Learners - Focus on literacy and numeracy foundations.' },
@@ -46,7 +47,6 @@ const UNIVERSAL_SUBJECT_ORDER = [
     'MAPEH',
     'Music and Arts',
     'Physical Education and Health',
-    'Specialization',
     '*Arabic Language',
     '*Islamic Values Education',
 ];
@@ -92,6 +92,7 @@ import {
     STANDARD_SUBJECTS, 
     SPECIAL_SUBJECTS, 
     SPSTEM_SUBJECTS,
+    JHS_STE_ELECTIVES,
     SPA_MAJORS,
     SPJ_SUBJECTS,
     SPS_SUBJECTS,
@@ -105,7 +106,10 @@ import {
     GRADE_11_CORE_SUBJECTS, 
     isGrade11CoreSubject,
     getShsCategoryForSubject,
-    getCategoryForSubject
+    getCategoryForSubject,
+    classifyJhsSubjectTrack,
+    getDepEdStandardWeights,
+    type JhsTrackFilter
 } from '../lib/curriculum';
 
 export type CurriculumChoiceType = 
@@ -124,12 +128,19 @@ export type CurriculumChoiceType =
     | 'program_alive';
 
 export function SubjectsPage() {
-    const { schoolProfile, subjects, sections, students, addSubject, deleteSubject, deleteSubjectsBulk, updateSubject, updateSection, setCurrentView, showNotification } = useAppStore(); 
+    const { 
+        schoolProfile, subjects, sections, students, classRecords, hpsRecords, gradingSheetRecords,
+        addSubject, deleteSubject, deleteSubjectsBulk, updateSubject, updateSection,
+        updateClassRecord, updateHPSRecord, bulkUpdateGradingSheetRecords,
+        setCurrentView, showNotification 
+    } = useAppStore(); 
     const { user } = useAuthStore();
     const canEdit = canEditClassesAndSubjects(user);
 
     const [viewMode, setViewMode] = useState<'grades' | 'subjects'>('grades');
     const [selectedGrade, setSelectedGrade] = useState<string | null>(null);
+    const [jhsTrackFilter, setJhsTrackFilter] = useState<JhsTrackFilter>('all');
+    const [isMergingDuplicates, setIsMergingDuplicates] = useState(false);
     const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
     const [selectedAdvisorySectionId, setSelectedAdvisorySectionId] = useState<string | null>(null);
     const [sectionAssignmentSubject, setSectionAssignmentSubject] = useState<Subject | null>(null);
@@ -268,7 +279,11 @@ export function SubjectsPage() {
         } else if (type === 'special') {
             templates = SPECIAL_SUBJECTS[selectedGrade as keyof typeof SPECIAL_SUBJECTS];
         } else if (type === 'program_ste' || type === 'program_spstem') {
-            templates = SPSTEM_SUBJECTS[selectedGrade] || [];
+            const gradeDefaults = SPSTEM_SUBJECTS[selectedGrade] || [];
+            const otherJhsElectives = JHS_STE_ELECTIVES.filter(e => 
+                !gradeDefaults.some(g => normalizeSubjectLabel(g.name) === normalizeSubjectLabel(e.name))
+            );
+            templates = [...gradeDefaults, ...otherJhsElectives];
         } else if (type === 'program_spa') {
             templates = Object.values(SPA_MAJORS).flat();
         } else if (type === 'program_spj') {
@@ -304,9 +319,16 @@ export function SubjectsPage() {
 
         // Pre-select ONLY the subjects that are NOT yet added!
         const initialSelected = new Set<string>();
+        const gradeDefaults = (type === 'program_ste' || type === 'program_spstem') ? (SPSTEM_SUBJECTS[selectedGrade] || []) : templates;
         templates.forEach(s => {
             if (!existingNames.has(normalizeSubjectLabel(s.name))) {
-                initialSelected.add(s.name);
+                if (type === 'program_ste' || type === 'program_spstem') {
+                    if (gradeDefaults.some(g => normalizeSubjectLabel(g.name) === normalizeSubjectLabel(s.name))) {
+                        initialSelected.add(s.name);
+                    }
+                } else {
+                    initialSelected.add(s.name);
+                }
             }
         });
 
@@ -997,6 +1019,32 @@ export function SubjectsPage() {
         return count;
     }, [subjects, selectedSectionId, selectedGrade]);
 
+    const isJhsGrade = useMemo(() => {
+        return Boolean(selectedGrade && ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'].includes(selectedGrade));
+    }, [selectedGrade]);
+
+    const jhsTrackCounts = useMemo(() => {
+        if (!isJhsGrade || !selectedGrade) return null;
+        const counts: Record<JhsTrackFilter, number> = { all: 0, core: 0, ste: 0, spa: 0, spj: 0, tvl: 0 };
+        const rawList = subjects
+            .filter(s => !s.is_teaching_load) 
+            .filter((s) => {
+                if (selectedSectionId) return s.section_id === selectedSectionId;
+                return s.grade_level === selectedGrade && !s.section_id;
+            });
+
+        const seenNames = new Set<string>();
+        for (const s of rawList) {
+            const key = normalizeSubjectLabel(s.subject_name);
+            if (key && seenNames.has(key)) continue;
+            if (key) seenNames.add(key);
+            counts.all++;
+            const track = classifyJhsSubjectTrack(s.subject_name, selectedGrade, s.subject_code);
+            counts[track]++;
+        }
+        return counts;
+    }, [isJhsGrade, selectedGrade, subjects, selectedSectionId]);
+
     const filteredSubjects = useMemo(() => {
         if (!selectedGrade) return [];
         const rawList = subjects
@@ -1018,6 +1066,10 @@ export function SubjectsPage() {
         const query = subjectSearchQuery.toLowerCase().trim();
         return uniqueList
             .filter((s) => {
+                if (isJhsGrade && jhsTrackFilter !== 'all') {
+                    const track = classifyJhsSubjectTrack(s.subject_name, selectedGrade, s.subject_code);
+                    if (track !== jhsTrackFilter) return false;
+                }
                 if (!query) return true;
                 return (
                     s.subject_name.toLowerCase().includes(query) ||
@@ -1097,7 +1149,7 @@ export function SubjectsPage() {
                 if (orderA !== orderB) return orderA - orderB;
                 return a.subject_name.localeCompare(b.subject_name);
             });
-    }, [subjects, selectedSectionId, selectedGrade, subjectSearchQuery]);
+    }, [subjects, selectedSectionId, selectedGrade, subjectSearchQuery, isJhsGrade, jhsTrackFilter]);
 
     const groupedSubjects = useMemo(() => {
         if (!selectedGrade) return {};
@@ -1525,30 +1577,166 @@ export function SubjectsPage() {
         });
     };
 
-    const handleCleanDuplicates = async () => {
-        const seenKeys = new Set<string>();
-        const duplicateIds: string[] = [];
+    const duplicateGhostInfo = useMemo(() => {
+        const gradeGroups: Record<string, Subject[]> = {};
+        const untrimmedSubjects: Subject[] = [];
 
         subjects.forEach(s => {
-            const key = `${s.section_id || ''}_${s.grade_level || ''}_${normalizeSubjectLabel(s.subject_name)}`;
-            if (seenKeys.has(key)) {
-                duplicateIds.push(s.id);
-            } else {
-                seenKeys.add(key);
+            if (s.subject_name !== s.subject_name.trim()) {
+                untrimmedSubjects.push(s);
             }
+            const key = `${s.grade_level || 'all'}::${s.section_id || 'all'}::${normalizeSubjectLabel(s.subject_name)}`;
+            if (!gradeGroups[key]) gradeGroups[key] = [];
+            gradeGroups[key].push(s);
         });
 
-        if (duplicateIds.length === 0) {
-            showNotification('No duplicate subject records found in database.', 'info');
-            return;
+        const duplicateClusters = Object.values(gradeGroups).filter(group => group.length > 1);
+        const totalDuplicates = duplicateClusters.reduce((acc, g) => acc + (g.length - 1), 0);
+
+        const activeSubjectIds = new Set(subjects.map(s => s.id));
+        const orphanedClassRecords = classRecords.filter(cr => cr.subject_id && !activeSubjectIds.has(cr.subject_id));
+        const orphanedGradingRecords = gradingSheetRecords.filter(gs => gs.subject_id && !activeSubjectIds.has(gs.subject_id));
+        const totalOrphaned = orphanedClassRecords.length + orphanedGradingRecords.length;
+
+        const hasIssues = totalDuplicates > 0 || untrimmedSubjects.length > 0 || totalOrphaned > 0;
+        const sampleDuplicates = duplicateClusters.slice(0, 3).map(g => g[0].subject_name);
+
+        return {
+            hasIssues,
+            duplicateClusters,
+            totalDuplicates,
+            untrimmedCount: untrimmedSubjects.length,
+            totalOrphaned,
+            sampleDuplicates
+        };
+    }, [subjects, classRecords, gradingSheetRecords]);
+
+    const handleMergeAndCleanDuplicates = async () => {
+        setIsMergingDuplicates(true);
+        try {
+            let mergedCount = 0;
+            const duplicateIdsToDelete: string[] = [];
+            const classRecordsToUpdate: ClassRecord[] = [];
+            const gradingRecordsToUpdate: ClassRecord[] = [];
+            const hpsRecordsToUpdate: HPSRecord[] = [];
+
+            for (const cluster of duplicateGhostInfo.duplicateClusters) {
+                // Find canonical subject: prefer deterministic ID or cleanly trimmed name
+                const canonical = cluster.find(s => !s.id.startsWith('sub_') && s.subject_name === s.subject_name.trim()) || cluster[0];
+                const duplicates = cluster.filter(s => s.id !== canonical.id);
+
+                if (canonical.subject_name !== canonical.subject_name.trim()) {
+                    await updateSubject({
+                        ...canonical,
+                        subject_name: canonical.subject_name.trim()
+                    });
+                }
+
+                for (const dup of duplicates) {
+                    duplicateIdsToDelete.push(dup.id);
+                    mergedCount++;
+
+                    classRecords.forEach(cr => {
+                        if (cr.subject_id === dup.id) {
+                            classRecordsToUpdate.push({
+                                ...cr,
+                                subject_id: canonical.id,
+                                subject_name: canonical.subject_name
+                            });
+                        }
+                    });
+
+                    gradingSheetRecords.forEach(gs => {
+                        if (gs.subject_id === dup.id) {
+                            gradingRecordsToUpdate.push({
+                                ...gs,
+                                subject_id: canonical.id,
+                                subject_name: canonical.subject_name
+                            });
+                        }
+                    });
+
+                    hpsRecords.forEach(hps => {
+                        if (hps.subject_id === dup.id) {
+                            hpsRecordsToUpdate.push({
+                                ...hps,
+                                subject_id: canonical.id
+                            });
+                        }
+                    });
+                }
+            }
+
+            // Update records in parallel batches or sequentially
+            for (const cr of classRecordsToUpdate) {
+                await updateClassRecord(cr);
+            }
+            if (gradingRecordsToUpdate.length > 0) {
+                await bulkUpdateGradingSheetRecords(gradingRecordsToUpdate);
+            }
+            for (const hps of hpsRecordsToUpdate) {
+                await updateHPSRecord(hps);
+            }
+
+            // Delete duplicate subject items
+            if (duplicateIdsToDelete.length > 0) {
+                await deleteSubjectsBulk(duplicateIdsToDelete);
+            }
+
+            // Reconcile any remaining orphaned grade records
+            const recon = reconcileOrphanedGradesAndSubjects({
+                subjects,
+                sections,
+                students,
+                classRecords,
+                hpsRecords,
+                gradingSheetRecords
+            });
+
+            if (recon.modified || recon.subjectsModified) {
+                for (const s of recon.subjects) {
+                    const existing = subjects.find(cur => cur.id === s.id);
+                    if (existing) {
+                        await updateSubject(s);
+                    } else {
+                        await addSubject(s);
+                    }
+                }
+            }
+
+            showNotification(
+                mergedCount > 0
+                    ? `Successfully merged and cleaned ${mergedCount} duplicate subject(s) with all grades preserved!`
+                    : 'Cleaned duplicate and orphaned subjects successfully!',
+                'success'
+            );
+        } catch (err) {
+            console.error('Failed to merge duplicate subjects:', err);
+            showNotification('Failed to merge duplicate subjects. Please try again.', 'error');
+        } finally {
+            setIsMergingDuplicates(false);
         }
+    };
+
+    const handleApplyDepEdWeights = async () => {
+        if (!selectedGrade || filteredSubjects.length === 0) return;
 
         try {
-            await deleteSubjectsBulk(duplicateIds);
-            showNotification(`Cleaned ${duplicateIds.length} duplicate subject records!`, 'success');
+            let updatedCount = 0;
+            for (const sub of filteredSubjects) {
+                const std = getDepEdStandardWeights(sub.subject_name);
+                await updateSubject({
+                    ...sub,
+                    written_weight: std.written_weight,
+                    performance_weight: std.performance_weight,
+                    exam_weight: std.exam_weight
+                });
+                updatedCount++;
+            }
+            showNotification(`Applied DepEd Standard Weights to ${updatedCount} subjects in ${selectedGrade}!`, 'success');
         } catch (err) {
-            console.error('Failed to clean duplicate subjects:', err);
-            showNotification('Failed to clean duplicate subjects.', 'error');
+            console.error('Failed to apply DepEd weights:', err);
+            showNotification('Failed to apply DepEd standard weights.', 'error');
         }
     };
 
@@ -1665,6 +1853,42 @@ export function SubjectsPage() {
                 />
             </div>
 
+            {/* Ghost & Duplicate Subject Detector Alert Banner */}
+            {duplicateGhostInfo.hasIssues && canEdit && (
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 shadow-xs relative z-10">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 border border-amber-400/30">
+                            <AlertTriangle className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h4 className="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                                    Ghost & Duplicate Subject Detector
+                                </h4>
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-400/30">
+                                    {duplicateGhostInfo.totalDuplicates + duplicateGhostInfo.untrimmedCount + (duplicateGhostInfo.totalOrphaned > 0 ? 1 : 0)} Issues Detected
+                                </span>
+                            </div>
+                            <p className="text-xs text-amber-800 dark:text-amber-300 mt-0.5">
+                                {duplicateGhostInfo.totalDuplicates > 0
+                                    ? `Found duplicate subject records${duplicateGhostInfo.sampleDuplicates.length > 0 ? ` (${duplicateGhostInfo.sampleDuplicates.join(', ')})` : ''} that can split student grades.`
+                                    : 'Found orphaned grade entries or untrimmed subject names.'}
+                                {' Click Merge & Clean to safely re-link all grades and remove duplicate records.'}
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleMergeAndCleanDuplicates}
+                        disabled={isMergingDuplicates}
+                        className="px-4 py-2 bg-linear-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-2 shrink-0 disabled:opacity-50"
+                    >
+                        <Settings className={`w-3.5 h-3.5 ${isMergingDuplicates ? 'animate-spin' : ''}`} />
+                        <span>{isMergingDuplicates ? 'Merging Grades...' : 'Merge & Clean Duplicates'}</span>
+                    </button>
+                </div>
+            )}
+
             {/* Redesigned Compact Header Row */}
             <div className="flex flex-wrap items-center justify-between gap-3 bg-white/80 dark:bg-[#0f172a]/90 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 p-2.5 rounded-2xl shadow-2xs relative z-10">
                 <div className="flex items-center gap-3">
@@ -1715,6 +1939,14 @@ export function SubjectsPage() {
                     {viewMode === 'subjects' && canEdit && (
                         <div className="flex items-center gap-2">
                             <button 
+                                onClick={handleApplyDepEdWeights}
+                                className="h-8 px-3 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 rounded-xl font-bold text-xs hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all flex items-center gap-1.5 border border-indigo-200 dark:border-indigo-800/40 active:scale-95 cursor-pointer"
+                                title="Apply DepEd standard weights (Math/Science: 40-40-20, Languages/AP/EsP: 30-50-20, TLE/MAPEH: 20-60-20) to all subjects in this grade"
+                            >
+                                <Scale className="w-3.5 h-3.5" />
+                                <span>DepEd Weights</span>
+                            </button>
+                            <button 
                                 onClick={() => {
                                     setWizardStep('choice');
                                     setShowCurriculumChoice(true);
@@ -1726,12 +1958,13 @@ export function SubjectsPage() {
                                 Choose Offerings
                             </button>
                             <button 
-                                onClick={handleCleanDuplicates}
-                                className="h-8 px-3 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 rounded-xl font-bold text-xs hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-all flex items-center gap-1.5 border border-amber-200 dark:border-amber-800/40 active:scale-95 cursor-pointer"
-                                title="Remove duplicate subject records from database"
+                                onClick={handleMergeAndCleanDuplicates}
+                                disabled={isMergingDuplicates}
+                                className="h-8 px-3 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 rounded-xl font-bold text-xs hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-all flex items-center gap-1.5 border border-amber-200 dark:border-amber-800/40 active:scale-95 cursor-pointer disabled:opacity-50"
+                                title="Safely merge duplicate subject records and consolidate grades"
                             >
-                                <Settings className="w-3.5 h-3.5" />
-                                Clean Duplicates
+                                <Settings className={`w-3.5 h-3.5 ${isMergingDuplicates ? 'animate-spin' : ''}`} />
+                                <span>{isMergingDuplicates ? 'Merging...' : 'Clean Duplicates'}</span>
                             </button>
                             {filteredSubjects.length > 0 && (
                                 <button 
@@ -2124,6 +2357,41 @@ export function SubjectsPage() {
                                         )}
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {/* Curriculum Track Filter Tabs (Grade 7 - 10) */}
+                        {isJhsGrade && jhsTrackCounts && totalGradeSubjectsCount > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-white/80 dark:bg-[#0f172a]/90 backdrop-blur-xl rounded-2xl border border-slate-200/80 dark:border-white/10 shadow-2xs">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 pl-2.5 pr-1 hidden sm:inline">Track:</span>
+                                {[
+                                    { key: 'all' as const, label: 'All', count: jhsTrackCounts.all },
+                                    { key: 'core' as const, label: 'Core MATATAG', count: jhsTrackCounts.core },
+                                    { key: 'ste' as const, label: 'STE', count: jhsTrackCounts.ste },
+                                    { key: 'spa' as const, label: 'SPA', count: jhsTrackCounts.spa },
+                                    { key: 'spj' as const, label: 'SPJ', count: jhsTrackCounts.spj },
+                                    { key: 'tvl' as const, label: 'TVL', count: jhsTrackCounts.tvl },
+                                ].map(tab => (
+                                    <button
+                                        key={tab.key}
+                                        type="button"
+                                        onClick={() => setJhsTrackFilter(tab.key)}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer select-none active:scale-95 ${
+                                            jhsTrackFilter === tab.key
+                                                ? 'bg-indigo-600 text-white shadow-xs'
+                                                : 'bg-slate-50 dark:bg-white/5 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/10'
+                                        }`}
+                                    >
+                                        <span>{tab.label}</span>
+                                        <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${
+                                            jhsTrackFilter === tab.key
+                                                ? 'bg-white/20 text-white'
+                                                : 'bg-slate-200/70 dark:bg-white/10 text-slate-500 dark:text-slate-400'
+                                        }`}>
+                                            {tab.count}
+                                        </span>
+                                    </button>
+                                ))}
                             </div>
                         )}
 
@@ -2893,7 +3161,43 @@ export function SubjectsPage() {
                                 );
                             })()}
                             <div className="border-t border-slate-100 dark:border-white/10 pt-4">
-                                <h4 className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-3">Custom Grading Weights (Optional)</h4>
+                                <div className="flex items-center justify-between mb-2">
+                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Custom Grading Weights (Optional)</h4>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 mb-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, written_weight: '30', performance_weight: '50', exam_weight: '20' })}
+                                        className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors cursor-pointer"
+                                        title="Languages, AP, EsP / Values, GMRC, Makabansa (30% WW, 50% PT, 20% QA)"
+                                    >
+                                        Languages/AP/EsP (30-50-20)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, written_weight: '40', performance_weight: '40', exam_weight: '20' })}
+                                        className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer"
+                                        title="Mathematics and Science (40% WW, 40% PT, 20% QA)"
+                                    >
+                                        Math/Science (40-40-20)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, written_weight: '20', performance_weight: '60', exam_weight: '20' })}
+                                        className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-colors cursor-pointer"
+                                        title="TLE, EPP, MAPEH (20% WW, 60% PT, 20% QA)"
+                                    >
+                                        TLE/EPP/MAPEH (20-60-20)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, written_weight: '', performance_weight: '', exam_weight: '' })}
+                                        className="px-2.5 py-1 text-[10px] font-medium rounded-lg bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/10 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors cursor-pointer"
+                                        title="Reset to DepEd cluster defaults (clears manual overrides)"
+                                    >
+                                        Reset to Default
+                                    </button>
+                                </div>
                                 <div className="grid grid-cols-3 gap-3">
                                     <div>
                                         <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Written Works %</label>

@@ -10,6 +10,7 @@ interface ShsMapperParams {
   teachers?: User[];
   subjects?: Subject[];
   gradingSheetRecords?: ClassRecord[];
+  classRecords?: ClassRecord[];
 }
 
 /**
@@ -23,6 +24,7 @@ export function mapStudentToShsSf10Data({
   sections,
   teachers = [],
   gradingSheetRecords = [],
+  classRecords = [],
   subjects = [],
 }: ShsMapperParams) {
   
@@ -158,10 +160,25 @@ export function mapStudentToShsSf10Data({
 
     return candidateSubjects.map(dbSubject => {
       const getGrade = (q: number) => {
-        const rec = gradingSheetRecords.find(
-          r => r.student_lrn === student.lrn && r.subject_id === dbSubject.id && r.quarter === q
-        );
-        return rec && rec.final_grade ? Math.round(Number(rec.final_grade)) : 0;
+        const matchRecord = (r: ClassRecord) =>
+          (r.student_lrn === student.lrn || String(r.student_lrn).trim() === String(student.lrn).trim()) &&
+          (r.subject_id === dbSubject.id || isMatchingSubject(dbSubject.subject_name, r.subject_id, r.subject_name)) &&
+          Number(r.quarter) === q &&
+          (!schoolYear || !r.school_year || r.school_year === schoolYear);
+
+        // Priority 1: Official consolidated gradingSheetRecords (transmuted final grade)
+        const gRec = gradingSheetRecords.find(matchRecord);
+        if (gRec && gRec.final_grade && Number(gRec.final_grade) > 0) {
+          return Math.round(Number(gRec.final_grade));
+        }
+
+        // Priority 2: Direct teacher classRecords fallback
+        const cRec = classRecords.find(matchRecord);
+        if (cRec && cRec.final_grade && Number(cRec.final_grade) > 0) {
+          return Math.round(Number(cRec.final_grade));
+        }
+
+        return 0;
       };
 
       const q1 = getGrade(1);

@@ -17,6 +17,9 @@ import { isGrade3, fetchGrade3TemplateBuffer, populateGrade3TemplateBuffer } fro
 import { isGrade4to10, fetchGrade4to10TemplateBuffer, populateGrade4to10TemplateBuffer, exportSF9Grade4to10SectionMasterToExcel } from './sf9-g4-10-excel-export';
 import { isGrade11Academic, fetchGrade11AcademicTemplateBuffer, populateGrade11AcademicTemplateBuffer, exportSF9Grade11AcademicSectionMasterToExcel } from './sf9-g11-academic-excel-export';
 import { isGrade11TechPro, fetchGrade11TechProTemplateBuffer, populateGrade11TechProTemplateBuffer, exportSF9Grade11TechProSectionMasterToExcel } from './sf9-g11-techpro-excel-export';
+import { isGrade12AcademicCross, fetchGrade12AcademicCrossTemplateBuffer, populateGrade12AcademicCrossTemplateBuffer, exportSF9Grade12AcademicCrossSectionMasterToExcel } from './sf9-g12-academic-cross-excel-export';
+import { isGrade12TechPro, fetchGrade12TechProTemplateBuffer, populateGrade12TechProTemplateBuffer, exportSF9Grade12TechProSectionMasterToExcel } from './sf9-g12-techpro-excel-export';
+import { isGrade12TechProWithCross, fetchGrade12TechProCrossTemplateBuffer, populateGrade12TechProCrossTemplateBuffer, exportSF9Grade12TechProCrossSectionMasterToExcel } from './sf9-g12-techpro-cross-excel-export';
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -531,6 +534,9 @@ export async function exportSF9ToExcel(opts: SF9ExcelExportOptions): Promise<voi
   const rawTrack = opts.track || opts.student.track || opts.student.strand || opts.student.student_section || opts.section;
   const isG11Tech = isGrade11TechPro(opts.gradeLevel || opts.student.grade_level, rawTrack);
   const isG11Acad = !isG11Tech && isGrade11Academic(opts.gradeLevel || opts.student.grade_level, rawTrack);
+  const isG12TechCross = isGrade12TechProWithCross(opts.gradeLevel || opts.student.grade_level, rawTrack, opts.subjects as Array<{ name?: string; subject_name?: string }>);
+  const isG12Tech = !isG12TechCross && isGrade12TechPro(opts.gradeLevel || opts.student.grade_level, rawTrack);
+  const isG12Cross = !isG12TechCross && !isG12Tech && isGrade12AcademicCross(opts.gradeLevel || opts.student.grade_level, rawTrack);
   
   let outBuffer: ArrayBuffer;
   if (isG1) {
@@ -566,6 +572,30 @@ export async function exportSF9ToExcel(opts: SF9ExcelExportOptions): Promise<voi
       subjects: opts.subjects as unknown as Parameters<typeof populateGrade11AcademicTemplateBuffer>[1]['subjects'],
       learners: opts.sectionStudents || [opts.student]
     });
+  } else if (isG12TechCross) {
+    const buffer = await fetchGrade12TechProCrossTemplateBuffer();
+    outBuffer = await populateGrade12TechProCrossTemplateBuffer(buffer, {
+      ...opts,
+      grades: opts.grades as unknown as Parameters<typeof populateGrade12TechProCrossTemplateBuffer>[1]['grades'],
+      subjects: opts.subjects as unknown as Parameters<typeof populateGrade12TechProCrossTemplateBuffer>[1]['subjects'],
+      learners: opts.sectionStudents || [opts.student]
+    });
+  } else if (isG12Tech) {
+    const buffer = await fetchGrade12TechProTemplateBuffer();
+    outBuffer = await populateGrade12TechProTemplateBuffer(buffer, {
+      ...opts,
+      grades: opts.grades as unknown as Parameters<typeof populateGrade12TechProTemplateBuffer>[1]['grades'],
+      subjects: opts.subjects as unknown as Parameters<typeof populateGrade12TechProTemplateBuffer>[1]['subjects'],
+      learners: opts.sectionStudents || [opts.student]
+    });
+  } else if (isG12Cross) {
+    const buffer = await fetchGrade12AcademicCrossTemplateBuffer();
+    outBuffer = await populateGrade12AcademicCrossTemplateBuffer(buffer, {
+      ...opts,
+      grades: opts.grades as unknown as Parameters<typeof populateGrade12AcademicCrossTemplateBuffer>[1]['grades'],
+      subjects: opts.subjects as unknown as Parameters<typeof populateGrade12AcademicCrossTemplateBuffer>[1]['subjects'],
+      learners: opts.sectionStudents || [opts.student]
+    });
   } else {
     const buffer = await fetchTemplateBuffer();
     const wb = await populateTemplate(buffer, opts);
@@ -578,9 +608,9 @@ export async function exportSF9ToExcel(opts: SF9ExcelExportOptions): Promise<voi
 
   const a = document.createElement('a');
   a.href = url;
-  if (isG2 || isG3 || isG4to10 || isG11Acad || isG11Tech) {
+  if (isG2 || isG3 || isG4to10 || isG11Acad || isG11Tech || isG12Tech || isG12Cross || isG12TechCross) {
     const safeSection = (opts.section || 'SECTION').replace(/[^a-z0-9]/gi, '_');
-    const safeGrade = (opts.gradeLevel || opts.student.grade_level || (isG11Tech ? 'Grade_11_TechPro' : (isG11Acad ? 'Grade_11_Academic' : (isG4to10 ? 'Grade_4' : (isG3 ? 'Grade_3' : 'Grade_2'))))).replace(/[^a-z0-9]/gi, '_');
+    const safeGrade = (opts.gradeLevel || opts.student.grade_level || (isG12TechCross ? 'Grade_12_TechPro_Cross' : (isG12Tech ? 'Grade_12_TechPro' : (isG12Cross ? 'Grade_12_Academic_Cross' : (isG11Tech ? 'Grade_11_TechPro' : (isG11Acad ? 'Grade_11_Academic' : (isG4to10 ? 'Grade_4' : (isG3 ? 'Grade_3' : 'Grade_2')))))))).replace(/[^a-z0-9]/gi, '_');
     a.download = `SF9_${safeGrade}_${safeSection}_${opts.schoolYear}.xlsx`;
   } else {
     const safeName = formatLearnerName(opts.student).replace(/[^a-z0-9]/gi, '_');
@@ -596,9 +626,21 @@ export {
   exportSF9Grade4to10SectionMasterToExcel,
   exportSF9Grade11AcademicSectionMasterToExcel,
   exportSF9Grade11TechProSectionMasterToExcel,
+  exportSF9Grade12AcademicCrossSectionMasterToExcel,
+  exportSF9Grade12TechProSectionMasterToExcel,
+  exportSF9Grade12TechProCrossSectionMasterToExcel,
   isGrade11TechPro,
   fetchGrade11TechProTemplateBuffer,
-  populateGrade11TechProTemplateBuffer
+  populateGrade11TechProTemplateBuffer,
+  isGrade12AcademicCross,
+  fetchGrade12AcademicCrossTemplateBuffer,
+  populateGrade12AcademicCrossTemplateBuffer,
+  isGrade12TechPro,
+  fetchGrade12TechProTemplateBuffer,
+  populateGrade12TechProTemplateBuffer,
+  isGrade12TechProWithCross,
+  fetchGrade12TechProCrossTemplateBuffer,
+  populateGrade12TechProCrossTemplateBuffer
 };
 
 /**
@@ -669,6 +711,9 @@ export async function exportSF9BatchToExcel(
   const g410Buffer = await fetchGrade4to10TemplateBuffer().catch(() => null);
   const g11TechBuffer = await fetchGrade11TechProTemplateBuffer().catch(() => null);
   const g11AcadBuffer = await fetchGrade11AcademicTemplateBuffer().catch(() => null);
+  const g12CrossBuffer = await fetchGrade12AcademicCrossTemplateBuffer().catch(() => null);
+  const g12TechBuffer = await fetchGrade12TechProTemplateBuffer().catch(() => null);
+  const g12TechCrossBuffer = await fetchGrade12TechProCrossTemplateBuffer().catch(() => null);
   const legacyBuffer = await fetchTemplateBuffer().catch(() => null);
   const zip = new JSZip();
   const total = studentOptions.length;
@@ -682,6 +727,9 @@ export async function exportSF9BatchToExcel(
     const rawTrack = opts.track || opts.student.track || opts.student.strand || opts.student.student_section || opts.section;
     const isThisG11Tech = isGrade11TechPro(opts.gradeLevel || opts.student.grade_level, rawTrack);
     const isThisG11Acad = !isThisG11Tech && isGrade11Academic(opts.gradeLevel || opts.student.grade_level, rawTrack);
+    const isThisG12TechCross = isGrade12TechProWithCross(opts.gradeLevel || opts.student.grade_level, rawTrack, opts.subjects as Array<{ name?: string; subject_name?: string }>);
+    const isThisG12Tech = !isThisG12TechCross && isGrade12TechPro(opts.gradeLevel || opts.student.grade_level, rawTrack);
+    const isThisG12Cross = !isThisG12TechCross && !isThisG12Tech && isGrade12AcademicCross(opts.gradeLevel || opts.student.grade_level, rawTrack);
     
     let outBuffer: ArrayBuffer;
     if (isThisG1 && g1Buffer) {
@@ -709,6 +757,27 @@ export async function exportSF9BatchToExcel(
         ...opts,
         grades: opts.grades as unknown as Parameters<typeof populateGrade11AcademicTemplateBuffer>[1]['grades'],
         subjects: opts.subjects as unknown as Parameters<typeof populateGrade11AcademicTemplateBuffer>[1]['subjects'],
+        learners: opts.sectionStudents || [opts.student]
+      });
+    } else if (isThisG12TechCross && g12TechCrossBuffer) {
+      outBuffer = await populateGrade12TechProCrossTemplateBuffer(g12TechCrossBuffer, {
+        ...opts,
+        grades: opts.grades as unknown as Parameters<typeof populateGrade12TechProCrossTemplateBuffer>[1]['grades'],
+        subjects: opts.subjects as unknown as Parameters<typeof populateGrade12TechProCrossTemplateBuffer>[1]['subjects'],
+        learners: opts.sectionStudents || [opts.student]
+      });
+    } else if (isThisG12Tech && g12TechBuffer) {
+      outBuffer = await populateGrade12TechProTemplateBuffer(g12TechBuffer, {
+        ...opts,
+        grades: opts.grades as unknown as Parameters<typeof populateGrade12TechProTemplateBuffer>[1]['grades'],
+        subjects: opts.subjects as unknown as Parameters<typeof populateGrade12TechProTemplateBuffer>[1]['subjects'],
+        learners: opts.sectionStudents || [opts.student]
+      });
+    } else if (isThisG12Cross && g12CrossBuffer) {
+      outBuffer = await populateGrade12AcademicCrossTemplateBuffer(g12CrossBuffer, {
+        ...opts,
+        grades: opts.grades as unknown as Parameters<typeof populateGrade12AcademicCrossTemplateBuffer>[1]['grades'],
+        subjects: opts.subjects as unknown as Parameters<typeof populateGrade12AcademicCrossTemplateBuffer>[1]['subjects'],
         learners: opts.sectionStudents || [opts.student]
       });
     } else {

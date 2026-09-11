@@ -191,6 +191,54 @@ export const DiagnosticEngine = {
         });
       }
 
+      // --- 6. Ghost E-Class Records (Phantom Grades with No Raw Scores) ---
+      const isValidScore = (s: number | string | null | undefined) =>
+        s !== '' && s !== null && s !== undefined && !isNaN(Number(s));
+
+      const ghostClassRecordIds: string[] = [];
+      for (const record of classRecords) {
+        if (record.final_grade && Number(record.final_grade) > 0) {
+          const rawWw = Array.isArray(record.written_works) ? record.written_works : [];
+          const rawPt = Array.isArray(record.performance_tasks) ? record.performance_tasks : [];
+          const rawQa = record.quarterly_exam;
+          const rawSt = (record as ClassRecord & { summative_tests?: (number | string)[] }).summative_tests;
+
+          const hasScoreContainers =
+            record.written_works !== undefined ||
+            record.performance_tasks !== undefined ||
+            record.quarterly_exam !== undefined ||
+            rawSt !== undefined;
+
+          if (hasScoreContainers) {
+            const hasScores =
+              rawWw.some(isValidScore) ||
+              rawPt.some(isValidScore) ||
+              (isValidScore(rawQa) && Number(rawQa) > 0) ||
+              (Array.isArray(rawSt) && rawSt.some(isValidScore));
+
+            if (!hasScores) {
+              ghostClassRecordIds.push(record.id);
+            }
+          }
+        }
+      }
+
+      if (ghostClassRecordIds.length > 0) {
+        issues.push({
+          id: 'ghost_class_records',
+          category: 'orphan_grades',
+          severity: 'warning',
+          description: `${ghostClassRecordIds.length} ghost E-Class grade record(s) with phantom grades detected.`,
+          details: 'These E-Class records have stored final grades but no encoded raw scores (Written Works, Performance Tasks, or Exams), which can trigger phantom grades during synchronization.',
+          affectedIds: ghostClassRecordIds,
+          repairAction: async () => {
+            for (const id of ghostClassRecordIds) {
+              await db.deleteRecord('classRecords', id);
+            }
+          }
+        });
+      }
+
       console.log(`🩺 Diagnostics complete. Found ${issues.length} issue(s).`);
     } catch (err) {
       console.error('❌ Diagnostic engine scan aborted due to error:', err);

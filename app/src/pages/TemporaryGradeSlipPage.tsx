@@ -620,7 +620,7 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
             const isComponent = hasParentMapeh && (
                 normName.includes('musicandarts') || normName.includes('musicarts') ||
                 normName.includes('physicaleducationandhealth') || normName.includes('peandhealth') || normName.includes('pehealth') ||
-                normName === 'music' || normName === 'arts' || normName === 'physicaleducation' || normName === 'health'
+                normName === 'music' || normName === 'arts' || normName === 'physicaleducation' || normName === 'health' || normName === 'pe'
             );
 
             const isExcludedFromAverage = isComponent || 
@@ -652,8 +652,9 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
             let finalGrade = '';
             let remarks = '';
             
-            if (sCount > 0) {
-                const avg = Math.round(sTotal / sCount);
+            // Only compute final grade and remarks if all 3 terms are complete
+            if (sCount === 3) {
+                const avg = Math.round(sTotal / 3);
                 finalGrade = avg.toString();
                 if (!isExcludedFromAverage) {
                     finalTotal += avg;
@@ -668,15 +669,6 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
         // Second pass: compute parent MAPEH grades
         const mapehSubj = dedupedSubjects.find(s => normalizeSubjectName(s.subject_name) === 'mapeh');
         if (mapehSubj) {
-            const musicArtsSubj = dedupedSubjects.find(s => {
-                const n = normalizeSubjectName(s.subject_name);
-                return n.includes('musicandarts') || n.includes('musicarts') || n === 'music' || n === 'arts';
-            });
-            const peHealthSubj = dedupedSubjects.find(s => {
-                const n = normalizeSubjectName(s.subject_name);
-                return n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth') || n === 'physicaleducation' || n === 'health';
-            });
-
             let q1 = '', q2 = '', q3 = '';
             let sTotal = 0, sCount = 0;
 
@@ -695,14 +687,27 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
                 );
 
                 if (g === 0) {
-                    const maG = musicArtsSubj ? Number(subjectGrades[musicArtsSubj.id]?.[qKey] || 0) : 0;
-                    const peG = peHealthSubj ? Number(subjectGrades[peHealthSubj.id]?.[qKey] || 0) : 0;
-                    if (maG > 0 && peG > 0) {
-                        g = Math.round((maG + peG) / 2);
-                    } else if (maG > 0) {
-                        g = maG;
-                    } else if (peG > 0) {
-                        g = peG;
+                    const maSubs = dedupedSubjects.filter(s => {
+                        const n = normalizeSubjectName(s.subject_name);
+                        return n.includes('musicandarts') || n.includes('musicarts') || n === 'music' || n === 'arts';
+                    });
+                    const peSubs = dedupedSubjects.filter(s => {
+                        const n = normalizeSubjectName(s.subject_name);
+                        return n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth') || n === 'physicaleducation' || n === 'health' || n === 'pe';
+                    });
+
+                    const maScores = maSubs.map(s => Number(subjectGrades[s.id]?.[qKey] || 0)).filter(v => v > 0);
+                    const peScores = peSubs.map(s => Number(subjectGrades[s.id]?.[qKey] || 0)).filter(v => v > 0);
+
+                    const maAvg = maScores.length > 0 ? Math.round(maScores.reduce((a, b) => a + b, 0) / maScores.length) : 0;
+                    const peAvg = peScores.length > 0 ? Math.round(peScores.reduce((a, b) => a + b, 0) / peScores.length) : 0;
+
+                    if (maAvg > 0 && peAvg > 0) {
+                        g = Math.round((maAvg + peAvg) / 2);
+                    } else if (maAvg > 0) {
+                        g = maAvg;
+                    } else if (peAvg > 0) {
+                        g = peAvg;
                     }
                 }
 
@@ -717,8 +722,9 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
 
             let finalGrade = '';
             let remarks = '';
-            if (sCount > 0) {
-                const avg = Math.round(sTotal / sCount);
+            // Only compute final grade and remarks if all 3 terms are complete
+            if (sCount === 3) {
+                const avg = Math.round(sTotal / 3);
                 finalGrade = avg.toString();
                 finalTotal += avg;
                 finalCount++;
@@ -728,12 +734,54 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
             subjectGrades[mapehSubj.id] = { q1, q2, q3, final: finalGrade, remarks };
         }
 
-        const genAvg = finalCount > 0 ? Math.round(finalTotal / finalCount).toString() : '';
-        const genRemarks = genAvg ? (Number(genAvg) >= 75 ? 'Passed' : 'Failed') : '';
+        // Count expected subjects that contribute to general average
+        let expectedSubjCount = 0;
+        dedupedSubjects.forEach(s => {
+            const normName = normalizeSubjectName(s.subject_name);
+            if (hasParentMapeh) {
+                if (normName === 'mapeh') {
+                    expectedSubjCount++;
+                    return;
+                }
+                const isComponent = normName.includes('musicandarts') || normName.includes('musicarts') ||
+                    normName.includes('physicaleducationandhealth') || normName.includes('peandhealth') || normName.includes('pehealth') ||
+                    normName === 'music' || normName === 'arts' || normName === 'physicaleducation' || normName === 'health' || normName === 'pe';
+                if (isComponent) return;
+            } else if (normName === 'mapeh') {
+                return;
+            }
 
-        const genT1 = termCounts.t1 > 0 ? Math.round(termTotals.t1 / termCounts.t1).toString() : '';
-        const genT2 = termCounts.t2 > 0 ? Math.round(termTotals.t2 / termCounts.t2).toString() : '';
-        const genT3 = termCounts.t3 > 0 ? Math.round(termTotals.t3 / termCounts.t3).toString() : '';
+            if (s.subject_name.startsWith('*') || 
+                s.subject_name.toLowerCase().includes('arabic language') || 
+                s.subject_name.toLowerCase().includes('islamic values')) {
+                return;
+            }
+
+            expectedSubjCount++;
+        });
+
+        // 3 terms are complete only if every expected subject has all 3 terms graded
+        const areAll3TermsComplete = expectedSubjCount > 0 && 
+            finalCount === expectedSubjCount &&
+            termCounts.t1 === expectedSubjCount &&
+            termCounts.t2 === expectedSubjCount &&
+            termCounts.t3 === expectedSubjCount;
+
+        // If the 3 terms are not complete yet:
+        // Do not compute or show final grade yet, as well as general average per term and remarks
+        if (!areAll3TermsComplete) {
+            Object.keys(subjectGrades).forEach(id => {
+                subjectGrades[id].final = '';
+                subjectGrades[id].remarks = '';
+            });
+        }
+
+        const genAvg = areAll3TermsComplete && finalCount > 0 ? Math.round(finalTotal / finalCount).toString() : '';
+        const genRemarks = areAll3TermsComplete && genAvg ? (Number(genAvg) >= 75 ? 'Passed' : 'Failed') : '';
+
+        const genT1 = areAll3TermsComplete && termCounts.t1 > 0 ? Math.round(termTotals.t1 / termCounts.t1).toString() : '';
+        const genT2 = areAll3TermsComplete && termCounts.t2 > 0 ? Math.round(termTotals.t2 / termCounts.t2).toString() : '';
+        const genT3 = areAll3TermsComplete && termCounts.t3 > 0 ? Math.round(termTotals.t3 / termCounts.t3).toString() : '';
 
         return { subjectGrades, genAvg, genRemarks, genT1, genT2, genT3 };
     }, [dedupedSubjects, records, student.lrn, activeSchoolYear, section?.section_grade_level, section?.track]);
@@ -972,29 +1020,21 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
         dedupedSubjects.forEach((subj) => {
             let q1 = 0, q2 = 0, q3 = 0;
             for (let q = 1; q <= 3; q++) {
-                const r = records.find(rec => rec.student_lrn === student.lrn && rec.subject_id === subj.id && Number(rec.quarter) === q && rec.school_year === activeSchoolYear);
-                if (r && r.final_grade && Number(r.final_grade) > 0) {
-                    const val = Number(r.final_grade);
-                    if (q === 1) q1 = val;
-                    if (q === 2) q2 = val;
-                    if (q === 3) q3 = val;
-                } else {
-                    const g = resolveStudentQuarterGrade(
-                        student.lrn,
-                        subj.id,
-                        q,
-                        activeSchoolYear,
-                        classRecords,
-                        records,
-                        hpsRecords,
-                        section?.section_grade_level,
-                        section?.track
-                    );
-                    if (g > 0) {
-                        if (q === 1) q1 = g;
-                        if (q === 2) q2 = g;
-                        if (q === 3) q3 = g;
-                    }
+                const g = resolveStudentQuarterGrade(
+                    student.lrn,
+                    subj.id,
+                    q,
+                    activeSchoolYear,
+                    classRecords,
+                    records,
+                    hpsRecords,
+                    section?.section_grade_level,
+                    section?.track
+                );
+                if (g > 0) {
+                    if (q === 1) q1 = g;
+                    if (q === 2) q2 = g;
+                    if (q === 3) q3 = g;
                 }
             }
             
@@ -1012,7 +1052,7 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
                 if (q1 > 0) { sum += q1; cnt++; }
                 if (q2 > 0) { sum += q2; cnt++; }
                 if (q3 > 0) { sum += q3; cnt++; }
-                final = cnt > 0 ? Math.round(sum / cnt) : 0;
+                final = cnt === 3 ? Math.round(sum / 3) : 0;
             }
             
             rawGrades[subj.id] = { q1, q2, q3, final, term };
@@ -1080,37 +1120,19 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
                 if (parentQ1 > 0) { sum += parentQ1; cnt++; }
                 if (parentQ2 > 0) { sum += parentQ2; cnt++; }
                 if (parentQ3 > 0) { sum += parentQ3; cnt++; }
-                parentFinal = cnt > 0 ? Math.round(sum / cnt) : 0;
+                parentFinal = cnt === 3 ? Math.round(sum / 3) : 0;
             }
         }
-
-        const gradesLookup: Record<string, { q1: string; q2: string; q3: string; final: string; remarks: string; term?: Subject['term'] }> = {};
-        
-        gradesLookup['parent_ec_mk'] = {
-            q1: parentQ1 > 0 ? parentQ1.toString() : '',
-            q2: parentQ2 > 0 ? parentQ2.toString() : '',
-            q3: parentQ3 > 0 ? parentQ3.toString() : '',
-            final: parentFinal > 0 ? parentFinal.toString() : '',
-            remarks: parentFinal > 0 ? (parentFinal >= 75 ? 'Passed' : 'Failed') : '',
-            term: parentTerm
-        };
-
-        dedupedSubjects.forEach((subj) => {
-            const rg = rawGrades[subj.id];
-            gradesLookup[subj.id] = {
-                q1: rg.q1 > 0 ? rg.q1.toString() : '',
-                q2: rg.q2 > 0 ? rg.q2.toString() : '',
-                q3: rg.q3 > 0 ? rg.q3.toString() : '',
-                final: rg.final > 0 ? rg.final.toString() : '',
-                remarks: rg.final > 0 ? (rg.final >= 75 ? 'Passed' : 'Failed') : '',
-                term: rg.term
-            };
-        });
 
         let genAvgQ1Total = 0, genAvgQ1Units = 0;
         let genAvgQ2Total = 0, genAvgQ2Units = 0;
         let genAvgQ3Total = 0, genAvgQ3Units = 0;
         let genAvgFinalTotal = 0, genAvgFinalUnits = 0;
+
+        let expectedYearUnits = 0;
+        let expectedT1Units = 0;
+        let expectedT2Units = 0;
+        let expectedT3Units = 0;
 
         const isComponentId = (id: string) => {
             const subj = dedupedSubjects.find(s => s.id === id);
@@ -1129,6 +1151,11 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
             const termUnits = unitInfo.unitsPerTerm;
             const yearUnits = unitInfo.yearUnits;
             
+            expectedYearUnits += yearUnits;
+            if (!isOffTerm(rg.term, 1)) expectedT1Units += termUnits;
+            if (!isOffTerm(rg.term, 2)) expectedT2Units += termUnits;
+            if (!isOffTerm(rg.term, 3)) expectedT3Units += termUnits;
+
             if (rg.q1 > 0 && !isOffTerm(rg.term, 1)) {
                 genAvgQ1Total += rg.q1 * termUnits;
                 genAvgQ1Units += termUnits;
@@ -1152,6 +1179,11 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
             const ecTermUnits = ecUnitInfo.unitsPerTerm;
             const ecYearUnits = ecUnitInfo.yearUnits;
 
+            expectedYearUnits += ecYearUnits;
+            if (!isOffTerm(parentTerm, 1)) expectedT1Units += ecTermUnits;
+            if (!isOffTerm(parentTerm, 2)) expectedT2Units += ecTermUnits;
+            if (!isOffTerm(parentTerm, 3)) expectedT3Units += ecTermUnits;
+
             if (parentQ1 > 0 && !isOffTerm(parentTerm, 1)) {
                 genAvgQ1Total += parentQ1 * ecTermUnits;
                 genAvgQ1Units += ecTermUnits;
@@ -1170,11 +1202,40 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
             }
         }
 
-        const genT1 = genAvgQ1Units > 0 ? Math.round(genAvgQ1Total / genAvgQ1Units).toString() : '';
-        const genT2 = genAvgQ2Units > 0 ? Math.round(genAvgQ2Total / genAvgQ2Units).toString() : '';
-        const genT3 = genAvgQ3Units > 0 ? Math.round(genAvgQ3Total / genAvgQ3Units).toString() : '';
-        const genAvg = genAvgFinalUnits > 0 ? Math.round(genAvgFinalTotal / genAvgFinalUnits).toString() : '';
-        const genRemarks = genAvg ? (Number(genAvg) >= 75 ? 'Passed' : 'Failed') : '';
+        const areAll3TermsCompleteShs = 
+            expectedT1Units > 0 && genAvgQ1Units >= expectedT1Units &&
+            expectedT2Units > 0 && genAvgQ2Units >= expectedT2Units &&
+            expectedT3Units > 0 && genAvgQ3Units >= expectedT3Units &&
+            expectedYearUnits > 0 && genAvgFinalUnits >= expectedYearUnits;
+
+        const gradesLookup: Record<string, { q1: string; q2: string; q3: string; final: string; remarks: string; term?: Subject['term'] }> = {};
+        
+        gradesLookup['parent_ec_mk'] = {
+            q1: parentQ1 > 0 ? parentQ1.toString() : '',
+            q2: parentQ2 > 0 ? parentQ2.toString() : '',
+            q3: parentQ3 > 0 ? parentQ3.toString() : '',
+            final: areAll3TermsCompleteShs && parentFinal > 0 ? parentFinal.toString() : '',
+            remarks: areAll3TermsCompleteShs && parentFinal > 0 ? (parentFinal >= 75 ? 'Passed' : 'Failed') : '',
+            term: parentTerm
+        };
+
+        dedupedSubjects.forEach((subj) => {
+            const rg = rawGrades[subj.id];
+            gradesLookup[subj.id] = {
+                q1: rg.q1 > 0 ? rg.q1.toString() : '',
+                q2: rg.q2 > 0 ? rg.q2.toString() : '',
+                q3: rg.q3 > 0 ? rg.q3.toString() : '',
+                final: areAll3TermsCompleteShs && rg.final > 0 ? rg.final.toString() : '',
+                remarks: areAll3TermsCompleteShs && rg.final > 0 ? (rg.final >= 75 ? 'Passed' : 'Failed') : '',
+                term: rg.term
+            };
+        });
+
+        const genT1 = areAll3TermsCompleteShs && genAvgQ1Units > 0 ? Math.round(genAvgQ1Total / genAvgQ1Units).toString() : '';
+        const genT2 = areAll3TermsCompleteShs && genAvgQ2Units > 0 ? Math.round(genAvgQ2Total / genAvgQ2Units).toString() : '';
+        const genT3 = areAll3TermsCompleteShs && genAvgQ3Units > 0 ? Math.round(genAvgQ3Total / genAvgQ3Units).toString() : '';
+        const genAvg = areAll3TermsCompleteShs && genAvgFinalUnits > 0 ? Math.round(genAvgFinalTotal / genAvgFinalUnits).toString() : '';
+        const genRemarks = areAll3TermsCompleteShs && genAvg ? (Number(genAvg) >= 75 ? 'Passed' : 'Failed') : '';
 
         return { subjectGrades: gradesLookup, genAvg, genRemarks, genT1, genT2, genT3 };
     }, [dedupedSubjects, records, student.lrn, activeSchoolYear, section?.section_grade_level, section?.track]);

@@ -26,18 +26,15 @@ export function ActivationPage() {
 
   // Detect if user was redirected here due to a license reset by admin
   const [wasLicenseReset, setWasLicenseReset] = useState(false);
-  const [wasOfflineLimitBlocked, setWasOfflineLimitBlocked] = useState(false);
   useEffect(() => {
     try {
       if (localStorage.getItem('formease-license-reset-detected') === 'true') {
         setWasLicenseReset(true);
         localStorage.removeItem('formease-license-reset-detected');
       }
-      if (localStorage.getItem('formease-license-offline-limit') === 'true') {
-        setWasOfflineLimitBlocked(true);
-      }
+      localStorage.removeItem('formease-license-offline-limit');
     } catch (error) {
-      console.warn('Failed to read license reset or offline limit from localStorage:', error);
+      console.warn('Failed to read license reset from localStorage:', error);
     }
   }, []);
 
@@ -460,20 +457,6 @@ export function ActivationPage() {
                     </motion.div>
                   )}
 
-                  {/* Offline Limit Blocked Warning */}
-                  {wasOfflineLimitBlocked && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: -10 }} 
-                      animate={{ opacity: 1, y: 0 }}
-                      className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start gap-3"
-                    >
-                      <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-xs font-black text-red-400 uppercase tracking-widest">Verification Required</p>
-                        <p className="text-[10px] text-red-200/50 font-bold leading-relaxed">This device has been offline for more than 30 days. Please connect to the internet to verify your license and restore access.</p>
-                      </div>
-                    </motion.div>
-                  )}
 
                   {/* Trial Option (Only if not already used and not activated) */}
                   {!schoolProfile.is_activated && !schoolProfile.is_trial && (

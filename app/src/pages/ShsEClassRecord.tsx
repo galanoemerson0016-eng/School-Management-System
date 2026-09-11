@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect, useCallback, memo } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, FileSpreadsheet, Bug } from 'lucide-react';
+import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, FileSpreadsheet, Bug, ArrowRight, Shield, SlidersHorizontal } from 'lucide-react';
 import type { ClassRecord, HPSRecord, Subject } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
@@ -10,7 +10,7 @@ import { exportSSHSEClassRecord, resolveSSHSMetadata, SSHS_GRADE11_CATALOG } fro
 import { exportSHSG12EClassRecord, resolveSHSG12Terms } from '../services/shs-g12-excel-export';
 import { exportDirectDatabaseToExcel } from '../services/database-rescue-export';
 import { isGrade11CoreSubject, SSHS_ELECTIVE_CATALOG } from '../lib/curriculum';
-import { isMatchingSubject } from '../utils/grading-helpers';
+import { isMatchingSubject, isSameSubject } from '../utils/grading-helpers';
 
 import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
@@ -272,6 +272,7 @@ interface StudentGradeRowProps {
     activePtCount: number;
     isZeroExam: boolean;
     isSSHS: boolean;
+    useThreeExamLayout: boolean;
 }
 
 const StudentGradeRow = memo(({
@@ -292,7 +293,8 @@ const StudentGradeRow = memo(({
     activeWwCount,
     activePtCount,
     isZeroExam,
-    isSSHS,
+    isSSHS: _isSSHS,
+    useThreeExamLayout,
 }: StudentGradeRowProps) => {
     const summary = useMemo(() => {
         const sGrades: Pick<ClassRecord, 'written_works' | 'performance_tasks' | 'quarterly_exam'> = record || {
@@ -317,7 +319,7 @@ const StudentGradeRow = memo(({
         });
 
         // For Grade 12: relocate Summative Test 1 and 2 to Written Works 6 and 7 if empty
-        if (!isSSHS) {
+        if (!useThreeExamLayout) {
             if ((wwScores[5] === '' || wwScores[5] === undefined) && qaScores[0] !== '') {
                 wwScores[5] = qaScores[0];
             }
@@ -332,7 +334,7 @@ const StudentGradeRow = memo(({
         });
 
         const effectiveHpsWw = [...hps.ww];
-        if (!isSSHS) {
+        if (!useThreeExamLayout) {
             if ((effectiveHpsWw[5] === '' || effectiveHpsWw[5] === undefined || effectiveHpsWw[5] === 0) && Number(hps.qa[0]) > 0) {
                 effectiveHpsWw[5] = hps.qa[0];
             }
@@ -364,7 +366,7 @@ const StudentGradeRow = memo(({
 
         let qaScore = 0;
         let qaHPS = 0;
-        if (isSSHS) {
+        if (useThreeExamLayout) {
             if (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) {
                 qaHPS += st1HPS;
                 qaScore += (st1Score as number);
@@ -393,7 +395,7 @@ const StudentGradeRow = memo(({
         const hasScores =
             wwScores.some(isValidScore) ||
             ptScores.some(isValidScore) ||
-            (!isZeroExam && (isSSHS ? qaScores.some(isValidScore) : isValidScore(qaScores[2])));
+            (!isZeroExam && (useThreeExamLayout ? qaScores.some(isValidScore) : isValidScore(qaScores[2])));
 
         const quarterlyGrade = hasScores ? transmuteGrade(initialGrade, activeSchoolYear) : 0;
 
@@ -410,7 +412,7 @@ const StudentGradeRow = memo(({
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
         };
-    }, [record, hps, currentWeights, currentCluster, activeSchoolYear, activeWwCount, activePtCount, isZeroExam, isSSHS]);
+    }, [record, hps, currentWeights, currentCluster, activeSchoolYear, activeWwCount, activePtCount, isZeroExam, useThreeExamLayout]);
 
     const rowNum = (sectionIdx === 0 ? 1 : maleStudentsCount + 1) + idx;
 
@@ -453,7 +455,7 @@ const StudentGradeRow = memo(({
             <td className="border border-black border-r-2 border-r-black bg-green-200/60 font-bold text-[8.5px] text-center">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptWS.toFixed(2) : ''}</td>
             
             {/* Examination Inputs & Sub-weights */}
-            {!isZeroExam && isSSHS && (
+            {!isZeroExam && useThreeExamLayout && (
                 <>
                     {summary.qa.map((score, i) => (
                         <td key={`qa-${i}`} className="border border-black p-0">
@@ -476,7 +478,7 @@ const StudentGradeRow = memo(({
                 </>
             )}
 
-            {!isZeroExam && !isSSHS && (
+            {!isZeroExam && !useThreeExamLayout && (
                 <>
                     <td className="border border-black p-0">
                         <DebouncedInput
@@ -537,6 +539,7 @@ export function ShsEClassRecord() {
     const updateHPSRecord = useAppStore(state => state.updateHPSRecord);
     const setGlobalSection = useAppStore(state => state.setSelectedSection);
     const setGlobalSubject = useAppStore(state => state.setSelectedSubject);
+    const setCurrentView = useAppStore(state => state.setCurrentView);
     const showNotification = useAppStore(state => state.showNotification);
     const teachers = useAppStore(state => state.teachers);
     const { user } = useAuthStore();
@@ -705,6 +708,10 @@ export function ShsEClassRecord() {
             }
         }
     }, [selectedSection, filteredSubjects, selectedSubject, setGlobalSubject]);
+
+    const isAdvisoryWithoutTeachingLoad = useMemo(() => {
+        return Boolean(selectedSection && selectedSectionObj?.is_advisory && filteredSubjects.length === 0);
+    }, [selectedSection, selectedSectionObj, filteredSubjects]);
 
     const effectiveSubjectId = selectedSubject;
 
@@ -894,6 +901,7 @@ export function ShsEClassRecord() {
         // Default for Grade 12 without explicit SSHS elective is Old K-12
         return false;
     }, [isGrade11, isGrade12, selectedSubjectObj, selectedSectionObj, sectionTrack]);
+    const useThreeExamLayout = isSSHS || isGrade12;
 
     const activeWwCount = isSSHS ? SSHS_WW_COUNT : (isGrade12 ? G12_WW_COUNT : WW_COUNT);
     const activePtCount = isSSHS ? SSHS_PT_COUNT : (isGrade12 ? G12_PT_COUNT : PT_COUNT);
@@ -940,7 +948,7 @@ export function ShsEClassRecord() {
         });
 
         // For Grade 12: relocate Summative Test 1 and 2 HPS to Written Works 6 and 7 if empty
-        if (!isSSHS) {
+        if (!useThreeExamLayout) {
             if ((hps_ww[5] === '' || hps_ww[5] === undefined || hps_ww[5] === 0) && Number(hps_qa[0]) > 0) {
                 hps_ww[5] = hps_qa[0];
             }
@@ -954,7 +962,14 @@ export function ShsEClassRecord() {
             pt: hps_pt,
             qa: hps_qa
         };
-    }, [hpsRecords, effectiveSubjectId, subjectName, activeSchoolYear, quarter, selectedSection, selectedSectionObj, activeWwCount, activePtCount, isSSHS]);
+    }, [hpsRecords, effectiveSubjectId, subjectName, activeSchoolYear, quarter, selectedSection, selectedSectionObj, activeWwCount, activePtCount, useThreeExamLayout]);
+
+    const isTermExamHpsMissing = useMemo(() => {
+        if (!hps || !hps.qa) return false;
+        const hasStHps = Number(hps.qa[0]) > 0 || Number(hps.qa[1]) > 0 || Number(hps.ww?.[5]) > 0 || Number(hps.ww?.[6]) > 0;
+        const isTeHpsEmpty = !hps.qa[2] || Number(hps.qa[2]) === 0;
+        return hasStHps && isTeHpsEmpty;
+    }, [hps]);
 
     const currentCluster = useMemo(() => {
         return getSubjectCluster(subjectName, sectionGradeLevel, sectionTrack);
@@ -1028,7 +1043,7 @@ export function ShsEClassRecord() {
         return getSubjectCategory(selectedSubjectObj?.subject_name || subjectName || '', sectionGradeLevel).toUpperCase();
     }, [selectedSubjectObj, subjectName, sectionGradeLevel]);
 
-    const totalNonNameCols = (activeWwCount + 3) + (activePtCount + 3) + (!isZeroExam ? (isSSHS ? 8 : 3) : 0) + 2;
+    const totalNonNameCols = (activeWwCount + 3) + (activePtCount + 3) + (!isZeroExam ? (useThreeExamLayout ? 8 : 3) : 0) + 2;
     const colSpanGls = Math.max(3, Math.round(totalNonNameCols * 0.20));
     const colSpanSection = Math.max(4, Math.round(totalNonNameCols * 0.24));
     const colSpanTeacher = Math.max(5, Math.round(totalNonNameCols * 0.30));
@@ -1037,7 +1052,7 @@ export function ShsEClassRecord() {
     const getStudentSummary = useCallback((student: typeof students[0]) => {
         const record = classRecords.find(r =>
             r.student_lrn === student.lrn &&
-            (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id, r.subject_name))) &&
+            (r.subject_id === effectiveSubjectId || isSameSubject(r.subject_id, r.subject_name, effectiveSubjectId, subjectName)) &&
             Number(r.quarter) === quarter
         );
 
@@ -1350,7 +1365,7 @@ export function ShsEClassRecord() {
         sectionStudents.forEach(st => {
             const cr = stateClassRecords.find(r =>
                 r.student_lrn === st.lrn &&
-                (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id, r.subject_name))) &&
+                (r.subject_id === effectiveSubjectId || isSameSubject(r.subject_id, r.subject_name, effectiveSubjectId, subjectName)) &&
                 Number(r.quarter) === Number(quarter)
             );
             if (!cr) return;
@@ -1779,16 +1794,16 @@ export function ShsEClassRecord() {
                 }
             `}</style>
 
-            <div className="bg-white rounded-lg shadow-md p-2.5 no-print overflow-x-auto">
-                <div className="flex flex-col lg:flex-row lg:flex-wrap lg:items-end gap-2 lg:gap-2.5">
-                    <div className="w-full lg:w-40 shrink-0">
-                        <div className="flex justify-between items-center mb-1">
-                            <label className="block text-[11px] font-semibold text-deped-blue whitespace-nowrap">Section</label>
+            <div className="bg-white dark:bg-[#0d1225] border border-slate-200/60 dark:border-white/10 rounded-xl shadow-xs p-1.5 sm:p-2 no-print">
+                <div className="flex flex-col lg:flex-row lg:flex-nowrap lg:items-end gap-1.5 w-full overflow-x-auto custom-scrollbar pb-0.5">
+                    <div className="w-full sm:w-36 lg:w-36 shrink-0">
+                        <div className="flex justify-between items-center mb-0.5">
+                            <label className="block text-[9.5px] font-bold text-deped-blue whitespace-nowrap">Section</label>
                         </div>
                         <select
                             value={selectedSection}
                             onChange={(e) => onSectionChange(e.target.value)}
-                            className="form-input h-8 py-1 px-2 text-[11px] rounded-xl"
+                            className="form-input h-7.5 py-0.5 px-2 text-[10px] rounded-lg"
                         >
                             <option value="">Select Section</option>
                             {sortedSections.map((s) => (
@@ -1796,16 +1811,16 @@ export function ShsEClassRecord() {
                             ))}
                         </select>
                     </div>
-                    <div className="w-full lg:flex-1 lg:min-w-35">
-                        <div className="flex justify-between items-center mb-1">
-                            <label className="block text-[11px] font-semibold text-deped-blue whitespace-nowrap">
+                    <div className="w-full sm:w-40 lg:flex-1 lg:max-w-44 lg:min-w-28 shrink-0">
+                        <div className="flex justify-between items-center mb-0.5">
+                            <label className="block text-[9.5px] font-bold text-deped-blue whitespace-nowrap truncate" title={`Subject ${sectionGradeLevel ? `(${sectionGradeLevel})` : ''}`}>
                                 Subject {sectionGradeLevel && `(${sectionGradeLevel})`}
                             </label>
                         </div>
                         <select
                             value={selectedSubject}
                             onChange={(e) => onSubjectChange(e.target.value)}
-                            className="form-input h-8 py-1 px-2 text-[11px] rounded-xl"
+                            className="form-input h-7.5 py-0.5 px-2 text-[10px] rounded-lg"
                             disabled={!selectedSection}
                         >
                             <option value="">
@@ -1836,8 +1851,8 @@ export function ShsEClassRecord() {
                         </select>
                     </div>
 
-                    <div className="w-full lg:w-27.5 shrink-0">
-                        <label className="block text-[11px] font-semibold mb-1 text-deped-blue whitespace-nowrap">Term</label>
+                    <div className="w-full sm:w-20 lg:w-20 shrink-0">
+                        <label className="block text-[9.5px] font-bold mb-0.5 text-deped-blue whitespace-nowrap">Term</label>
                         <select value={quarter} onChange={(e) => {
                             const val = e.target.value;
                             if (val.startsWith('summary')) {
@@ -1845,83 +1860,86 @@ export function ShsEClassRecord() {
                             } else {
                                 setQuarter(Number(val) as any);
                             }
-                        }} className="form-input h-8 py-1 px-2 text-[11px] rounded-xl">
+                        }} className="form-input h-7.5 py-0.5 px-1.5 text-[10px] rounded-lg">
                             <option value={1}>Term 1</option>
                             <option value={2}>Term 2</option>
                             <option value={3}>Term 3</option>
                             <option value="summary_final">Final Summary</option>
                         </select>
                     </div>
-                    <div className="w-full lg:w-27.5 shrink-0">
-                        <label className="text-[11px] font-semibold mb-1 text-deped-blue flex items-center gap-1 whitespace-nowrap">
-                            <FileText className="w-3.5 h-3.5" /> Paper Size
+                    <div className="w-full sm:w-20 lg:w-20 shrink-0">
+                        <label className="text-[9.5px] font-bold mb-0.5 text-deped-blue flex items-center gap-1 whitespace-nowrap">
+                            <FileText className="w-3 h-3" /> Paper Size
                         </label>
                         <select
                             value={paperSize}
                             onChange={(e) => setPaperSize(e.target.value as PaperSize)}
-                            className="form-input h-8 py-1 px-2 text-[11px] rounded-xl"
+                            className="form-input h-7.5 py-0.5 px-1.5 text-[10px] rounded-lg"
                         >
                             {Object.entries(PAPER_SIZES).map(([key, { label }]) => (
                                 <option key={key} value={key}>{label}</option>
                             ))}
                         </select>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                        <div className="flex items-center gap-1.5 h-8 px-1 rounded-xl bg-slate-100 border border-slate-200">
+                    <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
+                        <div className="flex items-center gap-1 h-7.5 px-1 rounded-lg bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10">
                             <button
                                 onClick={() => setZoom(prev => Math.max(0.5, prev - 0.1))}
-                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all"
+                                className="w-5 h-5 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white dark:hover:bg-white/20 rounded transition-all"
                                 title="Zoom Out"
                             >
-                                <Minus className="w-3 h-3" />
+                                <Minus className="w-2.5 h-2.5" />
                             </button>
-                            <span className="text-[10px] font-black text-slate-900 w-8 text-center tabular-nums">
+                            <span className="text-[9px] font-black text-slate-900 dark:text-white w-7 text-center tabular-nums">
                                 {Math.round(zoom * 100)}%
                             </span>
                             <button
                                 onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all"
+                                className="w-5 h-5 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white dark:hover:bg-white/20 rounded transition-all"
                                 title="Zoom In"
                             >
-                                <Plus className="w-3 h-3" />
+                                <Plus className="w-2.5 h-2.5" />
                             </button>
                         </div>
                         {selectedSubject && (
                             <button 
                                 onClick={() => setIsEnrollmentModalOpen(true)}
-                                className="h-8 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-widest rounded-xl border border-slate-200 hover:scale-[1.02] transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+                                className="h-7.5 px-2 bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 text-[8.5px] font-black uppercase tracking-wider rounded-lg border border-slate-200 dark:border-white/10 hover:scale-[1.02] transition-all flex items-center gap-1 whitespace-nowrap cursor-pointer"
                                 title="Manage Enrolled Students"
                             >
-                                <Users className="w-3.5 h-3.5" /> Enrolled Learners
+                                <Users className="w-3 h-3" />
+                                <span>Learners</span>
                             </button>
                         )}
-                        <button onClick={handlePrint} className="btn-primary flex items-center justify-center gap-1.5 h-8 px-3 text-[10px] rounded-xl whitespace-nowrap">
-                            <Printer className="w-3.5 h-3.5" /> Print Record
+                        <button onClick={handlePrint} className="btn-primary flex items-center justify-center gap-1 h-7.5 px-2 text-[8.5px] font-black uppercase tracking-wider rounded-lg whitespace-nowrap cursor-pointer">
+                            <Printer className="w-3 h-3" />
+                            <span>Print</span>
                         </button>
                         <button
                             onClick={handleExcelExport}
                             disabled={isDownloading || !selectedSubject || sectionStudents.length === 0}
-                            className="h-8 px-3 bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-600/20 hover:bg-emerald-800 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed whitespace-nowrap cursor-pointer"
+                            className="h-7.5 px-2 bg-emerald-700 text-white text-[8.5px] font-black uppercase tracking-wider rounded-lg shadow-xs hover:bg-emerald-800 hover:scale-[1.02] transition-all flex items-center gap-1 group disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed whitespace-nowrap cursor-pointer"
                             title={!selectedSubject ? "Please select a subject first to export Excel" : (isSSHS ? "Export official DepEd SSHS Excel File (.xlsx)" : "Export official DepEd Grade 12 E-Class Record (.xlsx)")}
                         >
-                            <FileSpreadsheet className="w-3.5 h-3.5" /> Export Excel
+                            <FileSpreadsheet className="w-3 h-3" />
+                            <span>Excel</span>
                         </button>
                         <button 
                             onClick={handleDownload}
                             disabled={isDownloading || !selectedSubject || sectionStudents.length === 0}
-                            className="h-8 px-3 bg-sky-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-sky-500/20 hover:bg-sky-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed whitespace-nowrap"
+                            className="h-7.5 px-2 bg-sky-600 text-white text-[8.5px] font-black uppercase tracking-wider rounded-lg shadow-xs hover:bg-sky-700 hover:scale-[1.02] transition-all flex items-center gap-1 group disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed whitespace-nowrap cursor-pointer"
                             title={!selectedSubject ? "Please select a subject first to enable download" : "Download PDF Class Record"}
                         >
                             {isDownloading ? (
                                 <>
-                                    <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                                    <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                                     </svg>
-                                    Downloading…
+                                    <span>Downloading…</span>
                                 </>
                             ) : (
-                                <><Download className="w-3.5 h-3.5" /> Download</>  
+                                <><Download className="w-3 h-3" /> <span>PDF</span></>  
                             )}
                         </button>
                         <button
@@ -1943,6 +1961,7 @@ export function ShsEClassRecord() {
                                                 id: recordId,
                                                 student_lrn: student.lrn,
                                                 subject_id: selectedSubject,
+                                                subject_name: selectedSubjectObj.subject_name,
                                                 section_id: selectedSectionObj?.id || '',
                                                 quarter: quarter as 1|2|3,
                                                 school_year: activeSchoolYear,
@@ -1960,10 +1979,11 @@ export function ShsEClassRecord() {
                                 }
                             }}
                             disabled={!selectedSubject || sectionStudents.length === 0 || (typeof quarter === 'string' && quarter.startsWith('summary'))}
-                            className="h-8 px-3 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed whitespace-nowrap"
+                            className="h-7.5 px-2 bg-emerald-600 text-white text-[8.5px] font-black uppercase tracking-wider rounded-lg shadow-xs hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-1 group disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed whitespace-nowrap cursor-pointer"
                             title={!selectedSubject ? "Please select a subject first to publish grades" : "Publish grades to Grade Management"}
                         >
-                            <CloudUpload className="w-3.5 h-3.5" /> Publish
+                            <CloudUpload className="w-3 h-3" />
+                            <span>Publish</span>
                         </button>
 
                         {/* Grade Sync Inspector Button */}
@@ -1977,10 +1997,10 @@ export function ShsEClassRecord() {
                                     }
                                 }));
                             }}
-                            className="h-8 px-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/20 font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm active:scale-95 transition-all whitespace-nowrap cursor-pointer shrink-0"
+                            className="h-7.5 px-2 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/20 font-black text-[8.5px] uppercase tracking-wider flex items-center gap-1 shadow-xs active:scale-95 transition-all whitespace-nowrap cursor-pointer shrink-0"
                             title="Open Grade Sync Inspector & Live Diagnostics"
                         >
-                            <Bug className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                            <Bug className="w-3 h-3 text-amber-600 dark:text-amber-400" />
                             <span>Inspect</span>
                         </button>
 
@@ -2000,11 +2020,11 @@ export function ShsEClassRecord() {
                                     showNotification('Failed to export database rescue file.', 'error');
                                 }
                             }}
-                            className="h-8 px-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm active:scale-95 transition-all whitespace-nowrap cursor-pointer shrink-0"
+                            className="h-7.5 px-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 font-black text-[8.5px] uppercase tracking-wider flex items-center gap-1 shadow-xs active:scale-95 transition-all whitespace-nowrap cursor-pointer shrink-0"
                             title="Download Complete Database to Excel (.xlsx) - Bypasses all filters & includes all DepEd records"
                         >
-                            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                            <span className="hidden xl:inline">Excel Rescue</span>
+                            <FileSpreadsheet className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                            <span className="hidden xl:inline">Rescue</span>
                         </button>
                     </div>
                 </div>
@@ -2171,6 +2191,78 @@ export function ShsEClassRecord() {
                                 </tbody>
                             </table>
                         </div>
+                    ) : isAdvisoryWithoutTeachingLoad ? (
+                        <div className="w-full h-full min-h-100 flex items-center justify-center p-4 md:p-8">
+                            <div className="max-w-3xl w-full bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-[2.5rem] border border-indigo-100/80 dark:border-slate-800 shadow-[0_20px_60px_rgba(79,70,229,0.08)] p-6 md:p-8 text-center relative overflow-hidden animate-fade-in flex flex-col md:flex-row items-center gap-6 md:gap-8">
+                                {/* Ambient Soft Gradient Orbs */}
+                                <div className="absolute -top-28 -left-28 w-56 h-56 bg-indigo-400/15 rounded-full blur-3xl pointer-events-none" />
+                                <div className="absolute -bottom-28 -right-28 w-56 h-56 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
+
+                                {/* Left/Top Column: Floating 3D Icon Stack */}
+                                <div className="shrink-0 flex justify-center mx-auto md:mx-0">
+                                    <div className="w-28 h-28 md:w-36 md:h-36 bg-white dark:bg-slate-800 rounded-3xl shadow-[0_15px_35px_rgba(79,70,229,0.08)] dark:shadow-[0_15px_35px_rgba(0,0,0,0.3)] flex items-center justify-center relative border border-slate-100 dark:border-slate-700/60 transition-transform duration-500 hover:scale-105">
+                                        <Users className="w-14 h-14 md:w-18 md:h-18 text-indigo-400 dark:text-indigo-400 stroke-[1.5]" />
+                                        
+                                        {/* Overlapping Badge */}
+                                        <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-linear-to-br from-indigo-600 to-blue-600 text-white font-black text-xs md:text-sm tracking-wider flex items-center justify-center shadow-lg shadow-indigo-600/30 absolute -bottom-3 -right-3 border-2 border-white dark:border-slate-900">
+                                            ADV
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Right Column: Information & Action Buttons */}
+                                <div className="flex-1 space-y-3.5 text-center md:text-left flex flex-col items-center md:items-start justify-center">
+                                    {/* Status Pill Header */}
+                                    <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200/80 dark:border-indigo-800/80 text-indigo-700 dark:text-indigo-300 text-[10.5px] font-black uppercase tracking-widest shadow-xs">
+                                        <Shield className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                                        <span>SENIOR HIGH ADVISER WORKSPACE</span>
+                                    </div>
+
+                                    {/* Title & Section Details */}
+                                    <div className="space-y-1 w-full">
+                                        <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white leading-tight">
+                                            {sectionGradeLevel} - {selectedSection}
+                                        </h2>
+                                        <p className="text-xs md:text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                                            You are viewing this section as <span className="font-bold text-indigo-600 dark:text-indigo-400">Senior High Class Adviser</span>. There is currently no personal teaching load assigned to you for this section in E-Class Record.
+                                        </p>
+                                    </div>
+
+                                    {/* Workflow Guidance Card */}
+                                    <div className="p-3.5 bg-white dark:bg-slate-800/70 rounded-2xl border border-indigo-100/60 dark:border-slate-700/50 text-[11px] text-slate-600 dark:text-slate-300 space-y-1.5 text-left w-full shadow-xs">
+                                        <div className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                            <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-500" />
+                                            <span>How Senior High Grade Management Works</span>
+                                        </div>
+                                        <p className="leading-relaxed text-[10.5px]">
+                                            Subject teachers record grades in their own SHS E-Class Records and submit them directly to your master sheet. In <strong>Grade Management</strong>, you can review consolidated semester grades, track academic units, compute general averages, and generate official SF9 (Report Cards) & SF10.
+                                        </p>
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="flex flex-wrap items-center gap-3 pt-1 w-full justify-center md:justify-start">
+                                        <button
+                                            onClick={() => {
+                                                if (selectedSection) setGlobalSection(selectedSection);
+                                                setCurrentView('consolidated-grades');
+                                            }}
+                                            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-linear-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 active:scale-95 text-white text-[11px] font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-600/30 hover:shadow-indigo-600/40 cursor-pointer"
+                                        >
+                                            <span>GO TO GRADE MANAGEMENT</span>
+                                            <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                                        </button>
+
+                                        <button
+                                            onClick={() => setCurrentView('sections')}
+                                            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/60 active:scale-95 text-slate-700 dark:text-slate-200 text-[11px] font-bold uppercase tracking-wider transition-all shadow-xs cursor-pointer"
+                                        >
+                                            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
+                                            <span>CONFIGURE TEACHING LOAD</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     ) : (
                     <div className="bg-slate-50/50 dark:bg-[#070a12] p-3 md:p-4 text-black overflow-x-auto">
 <div id="printable-class-record" className="bg-white text-black p-3 md:p-5 shadow-xl border border-gray-100 mx-auto transition-all duration-300 rounded-lg" style={{ width: `${Math.max(1300, optimalNameColumnWidth + 1120)}px`, minWidth: `${Math.max(1300, optimalNameColumnWidth + 1120)}px` }}>
@@ -2229,6 +2321,15 @@ export function ShsEClassRecord() {
                                    </div>
                                </div>
 
+                                {isTermExamHpsMissing && (
+                                    <div className="print:hidden mb-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/50 rounded-lg flex items-center gap-2.5 text-[11px] text-amber-800 dark:text-amber-200">
+                                        <span className="text-base">⚠️</span>
+                                        <div>
+                                            <strong className="font-bold">Term Exam HPS Missing:</strong> Summative Test scores exist, but the Term Exam HPS is blank. In official DepEd ECR templates (e.g. SHS G12), a blank Quarterly Exam HPS causes Excel formulas to leave the final transmuted grade completely empty. Please enter the Term Exam HPS.
+                                        </div>
+                                    </div>
+                                )}
+
                              <table className="w-full table-fixed border-collapse border-2 border-black text-[9.5px] text-center bg-white text-black font-sans">
                                  <colgroup>
                                      {/* 1. Name */}
@@ -2253,7 +2354,7 @@ export function ShsEClassRecord() {
                                      <col style={{ width: '38px' }} />
 
                                      {/* EXs: SSHS=8 cols (ST1,ST2,TE,WS ST1,WS ST2,WS TE,PS,WS), G12 K-12=3 cols (TE,PS,WS) */}
-                                     {!isZeroExam && isSSHS && (
+                                     {!isZeroExam && useThreeExamLayout && (
                                          <>
                                              <col style={{ width: '26px' }} />
                                              <col style={{ width: '26px' }} />
@@ -2265,7 +2366,7 @@ export function ShsEClassRecord() {
                                              <col style={{ width: '38px' }} />
                                          </>
                                      )}
-                                     {!isZeroExam && !isSSHS && (
+                                     {!isZeroExam && !useThreeExamLayout && (
                                          <>
                                              <col style={{ width: '30px' }} />
                                              <col style={{ width: '42px' }} />
@@ -2404,7 +2505,7 @@ export function ShsEClassRecord() {
                                                  </th>
 
                                                  {/* Over Examinations (8 cols or 3 cols) & Summary Grades (2 cols) */}
-                                                 <th colSpan={(!isZeroExam ? (isSSHS ? 8 : 3) : 0) + 2} className="border border-black bg-white"></th>
+                                                 <th colSpan={(!isZeroExam ? (useThreeExamLayout ? 8 : 3) : 0) + 2} className="border border-black bg-white"></th>
                                              </tr>
 
                                              <tr className="h-5 text-[8.5px] font-bold border-b-2 border-black">
@@ -2469,8 +2570,8 @@ export function ShsEClassRecord() {
                                             <div className="italic font-bold text-[8px]">{Math.round((currentWeights.performance_tasks || 0) * 100)}%</div>
                                         </th>
                                         {!isZeroExam && (
-                                            <th colSpan={isSSHS ? 8 : 3} className="border-2 border-black px-1 py-0.5 text-center align-middle font-bold text-[8px] tracking-wider bg-yellow-100/70 leading-tight">
-                                                <div className="font-black text-[8.5px] tracking-wide">{isSSHS ? 'EXAMINATIONS (EXs)' : 'TERM EXAM'}</div>
+                                            <th colSpan={useThreeExamLayout ? 8 : 3} className="border-2 border-black px-1 py-0.5 text-center align-middle font-bold text-[8px] tracking-wider bg-yellow-100/70 leading-tight">
+                                                <div className="font-black text-[8.5px] tracking-wide">{useThreeExamLayout ? 'EXAMINATIONS (EXs)' : 'TERM EXAM'}</div>
                                                 <div className="italic font-bold text-[8px]">{Math.round((currentWeights.quarterly_exam || 0) * 100)}%</div>
                                             </th>
                                         )}
@@ -2499,12 +2600,12 @@ export function ShsEClassRecord() {
                                         <th className="border border-black border-r-2 border-r-black bg-green-200/70 font-bold">WS</th>
 
                                         {/* SSHS: ST1, ST2, TE, WS ST1, WS ST2, WS TE, PS, WS */}
-                                        {!isZeroExam && isSSHS && <th className="bg-white border border-black font-bold text-[7.5px]">ST 1</th>}
-                                        {!isZeroExam && isSSHS && <th className="bg-white border border-black font-bold text-[7.5px]">ST 2</th>}
+                                        {!isZeroExam && useThreeExamLayout && <th className="bg-white border border-black font-bold text-[7.5px]">ST 1</th>}
+                                        {!isZeroExam && useThreeExamLayout && <th className="bg-white border border-black font-bold text-[7.5px]">ST 2</th>}
                                         {!isZeroExam && <th className="bg-white border border-black font-bold text-[7.5px]">TE</th>}
-                                        {!isZeroExam && isSSHS && <th className="border border-black text-[7px] font-bold leading-none bg-yellow-100/70">WS ST1</th>}
-                                        {!isZeroExam && isSSHS && <th className="border border-black text-[7px] font-bold leading-none bg-yellow-100/70">WS ST2</th>}
-                                        {!isZeroExam && isSSHS && <th className="border border-black text-[7px] font-bold leading-none bg-yellow-100/70">WS TE</th>}
+                                        {!isZeroExam && useThreeExamLayout && <th className="border border-black text-[7px] font-bold leading-none bg-yellow-100/70">WS ST1</th>}
+                                        {!isZeroExam && useThreeExamLayout && <th className="border border-black text-[7px] font-bold leading-none bg-yellow-100/70">WS ST2</th>}
+                                        {!isZeroExam && useThreeExamLayout && <th className="border border-black text-[7px] font-bold leading-none bg-yellow-100/70">WS TE</th>}
                                         {!isZeroExam && <th className="border border-black bg-yellow-100/70 font-bold text-[7.5px] leading-none">PS</th>}
                                         {!isZeroExam && <th className="border border-black border-r-2 border-r-black bg-yellow-200/70 font-bold text-[7.5px] leading-none">WS</th>}
                                     </tr>
@@ -2549,7 +2650,7 @@ export function ShsEClassRecord() {
                                         <td className="border border-black border-r-2 border-r-black bg-green-200/80 font-black italic">{Math.round((currentWeights.performance_tasks || 0) * 100)}%</td>
 
                                         {/* SSHS: 3 exam HPS inputs (ST1, ST2, TE) + 3 sub-weights + PS + WS = 8 cols */}
-                                        {!isZeroExam && isSSHS && hps.qa.map((val, i) => (
+                                        {!isZeroExam && useThreeExamLayout && hps.qa.map((val, i) => (
                                             <td key={`hps-qa-${i}`} className="bg-white border border-black p-0">
                                                 <DebouncedInput
                                                     type="number"
@@ -2562,13 +2663,13 @@ export function ShsEClassRecord() {
                                                 />
                                             </td>
                                         ))}
-                                        {!isZeroExam && isSSHS && <td className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">30</td>}
-                                        {!isZeroExam && isSSHS && <td className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">30</td>}
-                                        {!isZeroExam && isSSHS && <td className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">40</td>}
-                                        {!isZeroExam && isSSHS && <td className="border border-black bg-yellow-100/80 font-bold">100</td>}
-                                        {!isZeroExam && isSSHS && <td className="border border-black border-r-2 border-r-black bg-yellow-200/80 font-black italic">{Math.round((currentWeights.quarterly_exam || 0) * 100)}%</td>}
+                                        {!isZeroExam && useThreeExamLayout && <td className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">30</td>}
+                                        {!isZeroExam && useThreeExamLayout && <td className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">30</td>}
+                                        {!isZeroExam && useThreeExamLayout && <td className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">40</td>}
+                                        {!isZeroExam && useThreeExamLayout && <td className="border border-black bg-yellow-100/80 font-bold">100</td>}
+                                        {!isZeroExam && useThreeExamLayout && <td className="border border-black border-r-2 border-r-black bg-yellow-200/80 font-black italic">{Math.round((currentWeights.quarterly_exam || 0) * 100)}%</td>}
                                         {/* G12 K-12: 1 exam HPS input (TE) + PS + WS = 3 cols */}
-                                        {!isZeroExam && !isSSHS && (
+                                        {!isZeroExam && !useThreeExamLayout && (
                                             <td className="bg-white border border-black p-0">
                                                 <DebouncedInput
                                                     type="number"
@@ -2581,8 +2682,8 @@ export function ShsEClassRecord() {
                                                 />
                                             </td>
                                         )}
-                                        {!isZeroExam && !isSSHS && <td className="border border-black bg-yellow-100/80 font-bold">100</td>}
-                                        {!isZeroExam && !isSSHS && <td className="border border-black border-r-2 border-r-black bg-yellow-200/80 font-black italic">{Math.round((currentWeights.quarterly_exam || 0) * 100)}%</td>}
+                                        {!isZeroExam && !useThreeExamLayout && <td className="border border-black bg-yellow-100/80 font-bold">100</td>}
+                                        {!isZeroExam && !useThreeExamLayout && <td className="border border-black border-r-2 border-r-black bg-yellow-200/80 font-black italic">{Math.round((currentWeights.quarterly_exam || 0) * 100)}%</td>}
 
                                         {/* Empty cells for Initial Grade & Term Grade */}
                                         <td className="border border-black border-r-2 border-r-black bg-yellow-50/50"></td>
@@ -2591,12 +2692,12 @@ export function ShsEClassRecord() {
                                 </thead>
                                 <tbody>
                                     <tr className="bg-gray-100 font-bold text-left h-5">
-                                        <td colSpan={1 + (activeWwCount + 3) + (activePtCount + 3) + (!isZeroExam ? (isSSHS ? 8 : 3) : 0) + 2} className="border-2 border-black px-2 text-[8.5px] uppercase tracking-wider font-black">{section.gender}</td>
+                                        <td colSpan={1 + (activeWwCount + 3) + (activePtCount + 3) + (!isZeroExam ? (useThreeExamLayout ? 8 : 3) : 0) + 2} className="border-2 border-black px-2 text-[8.5px] uppercase tracking-wider font-black">{section.gender}</td>
                                     </tr>
                                     {section.students.map((student, idx) => {
                                         const record = classRecords.find(r =>
                                             r.student_lrn === student.lrn &&
-                                            (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id, r.subject_name))) &&
+                                            (r.subject_id === effectiveSubjectId || isSameSubject(r.subject_id, r.subject_name, effectiveSubjectId, subjectName)) &&
                                             Number(r.quarter) === quarter
                                         );
                                         return (
@@ -2620,6 +2721,7 @@ export function ShsEClassRecord() {
                                                 activePtCount={activePtCount}
                                                 isZeroExam={isZeroExam}
                                                 isSSHS={isSSHS}
+                                                useThreeExamLayout={useThreeExamLayout}
                                             />
                                         );
                                     })}

@@ -43,6 +43,7 @@ export interface SchoolProfile {
     section?: string;
     adviser_image_url?: string;
     curriculum?: SchoolCurriculum; // Custom curriculum config
+    sf10_curriculum?: SchoolCurriculum; // SF10-specific custom curriculum config (isolated from SF9/Consolidated)
     is_activated?: boolean;
     is_trial?: boolean;
     activation_key?: string;
@@ -310,7 +311,11 @@ export interface Section {
     spa_majors?: string[]; // Specific art disciplines active in this section (e.g. Visual Arts, Dance)
     section_metadata?: {
         sf9SubjectSelections?: Record<number, string>;
+        sf10SubjectSelections?: Record<number, string>;
         sf9SignatureSettings?: SF9SignatureSettings;
+        hiddenConsolidatedSubjects?: string[];
+        lockedQuarters?: ('q1' | 'q2' | 'q3' | 'q4')[];
+        customColumnWidths?: Record<string, number>;
     };
 }
 

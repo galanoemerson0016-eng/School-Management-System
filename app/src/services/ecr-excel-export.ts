@@ -176,7 +176,7 @@ export function isEppTleSubject(subjectName: string): boolean {
     norm.includes('technologyandlivelihood') ||
     norm.includes('edukasyongpantahanan') ||
     norm.includes('tvl') ||
-    norm.includes('specialization')
+    norm.includes('tvespecialization')
   );
 }
 
@@ -1255,7 +1255,10 @@ export async function populateECRWorkbookZip(
   if (wbFile) {
     let wbXml = await wbFile.async('text');
     if (wbXml.includes('<calcPr')) {
-      wbXml = wbXml.replace(/<calcPr([^>]*?)(?:\/>|>.*?<\/calcPr>)/, '<calcPr$1 fullCalcOnLoad="1"/>');
+      wbXml = wbXml.replace(/<calcPr([^>]*)(\/>|>[\s\S]*?<\/calcPr>)/, (_match, attrs) => {
+        const cleanAttrs = attrs.replace(/\s*fullCalcOnLoad="[^"]*"/g, '').replace(/\s*calcCompleted="[^"]*"/g, '');
+        return `<calcPr${cleanAttrs} fullCalcOnLoad="1"/>`;
+      });
     } else {
       wbXml = wbXml.replace('</workbook>', '<calcPr fullCalcOnLoad="1"/></workbook>');
     }

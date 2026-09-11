@@ -1,14 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo, Fragment, useEffect, useCallback, memo, useRef } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
-import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus, Download, Bug } from 'lucide-react';
+import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus, Download, Bug, AlertTriangle, CheckCircle2, Lock, Unlock, ChevronLeft, ChevronRight, RefreshCw, X, Search, RotateCcw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
 import { getSubjectsForGrade, normalizeSubjectName, sortSubjects } from '../lib/subjectConfig';
 import { getDefaultTermForSubject, getShsSubjectUnitInfo, getCurriculumTemplatesForSection, SPECIAL_SUBJECTS } from '../lib/curriculum';
-import { resolveStudentQuarterGrade, isMatchingSubject, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
-import type { Subject, ClassRecord } from '../types';
+import { resolveStudentQuarterGrade, isMatchingSubject, isSameSubject, normalizeGrade12PESubjectName, cleanSubjectQuery, isQuarterMatch, isSubjectInTeachingLoad } from '../utils/grading-helpers';
+import type { Subject, ClassRecord, Section } from '../types';
 
 type QuarterGrades = {
     q1?: QuarterGradeCell;
@@ -264,14 +264,9 @@ const getQuarterGradeDetail = (value: QuarterGradeCell | undefined) => {
     return isQuarterGradeDetail(value) ? value : undefined;
 };
 
-const SUBJECT_COLUMN_WIDTH = 55;
-const MAPEH_SUBCOLUMN_WIDTH = 48;
-const ECMK_SUBCOLUMN_WIDTH = 80;
-
 const isEcmkParent = (name: string) => name.toLowerCase().includes('effective communication') && name.toLowerCase().includes('mabisang komunikasyon');
 const GENERAL_AVERAGE_COLUMN_WIDTH = 66;
 const AVERAGE_COLUMN_WIDTH = GENERAL_AVERAGE_COLUMN_WIDTH;
-const showLegacyQuarter4 = false;
 
 
 
@@ -283,8 +278,9 @@ const showLegacyQuarter4 = false;
 
 
 const GradeInput = ({ 
-    studentLrn, subjectId, quarter, value, className, activeSchoolYear, 
-    subjects, sectionObj, updateGradingSheetRecord: _updateGradingSheetRecord, row, col
+    studentLrn, subjectId, subjectName, quarter, value, className, activeSchoolYear, 
+    subjects, sectionObj, updateGradingSheetRecord: _updateGradingSheetRecord, row, col,
+    isMissing, isLocked
 }: any) => {
     const [localValue, setLocalValue] = useState(value || '');
     const [isSaving, setIsSaving] = useState(false);
@@ -305,6 +301,12 @@ const GradeInput = ({
     const saveChanges = async (targetVal: string) => {
         if (targetVal === valueRef.current) return;
 
+        if (isLocked) {
+            useAppStore.getState().showNotification(`Quarter ${quarter} is locked. Unlock it in the Lock menu to edit.`, 'error');
+            setLocalValue(valueRef.current || '');
+            return;
+        }
+
         const valNum = Number(targetVal);
         if (targetVal !== '' && (isNaN(valNum) || valNum < 0 || valNum > 100)) {
             useAppStore.getState().showNotification('Grades must be between 0 and 100.', 'error');
@@ -324,6 +326,7 @@ const GradeInput = ({
             }
 
             const { updateGradingSheetRecord, deleteGradingSheetRecord } = useAppStore.getState();
+            const resolvedSubName = subjectName || subject?.subject_name || cleanSubjectQuery(subjectId).replace(/_/g, ' ') || '';
 
             if (targetVal === '') {
                 await deleteGradingSheetRecord(recordId);
@@ -332,7 +335,7 @@ const GradeInput = ({
                     id: recordId,
                     student_lrn: studentLrn,
                     subject_id: subjectId,
-                    subject_name: subject?.subject_name || '',
+                    subject_name: resolvedSubName,
                     section_id: section.id,
                     quarter: quarter as 1 | 2 | 3,
                     school_year: activeSchoolYear,
@@ -396,21 +399,30 @@ const GradeInput = ({
     };
 
     return (
-        <div className="relative w-full h-full group">
+        <div 
+            className={`relative w-full h-full group ${isMissing ? 'bg-amber-100/80 dark:bg-amber-950/50 is-missing' : ''} ${isLocked ? 'bg-slate-100/60 dark:bg-slate-800/40' : ''}`}
+            title={isLocked ? `Quarter ${quarter} is locked against editing.` : undefined}
+        >
             <input
                 type="number"
                 value={localValue}
                 onChange={handleChange}
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
-                disabled={isSaving}
+                disabled={isSaving || isLocked}
                 data-row={row}
                 data-col={col}
-                className={`grade-input-field w-full h-full bg-transparent text-center focus:bg-blue-50 focus:outline-none transition-colors border-none p-0 hide-number-arrows text-[9px] font-medium ${isSaving ? 'opacity-50' : ''} ${className || ''}`}
+                className={`grade-input-field w-full h-full bg-transparent text-center focus:bg-blue-50 focus:outline-none transition-colors border-none p-0 hide-number-arrows text-[9px] font-medium ${isSaving ? 'opacity-50' : ''} ${isLocked ? 'cursor-not-allowed opacity-55 text-slate-400 font-normal select-none' : ''} ${isMissing ? 'is-missing text-amber-900 dark:text-amber-200 placeholder-amber-400 font-bold' : ''} ${className || ''}`}
                 style={{ appearance: 'none', MozAppearance: 'textfield' }}
+                placeholder={isMissing ? '—' : ''}
             />
-            {/* Subtle hover indicator */}
-            <div className="absolute inset-0 border border-transparent group-hover:border-blue-200 pointer-events-none transition-colors"></div>
+            {/* Subtle hover & missing / locked indicator */}
+            <div className={`absolute inset-0 border pointer-events-none transition-colors ${isLocked ? 'border-transparent' : isMissing ? 'border-amber-400 dark:border-amber-500 group-hover:border-amber-600' : 'border-transparent group-hover:border-blue-200'}`}></div>
+            {isLocked && (
+                <div className="absolute top-0.5 right-0.5 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Lock className="w-2 h-2 text-slate-400" />
+                </div>
+            )}
             {isSaving && (
                 <div className="absolute inset-0 flex items-center justify-center bg-white/50">
                     <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></div>
@@ -442,10 +454,17 @@ interface StudentGradeRowProps {
     showGenAvg: boolean;
     showDescriptor: boolean;
     descriptorGradeLevel: string;
+    highlightMissingGrades?: boolean;
+    lockedQuarters?: ('q1' | 'q2' | 'q3' | 'q4')[];
+    customColumnWidths?: Record<string, number>;
+    averageColWidth?: number;
+    generalAvgColWidth?: number;
+    descriptorColWidth?: number;
 }
 
 const areEqual = (prev: StudentGradeRowProps, next: StudentGradeRowProps) => {
     if (prev.studentRow !== next.studentRow) return false;
+    if (prev.highlightMissingGrades !== next.highlightMissingGrades) return false;
     if (prev.isElementary !== next.isElementary) return false;
     if (prev.learnerNameColumnWidth !== next.learnerNameColumnWidth) return false;
     if (prev.selectedTerm !== next.selectedTerm) return false;
@@ -456,6 +475,11 @@ const areEqual = (prev: StudentGradeRowProps, next: StudentGradeRowProps) => {
     if (prev.descriptorGradeLevel !== next.descriptorGradeLevel) return false;
     if (prev.student?.lrn !== next.student?.lrn) return false;
     if (prev.sectionObj !== next.sectionObj) return false;
+    if (prev.lockedQuarters !== next.lockedQuarters) return false;
+    if (prev.customColumnWidths !== next.customColumnWidths) return false;
+    if (prev.averageColWidth !== next.averageColWidth) return false;
+    if (prev.generalAvgColWidth !== next.generalAvgColWidth) return false;
+    if (prev.descriptorColWidth !== next.descriptorColWidth) return false;
     
     if (prev.subjectColumns?.length !== next.subjectColumns?.length) return false;
     
@@ -488,6 +512,31 @@ const areEqual = (prev: StudentGradeRowProps, next: StudentGradeRowProps) => {
     return true;
 };
 
+const ColumnResizeHandle = memo(({
+    colKey,
+    currentWidth,
+    onResizeStart,
+    onAutoFit
+}: {
+    colKey: string;
+    currentWidth: number;
+    onResizeStart: (e: React.MouseEvent, key: string, currentWidth: number) => void;
+    onAutoFit: (key: string) => void;
+}) => (
+    <div
+        className="absolute top-0 right-0 w-2.5 h-full cursor-col-resize hover:bg-indigo-500/40 active:bg-indigo-600 transition-colors z-30 select-none no-print group/handle flex items-center justify-center"
+        onMouseDown={(e) => onResizeStart(e, colKey, currentWidth)}
+        onDoubleClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onAutoFit(colKey);
+        }}
+        title="Drag to resize column | Double-click to auto-fit"
+    >
+        <div className="w-[1.5px] h-3 bg-slate-400/80 group-hover/handle:bg-indigo-600 dark:bg-slate-500 rounded-full opacity-0 group-hover/handle:opacity-100 transition-opacity" />
+    </div>
+));
+
 const StudentGradeRow = memo(({
     student,
     studentRow,
@@ -505,7 +554,21 @@ const StudentGradeRow = memo(({
     showGenAvg,
     showDescriptor,
     descriptorGradeLevel,
+    highlightMissingGrades,
+    lockedQuarters,
+    customColumnWidths,
+    averageColWidth,
+    generalAvgColWidth,
+    descriptorColWidth,
 }: StudentGradeRowProps) => {
+    const isQuarterLocked = (q: string | number) => {
+        const key = (typeof q === 'number' ? `q${q}` : q.toLowerCase()) as 'q1' | 'q2' | 'q3' | 'q4';
+        return (lockedQuarters || []).includes(key);
+    };
+
+    const getSubColWidth = (subId: string) => {
+        return (customColumnWidths && customColumnWidths[subId]) || subjectColumnWidth;
+    };
     const colIndices = useMemo(() => {
         const indices: number[] = [];
         let currentIndex = 0;
@@ -525,7 +588,7 @@ const StudentGradeRow = memo(({
 
     return (
         <tr className="hover:bg-blue-50/20">
-            <td className={`consolidated-learner-name border border-black ${isElementary ? 'p-0.5 pl-1.5' : 'p-1 pl-2'} font-medium truncate whitespace-nowrap uppercase`} style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>
+            <td className={`consolidated-learner-name border border-black ${isElementary ? 'p-0.5 pl-1.5' : 'p-1 pl-2'} font-medium truncate whitespace-nowrap uppercase`} style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px` }}>
                 <span className="inline-block w-4 text-gray-500 mr-1 text-[7px] text-center font-bold tracking-tighter">
                     {studentRow + 1}
                 </span> 
@@ -534,130 +597,184 @@ const StudentGradeRow = memo(({
             {subjectColumns.map((column, index) => {
                 const sData = data[column.subject.id] || {};
                 const currentCol = colIndices[index];
+                const subWidth = getSubColWidth(column.subject.id);
                 return (
                     <Fragment key={`${student.lrn}-${column.baseId}-${index}`}>
                         {selectedTerm !== 'all' && (column.subject as any)._mapehGroups ? (
                             <>
-                                <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>
-                                    {activeQuarterTerm && column.subject._mapehGroups?.musicArts[0] && (
-                                        <GradeInput
-                                            studentLrn={student.lrn}
-                                            subjectId={column.subject._mapehGroups.musicArts[0].id}
-                                            quarter={parseInt(activeQuarterTerm.replace('q', ''))}
-                                            value={getQuarterGradeDetail(sData[activeQuarterTerm])?.musicArts}
-                                            activeSchoolYear={activeSchoolYear}
-                                            subjects={subjects}
-                                            sectionObj={sectionObj}
-                                            updateGradingSheetRecord={updateGradingSheetRecord}
-                                            row={studentRow} col={currentCol}
-                                        />
-                                    )}
-                                </td>
-                                <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>
-                                    {activeQuarterTerm && column.subject._mapehGroups?.peHealth[0] && (
-                                        <GradeInput
-                                            studentLrn={student.lrn}
-                                            subjectId={column.subject._mapehGroups.peHealth[0].id}
-                                            quarter={parseInt(activeQuarterTerm.replace('q', ''))}
-                                            value={getQuarterGradeDetail(sData[activeQuarterTerm])?.peHealth}
-                                            activeSchoolYear={activeSchoolYear}
-                                            subjects={subjects}
-                                            sectionObj={sectionObj}
-                                            updateGradingSheetRecord={updateGradingSheetRecord}
-                                            row={studentRow} col={currentCol + 1}
-                                        />
-                                    )}
-                                </td>
-                                <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
+                                {(() => {
+                                    const maVal = activeQuarterTerm ? getQuarterGradeDetail(sData[activeQuarterTerm])?.musicArts : undefined;
+                                    const isMaMissing = Boolean(highlightMissingGrades && activeQuarterTerm && (!maVal && maVal !== 0));
+                                    const phVal = activeQuarterTerm ? getQuarterGradeDetail(sData[activeQuarterTerm])?.peHealth : undefined;
+                                    const isPhMissing = Boolean(highlightMissingGrades && activeQuarterTerm && (!phVal && phVal !== 0));
+                                    return (
+                                        <>
+                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums ${isMaMissing ? 'bg-amber-100/70 dark:bg-amber-950/40' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                                {activeQuarterTerm && column.subject._mapehGroups?.musicArts[0] && (
+                                                    <GradeInput
+                                                        studentLrn={student.lrn}
+                                                        subjectId={column.subject._mapehGroups.musicArts[0].id}
+                                                        subjectName={column.subject._mapehGroups.musicArts[0].subject_name}
+                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
+                                                        value={maVal}
+                                                        activeSchoolYear={activeSchoolYear}
+                                                        subjects={subjects}
+                                                        sectionObj={sectionObj}
+                                                        updateGradingSheetRecord={updateGradingSheetRecord}
+                                                        row={studentRow} col={currentCol}
+                                                        isMissing={isMaMissing}
+                                                        isLocked={Boolean(activeQuarterTerm && isQuarterLocked(activeQuarterTerm))}
+                                                    />
+                                                )}
+                                            </td>
+                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums ${isPhMissing ? 'bg-amber-100/70 dark:bg-amber-950/40' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                                {activeQuarterTerm && column.subject._mapehGroups?.peHealth[0] && (
+                                                    <GradeInput
+                                                        studentLrn={student.lrn}
+                                                        subjectId={column.subject._mapehGroups.peHealth[0].id}
+                                                        subjectName={column.subject._mapehGroups.peHealth[0].subject_name}
+                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
+                                                        value={phVal}
+                                                        activeSchoolYear={activeSchoolYear}
+                                                        subjects={subjects}
+                                                        sectionObj={sectionObj}
+                                                        updateGradingSheetRecord={updateGradingSheetRecord}
+                                                        row={studentRow} col={currentCol + 1}
+                                                        isMissing={isPhMissing}
+                                                        isLocked={Boolean(activeQuarterTerm && isQuarterLocked(activeQuarterTerm))}
+                                                    />
+                                                )}
+                                            </td>
+                                            <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
+                                        </>
+                                    );
+                                })()}
                             </>
                         ) : selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name) ? (
                             <>
-                                <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>
-                                    {activeQuarterTerm && column.subject._ecmkGroups?.effectiveComm[0] && (
-                                        <GradeInput
-                                            studentLrn={student.lrn}
-                                            subjectId={column.subject._ecmkGroups.effectiveComm[0].id}
-                                            quarter={parseInt(activeQuarterTerm.replace('q', ''))}
-                                            value={getQuarterGradeDetail(sData[activeQuarterTerm])?.effectiveComm}
-                                            activeSchoolYear={activeSchoolYear}
-                                            subjects={subjects}
-                                            sectionObj={sectionObj}
-                                            updateGradingSheetRecord={updateGradingSheetRecord}
-                                            row={studentRow} col={currentCol}
-                                        />
-                                    )}
-                                </td>
-                                <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>
-                                    {activeQuarterTerm && column.subject._ecmkGroups?.mabisangKom[0] && (
-                                        <GradeInput
-                                            studentLrn={student.lrn}
-                                            subjectId={column.subject._ecmkGroups.mabisangKom[0].id}
-                                            quarter={parseInt(activeQuarterTerm.replace('q', ''))}
-                                            value={getQuarterGradeDetail(sData[activeQuarterTerm])?.mabisangKom}
-                                            activeSchoolYear={activeSchoolYear}
-                                            subjects={subjects}
-                                            sectionObj={sectionObj}
-                                            updateGradingSheetRecord={updateGradingSheetRecord}
-                                            row={studentRow} col={currentCol + 1}
-                                        />
-                                    )}
-                                </td>
-                                <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold bg-gray-200" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
+                                {(() => {
+                                    const ecVal = activeQuarterTerm ? getQuarterGradeDetail(sData[activeQuarterTerm])?.effectiveComm : undefined;
+                                    const isEcMissing = Boolean(highlightMissingGrades && activeQuarterTerm && (!ecVal && ecVal !== 0));
+                                    const mkVal = activeQuarterTerm ? getQuarterGradeDetail(sData[activeQuarterTerm])?.mabisangKom : undefined;
+                                    const isMkMissing = Boolean(highlightMissingGrades && activeQuarterTerm && (!mkVal && mkVal !== 0));
+                                    return (
+                                        <>
+                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums ${isEcMissing ? 'bg-amber-100/70 dark:bg-amber-950/40' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                                {activeQuarterTerm && column.subject._ecmkGroups?.effectiveComm[0] && (
+                                                    <GradeInput
+                                                        studentLrn={student.lrn}
+                                                        subjectId={column.subject._ecmkGroups.effectiveComm[0].id}
+                                                        subjectName={column.subject._ecmkGroups.effectiveComm[0].subject_name}
+                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
+                                                        value={ecVal}
+                                                        activeSchoolYear={activeSchoolYear}
+                                                        subjects={subjects}
+                                                        sectionObj={sectionObj}
+                                                        updateGradingSheetRecord={updateGradingSheetRecord}
+                                                        row={studentRow} col={currentCol}
+                                                        isMissing={isEcMissing}
+                                                        isLocked={Boolean(activeQuarterTerm && isQuarterLocked(activeQuarterTerm))}
+                                                    />
+                                                )}
+                                            </td>
+                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums ${isMkMissing ? 'bg-amber-100/70 dark:bg-amber-950/40' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                                {activeQuarterTerm && column.subject._ecmkGroups?.mabisangKom[0] && (
+                                                    <GradeInput
+                                                        studentLrn={student.lrn}
+                                                        subjectId={column.subject._ecmkGroups.mabisangKom[0].id}
+                                                        subjectName={column.subject._ecmkGroups.mabisangKom[0].subject_name}
+                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
+                                                        value={mkVal}
+                                                        activeSchoolYear={activeSchoolYear}
+                                                        subjects={subjects}
+                                                        sectionObj={sectionObj}
+                                                        updateGradingSheetRecord={updateGradingSheetRecord}
+                                                        row={studentRow} col={currentCol + 1}
+                                                        isMissing={isMkMissing}
+                                                        isLocked={Boolean(activeQuarterTerm && isQuarterLocked(activeQuarterTerm))}
+                                                    />
+                                                )}
+                                            </td>
+                                            <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold bg-gray-200" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
+                                        </>
+                                    );
+                                })()}
                             </>
                         ) : (
                             <>
-                                {(selectedTerm === 'q1' || selectedTerm === 'all') && (
-                                    <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>
-                                        {selectedTerm === 'q1' ? (
-                                            <GradeInput 
-                                                studentLrn={student.lrn} 
-                                                subjectId={column.subject.id} 
-                                                quarter={1} 
-                                                value={sData.q1} 
-                                                activeSchoolYear={activeSchoolYear}
-                                                subjects={subjects}
-                                                sectionObj={sectionObj}
-                                                updateGradingSheetRecord={updateGradingSheetRecord}
-                                                row={studentRow} col={currentCol}
-                                            />
-                                            ) : (formatGradeForDisplay(getQuarterGradeValue(sData.q1), sectionObj?.section_grade_level || '') || '')}
-                                    </td>
-                                )}
-                                {(selectedTerm === 'q2' || selectedTerm === 'all') && (
-                                    <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>
-                                        {selectedTerm === 'q2' ? (
-                                            <GradeInput 
-                                                studentLrn={student.lrn} 
-                                                subjectId={column.subject.id} 
-                                                quarter={2} 
-                                                value={sData.q2} 
-                                                activeSchoolYear={activeSchoolYear}
-                                                subjects={subjects}
-                                                sectionObj={sectionObj}
-                                                updateGradingSheetRecord={updateGradingSheetRecord}
-                                                row={studentRow} col={currentCol}
-                                            />
-                                            ) : (formatGradeForDisplay(getQuarterGradeValue(sData.q2), sectionObj?.section_grade_level || '') || '')}
-                                    </td>
-                                )}
-                                {(selectedTerm === 'q3' || selectedTerm === 'all') && (
-                                    <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>
-                                        {selectedTerm === 'q3' ? (
-                                            <GradeInput 
-                                                studentLrn={student.lrn} 
-                                                subjectId={column.subject.id} 
-                                                quarter={3} 
-                                                value={sData.q3} 
-                                                activeSchoolYear={activeSchoolYear}
-                                                subjects={subjects}
-                                                sectionObj={sectionObj}
-                                                updateGradingSheetRecord={updateGradingSheetRecord}
-                                                row={studentRow} col={currentCol}
-                                            />
-                                            ) : (formatGradeForDisplay(getQuarterGradeValue(sData.q3), sectionObj?.section_grade_level || '') || '')}
-                                    </td>
-                                )}
-                                {selectedTerm === 'all' && <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-bold bg-gray-200" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>{formatGradeForDisplay(sData.final, sectionObj?.section_grade_level || '') || ''}</td>}
+                                {(() => {
+                                    const q1Val = getQuarterGradeValue(sData.q1);
+                                    const isQ1Missing = Boolean(highlightMissingGrades && (!q1Val && q1Val !== 0));
+                                    const q2Val = getQuarterGradeValue(sData.q2);
+                                    const isQ2Missing = Boolean(highlightMissingGrades && (!q2Val && q2Val !== 0));
+                                    const q3Val = getQuarterGradeValue(sData.q3);
+                                    const isQ3Missing = Boolean(highlightMissingGrades && (!q3Val && q3Val !== 0));
+                                    return (
+                                        <>
+                                            {(selectedTerm === 'q1' || selectedTerm === 'all') && (
+                                                <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isQ1Missing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                                    {selectedTerm === 'q1' ? (
+                                                         <GradeInput 
+                                                             studentLrn={student.lrn} 
+                                                            subjectId={column.subject.id} 
+                                                            subjectName={column.subject.subject_name}
+                                                            quarter={1} 
+                                                            value={sData.q1} 
+                                                            activeSchoolYear={activeSchoolYear}
+                                                            subjects={subjects}
+                                                            sectionObj={sectionObj}
+                                                            updateGradingSheetRecord={updateGradingSheetRecord}
+                                                            row={studentRow} col={currentCol}
+                                                            isMissing={isQ1Missing}
+                                                            isLocked={isQuarterLocked('q1')}
+                                                        />
+                                                        ) : (formatGradeForDisplay(q1Val, sectionObj?.section_grade_level || '') || '')}
+                                                </td>
+                                            )}
+                                            {(selectedTerm === 'q2' || selectedTerm === 'all') && (
+                                                <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isQ2Missing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                                    {selectedTerm === 'q2' ? (
+                                                        <GradeInput 
+                                                            studentLrn={student.lrn} 
+                                                            subjectId={column.subject.id} 
+                                                            subjectName={column.subject.subject_name}
+                                                            quarter={2} 
+                                                            value={sData.q2} 
+                                                            activeSchoolYear={activeSchoolYear}
+                                                            subjects={subjects}
+                                                            sectionObj={sectionObj}
+                                                            updateGradingSheetRecord={updateGradingSheetRecord}
+                                                            row={studentRow} col={currentCol}
+                                                            isMissing={isQ2Missing}
+                                                            isLocked={isQuarterLocked('q2')}
+                                                        />
+                                                        ) : (formatGradeForDisplay(q2Val, sectionObj?.section_grade_level || '') || '')}
+                                                </td>
+                                            )}
+                                            {(selectedTerm === 'q3' || selectedTerm === 'all') && (
+                                                <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isQ3Missing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                                    {selectedTerm === 'q3' ? (
+                                                        <GradeInput 
+                                                            studentLrn={student.lrn} 
+                                                            subjectId={column.subject.id} 
+                                                            subjectName={column.subject.subject_name}
+                                                            quarter={3} 
+                                                            value={sData.q3} 
+                                                            activeSchoolYear={activeSchoolYear}
+                                                            subjects={subjects}
+                                                            sectionObj={sectionObj}
+                                                            updateGradingSheetRecord={updateGradingSheetRecord}
+                                                            row={studentRow} col={currentCol}
+                                                            isMissing={isQ3Missing}
+                                                            isLocked={isQuarterLocked('q3')}
+                                                        />
+                                                        ) : (formatGradeForDisplay(q3Val, sectionObj?.section_grade_level || '') || '')}
+                                                </td>
+                                            )}
+                                            {selectedTerm === 'all' && <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-bold bg-gray-200" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>{formatGradeForDisplay(sData.final, sectionObj?.section_grade_level || '') || ''}</td>}
+                                        </>
+                                    );
+                                })()}
                             </>
                         )}
                     </Fragment>
@@ -665,10 +782,10 @@ const StudentGradeRow = memo(({
             })}
             {showGenAvg && (
                 <>
-                    <td className={`consolidated-average-col border border-black ${isElementary ? 'p-0.5' : 'p-1'} text-center font-bold bg-gray-50/50 tabular-nums`} style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>{data.termAverage || ''}</td>
-                    <td className={`consolidated-general-average-col border border-black ${isElementary ? 'p-0.5' : 'p-1'} text-center font-bold bg-gray-100/50 tabular-nums`} style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>{data.generalAverage || ''}</td>
+                    <td className={`consolidated-average-col border border-black ${isElementary ? 'p-0.5' : 'p-1'} text-center font-bold bg-gray-50/50 tabular-nums`} style={{ width: `${averageColWidth || 65}px`, minWidth: `${averageColWidth || 65}px` }}>{data.termAverage || ''}</td>
+                    <td className={`consolidated-general-average-col border border-black ${isElementary ? 'p-0.5' : 'p-1'} text-center font-bold bg-gray-100/50 tabular-nums`} style={{ width: `${generalAvgColWidth || 75}px`, minWidth: `${generalAvgColWidth || 75}px` }}>{data.generalAverage || ''}</td>
                     {showDescriptor && (
-                        <td className="consolidated-descriptor-col border border-black p-1 text-center font-bold bg-gray-200 text-[6px] leading-tight uppercase" style={{ width: `100px`, minWidth: `100px`, maxWidth: `100px` }}>
+                        <td className="consolidated-descriptor-col border border-black p-1 text-center font-bold bg-gray-200 text-[6px] leading-tight uppercase" style={{ width: `${descriptorColWidth || 100}px`, minWidth: `${descriptorColWidth || 100}px` }}>
                             {data.generalAverage ? getDescriptor(Number(data.generalAverage), descriptorGradeLevel || "") : ''}
                         </td>
                     )}
@@ -682,7 +799,7 @@ export function ConsolidatedGradesPage() {
     
 
     const {
-        sections, subjects, students, gradingSheetRecords, updateGradingSheetRecord,
+        sections, subjects, students, gradingSheetRecords, updateGradingSheetRecord, bulkUpdateGradingSheetRecords,
         activeSchoolYear, schoolProfile, setCurrentView,
         selectedSection, setSelectedSection, classRecords, hpsRecords, showNotification
     } = useAppStore();
@@ -691,17 +808,81 @@ export function ConsolidatedGradesPage() {
     const [selectedTerm, setSelectedTerm] = useState<'q1' | 'q2' | 'q3' | 'all'>('q1');
     const [isSyncing, setIsSyncing] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [highlightMissingGrades, setHighlightMissingGrades] = useState(false);
+    const [showMissingOnly, setShowMissingOnly] = useState(false);
+    const [showMissingGradesPopover, setShowMissingGradesPopover] = useState(false);
+    const [isLockPopoverOpen, setIsLockPopoverOpen] = useState(false);
+    const [isAddSubjectModalOpen, setIsAddSubjectModalOpen] = useState(false);
+    const [addSubjectSearchQuery, setAddSubjectSearchQuery] = useState('');
+    const [customSubjectName, setCustomSubjectName] = useState('');
     const [zoom, setZoom] = useState(0.9);
-    const [sheetWidth, setSheetWidth] = useState<number | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const showGenAvg = selectedTerm !== 'all';
 
     // Derived State
     const sectionObj = useMemo(() => sections.find(s => s.id === selectedSection || s.section_name === selectedSection), [sections, selectedSection]);
 
-    // ADVISORY CHECK: Is the current user the adviser of this section?
+    // Quarter Lock Helpers
+    const lockedQuarters: ('q1' | 'q2' | 'q3' | 'q4')[] = useMemo(() => {
+        return sectionObj?.section_metadata?.lockedQuarters || [];
+    }, [sectionObj?.section_metadata?.lockedQuarters]);
+
+    const isQuarterLocked = useCallback((q: string | number) => {
+        const key = (typeof q === 'number' ? `q${q}` : String(q).toLowerCase()) as 'q1' | 'q2' | 'q3' | 'q4';
+        return lockedQuarters.includes(key);
+    }, [lockedQuarters]);
+
+    const handleToggleQuarterLock = async (qKey: 'q1' | 'q2' | 'q3' | 'q4') => {
+        if (!sectionObj) return;
+        const exists = lockedQuarters.includes(qKey);
+        const updatedLocked = exists
+            ? lockedQuarters.filter(k => k !== qKey)
+            : [...lockedQuarters, qKey];
+
+        const updatedSection: Section = {
+            ...sectionObj,
+            section_metadata: {
+                ...sectionObj.section_metadata,
+                lockedQuarters: updatedLocked
+            }
+        };
+        try {
+            await useAppStore.getState().updateSection(updatedSection);
+            showNotification(
+                exists ? `Unlocked Quarter ${qKey.replace('q', '')}` : `Locked Quarter ${qKey.replace('q', '')} against accidental edits`,
+                'success'
+            );
+        } catch (err) {
+            console.error('Failed to update quarter lock:', err);
+            showNotification('Failed to update quarter lock status.', 'error');
+        }
+    };
+
+    const handleBatchLockQuarters = async (quarters: ('q1' | 'q2' | 'q3' | 'q4')[]) => {
+        if (!sectionObj) return;
+        const updatedSection: Section = {
+            ...sectionObj,
+            section_metadata: {
+                ...sectionObj.section_metadata,
+                lockedQuarters: quarters
+            }
+        };
+        try {
+            await useAppStore.getState().updateSection(updatedSection);
+            showNotification(
+                quarters.length > 0 ? 'All quarters locked.' : 'All quarters unlocked.',
+                'success'
+            );
+        } catch (err) {
+            console.error('Failed to batch update quarter locks:', err);
+            showNotification('Failed to update quarter locks.', 'error');
+        }
+    };
+
+    // ADVISORY CHECK: Is the current user the adviser of this section or an admin?
     const isAdviser = useMemo(() => {
         if (!sectionObj || !user) return false;
+        if (user.role === 'admin' || user.role === 'principal' || user.role === 'registrar') return true;
         
         // 1. Check by ID if available
         if (sectionObj.adviser_id === user.uid) return true;
@@ -716,12 +897,23 @@ export function ConsolidatedGradesPage() {
     }, [sectionObj, user, schoolProfile.adviser_name]);
 
     const handleSyncFromEClass = async () => {
-        if (!sectionObj || !isAdviser || selectedTerm === 'all') {
-            showNotification('Sync is only available for specific terms (Q1-Q3) in your Advisory Class.', 'info');
+        if (!sectionObj || !isAdviser) {
+            showNotification('Sync is only available in your Advisory Class.', 'info');
             return;
         }
 
-        const quarter = parseInt(selectedTerm.replace('q', '')) as 1 | 2 | 3;
+        const baseQuarters: (1 | 2 | 3)[] = selectedTerm === 'all'
+            ? [1, 2, 3]
+            : [parseInt(selectedTerm.replace('q', '')) as 1 | 2 | 3];
+        const quartersToSync = baseQuarters.filter(q => !isQuarterLocked(q));
+
+        if (quartersToSync.length === 0) {
+            showNotification('Selected quarter(s) are locked against syncing. Unlock them in the Lock menu first.', 'error');
+            return;
+        }
+        if (quartersToSync.length < baseQuarters.length) {
+            showNotification('Skipped locked quarter(s) during sync.', 'info');
+        }
         const sectionGradeLevel = sectionObj.section_grade_level || '';
         let sectionTrack = 'Academic Track';
         if (sectionObj.track) {
@@ -748,115 +940,172 @@ export function ConsolidatedGradesPage() {
             else if (trackNorm.includes('TVL') || trackNorm.includes('TECHPRO') || trackNorm.includes('HE') || trackNorm.includes('ICT')) sectionTrack = 'Technical-Vocational-Livelihood (TVL)';
         }
 
+        // Filter subjects that belong to the adviser's personal teaching load in this section
+        const teachingLoadSubjects = sectionSubjects.filter(sub => isSubjectInTeachingLoad(sub, sectionObj, classRecords));
+
+        if (teachingLoadSubjects.length === 0) {
+            showNotification('No subjects in this section are part of your personal teaching load. Grades for subjects taught by other teachers are preserved for manual input.', 'info');
+            return;
+        }
+
         setIsSyncing(true);
-        let syncCount = 0;
+        const recordsToSync: ClassRecord[] = [];
+        const recordsToDelete: string[] = [];
+        const { gradingSheetRecords: currentGradingRecords, deleteGradingSheetRecord } = useAppStore.getState();
+
+        const findExistingGradingRecord = (studentLrn: string, subId: string, subName: string | undefined, q: number) => {
+            return currentGradingRecords.find(r =>
+                (r.student_lrn === studentLrn || String(r.student_lrn).trim() === String(studentLrn).trim()) &&
+                isQuarterMatch(r.quarter, q) &&
+                (!activeSchoolYear || !r.school_year || r.school_year === activeSchoolYear) &&
+                (r.subject_id === subId || isSameSubject(r.subject_id, r.subject_name, subId, subName))
+            );
+        };
 
         try {
-            // Process each student in the section
-            for (const student of sectionStudents) {
-                // Process each subject in the section
-                for (const subject of sectionSubjects) {
-                    if (subject._mapehGroups) {
-                        const maComps = subject._mapehGroups.musicArts || [];
-                        const peComps = subject._mapehGroups.peHealth || [];
-                        for (const comp of [...maComps, ...peComps]) {
-                            const compGrade = resolveStudentQuarterGrade(
-                                student.lrn,
-                                comp.id,
-                                quarter,
-                                activeSchoolYear,
-                                classRecords,
-                                [],
-                                hpsRecords,
-                                sectionGradeLevel,
-                                sectionTrack
-                            );
-                            if (compGrade > 0) {
-                                await updateGradingSheetRecord({
-                                    id: `${student.lrn}_${comp.id}_${quarter}_${activeSchoolYear}`,
-                                    student_lrn: student.lrn,
-                                    subject_id: comp.id,
-                                    subject_name: comp.subject_name,
-                                    section_id: sectionObj.id,
-                                    quarter: quarter as 1 | 2 | 3,
-                                    school_year: activeSchoolYear,
-                                    final_grade: compGrade,
-                                    written_works: [],
-                                    performance_tasks: [],
-                                    quarterly_exam: 0
-                                });
-                                syncCount++;
+            // Process each quarter in quartersToSync
+            for (const quarter of quartersToSync) {
+                // Process each student in the section
+                for (const student of sectionStudents) {
+                    // Process ONLY subjects in the adviser's teaching load
+                    for (const subject of teachingLoadSubjects) {
+                        if (subject._mapehGroups) {
+                            const maComps = (subject._mapehGroups.musicArts || []).filter(comp => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
+                            const peComps = (subject._mapehGroups.peHealth || []).filter(comp => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
+                            for (const comp of [...maComps, ...peComps]) {
+                                const compGrade = resolveStudentQuarterGrade(
+                                    student.lrn,
+                                    comp.subject_name || comp.id,
+                                    quarter,
+                                    activeSchoolYear,
+                                    classRecords,
+                                    [],
+                                    hpsRecords,
+                                    sectionGradeLevel,
+                                    sectionTrack
+                                );
+                                if (compGrade > 0) {
+                                    recordsToSync.push({
+                                        id: `${student.lrn}_${comp.id}_${quarter}_${activeSchoolYear}`,
+                                        student_lrn: student.lrn,
+                                        subject_id: comp.id,
+                                        subject_name: comp.subject_name,
+                                        section_id: sectionObj.id,
+                                        quarter: quarter as 1 | 2 | 3,
+                                        school_year: activeSchoolYear,
+                                        final_grade: compGrade,
+                                        written_works: [],
+                                        performance_tasks: [],
+                                        quarterly_exam: 0
+                                    });
+                                } else {
+                                    const oldRec = findExistingGradingRecord(student.lrn, comp.id, comp.subject_name, quarter);
+                                    if (oldRec?.id) recordsToDelete.push(oldRec.id);
+                                }
                             }
+                            // Also clear any rogue parent MAPEH record if present
+                            const oldParent = findExistingGradingRecord(student.lrn, subject.id, subject.subject_name, quarter);
+                            if (oldParent?.id) recordsToDelete.push(oldParent.id);
+                            continue;
                         }
-                        continue;
-                    }
 
-                    if (subject._ecmkGroups) {
-                        const ecComps = subject._ecmkGroups.effectiveComm || [];
-                        const mkComps = subject._ecmkGroups.mabisangKom || [];
-                        for (const comp of [...ecComps, ...mkComps]) {
-                            const compGrade = resolveStudentQuarterGrade(
-                                student.lrn,
-                                comp.id,
-                                quarter,
-                                activeSchoolYear,
-                                classRecords,
-                                [],
-                                hpsRecords,
-                                sectionGradeLevel,
-                                sectionTrack
-                            );
-                            if (compGrade > 0) {
-                                await updateGradingSheetRecord({
-                                    id: `${student.lrn}_${comp.id}_${quarter}_${activeSchoolYear}`,
-                                    student_lrn: student.lrn,
-                                    subject_id: comp.id,
-                                    subject_name: comp.subject_name,
-                                    section_id: sectionObj.id,
-                                    quarter: quarter as 1 | 2 | 3,
-                                    school_year: activeSchoolYear,
-                                    final_grade: compGrade,
-                                    written_works: [],
-                                    performance_tasks: [],
-                                    quarterly_exam: 0
-                                });
-                                syncCount++;
+                        if (subject._ecmkGroups) {
+                            const ecComps = (subject._ecmkGroups.effectiveComm || []).filter(comp => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
+                            const mkComps = (subject._ecmkGroups.mabisangKom || []).filter(comp => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
+                            for (const comp of [...ecComps, ...mkComps]) {
+                                const compGrade = resolveStudentQuarterGrade(
+                                    student.lrn,
+                                    comp.subject_name || comp.id,
+                                    quarter,
+                                    activeSchoolYear,
+                                    classRecords,
+                                    [],
+                                    hpsRecords,
+                                    sectionGradeLevel,
+                                    sectionTrack
+                                );
+                                if (compGrade > 0) {
+                                    recordsToSync.push({
+                                        id: `${student.lrn}_${comp.id}_${quarter}_${activeSchoolYear}`,
+                                        student_lrn: student.lrn,
+                                        subject_id: comp.id,
+                                        subject_name: comp.subject_name,
+                                        section_id: sectionObj.id,
+                                        quarter: quarter as 1 | 2 | 3,
+                                        school_year: activeSchoolYear,
+                                        final_grade: compGrade,
+                                        written_works: [],
+                                        performance_tasks: [],
+                                        quarterly_exam: 0
+                                    });
+                                } else {
+                                    const oldRec = findExistingGradingRecord(student.lrn, comp.id, comp.subject_name, quarter);
+                                    if (oldRec?.id) recordsToDelete.push(oldRec.id);
+                                }
                             }
+                            // Also clear any rogue parent EC/MK record if present
+                            const oldParent = findExistingGradingRecord(student.lrn, subject.id, subject.subject_name, quarter);
+                            if (oldParent?.id) recordsToDelete.push(oldParent.id);
+                            continue;
                         }
-                        continue;
-                    }
 
-                    const finalGrade = resolveStudentQuarterGrade(
-                        student.lrn,
-                        subject.id,
-                        quarter,
-                        activeSchoolYear,
-                        classRecords,
-                        [],
-                        hpsRecords,
-                        sectionGradeLevel,
-                        sectionTrack
-                    );
+                        const finalGrade = resolveStudentQuarterGrade(
+                            student.lrn,
+                            subject.subject_name || subject.id,
+                            quarter,
+                            activeSchoolYear,
+                            classRecords,
+                            [],
+                            hpsRecords,
+                            sectionGradeLevel,
+                            sectionTrack
+                        );
 
-                    if (finalGrade > 0) {
-                        await updateGradingSheetRecord({
-                            id: `${student.lrn}_${subject.id}_${quarter}_${activeSchoolYear}`,
-                            student_lrn: student.lrn,
-                            subject_id: subject.id,
-                            subject_name: subject.subject_name,
-                            section_id: sectionObj.id,
-                            quarter: quarter as 1 | 2 | 3,
-                            school_year: activeSchoolYear,
-                            final_grade: finalGrade,
-                            written_works: [],
-                            performance_tasks: [],
-                            quarterly_exam: 0
-                        });
-                        syncCount++;
+                        if (finalGrade > 0) {
+                            recordsToSync.push({
+                                id: `${student.lrn}_${subject.id}_${quarter}_${activeSchoolYear}`,
+                                student_lrn: student.lrn,
+                                subject_id: subject.id,
+                                subject_name: subject.subject_name,
+                                section_id: sectionObj.id,
+                                quarter: quarter as 1 | 2 | 3,
+                                school_year: activeSchoolYear,
+                                final_grade: finalGrade,
+                                written_works: [],
+                                performance_tasks: [],
+                                quarterly_exam: 0
+                            });
+                        } else {
+                            const oldRec = findExistingGradingRecord(student.lrn, subject.id, subject.subject_name, quarter);
+                            if (oldRec?.id) recordsToDelete.push(oldRec.id);
+                        }
                     }
                 }
             }
-            showNotification(`Successfully synced ${syncCount} grades from E-Class Records!`, 'success');
+
+            // 1. Delete stale records for subjects in teaching load with no grades in E-Class Record
+            const uniqueDeleteIds = Array.from(new Set(recordsToDelete));
+            for (const delId of uniqueDeleteIds) {
+                await deleteGradingSheetRecord(delId);
+            }
+
+            // 2. Add / update active records from E-Class Record
+            if (recordsToSync.length > 0) {
+                await bulkUpdateGradingSheetRecords(recordsToSync);
+            }
+
+            const otherSubjectsCount = sectionSubjects.length - teachingLoadSubjects.length;
+            const otherSubjectsMsg = otherSubjectsCount > 0 ? ` (${otherSubjectsCount} subject(s) assigned to other teachers were preserved)` : '';
+
+            if (recordsToSync.length > 0 && uniqueDeleteIds.length > 0) {
+                showNotification(`Synced ${recordsToSync.length} grades for your teaching load subjects and cleared ${uniqueDeleteIds.length} empty record(s).${otherSubjectsMsg}`, 'success');
+            } else if (recordsToSync.length > 0) {
+                showNotification(`Successfully synced ${recordsToSync.length} grades for your teaching load subjects!${otherSubjectsMsg}`, 'success');
+            } else if (uniqueDeleteIds.length > 0) {
+                showNotification(`Synchronized with E-Class Records: cleared ${uniqueDeleteIds.length} empty grade(s).${otherSubjectsMsg}`, 'info');
+            } else {
+                showNotification(`E-Class Records and Grade Management are already synchronized.${otherSubjectsMsg}`, 'info');
+            }
         } catch (error) {
             console.error('Sync error:', error);
             showNotification('Failed to sync grades. Please check your connection.', 'error');
@@ -961,6 +1210,10 @@ export function ConsolidatedGradesPage() {
         if (!file || !sectionObj || selectedTerm === 'all') return;
 
         const quarter = parseInt(selectedTerm.replace('q', '')) as 1 | 2 | 3;
+        if (isQuarterLocked(quarter)) {
+            showNotification(`Cannot import: Quarter ${quarter} is locked against edits. Unlock it in the Lock menu first.`, 'error');
+            return;
+        }
         const reader = new FileReader();
         
         reader.onload = async (event) => {
@@ -1137,6 +1390,9 @@ const groupedSections = useMemo(() => {
         const taughtRaw = sectionObj.taught_subjects || [];
 
         let candidates = subjects.filter(s => {
+            // Never include standalone 'Specialization' subject (not part of official curriculum)
+            if (normalizeSubjectName(s.subject_name) === 'specialization') return false;
+
             const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
             const isMatchingGrade = subjectGradeNum === sectionGradeNum;
             const isMatchingSection = s.section_id === sectionObj.id;
@@ -1154,17 +1410,30 @@ const groupedSections = useMemo(() => {
         // Helper: Check if a subject is section-specific, an imported special program offering, or has grades in this section
         const isSpecialOrImported = (s: Subject) => {
             if (s.section_id === sectionObj.id) return true;
-            if (s.is_special_program || Boolean(s.program_type)) return true;
+            
+            // Check if section belongs to a specialized program matching this subject
+            const isSectionInSpecialProgram = Boolean(
+                sectionObj.program && 
+                sectionObj.program !== 'Regular' && 
+                (s.program_type === sectionObj.program || (s.is_special_program && s.subject_name.toLowerCase().includes(sectionObj.program.toLowerCase())))
+            );
+            if (isSectionInSpecialProgram) return true;
+
             const specialTemplates = SPECIAL_SUBJECTS[sectionObj.section_grade_level] || [];
-            if (specialTemplates.some(t => isMatchingSubject(t.name, s.id, s.subject_name) || normalizeSubjectName(t.name) === normalizeSubjectName(s.subject_name))) {
-                return true;
-            }
-            if (intendedSubjects.some(intended => isMatchingSubject(intended.name, s.id, s.subject_name) || normalizeSubjectName(intended.name) === normalizeSubjectName(s.subject_name))) {
-                return true;
-            }
-            const hasGrades = gradingSheetRecords.some(r => (r.subject_id === s.id || isMatchingSubject(r.subject_id, s.id, s.subject_name)) && r.section_id === sectionObj.id) ||
-                              classRecords.some(r => (r.subject_id === s.id || isMatchingSubject(r.subject_id, s.id, s.subject_name)) && (r as any).section_id === sectionObj.id);
+            const isSpecialTemplate = specialTemplates.some(t => isMatchingSubject(t.name, s.id, s.subject_name) || normalizeSubjectName(t.name) === normalizeSubjectName(s.subject_name));
+
+            const hasGrades = gradingSheetRecords.some(r => isSameSubject(r.subject_id, r.subject_name, s.id, s.subject_name) && r.section_id === sectionObj.id && Number(r.final_grade) > 0) ||
+                              classRecords.some(r => isSameSubject(r.subject_id, r.subject_name, s.id, s.subject_name) && (r as any).section_id === sectionObj.id && Number((r as any).final_grade) > 0);
             if (hasGrades) return true;
+
+            // Only fallback to special templates if the section does NOT have an explicit taught roster
+            if (taughtRaw.length <= 1) {
+                if (isSpecialTemplate) return true;
+                if (intendedSubjects.some(intended => isMatchingSubject(intended.name, s.id, s.subject_name) || normalizeSubjectName(intended.name) === normalizeSubjectName(s.subject_name))) {
+                    return true;
+                }
+            }
+
             return false;
         };
 
@@ -1291,14 +1560,15 @@ const groupedSections = useMemo(() => {
         // Add DB subjects first
         for (const s of sectionDbSubjects) {
             const norm = normalizeSubjectName(s.subject_name);
+            if (norm === 'specialization') continue; // Never include standalone Specialization
             if (norm) matchedNorms.add(norm);
             baseList.push({ ...s, is_virtual: false } as VirtualSectionSubject);
         }
 
         // Merge any missing intended curriculum subjects (for this grade level & selected term)
         const relevantIntended = intendedSubjects.filter(intended => {
-            // Never auto-inject generic 'Specialization' for Elementary/JHS (Grades 1-10)
-            if (!isSHS && normalizeSubjectName(intended.name) === 'specialization') {
+            // Never auto-inject standalone 'Specialization' for any grade level
+            if (normalizeSubjectName(intended.name) === 'specialization') {
                 return false;
             }
             // If explicit subject roster is configured (> 1), don't inject unselected subjects unless they are special program offerings
@@ -1312,10 +1582,10 @@ const groupedSections = useMemo(() => {
                     }
                     return false;
                 });
-                const isSpecialIntended = Boolean(
+                const isSpecialSection = Boolean(sectionObj.program && sectionObj.program !== 'Regular');
+                const isSpecialIntended = isSpecialSection && Boolean(
                     (intended as any).is_special_program ||
-                    (intended as any).program ||
-                    (sectionObj.program && sectionObj.program !== 'Regular')
+                    (intended as any).program === sectionObj.program
                 );
                 if (!isAllowed && !isSpecialIntended) return false;
             }
@@ -1432,16 +1702,45 @@ const groupedSections = useMemo(() => {
             return base;
         });
 
-        // 5. Apply Global Standard Ordering (Filipino -> English -> ... -> MAPEH -> Specialization)
-        const sortedSubjects = sortSubjects(withGroupData, s => s.subject_name);
+        // 5. Subject Ordering: Respect explicit order in sectionObj.taught_subjects if configured,
+        // otherwise fall back to Global Standard DepEd Ordering
+        const taughtOrder = sectionObj?.taught_subjects || [];
+        let orderedSubjects: typeof withGroupData;
+        if (taughtOrder.length > 1) {
+            const getTaughtIndex = (subName: string) => {
+                const norm = normalizeSubjectName(subName);
+                return taughtOrder.findIndex(t => {
+                    const normT = normalizeSubjectName(t);
+                    if (normT === norm) return true;
+                    if (norm === 'mapeh' && (normT.includes('music') || normT.includes('pe') || normT.includes('arts') || normT.includes('health'))) return true;
+                    return isMatchingSubject(t, '', subName);
+                });
+            };
 
-        // 6. Filter out individual MAPEH components and EC/MK components from the main row list (they are sub-columns under their parent header)
-        return sortedSubjects.filter(sub => {
+            orderedSubjects = [...withGroupData].sort((a, b) => {
+                const idxA = getTaughtIndex(a.subject_name);
+                const idxB = getTaughtIndex(b.subject_name);
+                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                if (idxA !== -1) return -1;
+                if (idxB !== -1) return 1;
+                return 0;
+            });
+        } else {
+            orderedSubjects = sortSubjects(withGroupData, s => s.subject_name);
+        }
+
+        // 6. Filter out hidden subjects and individual MAPEH/ECMK subcomponents
+        const hiddenNorms = new Set((sectionObj?.section_metadata?.hiddenConsolidatedSubjects || []).map(h => normalizeSubjectName(h)));
+
+        return orderedSubjects.filter(sub => {
             const norm = normalizeSubjectName(sub.subject_name);
+            if (norm === 'specialization') return false; // Never show standalone Specialization
+            if (hiddenNorms.has(norm)) return false;
+
             const isMapehComponent = !isSHS && (isMusicArtsSubject(sub.subject_name) || isPeHealthSubject(sub.subject_name));
             
             // Filter out EC/MK individual components only if a parent group exists
-            const hasEcmkParentInList = sortedSubjects.some(s => isEcmkParent(s.subject_name));
+            const hasEcmkParentInList = orderedSubjects.some(s => isEcmkParent(s.subject_name));
             const isEcOrMkComponent = hasEcmkParentInList && (norm === 'effectivecommunication' || norm === 'mabisangkomunikasyon');
 
             return (!isMapehComponent || norm === 'mapeh') && !isEcOrMkComponent;
@@ -1529,30 +1828,247 @@ const groupedSections = useMemo(() => {
         return isKeyStage1(sectionObj.section_grade_level) || isKeyStage2To4(sectionObj.section_grade_level);
     }, [sectionObj]);
 
+    const termColSpan = useCallback((sub: VirtualSectionSubject) => {
+        if (selectedTerm === 'all') return 4;
+        if ((sub as any)._mapehGroups || isEcmkParent(sub.subject_name)) return 3;
+        return 1;
+    }, [selectedTerm]);
+
+    const BASE_PAGE_WIDTH = 1248; // Standard 13in Folio Landscape at 96 DPI
+    const SHEET_PADDING = 48; // p-6 = 24px left + 24px right
+
+    const [customColumnWidths, setCustomColumnWidths] = useState<Record<string, number>>({});
+    const [resizingCol, setResizingCol] = useState<{
+        key: string;
+        startX: number;
+        startWidth: number;
+    } | null>(null);
+
+    useEffect(() => {
+        if (sectionObj?.section_metadata?.customColumnWidths) {
+            setCustomColumnWidths(sectionObj.section_metadata.customColumnWidths);
+        } else {
+            setCustomColumnWidths({});
+        }
+    }, [sectionObj?.id, sectionObj?.section_metadata?.customColumnWidths]);
+
+    const learnerNameWidth = useMemo(() => {
+        return customColumnWidths['name'] || learnerNameColumnWidth;
+    }, [customColumnWidths, learnerNameColumnWidth]);
+
+    const averageColWidth = useMemo(() => {
+        return customColumnWidths['average'] || AVERAGE_COLUMN_WIDTH;
+    }, [customColumnWidths]);
+
+    const generalAvgColWidth = useMemo(() => {
+        return customColumnWidths['generalAverage'] || GENERAL_AVERAGE_COLUMN_WIDTH;
+    }, [customColumnWidths]);
+
+    const descriptorColWidth = useMemo(() => {
+        return customColumnWidths['descriptor'] || 100;
+    }, [customColumnWidths]);
+
+    const summaryColsWidth = useMemo(() => {
+        if (!showGenAvg) return 0;
+        return averageColWidth + generalAvgColWidth + (showDescriptor ? descriptorColWidth : 0);
+    }, [showGenAvg, averageColWidth, generalAvgColWidth, showDescriptor, descriptorColWidth]);
+
+    const totalSubjectSubCols = useMemo(() => {
+        return Math.max(1, subjectColumns.reduce((acc, col) => acc + termColSpan(col.subject), 0));
+    }, [subjectColumns, termColSpan]);
+
+    const minSubColWidth = useMemo(() => {
+        if (selectedTerm === 'all') return 34;
+        return 65;
+    }, [selectedTerm]);
+
+    const baseAvailableForSubjects = Math.max(0, BASE_PAGE_WIDTH - SHEET_PADDING - learnerNameWidth - summaryColsWidth);
     const subjectColumnWidth = useMemo(() => {
-        if (selectedTerm === 'all') return 30;
+        const dynamicSlotWidth = Math.floor(baseAvailableForSubjects / totalSubjectSubCols);
+        return Math.max(minSubColWidth, dynamicSlotWidth);
+    }, [baseAvailableForSubjects, totalSubjectSubCols, minSubColWidth]);
 
-        // 1. Calculate total logical sub-columns (MAPEH and EC&MK take 3 slots, others take 1)
-        const totalSubCols = sectionSubjects.reduce((acc, sub) => {
-            if ((sub as any)._mapehGroups || isEcmkParent(sub.subject_name)) return acc + 3;
-            return acc + 1;
+    const getSubjectSubColWidth = useCallback((subjectId: string) => {
+        return customColumnWidths[subjectId] || subjectColumnWidth;
+    }, [customColumnWidths, subjectColumnWidth]);
+
+    const totalSubjectColumnsWidth = useMemo(() => {
+        return subjectColumns.reduce((acc, col) => {
+            const subWidth = getSubjectSubColWidth(col.subject.id);
+            return acc + (subWidth * termColSpan(col.subject));
         }, 0);
+    }, [subjectColumns, getSubjectSubColWidth, termColSpan]);
 
-        if (totalSubCols === 0) return SUBJECT_COLUMN_WIDTH;
+    const usableTableWidth = useMemo(() => {
+        return learnerNameWidth + totalSubjectColumnsWidth + summaryColsWidth;
+    }, [learnerNameWidth, totalSubjectColumnsWidth, summaryColsWidth]);
 
-        // 2. Determine available width for subjects
-        // Standard Folio Landscape (13in) is approx 1248px at 96dpi
-        const pageWidth = 1200; 
-        const avgColsWidth = showGenAvg ? (AVERAGE_COLUMN_WIDTH + GENERAL_AVERAGE_COLUMN_WIDTH) : 0;
-        const availableWidth = pageWidth - learnerNameColumnWidth - avgColsWidth - 100; // 100px for padding/borders
+    const sheetWidth = useMemo(() => {
+        return Math.max(BASE_PAGE_WIDTH, usableTableWidth + SHEET_PADDING);
+    }, [usableTableWidth]);
 
-        // 3. Compute dynamic width per slot
-        const dynamicWidth = Math.floor(availableWidth / totalSubCols);
+    const hasCustomWidths = useMemo(() => {
+        return Object.keys(customColumnWidths).length > 0;
+    }, [customColumnWidths]);
 
-        // 4. Clamp to ensure readability but prioritize fitting the page
-        // Minimum 45px (enough for 3 digits), Maximum 120px
-        return Math.max(45, Math.min(120, dynamicWidth));
-    }, [sectionSubjects, selectedTerm, learnerNameColumnWidth, showGenAvg]);
+    const handleResizeStart = useCallback((e: React.MouseEvent, key: string, currentWidth: number) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setResizingCol({
+            key,
+            startX: e.clientX,
+            startWidth: currentWidth
+        });
+    }, []);
+
+    const handleAutoFit = useCallback(async (key: string) => {
+        let autoWidth: number;
+        if (key === 'name') {
+            const longestName = sectionStudents.reduce((longest, student) => {
+                const currentName = formatLearnerName(student);
+                return currentName.length > longest.length ? currentName : longest;
+            }, '');
+            autoWidth = Math.max(150, Math.min(Math.ceil(longestName.length * 6.2 + 32), 360));
+        } else if (key === 'average') {
+            autoWidth = AVERAGE_COLUMN_WIDTH;
+        } else if (key === 'generalAverage') {
+            autoWidth = GENERAL_AVERAGE_COLUMN_WIDTH;
+        } else if (key === 'descriptor') {
+            autoWidth = 100;
+        } else {
+            const sub = subjectColumns.find(c => c.subject.id === key)?.subject;
+            const subName = sub?.subject_name || '';
+            if (selectedTerm === 'all') {
+                autoWidth = 34;
+            } else {
+                autoWidth = Math.max(65, Math.min(Math.ceil(subName.length * 5.8 + 20), 160));
+            }
+        }
+
+        setCustomColumnWidths(prev => ({
+            ...prev,
+            [key]: autoWidth
+        }));
+
+        if (sectionObj) {
+            const updatedSection: Section = {
+                ...sectionObj,
+                section_metadata: {
+                    ...sectionObj.section_metadata,
+                    customColumnWidths: {
+                        ...(sectionObj.section_metadata?.customColumnWidths || {}),
+                        [key]: autoWidth
+                    }
+                }
+            };
+            try {
+                await useAppStore.getState().updateSection(updatedSection);
+            } catch (err) {
+                console.error('Failed to auto-fit column width:', err);
+            }
+        }
+    }, [sectionStudents, subjectColumns, selectedTerm, sectionObj]);
+
+    const handleResetColumnWidths = useCallback(async () => {
+        setCustomColumnWidths({});
+        if (sectionObj) {
+            const { customColumnWidths: _, ...remainingMeta } = sectionObj.section_metadata || {};
+            const updatedSection: Section = {
+                ...sectionObj,
+                section_metadata: remainingMeta
+            };
+            try {
+                await useAppStore.getState().updateSection(updatedSection);
+                showNotification('Column widths reset to default.', 'success');
+            } catch (err) {
+                console.error('Failed to reset column widths:', err);
+            }
+        }
+    }, [sectionObj, showNotification]);
+
+    useEffect(() => {
+        if (!resizingCol) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            const delta = e.clientX - resizingCol.startX;
+            let minW = 45;
+            let maxW = 450;
+            if (resizingCol.key === 'name') {
+                minW = 120;
+                maxW = 450;
+            } else if (resizingCol.key === 'average' || resizingCol.key === 'generalAverage') {
+                minW = 50;
+                maxW = 150;
+            } else if (resizingCol.key === 'descriptor') {
+                minW = 60;
+                maxW = 200;
+            } else if (selectedTerm === 'all') {
+                minW = 25;
+                maxW = 150;
+            }
+
+            const newWidth = Math.max(minW, Math.min(maxW, Math.round(resizingCol.startWidth + delta)));
+            setCustomColumnWidths(prev => ({
+                ...prev,
+                [resizingCol.key]: newWidth
+            }));
+        };
+
+        const handleMouseUp = async (e: MouseEvent) => {
+            const delta = e.clientX - resizingCol.startX;
+            const currentW = resizingCol.startWidth;
+            const finalKey = resizingCol.key;
+            setResizingCol(null);
+
+            let minW = 45;
+            let maxW = 450;
+            if (finalKey === 'name') {
+                minW = 120;
+                maxW = 450;
+            } else if (finalKey === 'average' || finalKey === 'generalAverage') {
+                minW = 50;
+                maxW = 150;
+            } else if (finalKey === 'descriptor') {
+                minW = 60;
+                maxW = 200;
+            } else if (selectedTerm === 'all') {
+                minW = 25;
+                maxW = 150;
+            }
+            const finalWidth = Math.max(minW, Math.min(maxW, Math.round(currentW + delta)));
+
+            if (sectionObj) {
+                const updatedWidths = {
+                    ...(sectionObj.section_metadata?.customColumnWidths || {}),
+                    [finalKey]: finalWidth
+                };
+                const updatedSection: Section = {
+                    ...sectionObj,
+                    section_metadata: {
+                        ...sectionObj.section_metadata,
+                        customColumnWidths: updatedWidths
+                    }
+                };
+                try {
+                    await useAppStore.getState().updateSection(updatedSection);
+                } catch (err) {
+                    console.error('Failed to save column width:', err);
+                }
+            }
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        };
+    }, [resizingCol, sectionObj, selectedTerm]);
 
     const maleStudents = useMemo(() => sectionStudents.filter(s => s.gender === 'Male').sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`)), [sectionStudents]);
     const femaleStudents = useMemo(() => sectionStudents.filter(s => s.gender === 'Female').sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`)), [sectionStudents]);
@@ -1576,6 +2092,365 @@ const groupedSections = useMemo(() => {
         return map;
     }, [sectionStudents, classRecords, gradingSheetRecords]);
 
+    const handleMoveSubject = async (subjectName: string, direction: 'left' | 'right') => {
+        if (!sectionObj) return;
+        const currentOrder = sectionSubjects.map(s => s.subject_name);
+        const currentIndex = currentOrder.findIndex(s => s.toLowerCase() === subjectName.toLowerCase());
+        if (currentIndex === -1) return;
+
+        const targetIndex = direction === 'left' ? currentIndex - 1 : currentIndex + 1;
+        if (targetIndex < 0 || targetIndex >= currentOrder.length) return;
+
+        const updatedOrder = [...currentOrder];
+        const temp = updatedOrder[currentIndex];
+        updatedOrder[currentIndex] = updatedOrder[targetIndex];
+        updatedOrder[targetIndex] = temp;
+
+        const updatedSection: Section = {
+            ...sectionObj,
+            taught_subjects: updatedOrder
+        };
+
+        try {
+            await useAppStore.getState().updateSection(updatedSection);
+            showNotification(`Moved ${subjectName} ${direction === 'left' ? 'left' : 'right'}.`, 'success');
+        } catch (err) {
+            console.error('Failed to move subject:', err);
+            showNotification('Failed to reorder subject.', 'error');
+        }
+    };
+
+    const availableSubjectsToAdd = useMemo(() => {
+        const currentNames = new Set(sectionSubjects.map(s => s.subject_name.toLowerCase().trim()));
+
+        // Exclude subcomponents that are already embedded inside composite columns (e.g. MAPEH, ECMK)
+        sectionSubjects.forEach(s => {
+            const nameUpper = s.subject_name.toUpperCase();
+            if ((s as any)._mapehGroups || nameUpper === 'MAPEH') {
+                currentNames.add('music and arts');
+                currentNames.add('physical education and health');
+                currentNames.add('pe and health');
+                currentNames.add('music & arts');
+                currentNames.add('pe & health');
+                currentNames.add('music');
+                currentNames.add('arts');
+                currentNames.add('physical education');
+                currentNames.add('health');
+            }
+            if (isEcmkParent(s.subject_name) || (s as any)._ecmkGroups) {
+                currentNames.add('effective communication');
+                currentNames.add('mabisang komunikasyon');
+            }
+        });
+
+        // Filter and deduplicate by subject name to avoid repeating catalog items
+        const seenNames = new Set<string>();
+        const uniqueSubjects: typeof subjects = [];
+
+        const candidates = subjects.filter(s => {
+            const norm = s.subject_name.trim().toLowerCase();
+            if (currentNames.has(norm)) return false;
+
+            if (s.grade_level && sectionObj?.section_grade_level) {
+                return s.grade_level.toLowerCase().trim() === sectionObj.section_grade_level.toLowerCase().trim();
+            }
+            return !s.grade_level;
+        }).sort((a, b) => a.subject_name.localeCompare(b.subject_name));
+
+        for (const s of candidates) {
+            const norm = s.subject_name.trim().toLowerCase();
+            if (!seenNames.has(norm)) {
+                seenNames.add(norm);
+                uniqueSubjects.push(s);
+            }
+        }
+
+        return uniqueSubjects;
+    }, [subjects, sectionSubjects, sectionObj?.section_grade_level]);
+
+    const handleQuickAddSubject = async (subjectName: string) => {
+        if (!sectionObj) return;
+        const trimmed = subjectName.trim();
+        if (!trimmed) return;
+        const currentTaught = [...(sectionObj.taught_subjects || sectionSubjects.map(s => s.subject_name))];
+        if (currentTaught.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
+            showNotification(`"${trimmed}" is already on the sheet.`, 'info');
+            return;
+        }
+        const updatedTaught = [...currentTaught, trimmed];
+        const updatedSection: Section = {
+            ...sectionObj,
+            taught_subjects: updatedTaught
+        };
+        try {
+            await useAppStore.getState().updateSection(updatedSection);
+            showNotification(`Added "${trimmed}" column to sheet!`, 'success');
+            setIsAddSubjectModalOpen(false);
+            setCustomSubjectName('');
+            setAddSubjectSearchQuery('');
+        } catch (err) {
+            console.error('Failed to add subject:', err);
+            showNotification('Failed to add subject.', 'error');
+        }
+    };
+
+    const handleDeleteColumn = async (subjectName: string) => {
+        if (!sectionObj) return;
+        const trimmed = subjectName.trim();
+        const confirmed = window.confirm(
+            `Are you sure you want to delete the "${trimmed}" column from ${sectionObj.section_name}?\n\nThis will remove the column from Grade Management and Summary of Grades.`
+        );
+        if (!confirmed) return;
+
+        const currentTaught = sectionObj.taught_subjects || sectionSubjects.map(s => s.subject_name);
+        const updatedTaught = currentTaught.filter(s => s.toLowerCase().trim() !== trimmed.toLowerCase());
+
+        const hiddenConsolidated = (sectionObj.section_metadata?.hiddenConsolidatedSubjects || []).filter(
+            s => s.toLowerCase().trim() !== trimmed.toLowerCase()
+        );
+
+        const updatedSection: Section = {
+            ...sectionObj,
+            taught_subjects: updatedTaught,
+            section_metadata: {
+                ...sectionObj.section_metadata,
+                hiddenConsolidatedSubjects: hiddenConsolidated
+            }
+        };
+
+        try {
+            await useAppStore.getState().updateSection(updatedSection);
+            showNotification(`Deleted "${trimmed}" column.`, 'success');
+        } catch (err) {
+            console.error('Failed to delete subject column:', err);
+            showNotification('Failed to delete column.', 'error');
+        }
+    };
+
+    const handleSubjectHeaderAction = async (column: { baseId: string; subject: VirtualSectionSubject }, actionValue: string) => {
+        if (!actionValue || !sectionObj) return;
+
+        if (actionValue === '__DELETE_COLUMN__') {
+            await handleDeleteColumn(column.subject.subject_name);
+            return;
+        }
+
+        if (actionValue === '__RESET_WIDTHS__') {
+            await handleResetColumnWidths();
+            return;
+        }
+
+        if (actionValue === '__ADD_COLUMN__') {
+            setIsAddSubjectModalOpen(true);
+            return;
+        }
+
+        if (actionValue.startsWith('__ADD_SPECIFIC__:')) {
+            const subjectToAdd = actionValue.replace('__ADD_SPECIFIC__:', '');
+            await handleQuickAddSubject(subjectToAdd);
+            return;
+        }
+
+        if (actionValue.startsWith('__SWITCH__:')) {
+            const selectedId = actionValue.replace('__SWITCH__:', '');
+            await handleUpdateSubjectSelection(column.baseId, selectedId);
+            return;
+        }
+
+        await handleUpdateSubjectSelection(column.baseId, actionValue);
+    };
+
+    const handleSyncSingleSubject = async (targetSubject: VirtualSectionSubject) => {
+        if (!sectionObj || !isAdviser) {
+            showNotification('Sync is only available in your Advisory Class.', 'info');
+            return;
+        }
+
+        if (!isSubjectInTeachingLoad(targetSubject, sectionObj, classRecords)) {
+            showNotification(`"${targetSubject.subject_name}" is assigned to another subject teacher and is not part of your personal teaching load. Grades must be entered manually.`, 'info');
+            return;
+        }
+
+        const baseQuarters: (1 | 2 | 3)[] = selectedTerm === 'all'
+            ? [1, 2, 3]
+            : [parseInt(selectedTerm.replace('q', '')) as 1 | 2 | 3];
+        const quartersToSync = baseQuarters.filter(q => !isQuarterLocked(q));
+
+        if (quartersToSync.length === 0) {
+            showNotification('Selected quarter(s) are locked against syncing. Unlock them in the Lock menu first.', 'error');
+            return;
+        }
+
+        const sectionGradeLevel = sectionObj.section_grade_level || '';
+        let sectionTrack = 'Academic Track';
+        if (sectionObj.track) {
+            const tr = sectionObj.track;
+            if (tr === 'Academic') {
+                sectionTrack = sectionObj.strand ? `Academic - ${sectionObj.strand}` : 'Academic Track';
+            } else if (tr === 'TechPro') {
+                sectionTrack = 'TechPro Track';
+            } else if (tr === 'TVL') {
+                sectionTrack = 'Technical-Vocational-Livelihood (TVL)';
+            } else {
+                sectionTrack = `${tr} Track`;
+            }
+        } else {
+            const trackNorm = (sectionObj.section_name || '').toUpperCase();
+            if (trackNorm.includes('STEM')) sectionTrack = 'Academic - STEM';
+            else if (trackNorm.includes('ABM')) sectionTrack = 'Academic - ABM';
+            else if (trackNorm.includes('HUMSS')) sectionTrack = 'Academic - HUMSS';
+            else if (trackNorm.includes('GAS')) sectionTrack = 'Academic - GAS';
+            else if (trackNorm.includes('TVL') || trackNorm.includes('TECHPRO') || trackNorm.includes('HE') || trackNorm.includes('ICT')) sectionTrack = 'Technical-Vocational-Livelihood (TVL)';
+        }
+
+        setIsSyncing(true);
+        const recordsToSync: ClassRecord[] = [];
+        const recordsToDelete: string[] = [];
+        const { gradingSheetRecords: currentGradingRecords, deleteGradingSheetRecord, bulkUpdateGradingSheetRecords } = useAppStore.getState();
+
+        const findExistingGradingRecord = (studentLrn: string, subId: string, subName: string | undefined, q: number) => {
+            return currentGradingRecords.find(r =>
+                (r.student_lrn === studentLrn || String(r.student_lrn).trim() === String(studentLrn).trim()) &&
+                isQuarterMatch(r.quarter, q) &&
+                (!activeSchoolYear || !r.school_year || r.school_year === activeSchoolYear) &&
+                (r.subject_id === subId || isSameSubject(r.subject_id, r.subject_name, subId, subName))
+            );
+        };
+
+        try {
+            for (const quarter of quartersToSync) {
+                for (const student of sectionStudents) {
+                    if (targetSubject._mapehGroups) {
+                        const maComps = (targetSubject._mapehGroups.musicArts || []).filter(comp => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
+                        const peComps = (targetSubject._mapehGroups.peHealth || []).filter(comp => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
+                        for (const comp of [...maComps, ...peComps]) {
+                            const compGrade = resolveStudentQuarterGrade(
+                                student.lrn,
+                                comp.id,
+                                quarter,
+                                activeSchoolYear,
+                                classRecords,
+                                [],
+                                hpsRecords,
+                                sectionGradeLevel,
+                                sectionTrack
+                            );
+                            if (compGrade > 0) {
+                                recordsToSync.push({
+                                    id: `${student.lrn}_${comp.id}_${quarter}_${activeSchoolYear}`,
+                                    student_lrn: student.lrn,
+                                    subject_id: comp.id,
+                                    subject_name: comp.subject_name,
+                                    section_id: sectionObj.id,
+                                    quarter: quarter as 1 | 2 | 3,
+                                    school_year: activeSchoolYear,
+                                    final_grade: compGrade,
+                                    written_works: [],
+                                    performance_tasks: [],
+                                    quarterly_exam: 0
+                                });
+                            } else {
+                                const oldRec = findExistingGradingRecord(student.lrn, comp.id, comp.subject_name, quarter);
+                                if (oldRec?.id) recordsToDelete.push(oldRec.id);
+                            }
+                        }
+                        // Clear rogue parent MAPEH record if present
+                        const oldParent = findExistingGradingRecord(student.lrn, targetSubject.id, targetSubject.subject_name, quarter);
+                        if (oldParent?.id) recordsToDelete.push(oldParent.id);
+                    } else if (isEcmkParent(targetSubject.subject_name)) {
+                        const ecmkGroups = (targetSubject as any)._ecmkGroups;
+                        const ecComps = (ecmkGroups?.effectiveComm || []).filter((comp: any) => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
+                        const mkComps = (ecmkGroups?.mabisangKom || []).filter((comp: any) => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
+                        for (const comp of [...ecComps, ...mkComps]) {
+                            const compGrade = resolveStudentQuarterGrade(
+                                student.lrn,
+                                comp.id,
+                                quarter,
+                                activeSchoolYear,
+                                classRecords,
+                                [],
+                                hpsRecords,
+                                sectionGradeLevel,
+                                sectionTrack
+                            );
+                            if (compGrade > 0) {
+                                recordsToSync.push({
+                                    id: `${student.lrn}_${comp.id}_${quarter}_${activeSchoolYear}`,
+                                    student_lrn: student.lrn,
+                                    subject_id: comp.id,
+                                    subject_name: comp.subject_name,
+                                    section_id: sectionObj.id,
+                                    quarter: quarter as 1 | 2 | 3,
+                                    school_year: activeSchoolYear,
+                                    final_grade: compGrade,
+                                    written_works: [],
+                                    performance_tasks: [],
+                                    quarterly_exam: 0
+                                });
+                            } else {
+                                const oldRec = findExistingGradingRecord(student.lrn, comp.id, comp.subject_name, quarter);
+                                if (oldRec?.id) recordsToDelete.push(oldRec.id);
+                            }
+                        }
+                        // Clear rogue parent EC/MK record if present
+                        const oldParent = findExistingGradingRecord(student.lrn, targetSubject.id, targetSubject.subject_name, quarter);
+                        if (oldParent?.id) recordsToDelete.push(oldParent.id);
+                    } else {
+                        const directGrade = resolveStudentQuarterGrade(
+                            student.lrn,
+                            targetSubject.id,
+                            quarter,
+                            activeSchoolYear,
+                            classRecords,
+                            [],
+                            hpsRecords,
+                            sectionGradeLevel,
+                            sectionTrack
+                        );
+                        if (directGrade > 0) {
+                            recordsToSync.push({
+                                id: `${student.lrn}_${targetSubject.id}_${quarter}_${activeSchoolYear}`,
+                                student_lrn: student.lrn,
+                                subject_id: targetSubject.id,
+                                subject_name: targetSubject.subject_name,
+                                section_id: sectionObj.id,
+                                quarter: quarter as 1 | 2 | 3,
+                                school_year: activeSchoolYear,
+                                final_grade: directGrade,
+                                written_works: [],
+                                performance_tasks: [],
+                                quarterly_exam: 0
+                            });
+                        } else {
+                            const oldRec = findExistingGradingRecord(student.lrn, targetSubject.id, targetSubject.subject_name, quarter);
+                            if (oldRec?.id) recordsToDelete.push(oldRec.id);
+                        }
+                    }
+                }
+            }
+
+            if (recordsToSync.length > 0) {
+                await bulkUpdateGradingSheetRecords(recordsToSync);
+            }
+            if (recordsToDelete.length > 0) {
+                for (const dId of recordsToDelete) {
+                    await deleteGradingSheetRecord(dId);
+                }
+            }
+
+            if (recordsToSync.length > 0) {
+                showNotification(`Successfully synced ${targetSubject.subject_name} from E-Class Record (${recordsToSync.length} grades updated)!`, 'success');
+            } else {
+                showNotification(`No new grades found in E-Class Record for ${targetSubject.subject_name}.`, 'info');
+            }
+        } catch (err) {
+            console.error('Single subject sync error:', err);
+            showNotification(`Failed to sync ${targetSubject.subject_name} from E-Class Record.`, 'error');
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
     // GRADES COMPUTATION
     const gradesData = useMemo(() => {
         const data: GradesData = {};
@@ -1597,7 +2472,7 @@ const groupedSections = useMemo(() => {
                     subjectId,
                     q,
                     activeSchoolYear,
-                    stRecs.classRecs,
+                    [], // Grade Management strictly displays records saved/synced into Grade Management (gradingSheetRecords)
                     stRecs.gradingRecs,
                     hpsRecords,
                     sectionObj?.section_grade_level,
@@ -1855,6 +2730,95 @@ const groupedSections = useMemo(() => {
         return data;
     }, [sectionStudents, sectionSubjects, subjectColumns, recordsByLrn, hpsRecords, activeSchoolYear, sectionObj, selectedTerm, isSHSSection]);
 
+    const missingGradesSummary = useMemo(() => {
+        if (!sectionStudents.length || !sectionSubjects.length) {
+            return { totalMissing: 0, bySubject: [] as { subjectId: string; subjectName: string; missingCount: number }[], studentsWithMissing: new Set<string>() };
+        }
+
+        const bySubjectMap = new Map<string, { name: string; count: number }>();
+        sectionSubjects.forEach(s => {
+            bySubjectMap.set(s.id, { name: s.subject_name, count: 0 });
+        });
+
+        let total = 0;
+        const studentsWithMissing = new Set<string>();
+
+        sectionStudents.forEach(student => {
+            const studentGrades = gradesData[student.lrn] || {};
+
+            sectionSubjects.forEach(subject => {
+                const sData = studentGrades[subject.id] || {};
+
+                if (selectedTerm !== 'all') {
+                    const qKey = selectedTerm as QuarterKey;
+                    if (subject._mapehGroups) {
+                        const detail = sData[qKey] as any;
+                        const maVal = detail?.musicArts;
+                        const phVal = detail?.peHealth;
+                        let missingInMapeh = 0;
+                        if (!maVal && maVal !== 0) missingInMapeh++;
+                        if (!phVal && phVal !== 0) missingInMapeh++;
+                        if (missingInMapeh > 0) {
+                            total += missingInMapeh;
+                            studentsWithMissing.add(student.lrn);
+                            const curr = bySubjectMap.get(subject.id);
+                            if (curr) curr.count += missingInMapeh;
+                        }
+                    } else if (subject._ecmkGroups) {
+                        const detail = sData[qKey] as any;
+                        const ecVal = detail?.effectiveComm;
+                        const mkVal = detail?.mabisangKom;
+                        let missingInEcmk = 0;
+                        if (!ecVal && ecVal !== 0) missingInEcmk++;
+                        if (!mkVal && mkVal !== 0) missingInEcmk++;
+                        if (missingInEcmk > 0) {
+                            total += missingInEcmk;
+                            studentsWithMissing.add(student.lrn);
+                            const curr = bySubjectMap.get(subject.id);
+                            if (curr) curr.count += missingInEcmk;
+                        }
+                    } else {
+                        const val = typeof sData[qKey] === 'object' ? sData[qKey]?.value : sData[qKey];
+                        if (!val && val !== 0) {
+                            total++;
+                            studentsWithMissing.add(student.lrn);
+                            const curr = bySubjectMap.get(subject.id);
+                            if (curr) curr.count++;
+                        }
+                    }
+                } else {
+                    const quarters: QuarterKey[] = ['q1', 'q2', 'q3'];
+                    quarters.forEach(qKey => {
+                        const val = typeof sData[qKey] === 'object' ? sData[qKey]?.value : sData[qKey];
+                        if (!val && val !== 0) {
+                            total++;
+                            studentsWithMissing.add(student.lrn);
+                            const curr = bySubjectMap.get(subject.id);
+                            if (curr) curr.count++;
+                        }
+                    });
+                }
+            });
+        });
+
+        const bySubject = Array.from(bySubjectMap.entries())
+            .map(([id, info]) => ({ subjectId: id, subjectName: info.name, missingCount: info.count }))
+            .filter(item => item.missingCount > 0)
+            .sort((a, b) => b.missingCount - a.missingCount);
+
+        return { totalMissing: total, bySubject, studentsWithMissing };
+    }, [sectionStudents, sectionSubjects, gradesData, selectedTerm]);
+
+    const displayedMaleStudents = useMemo(() => {
+        if (!showMissingOnly) return maleStudents;
+        return maleStudents.filter(s => missingGradesSummary.studentsWithMissing.has(s.lrn));
+    }, [maleStudents, showMissingOnly, missingGradesSummary.studentsWithMissing]);
+
+    const displayedFemaleStudents = useMemo(() => {
+        if (!showMissingOnly) return femaleStudents;
+        return femaleStudents.filter(s => missingGradesSummary.studentsWithMissing.has(s.lrn));
+    }, [femaleStudents, showMissingOnly, missingGradesSummary.studentsWithMissing]);
+
     const promotionStats = useMemo(() => {
         const stats = {
             passed: { male: 0, female: 0 },
@@ -2051,59 +3015,16 @@ const groupedSections = useMemo(() => {
 
 
     const getSubjectHeaderStyle = (sub: VirtualSectionSubject) => {
-        if (showGenAvg && (sub as any)._mapehGroups) {
-            const width = 3 * MAPEH_SUBCOLUMN_WIDTH;
-            return { width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` };
-        }
-        if (showGenAvg && isEcmkParent(sub.subject_name)) {
-            const width = 3 * ECMK_SUBCOLUMN_WIDTH;
-            return { width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` };
-        }
-
-        const width = termColSpan(sub) * subjectColumnWidth;
-        return { width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` };
+        const subWidth = getSubjectSubColWidth(sub.id);
+        const width = termColSpan(sub) * subWidth;
+        return { width: `${width}px`, minWidth: `${width}px` };
     };
-    
-    const termColSpan = useCallback((sub: VirtualSectionSubject) => {
-        if (selectedTerm === 'all') return 4;
-        if ((sub as any)._mapehGroups || isEcmkParent(sub.subject_name)) return 3;
-        return 1;
-    }, [selectedTerm]);
 
     const totalColumns = useMemo(() => {
-        return 1 + subjectColumns.reduce((acc, col) => acc + termColSpan(col.subject), 0) + (showGenAvg ? (showDescriptor ? 3 : 2) : 0);
-    }, [subjectColumns, termColSpan, showGenAvg, showDescriptor]);
+        return 1 + totalSubjectSubCols + (showGenAvg ? (showDescriptor ? 3 : 2) : 0);
+    }, [totalSubjectSubCols, showGenAvg, showDescriptor]);
     
-    const tableMinWidth = useMemo(() => {
-        const nameColWidth = learnerNameColumnWidth;
-        const avgColsWidth = showGenAvg ? (AVERAGE_COLUMN_WIDTH + GENERAL_AVERAGE_COLUMN_WIDTH) : 0;
-        const subjectCols = subjectColumns.reduce((acc, col) => acc + termColSpan(col.subject), 0);
-        const subjectColWidth = subjectColumnWidth;
-        
-        const estimatedWidth = (subjectCols * subjectColWidth) + nameColWidth + avgColsWidth;
-        return Math.max(selectedTerm === 'all' ? 1200 : 900, estimatedWidth);
-    }, [subjectColumns, selectedTerm, showGenAvg, learnerNameColumnWidth, subjectColumnWidth, termColSpan]);
-
-    useEffect(() => {
-        let active = true;
-        requestAnimationFrame(() => {
-            if (!active || !containerRef.current) return;
-            const sheets = containerRef.current.querySelectorAll('.consolidated-sheet');
-            if (sheets.length > 0) {
-                let maxWidth = 0;
-                sheets.forEach(sheet => {
-                    maxWidth = Math.max(maxWidth, sheet.clientWidth);
-                });
-                if (maxWidth > 0) {
-                    setSheetWidth(prev => prev === maxWidth ? prev : maxWidth);
-                }
-            }
-        });
-        
-        return () => {
-            active = false;
-        };
-    }, [selectedSection, selectedTerm, showGenAvg, showDescriptor, subjectColumns, sectionStudents]);
+    const tableMinWidth = usableTableWidth;
 
     const handlePrintConsolidated = () => {
         const sectionName = sectionObj?.section_name || 'Record';
@@ -2351,52 +3272,167 @@ const groupedSections = useMemo(() => {
     };
 
     const renderGradesTable = (studentsList: typeof maleStudents, startRowIdx: number, genderLabel: string) => {
+        const renderSubjectHeaderCellInner = (column: { baseId: string; subject: VirtualSectionSubject }) => {
+            const inTeachingLoad = isSubjectInTeachingLoad(column.subject, sectionObj, classRecords);
+            return (
+                <div className="relative w-full h-full flex flex-col items-center justify-center py-0.5">
+                    <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
+                        {column.subject.subject_name}
+                    </span>
+                    <span 
+                        className={`no-print inline-block mt-0.5 px-1 py-0.2 rounded text-[5px] font-bold uppercase tracking-tight select-none ${
+                            inTeachingLoad 
+                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50' 
+                                : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50'
+                        }`}
+                        title={inTeachingLoad ? 'Syncs from your personal E-Class Record' : 'Assigned to another subject teacher (Manual grade entry)'}
+                    >
+                        {inTeachingLoad ? 'E-Class' : 'Manual'}
+                    </span>
+                    <select
+                        value=""
+                        onChange={(e) => void handleSubjectHeaderAction(column, e.target.value)}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 no-print"
+                        title={`Manage "${column.subject.subject_name}" column (Click for options) - ${inTeachingLoad ? 'Syncs from E-Class' : 'Manual entry from other teacher'}`}
+                    >
+                        <option value="" disabled>
+                            ⚙️ Column: {column.subject.subject_name}
+                        </option>
+                        <optgroup label="Column Actions">
+                            <option value="__ADD_COLUMN__">➕ Add Column...</option>
+                            <option value="__DELETE_COLUMN__">🗑️ Delete This Column</option>
+                            <option value="__RESET_WIDTHS__">📏 Reset All Column Widths</option>
+                        </optgroup>
+                        {availableSubjectsToAdd.length > 0 && (
+                            <optgroup label="➕ Quick Add Column (From Catalog)">
+                                {availableSubjectsToAdd.map((opt) => (
+                                    <option key={`add-${opt.id}`} value={`__ADD_SPECIFIC__:${opt.subject_name}`}>
+                                        ➕ Add: {opt.subject_name}
+                                    </option>
+                                ))}
+                            </optgroup>
+                        )}
+                        <optgroup label="🔄 Switch Column To:">
+                            <option value={column.baseId}>
+                                {column.subject.subject_name} (Current / Default)
+                            </option>
+                            {selectableSubjects
+                                .filter((opt) => opt.id !== column.subject.id && opt.subject_name !== column.subject.subject_name)
+                                .map((option) => (
+                                    <option key={option.id} value={`__SWITCH__:${option.id}`}>
+                                        {option.subject_name}
+                                    </option>
+                                ))}
+                        </optgroup>
+                    </select>
+                </div>
+            );
+        };
+
+        const renderHeaderHoverActions = (column: any, index: number) => {
+            const inTeachingLoad = isSubjectInTeachingLoad(column.subject, sectionObj, classRecords);
+            return (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 hidden group-hover:flex items-center gap-0.5 bg-slate-900 text-white rounded-full px-1.5 py-0.5 shadow-lg text-[8px] z-30 no-print transition-all whitespace-nowrap">
+                    {index > 0 && (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                void handleMoveSubject(column.subject.subject_name, 'left');
+                            }}
+                            className="p-0.5 hover:text-indigo-400 cursor-pointer"
+                            title={`Move ${column.subject.subject_name} left`}
+                        >
+                            <ChevronLeft className="w-2.5 h-2.5" />
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            void handleSyncSingleSubject(column.subject);
+                        }}
+                        disabled={isSyncing}
+                        className={`p-0.5 cursor-pointer flex items-center gap-0.5 ${
+                            inTeachingLoad 
+                                ? 'hover:text-emerald-400 text-white' 
+                                : 'hover:text-amber-400 text-amber-300/90'
+                        }`}
+                        title={inTeachingLoad ? `Sync ${column.subject.subject_name} from E-Class Record` : `"${column.subject.subject_name}" is assigned to another teacher (Manual entry)`}
+                    >
+                        <RefreshCw className={`w-2.5 h-2.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                    </button>
+                    {index < subjectColumns.length - 1 && (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                void handleMoveSubject(column.subject.subject_name, 'right');
+                            }}
+                            className="p-0.5 hover:text-indigo-400 cursor-pointer"
+                            title={`Move ${column.subject.subject_name} right`}
+                        >
+                            <ChevronRight className="w-2.5 h-2.5" />
+                        </button>
+                    )}
+                </div>
+            );
+        };
+
         return (
-            <table className={`consolidated-print-table consolidated-grades-table w-full border-collapse border border-black ${isElementary ? 'text-[7px]' : 'text-[8px]'}`}>
+            <table
+                className={`consolidated-print-table consolidated-grades-table w-full border-collapse border border-black ${isElementary ? 'text-[7px]' : 'text-[8px]'}`}
+                style={{
+                    width: `${usableTableWidth}px`,
+                    minWidth: `${usableTableWidth}px`,
+                    tableLayout: 'fixed'
+                }}
+            >
                 <colgroup>
-                    <col style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px` }} />
+                    <col style={{ width: `${learnerNameWidth}px`, minWidth: `${learnerNameWidth}px` }} />
                     {subjectColumns.map((column, index) => {
+                        const subWidth = getSubjectSubColWidth(column.subject.id);
                         if (selectedTerm !== 'all' && (column.subject as any)._mapehGroups) {
                             return (
                                 <Fragment key={`col-group-mapeh-${column.baseId}-${index}`}>
-                                    <col style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }} />
-                                    <col style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }} />
-                                    <col style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }} />
+                                    <col style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }} />
+                                    <col style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }} />
+                                    <col style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }} />
                                 </Fragment>
                             );
                         }
                         if (selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name)) {
                             return (
                                 <Fragment key={`col-group-ecmk-${column.baseId}-${index}`}>
-                                    <col style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }} />
-                                    <col style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }} />
-                                    <col style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }} />
+                                    <col style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }} />
+                                    <col style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }} />
+                                    <col style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }} />
                                 </Fragment>
                             );
                         }
                         return (
                             <Fragment key={`col-group-std-${column.baseId}-${index}`}>
                                 {(selectedTerm === 'q1' || selectedTerm === 'all') && (
-                                    <col style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px` }} />
+                                    <col style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }} />
                                 )}
                                 {(selectedTerm === 'q2' || selectedTerm === 'all') && (
-                                    <col style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px` }} />
+                                    <col style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }} />
                                 )}
                                 {(selectedTerm === 'q3' || selectedTerm === 'all') && (
-                                    <col style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px` }} />
+                                    <col style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }} />
                                 )}
                                 {selectedTerm === 'all' && (
-                                    <col style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px` }} />
+                                    <col style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }} />
                                 )}
                             </Fragment>
                         );
                     })}
                     {showGenAvg && (
                         <>
-                            <col style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px` }} />
-                            <col style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }} />
+                            <col style={{ width: `${averageColWidth}px`, minWidth: `${averageColWidth}px` }} />
+                            <col style={{ width: `${generalAvgColWidth}px`, minWidth: `${generalAvgColWidth}px` }} />
                             {showDescriptor && (
-                                <col style={{ width: `100px`, minWidth: `100px` }} />
+                                <col style={{ width: `${descriptorColWidth}px`, minWidth: `${descriptorColWidth}px` }} />
                             )}
                         </>
                     )}
@@ -2406,7 +3442,10 @@ const groupedSections = useMemo(() => {
                         <>
                             {/* Row 1: SHS Categories */}
                             <tr className="text-center font-bold text-[8px] uppercase tracking-wider h-8">
-                                <th rowSpan={3} className="consolidated-name-col border border-black p-2 font-bold text-center bg-gray-100" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>NAME OF LEARNERS</th>
+                                <th rowSpan={3} className="consolidated-name-col border border-black p-2 font-bold text-center bg-gray-100 relative group" style={{ width: `${learnerNameWidth}px`, minWidth: `${learnerNameWidth}px` }}>
+                                    <span>NAME OF LEARNERS</span>
+                                    <ColumnResizeHandle colKey="name" currentWidth={learnerNameWidth} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
+                                </th>
                                 {subjectColumns.map((column, index) => {
                                     const cat = getSubjectCategory(column.subject.subject_name, sectionObj?.section_grade_level || '');
                                     const parts = cat.split(' (');
@@ -2428,10 +3467,19 @@ const groupedSections = useMemo(() => {
                                 })}
                                 {showGenAvg && (
                                     <>
-                                        <th rowSpan={3} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>AVERAGE</th>
-                                        <th rowSpan={3} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>GENERAL AVERAGE</th>
+                                        <th rowSpan={3} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100 relative group" style={{ width: `${averageColWidth}px`, minWidth: `${averageColWidth}px` }}>
+                                            <span>AVERAGE</span>
+                                            <ColumnResizeHandle colKey="average" currentWidth={averageColWidth} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
+                                        </th>
+                                        <th rowSpan={3} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100 relative group" style={{ width: `${generalAvgColWidth}px`, minWidth: `${generalAvgColWidth}px` }}>
+                                            <span>GENERAL AVERAGE</span>
+                                            <ColumnResizeHandle colKey="generalAverage" currentWidth={generalAvgColWidth} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
+                                        </th>
                                         {showDescriptor && (
-                                            <th rowSpan={3} className="consolidated-descriptor-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `100px`, minWidth: `100px`, maxWidth: `100px` }}>DESCRIPTOR</th>
+                                            <th rowSpan={3} className="consolidated-descriptor-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100 relative group" style={{ width: `${descriptorColWidth}px`, minWidth: `${descriptorColWidth}px` }}>
+                                                <span>DESCRIPTOR</span>
+                                                <ColumnResizeHandle colKey="descriptor" currentWidth={descriptorColWidth} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
+                                            </th>
                                         )}
                                     </>
                                 )}
@@ -2443,63 +3491,19 @@ const groupedSections = useMemo(() => {
                                         <th
                                             key={`subject-column-${column.baseId}-${index}`}
                                             rowSpan={2}
-                                            className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50"
+                                            className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50 group relative"
                                             title={column.subject.subject_name}
                                             style={getSubjectHeaderStyle(column.subject)}
                                         >
-                                            {selectedTerm === 'q1' ? (
-                                                <div className="relative w-full">
-                                                    <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
-                                                        {column.subject.subject_name}
-                                                    </span>
-                                                    <select
-                                                        value={subjectColumnSelections[column.baseId] || column.subject.id}
-                                                        onChange={(e) => handleUpdateSubjectSelection(column.baseId, e.target.value)}
-                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                                    >
-                                                        <option value={column.baseId}>{column.subject.subject_name} (Default)</option>
-                                                        {selectableSubjects.map((option) => (
-                                                            <option key={option.id} value={option.id}>
-                                                                {option.subject_name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            ) : (
-                                                <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
-                                                    {column.subject.subject_name}
-                                                </span>
-                                            )}
+                                            {renderHeaderHoverActions(column, index)}
+                                            {renderSubjectHeaderCellInner(column)}
+                                            <ColumnResizeHandle colKey={column.subject.id} currentWidth={getSubjectSubColWidth(column.subject.id)} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
                                         </th>
                                     ) : (
-                                        <th key={`subject-column-${column.baseId}-${index}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
-                                            {(column.subject as any)._mapehGroups || isEcmkParent(column.subject.subject_name) ? (
-                                                column.subject.subject_name
-                                            ) : (
-                                                selectedTerm === 'q1' ? (
-                                                    <div className="relative w-full">
-                                                        <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
-                                                            {column.subject.subject_name}
-                                                        </span>
-                                                        <select
-                                                            value={subjectColumnSelections[column.baseId] || column.subject.id}
-                                                            onChange={(e) => handleUpdateSubjectSelection(column.baseId, e.target.value)}
-                                                            className="absolute inset-0 h-full w-full opacity-0 cursor-pointer"
-                                                            aria-label={`Select subject for column ${index + 1}`}
-                                                        >
-                                                            {selectableSubjects.map((option) => (
-                                                                <option key={option.id} value={option.id}>
-                                                                    {option.subject_name}
-                                                                </option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-                                                ) : (
-                                                    <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
-                                                        {column.subject.subject_name}
-                                                    </span>
-                                                )
-                                            )}
+                                        <th key={`subject-column-${column.baseId}-${index}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50 group relative" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
+                                            {renderHeaderHoverActions(column, index)}
+                                            {renderSubjectHeaderCellInner(column)}
+                                            <ColumnResizeHandle colKey={column.subject.id} currentWidth={getSubjectSubColWidth(column.subject.id)} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
                                         </th>
                                     )
                                 ))}
@@ -2508,78 +3512,46 @@ const groupedSections = useMemo(() => {
                     ) : (
                         /* Row 1: JHS/Elementary Subject Names (Categories omitted) */
                         <tr className="text-center font-bold text-[8px] uppercase tracking-wider h-8">
-                            <th rowSpan={2} className="consolidated-name-col border border-black p-2 font-bold text-center bg-gray-100" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>NAME OF LEARNERS</th>
+                            <th rowSpan={2} className="consolidated-name-col border border-black p-2 font-bold text-center bg-gray-100 relative group" style={{ width: `${learnerNameWidth}px`, minWidth: `${learnerNameWidth}px` }}>
+                                <span>NAME OF LEARNERS</span>
+                                <ColumnResizeHandle colKey="name" currentWidth={learnerNameWidth} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
+                            </th>
                             {subjectColumns.map((column, index) => (
                                 selectedTerm !== 'all' && !(column.subject as any)._mapehGroups && !isEcmkParent(column.subject.subject_name) ? (
                                     <th
                                         key={`subject-column-${column.baseId}-${index}`}
                                         rowSpan={2}
-                                        className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50"
+                                        className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50 group relative"
                                         title={column.subject.subject_name}
                                         style={getSubjectHeaderStyle(column.subject)}
                                     >
-                                        {selectedTerm === 'q1' ? (
-                                            <div className="relative w-full">
-                                                <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
-                                                    {column.subject.subject_name}
-                                                </span>
-                                                <select
-                                                    value={subjectColumnSelections[column.baseId] || column.subject.id}
-                                                    onChange={(e) => handleUpdateSubjectSelection(column.baseId, e.target.value)}
-                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                                >
-                                                    <option value={column.baseId}>{column.subject.subject_name} (Default)</option>
-                                                    {selectableSubjects.map((option) => (
-                                                        <option key={option.id} value={option.id}>
-                                                            {option.subject_name}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                        ) : (
-                                            <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
-                                                {column.subject.subject_name}
-                                            </span>
-                                        )}
+                                        {renderHeaderHoverActions(column, index)}
+                                        {renderSubjectHeaderCellInner(column)}
+                                        <ColumnResizeHandle colKey={column.subject.id} currentWidth={getSubjectSubColWidth(column.subject.id)} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
                                     </th>
                                 ) : (
-                                    <th key={`subject-column-${column.baseId}-${index}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
-                                        {(column.subject as any)._mapehGroups || isEcmkParent(column.subject.subject_name) ? (
-                                            column.subject.subject_name
-                                        ) : (
-                                            selectedTerm === 'q1' ? (
-                                                <div className="relative w-full">
-                                                    <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
-                                                        {column.subject.subject_name}
-                                                    </span>
-                                                    <select
-                                                        value={subjectColumnSelections[column.baseId] || column.subject.id}
-                                                        onChange={(e) => handleUpdateSubjectSelection(column.baseId, e.target.value)}
-                                                        className="absolute inset-0 h-full w-full opacity-0 cursor-pointer"
-                                                        aria-label={`Select subject for column ${index + 1}`}
-                                                    >
-                                                        {selectableSubjects.map((option) => (
-                                                            <option key={option.id} value={option.id}>
-                                                                {option.subject_name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            ) : (
-                                                <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
-                                                    {column.subject.subject_name}
-                                                </span>
-                                            )
-                                        )}
+                                    <th key={`subject-column-${column.baseId}-${index}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50 group relative" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
+                                        {renderHeaderHoverActions(column, index)}
+                                        {renderSubjectHeaderCellInner(column)}
+                                        <ColumnResizeHandle colKey={column.subject.id} currentWidth={getSubjectSubColWidth(column.subject.id)} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
                                     </th>
                                 )
                             ))}
                             {showGenAvg && (
                                 <>
-                                    <th rowSpan={2} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>AVERAGE</th>
-                                    <th rowSpan={2} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>GENERAL AVERAGE</th>
+                                    <th rowSpan={2} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100 relative group" style={{ width: `${averageColWidth}px`, minWidth: `${averageColWidth}px` }}>
+                                        <span>AVERAGE</span>
+                                        <ColumnResizeHandle colKey="average" currentWidth={averageColWidth} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
+                                    </th>
+                                    <th rowSpan={2} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100 relative group" style={{ width: `${generalAvgColWidth}px`, minWidth: `${generalAvgColWidth}px` }}>
+                                        <span>GENERAL AVERAGE</span>
+                                        <ColumnResizeHandle colKey="generalAverage" currentWidth={generalAvgColWidth} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
+                                    </th>
                                     {showDescriptor && (
-                                        <th rowSpan={2} className="consolidated-descriptor-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `100px`, minWidth: `100px`, maxWidth: `100px` }}>DESCRIPTOR</th>
+                                        <th rowSpan={2} className="consolidated-descriptor-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100 relative group" style={{ width: `${descriptorColWidth}px`, minWidth: `${descriptorColWidth}px` }}>
+                                            <span>DESCRIPTOR</span>
+                                            <ColumnResizeHandle colKey="descriptor" currentWidth={descriptorColWidth} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
+                                        </th>
                                     )}
                                 </>
                             )}
@@ -2588,39 +3560,86 @@ const groupedSections = useMemo(() => {
 
                     {/* Row 3: Subheaders (T1, T2, T3, Final, Music, Arts, etc.) */}
                     <tr className="">
-                        {subjectColumns.map((column, index) => (
-                            <Fragment key={`subject-subheader-${column.baseId}-${index}`}>
-                                {selectedTerm !== 'all' && (column.subject as any)._mapehGroups && (
-                                    <>
-                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>Music &<br/>Arts</th>
-                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>PE &<br/>Health</th>
-                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>FINAL<br/>GRADE</th>
-                                    </>
-                                )}
-                                {selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name) && (
-                                    <>
-                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>Effective<br/>Communication</th>
-                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>Mabisang<br/>Komunikasyon</th>
-                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-bold text-[6px] leading-[1.1] bg-gray-200" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>FINAL<br/>GRADE</th>
-                                    </>
-                                )}
-                                
-                                {selectedTerm === 'all' && (
-                                    <>
-                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal bg-gray-50" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>T1</th>
-                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal bg-gray-50" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>T2</th>
-                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal bg-gray-50" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>T3</th>
-                                        {showLegacyQuarter4 && <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal bg-gray-50" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>LQ4</th>}
-                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-bold bg-gray-200" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>Final</th>
-                                    </>
-                                )}
-                            </Fragment>
-                        ))}
+                        {subjectColumns.map((column, index) => {
+                            const subWidth = getSubjectSubColWidth(column.subject.id);
+                            return (
+                                <Fragment key={`subject-subheader-${column.baseId}-${index}`}>
+                                    {selectedTerm !== 'all' && (column.subject as any)._mapehGroups && (
+                                        <>
+                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                                Music &<br/>Arts
+                                                <span className={`no-print block text-[4.5px] font-bold uppercase mt-0.5 ${
+                                                    isSubjectInTeachingLoad({ id: 'music_arts', subject_name: 'Music and Arts' }, sectionObj, classRecords)
+                                                        ? 'text-emerald-700 dark:text-emerald-400'
+                                                        : 'text-amber-700 dark:text-amber-400'
+                                                }`}>
+                                                    {isSubjectInTeachingLoad({ id: 'music_arts', subject_name: 'Music and Arts' }, sectionObj, classRecords) ? 'E-Class' : 'Manual'}
+                                                </span>
+                                            </th>
+                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                                PE &<br/>Health
+                                                <span className={`no-print block text-[4.5px] font-bold uppercase mt-0.5 ${
+                                                    isSubjectInTeachingLoad({ id: 'pe_health', subject_name: 'Physical Education and Health' }, sectionObj, classRecords)
+                                                        ? 'text-emerald-700 dark:text-emerald-400'
+                                                        : 'text-amber-700 dark:text-amber-400'
+                                                }`}>
+                                                    {isSubjectInTeachingLoad({ id: 'pe_health', subject_name: 'Physical Education and Health' }, sectionObj, classRecords) ? 'E-Class' : 'Manual'}
+                                                </span>
+                                            </th>
+                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>FINAL<br/>GRADE</th>
+                                        </>
+                                    )}
+                                    {selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name) && (
+                                        <>
+                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                                Effective<br/>Communication
+                                                <span className={`no-print block text-[4.5px] font-bold uppercase mt-0.5 ${
+                                                    isSubjectInTeachingLoad({ id: 'effective_comm', subject_name: 'Effective Communication' }, sectionObj, classRecords)
+                                                        ? 'text-emerald-700 dark:text-emerald-400'
+                                                        : 'text-amber-700 dark:text-amber-400'
+                                                }`}>
+                                                    {isSubjectInTeachingLoad({ id: 'effective_comm', subject_name: 'Effective Communication' }, sectionObj, classRecords) ? 'E-Class' : 'Manual'}
+                                                </span>
+                                            </th>
+                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                                Mabisang<br/>Komunikasyon
+                                                <span className={`no-print block text-[4.5px] font-bold uppercase mt-0.5 ${
+                                                    isSubjectInTeachingLoad({ id: 'mabisang_kom', subject_name: 'Mabisang Komunikasyon' }, sectionObj, classRecords)
+                                                        ? 'text-emerald-700 dark:text-emerald-400'
+                                                        : 'text-amber-700 dark:text-amber-400'
+                                                }`}>
+                                                    {isSubjectInTeachingLoad({ id: 'mabisang_kom', subject_name: 'Mabisang Komunikasyon' }, sectionObj, classRecords) ? 'E-Class' : 'Manual'}
+                                                </span>
+                                            </th>
+                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-bold text-[6px] leading-[1.1] bg-gray-200" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>FINAL<br/>GRADE</th>
+                                        </>
+                                    )}
+                                    
+                                    {selectedTerm === 'all' && (
+                                        <>
+                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>T1</th>
+                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>T2</th>
+                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>T3</th>
+                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-bold bg-gray-200" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>Final</th>
+                                        </>
+                                    )}
+                                </Fragment>
+                            );
+                        })}
                     </tr>
                 </thead>
                 <tbody>
                     <tr className="bg-gray-200"><td colSpan={totalColumns} className="border border-black p-1 font-bold pl-2 text-[10px] uppercase bg-gray-200">{genderLabel}</td></tr>
-                    {studentsList.map((student, idx) => {
+                    {studentsList.length === 0 ? (
+                        <tr>
+                            <td colSpan={totalColumns} className="border border-black p-3 text-center text-[10px] text-slate-500 italic bg-gray-50/50">
+                                {showMissingOnly 
+                                    ? `No ${genderLabel.toLowerCase()} students with incomplete grades.` 
+                                    : `No ${genderLabel.toLowerCase()} students enrolled.`}
+                            </td>
+                        </tr>
+                    ) : (
+                        studentsList.map((student, idx) => {
                         const data = gradesData[student.lrn] || {};
                         const activeQuarterTerm = selectedTerm === 'q1' || selectedTerm === 'q2' || selectedTerm === 'q3'
                             ? selectedTerm
@@ -2635,7 +3654,7 @@ const groupedSections = useMemo(() => {
                                 data={data}
                                 activeQuarterTerm={activeQuarterTerm}
                                 isElementary={isElementary}
-                                learnerNameColumnWidth={learnerNameColumnWidth}
+                                learnerNameColumnWidth={learnerNameWidth}
                                 subjectColumns={subjectColumns}
                                 selectedTerm={selectedTerm}
                                 activeSchoolYear={activeSchoolYear}
@@ -2646,9 +3665,16 @@ const groupedSections = useMemo(() => {
                                 showGenAvg={showGenAvg}
                                 showDescriptor={showDescriptor}
                                 descriptorGradeLevel={sectionObj?.section_grade_level || ""}
+                                highlightMissingGrades={highlightMissingGrades}
+                                lockedQuarters={lockedQuarters}
+                                customColumnWidths={customColumnWidths}
+                                averageColWidth={averageColWidth}
+                                generalAvgColWidth={generalAvgColWidth}
+                                descriptorColWidth={descriptorColWidth}
                             />
                         );
-                    })}
+                    })
+                )}
                 </tbody>
             </table>
         );
@@ -2705,16 +3731,57 @@ const groupedSections = useMemo(() => {
                     </div>
                 </div>
 
-                {/* Right: Global Actions (Removed per user request) */}
+                {/* Right: Real-time Sync Status Indicator */}
+                {selectedSection && (
+                    <div className="flex items-center gap-2.5 shrink-0">
+                        {missingGradesSummary.totalMissing === 0 ? (
+                            <div 
+                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 text-xs font-bold shadow-xs select-none"
+                                title="All subject grades for this term are complete and synced."
+                            >
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                </span>
+                                <span>🟢 All Subjects Synced</span>
+                            </div>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowMissingOnly(prev => !prev);
+                                    setHighlightMissingGrades(true);
+                                }}
+                                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold shadow-xs transition-all cursor-pointer border select-none ${
+                                    showMissingOnly
+                                        ? 'bg-amber-500 text-white border-amber-600 ring-2 ring-amber-400/40 shadow-amber-500/20'
+                                        : 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/50 hover:bg-amber-100 dark:hover:bg-amber-900/50 hover:scale-[1.02]'
+                                }`}
+                                title="Click to filter directly to students with incomplete grades"
+                            >
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                                </span>
+                                <span>
+                                    🟡 {missingGradesSummary.totalMissing} Incomplete {missingGradesSummary.totalMissing === 1 ? 'Grade' : 'Grades'} in {selectedTerm === 'all' ? 'All Quarters' : (TERM_LABELS[selectedTerm] || selectedTerm.toUpperCase().replace('Q', 'Quarter '))}
+                                </span>
+                                <span className="text-[10px] font-semibold underline ml-0.5 opacity-90">
+                                    {showMissingOnly ? '(Showing Missing)' : '(Click to Filter)'}
+                                </span>
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* TIER 3: Filter & Action Toolbar */}
-            <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 bg-white dark:bg-white/5 p-2.5 lg:p-3 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200/60 dark:border-white/10 no-print relative z-20 mb-6 mx-6">
+            <div className="flex flex-wrap 2xl:flex-nowrap items-center justify-between gap-1.5 bg-white dark:bg-white/5 p-2 rounded-xl shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] border border-slate-200/60 dark:border-white/10 no-print relative z-20 mb-4 mx-4 sm:mx-6">
                 {/* LEFT: Dropdowns */}
-                <div className="flex items-center gap-2 shrink-0">
-                    <div className="relative w-45 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="relative w-36 sm:w-44 shrink-0">
                         <select
-                            className="h-8 w-full appearance-none bg-white dark:bg-[#0B1121] border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 font-medium py-1 pl-2.5 pr-7 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-slate-200 transition-colors cursor-pointer hover:bg-slate-50"
+                            className="h-7.5 w-full appearance-none bg-white dark:bg-[#0B1121] border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 font-medium py-0.5 pl-2.5 pr-6 rounded-md text-[11px] focus:outline-none focus:ring-2 focus:ring-slate-200 transition-colors cursor-pointer hover:bg-slate-50"
                             value={selectedSection ?? ''}
                             onChange={(e) => setSelectedSection(e.target.value)}
                         >
@@ -2733,47 +3800,52 @@ const groupedSections = useMemo(() => {
                                         ))}
 
                         </select>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
-                            <ChevronDown className="w-3.5 h-3.5" />
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-slate-400">
+                            <ChevronDown className="w-3 h-3" />
                         </div>
                     </div>
 
-                    <div className="relative w-30 shrink-0">
+                    <div className="relative w-28 sm:w-32 shrink-0">
                         <select
-                            className="h-8 w-full appearance-none bg-white dark:bg-[#0B1121] border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 font-medium py-1 pl-2.5 pr-7 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-slate-200 transition-colors cursor-pointer hover:bg-slate-50"
+                            className="h-7.5 w-full appearance-none bg-white dark:bg-[#0B1121] border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 font-medium py-0.5 pl-2.5 pr-6 rounded-md text-[11px] focus:outline-none focus:ring-2 focus:ring-slate-200 transition-colors cursor-pointer hover:bg-slate-50"
                             value={selectedTerm}
                             onChange={(e) => setSelectedTerm(e.target.value as typeof selectedTerm)}
                         >
-                            {Object.entries(TERM_LABELS).map(([value, label]) => (
-                                <option key={value} value={value}>{label}</option>
-                            ))}
+                            {Object.entries(TERM_LABELS).map(([value, label]) => {
+                                const locked = isQuarterLocked(value);
+                                return (
+                                    <option key={value} value={value}>
+                                        {label} {locked ? '🔒' : ''}
+                                    </option>
+                                );
+                            })}
                         </select>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
-                            <ChevronDown className="w-3.5 h-3.5" />
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-slate-400">
+                            <ChevronDown className="w-3 h-3" />
                         </div>
                     </div>
                 </div>
 
                 {/* RIGHT: Actions */}
-                <div className="flex flex-nowrap items-center gap-1.5 justify-end shrink-0">
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-1 justify-end shrink-0">
                     {selectedSection && (
-                        <div className="flex items-center gap-1 h-8 px-1 rounded-md bg-white dark:bg-[#0B1121] border border-slate-200 dark:border-white/10 shrink-0">
+                        <div className="flex items-center gap-0.5 h-7.5 px-1 rounded-md bg-white dark:bg-[#0B1121] border border-slate-200 dark:border-white/10 shrink-0">
                             <button
                                 onClick={() => setZoom(prev => Math.max(0.5, prev - 0.1))}
-                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:hover:bg-white/10 rounded"
+                                className="w-5 h-5 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:hover:bg-white/10 rounded cursor-pointer"
                                 title="Zoom Out"
                             >
-                                <Minus className="w-3 h-3" />
+                                <Minus className="w-2.5 h-2.5" />
                             </button>
-                            <span className="text-[10px] font-black text-slate-700 dark:text-slate-200 w-9 text-center tabular-nums">
+                            <span className="text-[9.5px] font-black text-slate-700 dark:text-slate-200 w-8 text-center tabular-nums">
                                 {Math.round(zoom * 100)}%
                             </span>
                             <button
                                 onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:hover:bg-white/10 rounded"
+                                className="w-5 h-5 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:hover:bg-white/10 rounded cursor-pointer"
                                 title="Zoom In"
                             >
-                                <Plus className="w-3 h-3" />
+                                <Plus className="w-2.5 h-2.5" />
                             </button>
                         </div>
                     )}
@@ -2781,11 +3853,11 @@ const groupedSections = useMemo(() => {
                         <>
                             <button
                                 onClick={handleExportTemplate}
-                                className="flex items-center gap-1 h-8 px-2.5 rounded-md bg-white dark:bg-[#0B1121] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 transition-all font-bold text-[10px] uppercase tracking-wider shadow-sm active:scale-95 whitespace-nowrap shrink-0"
+                                className="flex items-center gap-1 h-7.5 px-2 rounded-md bg-white dark:bg-[#0B1121] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 transition-all font-bold text-[9px] uppercase tracking-tight shadow-xs active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
                                 title="Download Template"
                             >
                                 <FileSpreadsheet className="w-3 h-3 text-slate-400" />
-                                <span className="hidden xl:inline">Template</span>
+                                <span className="hidden 2xl:inline">Template</span>
                             </button>
 
                             <div className="relative group shrink-0">
@@ -2796,25 +3868,283 @@ const groupedSections = useMemo(() => {
                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                 />
                                 <button
-                                    className="flex items-center gap-1 h-8 px-2.5 rounded-md bg-white dark:bg-[#0B1121] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 transition-all font-bold text-[10px] uppercase tracking-wider shadow-sm active:scale-95 group-hover:bg-slate-50 whitespace-nowrap shrink-0"
+                                    className="flex items-center gap-1 h-7.5 px-2 rounded-md bg-white dark:bg-[#0B1121] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 transition-all font-bold text-[9px] uppercase tracking-tight shadow-xs active:scale-95 group-hover:bg-slate-50 whitespace-nowrap shrink-0 cursor-pointer"
+                                    title="Import Grades from Excel"
                                 >
                                     <Upload className="w-3 h-3 text-slate-400" />
-                                    <span className="hidden xl:inline">Import</span>
+                                    <span className="hidden 2xl:inline">Import</span>
                                 </button>
                             </div>
 
                             <button
                                 onClick={handleSyncFromEClass}
                                 disabled={isSyncing}
-                                className={`flex items-center gap-1 h-8 px-2.5 rounded-md transition-all font-bold text-[10px] uppercase tracking-wider shadow-sm border active:scale-95 whitespace-nowrap shrink-0 ${
+                                className={`flex items-center gap-1 h-7.5 px-2 rounded-md transition-all font-bold text-[9px] uppercase tracking-tight shadow-xs border active:scale-95 whitespace-nowrap shrink-0 cursor-pointer ${
                                     isSyncing 
                                     ? 'bg-slate-50 text-slate-400 border-slate-200 dark:bg-white/5 dark:text-slate-500 dark:border-white/10' 
                                     : 'bg-white dark:bg-[#0B1121] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5'
                                 }`}
+                                title="Sync your teaching load subjects from E-Class Records (grades for other teachers' subjects are preserved)"
                             >
                                 <RefreshCcw className={`w-3 h-3 text-slate-400 ${isSyncing ? 'animate-spin' : ''}`} />
-                                <span className="hidden xl:inline">Sync</span>
+                                <span className="hidden 2xl:inline">Sync</span>
                             </button>
+
+                            {hasCustomWidths && (
+                                <button
+                                    onClick={handleResetColumnWidths}
+                                    className="flex items-center gap-1 h-7.5 px-2 rounded-md bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/10 hover:bg-slate-200 dark:hover:bg-white/10 transition-all font-bold text-[9px] uppercase tracking-tight shadow-xs active:scale-95 whitespace-nowrap shrink-0 cursor-pointer animate-in fade-in duration-150"
+                                    title="Reset all column widths to default"
+                                >
+                                    <RotateCcw className="w-3 h-3 text-slate-500" />
+                                    <span className="hidden 2xl:inline">Reset Widths</span>
+                                </button>
+                            )}
+
+                            {/* Missing Grade Spotlight Filter */}
+                            <label 
+                                className={`flex items-center gap-1.5 h-7.5 px-2.5 rounded-md transition-all font-bold text-[9px] uppercase tracking-tight shadow-xs border cursor-pointer select-none shrink-0 ${
+                                    showMissingOnly
+                                        ? 'bg-amber-500 text-white border-amber-600 ring-1 ring-amber-400/40 shadow-amber-500/20'
+                                        : 'bg-white dark:bg-[#0B1121] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5'
+                                }`}
+                                title="Show students with missing grades only"
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={showMissingOnly}
+                                    onChange={(e) => {
+                                        setShowMissingOnly(e.target.checked);
+                                        if (e.target.checked) setHighlightMissingGrades(true);
+                                    }}
+                                    className="w-3 h-3 rounded text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600"
+                                />
+                                <span className="hidden xl:inline">Missing Grades Only</span>
+                                <span className="xl:hidden">Missing Only</span>
+                                {missingGradesSummary.studentsWithMissing.size > 0 && (
+                                    <span className={`px-1 py-0.2 rounded-full text-[8.5px] font-black ${
+                                        showMissingOnly
+                                            ? 'bg-white text-amber-700'
+                                            : 'bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200'
+                                    }`}>
+                                        {missingGradesSummary.studentsWithMissing.size}
+                                    </span>
+                                )}
+                            </label>
+
+                            {/* Highlight Missing Grades Toggle & Breakdown Popover */}
+                            <div className="relative shrink-0">
+                                <div className="inline-flex rounded-md shadow-xs">
+                                    <button
+                                        onClick={() => {
+                                            setHighlightMissingGrades(prev => !prev);
+                                            setShowMissingGradesPopover(false);
+                                        }}
+                                        className={`flex items-center gap-1 h-7.5 px-2 rounded-l-md transition-all font-bold text-[9px] uppercase tracking-tight active:scale-95 whitespace-nowrap shrink-0 cursor-pointer border ${
+                                            highlightMissingGrades
+                                                ? 'bg-amber-500 text-white border-amber-600 shadow-amber-500/20'
+                                                : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/40'
+                                        }`}
+                                        title={highlightMissingGrades ? "Turn off Missing Grades highlight" : "Highlight all missing/unfilled grades"}
+                                    >
+                                        <AlertTriangle className={`w-3 h-3 ${highlightMissingGrades ? 'text-white animate-pulse' : 'text-amber-600 dark:text-amber-400'}`} />
+                                        <span className="hidden 2xl:inline">Highlight</span>
+                                        <span className={`px-1 py-0.2 rounded-full text-[8.5px] font-black ${
+                                            highlightMissingGrades
+                                                ? 'bg-white text-amber-700'
+                                                : missingGradesSummary.totalMissing > 0
+                                                    ? 'bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100'
+                                                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                                        }`}>
+                                            {missingGradesSummary.totalMissing}
+                                        </span>
+                                    </button>
+                                    <button
+                                        onClick={() => setShowMissingGradesPopover(prev => !prev)}
+                                        className={`h-7.5 px-1 rounded-r-md border-y border-r transition-all cursor-pointer ${
+                                            highlightMissingGrades
+                                                ? 'bg-amber-600 text-white border-amber-600'
+                                                : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/40'
+                                        }`}
+                                        title="View Missing Grades Summary by Subject"
+                                    >
+                                        <ChevronDown className="w-2.5 h-2.5" />
+                                    </button>
+                                </div>
+
+                                {/* Popover Dropdown */}
+                                {showMissingGradesPopover && (
+                                    <div className="absolute right-0 mt-1.5 w-64 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 p-3 z-50 text-slate-800 dark:text-slate-200 animate-in fade-in zoom-in-95 duration-150">
+                                        <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                                            <div className="flex items-center gap-1.5">
+                                                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                                                <span className="font-bold text-xs">Missing Grades</span>
+                                            </div>
+                                            <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300">
+                                                {missingGradesSummary.totalMissing} unfilled
+                                            </span>
+                                        </div>
+
+                                        <div className="py-2 text-[11px] text-slate-500 dark:text-slate-400">
+                                            {missingGradesSummary.totalMissing === 0 ? (
+                                                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-semibold py-2 justify-center">
+                                                    <CheckCircle2 className="w-4 h-4" />
+                                                    <span>All grades are complete!</span>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                                                    {missingGradesSummary.bySubject.map(item => (
+                                                        <div key={item.subjectId} className="flex items-center justify-between text-[11px] py-1 px-1.5 rounded hover:bg-slate-50 dark:hover:bg-white/5">
+                                                            <span className="font-medium truncate max-w-35" title={item.subjectName}>{item.subjectName}</span>
+                                                            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 px-1.5 py-0.2 rounded bg-amber-50 dark:bg-amber-950/40">
+                                                                {item.missingCount} missing
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {missingGradesSummary.totalMissing > 0 && (
+                                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-1.5">
+                                                <div className="flex gap-1.5">
+                                                    <button
+                                                        onClick={() => {
+                                                            setShowMissingOnly(true);
+                                                            setHighlightMissingGrades(true);
+                                                            setShowMissingGradesPopover(false);
+                                                        }}
+                                                        className="flex-1 py-1 px-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] text-center transition-colors cursor-pointer"
+                                                    >
+                                                        Spotlight Incomplete Rows
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            setHighlightMissingGrades(true);
+                                                            setShowMissingGradesPopover(false);
+                                                            setTimeout(() => {
+                                                                const el = document.querySelector('.is-missing input, input.is-missing') as HTMLInputElement;
+                                                                if (el) {
+                                                                    el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+                                                                    el.focus();
+                                                                }
+                                                            }, 100);
+                                                        }}
+                                                        className="py-1 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[10px] text-center transition-colors cursor-pointer"
+                                                    >
+                                                        Jump
+                                                    </button>
+                                                </div>
+                                                <button
+                                                    onClick={() => {
+                                                        setHighlightMissingGrades(!highlightMissingGrades);
+                                                        setShowMissingGradesPopover(false);
+                                                    }}
+                                                    className="w-full py-1 px-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold text-[10px] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-center"
+                                                >
+                                                    {highlightMissingGrades ? 'Unhighlight Cells' : 'Highlight Cells'}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Quarter Lock Dropdown Button */}
+                            <div className="relative shrink-0">
+                                <button
+                                    onClick={() => setIsLockPopoverOpen(prev => !prev)}
+                                    className={`flex items-center gap-1 h-7.5 px-2 rounded-md transition-all font-bold text-[9px] uppercase tracking-tight shadow-xs border active:scale-95 whitespace-nowrap cursor-pointer ${
+                                        lockedQuarters.length > 0
+                                            ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800/60'
+                                            : 'bg-white dark:bg-[#0B1121] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:bg-slate-50'
+                                    }`}
+                                    title="Lock or unlock quarter grades to prevent accidental modifications"
+                                >
+                                    <Lock className={`w-3 h-3 ${lockedQuarters.length > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`} />
+                                    <span className="hidden 2xl:inline">Lock</span>
+                                    {lockedQuarters.length > 0 && (
+                                        <span className="px-1 py-0.2 rounded-full text-[8.5px] bg-rose-200 dark:bg-rose-900/60 font-black text-rose-900 dark:text-rose-100">
+                                            {lockedQuarters.length}
+                                        </span>
+                                    )}
+                                    <ChevronDown className="w-2.5 h-2.5 text-slate-400" />
+                                </button>
+
+                                {isLockPopoverOpen && (
+                                    <div className="absolute right-0 mt-1.5 w-60 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 p-3 z-50 text-slate-800 dark:text-slate-200 animate-in fade-in zoom-in-95 duration-150 text-xs">
+                                        <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 font-bold text-[11px] text-slate-800 dark:text-slate-100">
+                                            <div className="flex items-center gap-1.5">
+                                                <Lock className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                                                <span>Quarter Lock Controls</span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsLockPopoverOpen(false)}
+                                                className="p-0.5 rounded text-slate-400 hover:text-slate-600 cursor-pointer"
+                                            >
+                                                <X className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+
+                                        <p className="text-[10.5px] text-slate-500 dark:text-slate-400 py-2 leading-relaxed">
+                                            Locked quarters disable manual editing and protect against sync/import overwrites.
+                                        </p>
+
+                                        <div className="space-y-1.5 py-1">
+                                            {(['q1', 'q2', 'q3', 'q4'] as const).map((qKey) => {
+                                                const isLocked = lockedQuarters.includes(qKey);
+                                                const qNum = qKey.replace('q', '');
+                                                return (
+                                                    <div key={qKey} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-slate-800">
+                                                        <span className="font-bold text-[11px] text-slate-700 dark:text-slate-200">
+                                                            Quarter {qNum}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleToggleQuarterLock(qKey)}
+                                                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-black uppercase transition cursor-pointer ${
+                                                                isLocked
+                                                                    ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 shadow-sm'
+                                                                    : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300'
+                                                            }`}
+                                                        >
+                                                            {isLocked ? (
+                                                                <>
+                                                                    <Lock className="w-2.5 h-2.5" />
+                                                                    <span>Locked</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Unlock className="w-2.5 h-2.5" />
+                                                                    <span>Open</span>
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleBatchLockQuarters(['q1', 'q2', 'q3', 'q4'])}
+                                                className="flex-1 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-[10px] font-bold cursor-pointer transition text-center"
+                                            >
+                                                Lock All
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleBatchLockQuarters([])}
+                                                className="flex-1 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-[10px] font-bold cursor-pointer transition text-center"
+                                            >
+                                                Unlock All
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </>
                     )}
 
@@ -2828,11 +4158,11 @@ const groupedSections = useMemo(() => {
                                 }
                             }));
                         }}
-                        className="flex items-center gap-1 h-8 px-2.5 rounded-md bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-all font-bold text-[10px] uppercase tracking-wider shadow-sm active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
+                        className="flex items-center gap-1 h-7.5 px-2 rounded-md bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-all font-bold text-[9px] uppercase tracking-tight shadow-xs active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
                         title="Open Grade Sync Inspector & Live Diagnostics"
                     >
-                        <Bug className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                        <span className="hidden sm:inline">Inspect Sync</span>
+                        <Bug className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                        <span className="hidden 2xl:inline">Inspect</span>
                     </button>
 
                     {selectedSection && (
@@ -2851,28 +4181,28 @@ const groupedSections = useMemo(() => {
                                         );
                                     }
                                 }}
-                                className="flex items-center gap-1 h-8 px-2 rounded-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 border border-transparent transition-all font-bold text-[10px] uppercase tracking-wider active:scale-95 whitespace-nowrap shrink-0"
+                                className="flex items-center gap-1 h-7.5 px-1.5 rounded-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 border border-transparent transition-all font-bold text-[9px] uppercase tracking-tight active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
                                 title="Clear Summary Sheet for this Section"
                             >
                                 <Trash2 className="w-3 h-3" />
-                                <span className="hidden xl:inline">Clear All</span>
+                                <span className="hidden 2xl:inline">Clear</span>
                             </button>
 
                             <button
                                 onClick={handlePrintConsolidated}
-                                className="flex items-center gap-1 h-8 px-2.5 sm:px-4 rounded-md bg-[#0f172a] dark:bg-white text-white dark:text-[#0f172a] hover:bg-slate-800 dark:hover:bg-slate-200 transition-all font-black text-[10px] uppercase tracking-wider shadow-md active:scale-95 ml-0.5 whitespace-nowrap shrink-0"
+                                className="flex items-center gap-1 h-7.5 px-2.5 rounded-md bg-[#0f172a] dark:bg-white text-white dark:text-[#0f172a] hover:bg-slate-800 dark:hover:bg-slate-200 transition-all font-black text-[9px] uppercase tracking-tight shadow-xs active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
                             >
                                 <Printer className="w-3 h-3" />
-                                <span className="hidden sm:inline">Print</span>
+                                <span>Print</span>
                             </button>
 
                             <button
                                 onClick={handleDownloadConsolidated}
                                 disabled={isDownloading}
-                                className="flex items-center gap-1 h-8 px-2.5 sm:px-4 rounded-md bg-green-600 dark:bg-green-500 text-white dark:text-white hover:bg-green-700 dark:hover:bg-green-600 transition-all font-black text-[10px] uppercase tracking-wider shadow-md active:scale-95 ml-0.5 whitespace-nowrap shrink-0 disabled:opacity-50"
+                                className="flex items-center gap-1 h-7.5 px-2.5 rounded-md bg-green-600 dark:bg-green-500 text-white dark:text-white hover:bg-green-700 dark:hover:bg-green-600 transition-all font-black text-[9px] uppercase tracking-tight shadow-xs active:scale-95 whitespace-nowrap shrink-0 disabled:opacity-50 cursor-pointer"
                             >
                                 <Download className="w-3 h-3" />
-                                <span className="hidden sm:inline">{isDownloading ? 'Downloading...' : 'Download'}</span>
+                                <span>{isDownloading ? '...' : 'Download'}</span>
                             </button>
                         </>
                     )}
@@ -2887,32 +4217,60 @@ const groupedSections = useMemo(() => {
                         <p className="font-medium">Please select a section to view the grade sheet.</p>
                     </div>
                 ) : (
-                    <div className="w-full min-h-full flex justify-center overflow-x-auto py-2 bg-slate-100 dark:bg-slate-900/40 rounded-xl">
+                    <div className="w-full min-h-full flex overflow-x-auto py-2 bg-slate-100 dark:bg-slate-900/40 rounded-xl">
                         <div
                             ref={containerRef}
-                            className="consolidated-zoom-shell origin-top flex flex-col gap-8 transition-all duration-300"
+                            className="consolidated-zoom-shell origin-top flex flex-col gap-8 transition-all duration-300 m-auto"
                             style={{ transform: `scale(${zoom})`, width: 'fit-content' }}
                         >
+                            {/* Spotlight Filter Active Alert Bar */}
+                            {showMissingOnly && (
+                                <div className="w-full bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700/60 rounded-xl p-3 flex items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200 shadow-sm no-print">
+                                    <div className="flex items-center gap-2">
+                                        <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                                        <span className="font-semibold">
+                                            Spotlight Filter Active: Showing {displayedMaleStudents.length + displayedFemaleStudents.length} learner(s) with missing grades out of {sectionStudents.length} total enrolled ({selectedTerm === 'all' ? 'All Quarters' : (TERM_LABELS[selectedTerm] || selectedTerm.toUpperCase().replace('Q', 'Quarter '))}).
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowMissingOnly(false)}
+                                        className="px-3 py-1 bg-amber-200 hover:bg-amber-300 dark:bg-amber-800 dark:hover:bg-amber-700 text-amber-900 dark:text-amber-100 rounded-md font-bold text-[11px] transition-colors cursor-pointer"
+                                    >
+                                        Show All Students
+                                    </button>
+                                </div>
+                            )}
+
                             {/* Page 1: Male Table */}
-                            <div className="consolidated-sheet mx-auto bg-white p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] rounded-md border border-slate-200/80 mb-6 print:mb-0 print:border-none print:shadow-none" style={{ width: sheetWidth ? `${sheetWidth}px` : 'auto', minWidth: `${tableMinWidth}px` }}>
+                            <div
+                                className="consolidated-sheet mx-auto bg-white p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] rounded-md border border-slate-200/80 mb-6 print:mb-0 print:border-none print:shadow-none transition-all duration-200"
+                                style={{ width: `${sheetWidth}px`, minWidth: `${sheetWidth}px`, maxWidth: `${sheetWidth}px`, boxSizing: 'border-box' }}
+                            >
                                 {renderHeaderAndMetadata('MALE')}
-                                {renderGradesTable(maleStudents, 0, 'MALE')}
+                                {renderGradesTable(displayedMaleStudents, 0, 'MALE')}
                             </div>
 
                             {/* Page 2: Female Table */}
-                            <div className="consolidated-sheet mx-auto bg-white p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] rounded-md border border-slate-200/80 mb-6 print:mb-0 print:border-none print:shadow-none" style={{ width: sheetWidth ? `${sheetWidth}px` : 'auto', minWidth: `${tableMinWidth}px` }}>
+                            <div
+                                className="consolidated-sheet mx-auto bg-white p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] rounded-md border border-slate-200/80 mb-6 print:mb-0 print:border-none print:shadow-none transition-all duration-200"
+                                style={{ width: `${sheetWidth}px`, minWidth: `${sheetWidth}px`, maxWidth: `${sheetWidth}px`, boxSizing: 'border-box' }}
+                            >
                                 {renderHeaderAndMetadata('FEMALE')}
-                                {renderGradesTable(femaleStudents, maleStudents.length, 'FEMALE')}
+                                {renderGradesTable(displayedFemaleStudents, displayedMaleStudents.length, 'FEMALE')}
                             </div>
 
                             {/* Page 3: Summary Reports */}
                             {showDescriptor && (
-                                <div className="consolidated-sheet mx-auto bg-white p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] rounded-md border border-slate-200/80 mb-6 print:mb-0 print:border-none print:shadow-none" style={{ width: sheetWidth ? `${sheetWidth}px` : 'auto', minWidth: `${tableMinWidth}px` }}>
+                                <div
+                                    className="consolidated-sheet mx-auto bg-white p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] rounded-md border border-slate-200/80 mb-6 print:mb-0 print:border-none print:shadow-none transition-all duration-200"
+                                    style={{ width: `${sheetWidth}px`, minWidth: `${sheetWidth}px`, maxWidth: `${sheetWidth}px`, boxSizing: 'border-box' }}
+                                >
                                     {renderHeaderAndMetadata('SUMMARY OF REPORTS')}
                                     
                                     <div className="flex flex-col gap-3 w-full no-print-break-inside text-[9px]">
                                         {/* Two Columns Layout */}
-                                        <div className="mt-2 flex flex-col md:flex-row gap-6 items-start justify-start w-full print:break-inside-avoid" style={{ maxWidth: '1200px' }}>
+                                        <div className="mt-2 flex flex-col md:flex-row gap-6 items-start justify-start w-full print:break-inside-avoid" style={{ width: '100%', maxWidth: `${usableTableWidth}px` }}>
                                             {/* Column A: Left Column */}
                                             <div className="flex flex-col gap-3 flex-1 w-full max-w-137.5">
                                                 {/* Learning Progress and Achievement */}
@@ -3184,6 +4542,119 @@ const groupedSections = useMemo(() => {
                     </div>
                 )}
             </div>
+
+            {/* Quick Add Subject Column Modal */}
+            {isAddSubjectModalOpen && sectionObj && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
+                    onClick={() => setIsAddSubjectModalOpen(false)}
+                >
+                    <div
+                        className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-4 animate-in zoom-in-95 duration-200 text-slate-800 dark:text-slate-100"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+                                    <Plus className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-base">Add Subject Column</h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        {sectionObj.section_name} &bull; {sectionObj.section_grade_level}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsAddSubjectModalOpen(false)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Catalog Subject Search & Pick */}
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                                <span>From School Catalog</span>
+                                <span className="text-[11px] font-normal text-slate-400">({availableSubjectsToAdd.length} available)</span>
+                            </div>
+                            <div className="relative">
+                                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search subjects..."
+                                    value={addSubjectSearchQuery}
+                                    onChange={(e) => setAddSubjectSearchQuery(e.target.value)}
+                                    className="w-full h-9 pl-8 pr-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                />
+                            </div>
+                            <div className="max-h-48 overflow-y-auto custom-scrollbar border border-slate-100 dark:border-slate-800 rounded-xl p-1 space-y-1 bg-slate-50/50 dark:bg-slate-950/30">
+                                {availableSubjectsToAdd.filter(s =>
+                                    !addSubjectSearchQuery || s.subject_name.toLowerCase().includes(addSubjectSearchQuery.toLowerCase())
+                                ).length === 0 ? (
+                                    <div className="text-xs text-slate-400 p-3 text-center">
+                                        {addSubjectSearchQuery ? 'No matching subjects found.' : 'All catalog subjects for this grade are already added!'}
+                                    </div>
+                                ) : (
+                                    availableSubjectsToAdd
+                                        .filter(s =>
+                                            !addSubjectSearchQuery || s.subject_name.toLowerCase().includes(addSubjectSearchQuery.toLowerCase())
+                                        )
+                                        .map(subj => (
+                                            <div
+                                                key={subj.id}
+                                                className="flex items-center justify-between p-2 rounded-lg hover:bg-indigo-50/70 dark:hover:bg-indigo-950/40 transition"
+                                            >
+                                                <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate pr-2">
+                                                    {subj.subject_name}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleQuickAddSubject(subj.subject_name)}
+                                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold shadow-sm cursor-pointer transition active:scale-95 shrink-0"
+                                                >
+                                                    <Plus className="w-3 h-3" />
+                                                    <span>Add</span>
+                                                </button>
+                                            </div>
+                                        ))
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Custom Subject Input */}
+                        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                Or Add a Custom Subject
+                            </label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    placeholder="e.g. Journalism, Robotics, etc."
+                                    value={customSubjectName}
+                                    onChange={(e) => setCustomSubjectName(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && customSubjectName.trim()) {
+                                            void handleQuickAddSubject(customSubjectName.trim());
+                                        }
+                                    }}
+                                    className="flex-1 h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                />
+                                <button
+                                    type="button"
+                                    disabled={!customSubjectName.trim()}
+                                    onClick={() => void handleQuickAddSubject(customSubjectName.trim())}
+                                    className="px-3 h-9 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold shadow-sm cursor-pointer transition active:scale-95 shrink-0"
+                                >
+                                    Add Custom
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

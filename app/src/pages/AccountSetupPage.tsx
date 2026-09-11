@@ -177,9 +177,17 @@ export function AccountSetupPage() {
                     <button
                         type="submit"
                         disabled={isLoading}
-                        className="w-full py-3 bg-deped-blue hover:bg-deped-blue-dark disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors"
+                        className="w-full py-3 bg-deped-blue hover:bg-deped-blue-dark disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
                     >
                         {isLoading ? 'Creating account…' : 'Create Account & Continue'}
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => useAuthStore.setState({ needsAccountSetup: false })}
+                        className="w-full py-2.5 text-xs text-slate-500 hover:text-deped-blue font-semibold transition-colors cursor-pointer"
+                    >
+                        Already have an account? Back to Sign In
                     </button>
                 </form>
             </div>

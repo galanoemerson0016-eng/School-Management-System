@@ -2,14 +2,14 @@
 import { useState, useMemo, useEffect, useCallback, memo } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, ArrowRight, Clock, FileSpreadsheet, ChevronDown, Bug } from 'lucide-react';
+import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, ArrowRight, Clock, FileSpreadsheet, ChevronDown, Bug, Shield, SlidersHorizontal } from 'lucide-react';
 import type { ClassRecord, HPSRecord, Subject } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
 import { isGrade1 } from '../services/sf9-g1-excel-export';
 import { exportECRToExcel, exportECRBatchToZip, isGrade2To10, isGmrcVeSubject, normalizeSubjectForECR, isMapehSubject, isEppTleSubject, isEppTleComponent } from '../services/ecr-excel-export';
 import { exportDirectDatabaseToExcel } from '../services/database-rescue-export';
-import { isMatchingSubject } from '../utils/grading-helpers';
+import { isMatchingSubject, isSameSubject } from '../utils/grading-helpers';
 
 import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
@@ -336,28 +336,28 @@ const StudentGradeRow = memo(({
 
             const wwCogTotalScore = wwCogScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
             const wwCogTotalHPS = hps.ww.slice(0, 5).reduce<number>((a, b) => a + Number(b), 0);
-            const wwCogPS = wwCogTotalHPS === 0 ? 0 : Math.round((wwCogTotalScore / wwCogTotalHPS) * 100 * 100) / 100;
-            const wwCogWS = Math.round(wwCogPS * 0.10 * 100) / 100;
+            const wwCogPS = wwCogTotalHPS === 0 ? 0 : (wwCogTotalScore / wwCogTotalHPS) * 100;
+            const wwCogWS = wwCogPS * 0.10;
 
             const wwAffTotalScore = wwAffScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
             const wwAffTotalHPS = hps.ww.slice(5, 10).reduce<number>((a, b) => a + Number(b), 0);
-            const wwAffPS = wwAffTotalHPS === 0 ? 0 : Math.round((wwAffTotalScore / wwAffTotalHPS) * 100 * 100) / 100;
-            const wwAffWS = Math.round(wwAffPS * 0.10 * 100) / 100;
+            const wwAffPS = wwAffTotalHPS === 0 ? 0 : (wwAffTotalScore / wwAffTotalHPS) * 100;
+            const wwAffWS = wwAffPS * 0.10;
 
             const ptCogTotalScore = ptCogScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
             const ptCogTotalHPS = hps.pt.slice(0, 3).reduce<number>((a, b) => a + Number(b), 0);
-            const ptCogPS = ptCogTotalHPS === 0 ? 0 : Math.round((ptCogTotalScore / ptCogTotalHPS) * 100 * 100) / 100;
-            const ptCogWS = Math.round(ptCogPS * 0.10 * 100) / 100;
+            const ptCogPS = ptCogTotalHPS === 0 ? 0 : (ptCogTotalScore / ptCogTotalHPS) * 100;
+            const ptCogWS = ptCogPS * 0.10;
 
             const ptAffTotalScore = ptAffScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
             const ptAffTotalHPS = hps.pt.slice(3, 6).reduce<number>((a, b) => a + Number(b), 0);
-            const ptAffPS = ptAffTotalHPS === 0 ? 0 : Math.round((ptAffTotalScore / ptAffTotalHPS) * 100 * 100) / 100;
-            const ptAffWS = Math.round(ptAffPS * 0.10 * 100) / 100;
+            const ptAffPS = ptAffTotalHPS === 0 ? 0 : (ptAffTotalScore / ptAffTotalHPS) * 100;
+            const ptAffWS = ptAffPS * 0.10;
 
             const ptBehTotalScore = ptBehScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
             const ptBehTotalHPS = hps.pt.slice(6, 9).reduce<number>((a, b) => a + Number(b), 0);
-            const ptBehPS = ptBehTotalHPS === 0 ? 0 : Math.round((ptBehTotalScore / ptBehTotalHPS) * 100 * 100) / 100;
-            const ptBehWS = Math.round(ptBehPS * 0.30 * 100) / 100;
+            const ptBehPS = ptBehTotalHPS === 0 ? 0 : (ptBehTotalScore / ptBehTotalHPS) * 100;
+            const ptBehWS = ptBehPS * 0.30;
 
             const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : (qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]));
             const st1HPS = Number(hps.qa[0]) || 0;
@@ -366,9 +366,9 @@ const StudentGradeRow = memo(({
             const teScore = typeof qaScores[2] === 'number' ? qaScores[2] : (qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]));
             const teHPS = Number(hps.qa[2]) || 0;
 
-            const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) ? Math.round(((st1Score as number) / st1HPS) * 30 * 100) / 100 : null;
-            const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) ? Math.round(((st2Score as number) / st2HPS) * 30 * 100) / 100 : null;
-            const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) ? Math.round(((teScore as number) / teHPS) * 40 * 100) / 100 : null;
+            const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) ? ((st1Score as number) / st1HPS) * 30 : null;
+            const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) ? ((st2Score as number) / st2HPS) * 30 : null;
+            const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) ? ((teScore as number) / teHPS) * 40 : null;
 
             let qaScore = 0;
             let qaHPS = 0;
@@ -385,10 +385,10 @@ const StudentGradeRow = memo(({
                 qaScore += (teScore as number);
             }
 
-            const qaPS = (st1WS !== null || st2WS !== null || teWS !== null) ? Math.round(((st1WS || 0) + (st2WS || 0) + (teWS || 0)) * 100) / 100 : 0;
-            const qaWS = Math.round(qaPS * 0.30 * 100) / 100;
+            const qaPS = (st1WS !== null || st2WS !== null || teWS !== null) ? ((st1WS || 0) + (st2WS || 0) + (teWS || 0)) : 0;
+            const qaWS = qaPS * 0.30;
 
-            const initialGrade = Math.round(((wwCogWS || 0) + (wwAffWS || 0) + (ptCogWS || 0) + (ptAffWS || 0) + (ptBehWS || 0) + (qaWS || 0)) * 100) / 100;
+            const initialGrade = (wwCogWS || 0) + (wwAffWS || 0) + (ptCogWS || 0) + (ptAffWS || 0) + (ptBehWS || 0) + (qaWS || 0);
             const quarterlyGrade = hasScores ? transmuteGrade(initialGrade, activeSchoolYear) : 0;
 
             return {
@@ -809,6 +809,20 @@ export function EClassRecord() {
                    s.is_component || s.subject_code === 'MAPEH';
         };
 
+        const isMapehRelatedSubject = (s: Subject) => {
+            const n = (s.subject_name || '').toLowerCase().trim();
+            return n === 'mapeh' || 
+                   s.subject_code === 'MAPEH' || 
+                   s.is_component ||
+                   isMapehComp(s);
+        };
+
+        // Only search/expose MAPEH components if MAPEH or any of its components is authorized in this section's teaching load
+        const hasMapehAccess = sectionSubjects.some(isMapehRelatedSubject);
+        if (!hasMapehAccess) {
+            return [];
+        }
+
         const comps = sectionSubjects.filter(isMapehComp);
 
         // Fallback: If both components ("Music and Arts" AND "PE & Health") aren't found in sectionSubjects,
@@ -935,7 +949,7 @@ export function EClassRecord() {
     // Auto-select first available subject if no subject is currently selected or if the selected subject is invalid
     useEffect(() => {
         if (selectedSection && filteredSubjects.length > 0) {
-            const isValid = selectedSubject && (selectedSubject === 'virtual_mapeh' || filteredSubjects.some(s => s.id === selectedSubject));
+            const isValid = Boolean(selectedSubject && filteredSubjects.some(s => s.id === selectedSubject));
             if (!isValid) {
                 const firstSub = filteredSubjects[0].id;
                 setSelectedSubject(firstSub);
@@ -943,6 +957,10 @@ export function EClassRecord() {
             }
         }
     }, [selectedSection, filteredSubjects, selectedSubject, setGlobalSubject]);
+
+    const isAdvisoryWithoutTeachingLoad = useMemo(() => {
+        return Boolean(selectedSection && selectedSectionObj?.is_advisory && filteredSubjects.length === 0);
+    }, [selectedSection, selectedSectionObj, filteredSubjects]);
 
     // Check if the currently selected subject is MAPEH (virtual or registered database subject)
     const isMapehSelected = useMemo(() => {
@@ -1045,6 +1063,13 @@ export function EClassRecord() {
             qa: hps_qa
         };
     }, [hpsRecords, effectiveSubjectId, subjectName, activeSchoolYear, quarter, selectedSection, selectedSectionObj, isGMRCSubject]);
+
+    const isTermExamHpsMissing = useMemo(() => {
+        if (!hps || !hps.qa) return false;
+        const hasStHps = Number(hps.qa[0]) > 0 || Number(hps.qa[1]) > 0;
+        const isTeHpsEmpty = !hps.qa[2] || Number(hps.qa[2]) === 0;
+        return hasStHps && isTeHpsEmpty;
+    }, [hps]);
 
 
     // Get current subject and its weight cluster
@@ -1157,7 +1182,7 @@ export function EClassRecord() {
 
         const record = classRecords.find(r =>
             r.student_lrn === student.lrn &&
-            (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id, r.subject_name))) &&
+            (r.subject_id === effectiveSubjectId || isSameSubject(r.subject_id, r.subject_name, effectiveSubjectId, subjectName)) &&
             Number(r.quarter) === quarter
         );
 
@@ -1201,28 +1226,28 @@ export function EClassRecord() {
 
             const wwCogTotalScore = wwCogScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
             const wwCogTotalHPS = hps.ww.slice(0, 5).reduce<number>((a, b) => a + Number(b), 0);
-            const wwCogPS = wwCogTotalHPS === 0 ? 0 : Math.round((wwCogTotalScore / wwCogTotalHPS) * 100 * 100) / 100;
-            const wwCogWS = Math.round(wwCogPS * 0.10 * 100) / 100;
+            const wwCogPS = wwCogTotalHPS === 0 ? 0 : (wwCogTotalScore / wwCogTotalHPS) * 100;
+            const wwCogWS = wwCogPS * 0.10;
 
             const wwAffTotalScore = wwAffScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
             const wwAffTotalHPS = hps.ww.slice(5, 10).reduce<number>((a, b) => a + Number(b), 0);
-            const wwAffPS = wwAffTotalHPS === 0 ? 0 : Math.round((wwAffTotalScore / wwAffTotalHPS) * 100 * 100) / 100;
-            const wwAffWS = Math.round(wwAffPS * 0.10 * 100) / 100;
+            const wwAffPS = wwAffTotalHPS === 0 ? 0 : (wwAffTotalScore / wwAffTotalHPS) * 100;
+            const wwAffWS = wwAffPS * 0.10;
 
             const ptCogTotalScore = ptCogScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
             const ptCogTotalHPS = hps.pt.slice(0, 3).reduce<number>((a, b) => a + Number(b), 0);
-            const ptCogPS = ptCogTotalHPS === 0 ? 0 : Math.round((ptCogTotalScore / ptCogTotalHPS) * 100 * 100) / 100;
-            const ptCogWS = Math.round(ptCogPS * 0.10 * 100) / 100;
+            const ptCogPS = ptCogTotalHPS === 0 ? 0 : (ptCogTotalScore / ptCogTotalHPS) * 100;
+            const ptCogWS = ptCogPS * 0.10;
 
             const ptAffTotalScore = ptAffScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
             const ptAffTotalHPS = hps.pt.slice(3, 6).reduce<number>((a, b) => a + Number(b), 0);
-            const ptAffPS = ptAffTotalHPS === 0 ? 0 : Math.round((ptAffTotalScore / ptAffTotalHPS) * 100 * 100) / 100;
-            const ptAffWS = Math.round(ptAffPS * 0.10 * 100) / 100;
+            const ptAffPS = ptAffTotalHPS === 0 ? 0 : (ptAffTotalScore / ptAffTotalHPS) * 100;
+            const ptAffWS = ptAffPS * 0.10;
 
             const ptBehTotalScore = ptBehScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
             const ptBehTotalHPS = hps.pt.slice(6, 9).reduce<number>((a, b) => a + Number(b), 0);
-            const ptBehPS = ptBehTotalHPS === 0 ? 0 : Math.round((ptBehTotalScore / ptBehTotalHPS) * 100 * 100) / 100;
-            const ptBehWS = Math.round(ptBehPS * 0.30 * 100) / 100;
+            const ptBehPS = ptBehTotalHPS === 0 ? 0 : (ptBehTotalScore / ptBehTotalHPS) * 100;
+            const ptBehWS = ptBehPS * 0.30;
 
             const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : (qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]));
             const st1HPS = Number(hps.qa[0]) || 0;
@@ -1231,9 +1256,9 @@ export function EClassRecord() {
             const teScore = typeof qaScores[2] === 'number' ? qaScores[2] : (qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]));
             const teHPS = Number(hps.qa[2]) || 0;
 
-            const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) ? Math.round(((st1Score as number) / st1HPS) * 30 * 100) / 100 : null;
-            const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) ? Math.round(((st2Score as number) / st2HPS) * 30 * 100) / 100 : null;
-            const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) ? Math.round(((teScore as number) / teHPS) * 40 * 100) / 100 : null;
+            const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) ? ((st1Score as number) / st1HPS) * 30 : null;
+            const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) ? ((st2Score as number) / st2HPS) * 30 : null;
+            const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) ? ((teScore as number) / teHPS) * 40 : null;
 
             let qaScore = 0;
             let qaHPS = 0;
@@ -1250,10 +1275,10 @@ export function EClassRecord() {
                 qaScore += (teScore as number);
             }
 
-            const qaPS = (st1WS !== null || st2WS !== null || teWS !== null) ? Math.round(((st1WS || 0) + (st2WS || 0) + (teWS || 0)) * 100) / 100 : 0;
-            const qaWS = Math.round(qaPS * 0.30 * 100) / 100;
+            const qaPS = (st1WS !== null || st2WS !== null || teWS !== null) ? ((st1WS || 0) + (st2WS || 0) + (teWS || 0)) : 0;
+            const qaWS = qaPS * 0.30;
 
-            const initialGrade = Math.round(((wwCogWS || 0) + (wwAffWS || 0) + (ptCogWS || 0) + (ptAffWS || 0) + (ptBehWS || 0) + (qaWS || 0)) * 100) / 100;
+            const initialGrade = (wwCogWS || 0) + (wwAffWS || 0) + (ptCogWS || 0) + (ptAffWS || 0) + (ptBehWS || 0) + (qaWS || 0);
             const quarterlyGrade = hasScores ? transmuteGrade(initialGrade, activeSchoolYear) : 0;
 
             return {
@@ -1621,7 +1646,7 @@ export function EClassRecord() {
         sectionStudents.forEach(st => {
             const cr = stateClassRecords.find(r =>
                 r.student_lrn === st.lrn &&
-                (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id, r.subject_name))) &&
+                (r.subject_id === effectiveSubjectId || isSameSubject(r.subject_id, r.subject_name, effectiveSubjectId, subjectName)) &&
                 Number(r.quarter) === Number(quarter)
             );
             if (!cr) return;
@@ -1670,7 +1695,10 @@ export function EClassRecord() {
                 const teScore = sQa[2] === '' || sQa[2] === null || sQa[2] === undefined ? null : Number(sQa[2]);
                 const teHPS = Number(currentHpsQa[2]) || 0;
 
-                const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
+                const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score)) ? (st1Score / st1HPS) * 30 : 0;
+                const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score)) ? (st2Score / st2HPS) * 30 : 0;
+                const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore)) ? (teScore / teHPS) * 40 : 0;
+                const qaPS = st1WS + st2WS + teWS;
                 const qaWS = qaPS * 0.30;
 
                 initialGrade = Math.min(100, Math.max(0, wwCogWS + wwAffWS + ptCogWS + ptAffWS + ptBehWS + qaWS));
@@ -1738,7 +1766,7 @@ export function EClassRecord() {
         const stateClassRecords = useAppStore.getState().classRecords;
         const existingRecord = stateClassRecords.find(r =>
             r.student_lrn === lrn &&
-            (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id, r.subject_name))) &&
+            (r.subject_id === effectiveSubjectId || isSameSubject(r.subject_id, r.subject_name, effectiveSubjectId, subjectName)) &&
             Number(r.quarter) === (quarter as number)
         );
 
@@ -1802,28 +1830,28 @@ export function EClassRecord() {
         if (isGMRCSubject) {
             const wwCogTotal = normalizedWW.slice(0, 5).reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
             const wwCogHPS = hps.ww.slice(0, 5).reduce<number>((a, b) => a + Number(b), 0);
-            const wwCogPS = wwCogHPS === 0 ? 0 : Math.round((wwCogTotal / wwCogHPS) * 100 * 100) / 100;
-            const wwCogWS = Math.round(wwCogPS * 0.10 * 100) / 100;
+            const wwCogPS = wwCogHPS === 0 ? 0 : (wwCogTotal / wwCogHPS) * 100;
+            const wwCogWS = wwCogPS * 0.10;
 
             const wwAffTotal = normalizedWW.slice(5, 10).reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
             const wwAffHPS = hps.ww.slice(5, 10).reduce<number>((a, b) => a + Number(b), 0);
-            const wwAffPS = wwAffHPS === 0 ? 0 : Math.round((wwAffTotal / wwAffHPS) * 100 * 100) / 100;
-            const wwAffWS = Math.round(wwAffPS * 0.10 * 100) / 100;
+            const wwAffPS = wwAffHPS === 0 ? 0 : (wwAffTotal / wwAffHPS) * 100;
+            const wwAffWS = wwAffPS * 0.10;
 
             const ptCogTotal = normalizedPT.slice(0, 3).reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
             const ptCogHPS = hps.pt.slice(0, 3).reduce<number>((a, b) => a + Number(b), 0);
-            const ptCogPS = ptCogHPS === 0 ? 0 : Math.round((ptCogTotal / ptCogHPS) * 100 * 100) / 100;
-            const ptCogWS = Math.round(ptCogPS * 0.10 * 100) / 100;
+            const ptCogPS = ptCogHPS === 0 ? 0 : (ptCogTotal / ptCogHPS) * 100;
+            const ptCogWS = ptCogPS * 0.10;
 
             const ptAffTotal = normalizedPT.slice(3, 6).reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
             const ptAffHPS = hps.pt.slice(3, 6).reduce<number>((a, b) => a + Number(b), 0);
-            const ptAffPS = ptAffHPS === 0 ? 0 : Math.round((ptAffTotal / ptAffHPS) * 100 * 100) / 100;
-            const ptAffWS = Math.round(ptAffPS * 0.10 * 100) / 100;
+            const ptAffPS = ptAffHPS === 0 ? 0 : (ptAffTotal / ptAffHPS) * 100;
+            const ptAffWS = ptAffPS * 0.10;
 
             const ptBehTotal = normalizedPT.slice(6, 9).reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
             const ptBehHPS = hps.pt.slice(6, 9).reduce<number>((a, b) => a + Number(b), 0);
-            const ptBehPS = ptBehHPS === 0 ? 0 : Math.round((ptBehTotal / ptBehHPS) * 100 * 100) / 100;
-            const ptBehWS = Math.round(ptBehPS * 0.30 * 100) / 100;
+            const ptBehPS = ptBehHPS === 0 ? 0 : (ptBehTotal / ptBehHPS) * 100;
+            const ptBehWS = ptBehPS * 0.30;
 
             const st1Score = qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]);
             const st1HPS = Number(hps.qa[0]) || 0;
@@ -1832,14 +1860,14 @@ export function EClassRecord() {
             const teScore = qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]);
             const teHPS = Number(hps.qa[2]) || 0;
 
-            const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score)) ? Math.round((st1Score / st1HPS) * 30 * 100) / 100 : null;
-            const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score)) ? Math.round((st2Score / st2HPS) * 30 * 100) / 100 : null;
-            const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore)) ? Math.round((teScore / teHPS) * 40 * 100) / 100 : null;
+            const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score)) ? (st1Score / st1HPS) * 30 : null;
+            const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score)) ? (st2Score / st2HPS) * 30 : null;
+            const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore)) ? (teScore / teHPS) * 40 : null;
 
-            const qaPS = (st1WS !== null || st2WS !== null || teWS !== null) ? Math.round(((st1WS || 0) + (st2WS || 0) + (teWS || 0)) * 100) / 100 : 0;
-            const qaWS = Math.round(qaPS * 0.30 * 100) / 100;
+            const qaPS = (st1WS !== null || st2WS !== null || teWS !== null) ? ((st1WS || 0) + (st2WS || 0) + (teWS || 0)) : 0;
+            const qaWS = qaPS * 0.30;
 
-            initialGrade = Math.round(((wwCogWS || 0) + (wwAffWS || 0) + (ptCogWS || 0) + (ptAffWS || 0) + (ptBehWS || 0) + (qaWS || 0)) * 100) / 100;
+            initialGrade = (wwCogWS || 0) + (wwAffWS || 0) + (ptCogWS || 0) + (ptAffWS || 0) + (ptBehWS || 0) + (qaWS || 0);
         } else {
             const wwTotalScore = normalizedWW.reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
             const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b), 0);
@@ -2225,16 +2253,16 @@ export function EClassRecord() {
                 }
             `}</style>
 
-            <div className="bg-white dark:bg-[#0d1225] border border-slate-200/60 dark:border-white/10 rounded-xl shadow-md p-2.5 no-print">
-                <div className="flex flex-col lg:flex-row lg:flex-nowrap lg:items-end gap-2 lg:gap-2">
-                    <div className="w-full lg:w-40 shrink-0">
-                        <div className="flex justify-between items-center mb-1">
-                            <label className="block text-[11px] font-semibold text-deped-blue whitespace-nowrap">Section</label>
+            <div className="bg-white dark:bg-[#0d1225] border border-slate-200/60 dark:border-white/10 rounded-xl shadow-xs p-1.5 sm:p-2 no-print">
+                <div className="flex flex-col lg:flex-row lg:flex-nowrap lg:items-end gap-1.5 w-full overflow-x-auto custom-scrollbar pb-0.5">
+                    <div className="w-full sm:w-36 lg:w-36 shrink-0">
+                        <div className="flex justify-between items-center mb-0.5">
+                            <label className="block text-[9.5px] font-bold text-deped-blue whitespace-nowrap">Section</label>
                         </div>
                         <select
                             value={selectedSection}
                             onChange={(e) => onSectionChange(e.target.value)}
-                            className="form-input h-8 py-1 px-2 text-[11px] rounded-xl"
+                            className="form-input h-7.5 py-0.5 px-2 text-[10px] rounded-lg"
                         >
                             <option value="">Select Section</option>
                             {sortedSections.map((s) => (
@@ -2242,16 +2270,16 @@ export function EClassRecord() {
                             ))}
                         </select>
                     </div>
-                    <div className="w-full lg:flex-1 lg:min-w-35">
-                        <div className="flex justify-between items-center mb-1">
-                            <label className="block text-[11px] font-semibold text-deped-blue whitespace-nowrap">
+                    <div className="w-full sm:w-40 lg:flex-1 lg:max-w-44 lg:min-w-28 shrink-0">
+                        <div className="flex justify-between items-center mb-0.5">
+                            <label className="block text-[9.5px] font-bold text-deped-blue whitespace-nowrap truncate" title={`Subject ${sectionGradeLevel ? `(${sectionGradeLevel})` : ''}`}>
                                 Subject {sectionGradeLevel && `(${sectionGradeLevel})`}
                             </label>
                         </div>
                         <select
                             value={selectedSubject}
                             onChange={(e) => onSubjectChange(e.target.value)}
-                            className="form-input h-8 py-1 px-2 text-[11px] rounded-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
+                            className="form-input h-7.5 py-0.5 px-2 text-[10px] rounded-lg disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
                             disabled={isGrade1Section || !selectedSection}
                         >
                             <option value="">
@@ -2284,12 +2312,12 @@ export function EClassRecord() {
 
                     {/* Sub-Subject Dropdown for MAPEH components */}
                     {isMapehSelected && (typeof quarter !== 'string' || !quarter.startsWith('summary')) && mapehComponents.length > 0 && (
-                        <div className="w-full lg:w-35 shrink-0">
-                            <label className="block text-[11px] font-semibold mb-1 text-deped-blue whitespace-nowrap">MAPEH Component</label>
+                        <div className="w-full sm:w-30 lg:w-30 shrink-0">
+                            <label className="block text-[9.5px] font-bold mb-0.5 text-deped-blue whitespace-nowrap">MAPEH Component</label>
                             <select
                                 value={selectedMapehComponentId}
                                 onChange={(e) => setSelectedMapehComponentId(e.target.value)}
-                                className="form-input border-amber-400 bg-amber-50 h-8 py-1 px-2 text-[11px] rounded-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
+                                className="form-input border-amber-400 bg-amber-50 h-7.5 py-0.5 px-1.5 text-[10px] rounded-lg disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
                                 disabled={isGrade1Section}
                             >
                                 {mapehComponents.map((c) => (
@@ -2299,8 +2327,8 @@ export function EClassRecord() {
                         </div>
                     )}
 
-                    <div className="w-full lg:w-25 shrink-0">
-                        <label className="block text-[11px] font-semibold mb-1 text-deped-blue whitespace-nowrap">Term</label>
+                    <div className="w-full sm:w-20 lg:w-20 shrink-0">
+                        <label className="block text-[9.5px] font-bold mb-0.5 text-deped-blue whitespace-nowrap">Term</label>
                         <select 
                             value={quarter} 
                             disabled={isGrade1Section}
@@ -2312,7 +2340,7 @@ export function EClassRecord() {
                                     setQuarter(Number(val) as any);
                                 }
                             }} 
-                            className="form-input h-8 py-1 px-2 text-[11px] rounded-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
+                            className="form-input h-7.5 py-0.5 px-1.5 text-[10px] rounded-lg disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
                         >
                             <option value={1}>Term 1</option>
                             <option value={2}>Term 2</option>
@@ -2329,82 +2357,84 @@ export function EClassRecord() {
                             )}
                         </select>
                     </div>
-                    <div className="w-full lg:w-25 shrink-0">
-                        <label className="text-[11px] font-semibold mb-1 text-deped-blue flex items-center gap-1 whitespace-nowrap">
-                            <FileText className="w-3.5 h-3.5" /> Paper Size
+                    <div className="w-full sm:w-20 lg:w-20 shrink-0">
+                        <label className="text-[9.5px] font-bold mb-0.5 text-deped-blue flex items-center gap-1 whitespace-nowrap">
+                            <FileText className="w-3 h-3" /> Paper Size
                         </label>
                         <select
                             value={paperSize}
                             disabled={isGrade1Section}
                             onChange={(e) => setPaperSize(e.target.value as PaperSize)}
-                            className="form-input h-8 py-1 px-2 text-[11px] rounded-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
+                            className="form-input h-7.5 py-0.5 px-1.5 text-[10px] rounded-lg disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
                         >
                             {Object.entries(PAPER_SIZES).map(([key, { label }]) => (
                                 <option key={key} value={key}>{label}</option>
                             ))}
                         </select>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                        <div className={`flex items-center gap-1.5 h-8 px-1 rounded-xl bg-slate-100 border border-slate-200 ${isGrade1Section ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                    <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
+                        <div className={`flex items-center gap-1 h-7.5 px-1 rounded-lg bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 ${isGrade1Section ? 'opacity-40 cursor-not-allowed' : ''}`}>
                             <button
                                 onClick={() => setZoom(prev => Math.max(0.5, prev - 0.1))}
                                 disabled={isGrade1Section}
-                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all disabled:pointer-events-none"
+                                className="w-5 h-5 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white dark:hover:bg-white/20 rounded transition-all disabled:pointer-events-none"
                                 title="Zoom Out"
                             >
-                                <Minus className="w-3 h-3" />
+                                <Minus className="w-2.5 h-2.5" />
                             </button>
-                            <span className="text-[10px] font-black text-slate-900 w-8 text-center tabular-nums">
+                            <span className="text-[9px] font-black text-slate-900 dark:text-white w-7 text-center tabular-nums">
                                 {Math.round(zoom * 100)}%
                             </span>
                             <button
                                 onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
                                 disabled={isGrade1Section}
-                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all disabled:pointer-events-none"
+                                className="w-5 h-5 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white dark:hover:bg-white/20 rounded transition-all disabled:pointer-events-none"
                                 title="Zoom In"
                             >
-                                <Plus className="w-3 h-3" />
+                                <Plus className="w-2.5 h-2.5" />
                             </button>
                         </div>
                         {selectedSubject && selectedSubject !== 'virtual_mapeh' && (
                             <button 
                                 onClick={() => setIsEnrollmentModalOpen(true)}
                                 disabled={isGrade1Section}
-                                className="h-8 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-widest rounded-xl border border-slate-200 hover:scale-[1.02] transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale disabled:scale-100"
+                                className="h-7.5 px-2 bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 text-[8.5px] font-black uppercase tracking-wider rounded-lg border border-slate-200 dark:border-white/10 hover:scale-[1.02] transition-all flex items-center gap-1 whitespace-nowrap cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale disabled:scale-100"
                                 title="Manage Enrolled Students"
                             >
-                                <Users className="w-3.5 h-3.5" /> Enrolled Learners
+                                <Users className="w-3 h-3" />
+                                <span>Learners</span>
                             </button>
                         )}
                         <button 
                             onClick={handlePrint} 
                             disabled={isGrade1Section}
-                            className="btn-primary flex items-center justify-center gap-1.5 h-8 px-3 text-[10px] rounded-xl whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
+                            className="btn-primary flex items-center justify-center gap-1 h-7.5 px-2 text-[8.5px] font-black uppercase tracking-wider rounded-lg whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale cursor-pointer"
                         >
-                            <Printer className="w-3.5 h-3.5" /> Print Record
+                            <Printer className="w-3 h-3" />
+                            <span>Print</span>
                         </button>
                         <button 
                             onClick={handleDownload}
                             disabled={isGrade1Section || isDownloading || !selectedSubject || sectionStudents.length === 0}
-                            className="h-8 px-3 bg-sky-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-sky-500/20 hover:bg-sky-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale whitespace-nowrap cursor-pointer"
+                            className="h-7.5 px-2 bg-sky-600 text-white text-[8.5px] font-black uppercase tracking-wider rounded-lg shadow-xs hover:bg-sky-700 hover:scale-[1.02] transition-all flex items-center gap-1 group disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale whitespace-nowrap cursor-pointer"
                         >
                             {isDownloading ? (
                                 <>
-                                    <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                                    <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                                     </svg>
-                                    Downloading…
+                                    <span>Downloading…</span>
                                 </>
                             ) : (
-                                <><Download className="w-3.5 h-3.5" /> PDF</>  
+                                <><Download className="w-3 h-3" /> <span>PDF</span></>  
                             )}
                         </button>
 
                         {/* Official DepEd E-Class Record Excel Exporter (Grades 2-10 only) */}
                         {isG2ToG10Section && (
                             <div className="relative inline-block text-left shrink-0">
-                                <div className="inline-flex rounded-xl shadow-lg shadow-emerald-500/20">
+                                <div className="inline-flex rounded-lg shadow-xs">
                                     <button
                                         onClick={() => {
                                             if (selectedSubject) {
@@ -2414,20 +2444,20 @@ export function EClassRecord() {
                                             }
                                         }}
                                         disabled={isExportingExcel || sectionStudents.length === 0 || (!selectedSubject && filteredSubjects.length === 0)}
-                                        className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest rounded-l-xl transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale whitespace-nowrap cursor-pointer"
+                                        className="h-7.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[8.5px] font-black uppercase tracking-wider rounded-l-lg transition-all flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale whitespace-nowrap cursor-pointer"
                                         title={selectedSubject ? "Export Official DepEd E-Class Record (.xlsx)" : "Export All Section Subjects (.zip)"}
                                     >
                                         {isExportingExcel ? (
                                             <>
-                                                <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                                                <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
                                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                                                 </svg>
-                                                Exporting…
+                                                <span>Exporting…</span>
                                             </>
                                         ) : (
                                             <>
-                                                <FileSpreadsheet className="w-3.5 h-3.5" />
+                                                <FileSpreadsheet className="w-3 h-3" />
                                                 <span>Excel</span>
                                             </>
                                         )}
@@ -2435,10 +2465,10 @@ export function EClassRecord() {
                                     <button
                                         onClick={() => setShowExportMenu(prev => !prev)}
                                         disabled={isExportingExcel || !selectedSection || sectionStudents.length === 0}
-                                        className="h-8 px-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-r-xl border-l border-emerald-500/40 transition-all flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale cursor-pointer"
+                                        className="h-7.5 px-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-r-lg border-l border-emerald-500/40 transition-all flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale cursor-pointer"
                                         title="More Excel Export Options"
                                     >
-                                        <ChevronDown className="w-3.5 h-3.5" />
+                                        <ChevronDown className="w-3 h-3" />
                                     </button>
                                 </div>
 
@@ -2535,6 +2565,7 @@ export function EClassRecord() {
                                                 id: recordId,
                                                 student_lrn: student.lrn,
                                                 subject_id: selectedSubject,
+                                                subject_name: selectedSubjectObj.subject_name,
                                                 section_id: selectedSectionObj?.id || '',
                                                 quarter: quarter as 1|2|3,
                                                 school_year: activeSchoolYear,
@@ -2552,10 +2583,10 @@ export function EClassRecord() {
                                 }
                             }}
                             disabled={isGrade1Section || !selectedSubject || sectionStudents.length === 0 || (typeof quarter === 'string' && quarter.startsWith('summary'))}
-                            className="h-8 px-3 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed whitespace-nowrap"
+                            className="h-7.5 px-2 bg-emerald-600 text-white text-[8.5px] font-black uppercase tracking-wider rounded-lg shadow-xs hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-1 group disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed whitespace-nowrap cursor-pointer"
                             title={!selectedSubject ? "Please select a subject first to publish grades" : "Publish grades to Grade Management"}
                         >
-                            <CloudUpload className="w-3.5 h-3.5" /> Publish
+                            <CloudUpload className="w-3 h-3" /> <span>Publish</span>
                         </button>
 
                         {/* Grade Sync Inspector Button */}
@@ -2569,11 +2600,11 @@ export function EClassRecord() {
                                     }
                                 }));
                             }}
-                            className="h-8 px-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/20 font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm active:scale-95 transition-all whitespace-nowrap cursor-pointer shrink-0"
+                            className="h-7.5 px-2 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/20 font-black text-[8.5px] uppercase tracking-wider flex items-center gap-1 shadow-xs active:scale-95 transition-all whitespace-nowrap cursor-pointer shrink-0"
                             title="Open Grade Sync Inspector & Live Diagnostics"
                         >
-                            <Bug className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                            <span className="hidden xl:inline">Inspect Sync</span>
+                            <Bug className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                            <span>Inspect</span>
                         </button>
 
                         {/* Emergency Database Rescue Excel Button */}
@@ -2592,11 +2623,11 @@ export function EClassRecord() {
                                     showNotification('Failed to export database rescue file.', 'error');
                                 }
                             }}
-                            className="h-8 px-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm active:scale-95 transition-all whitespace-nowrap cursor-pointer shrink-0"
+                            className="h-7.5 px-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 font-black text-[8.5px] uppercase tracking-wider flex items-center gap-1 shadow-xs active:scale-95 transition-all whitespace-nowrap cursor-pointer shrink-0"
                             title="Download Complete Database to Excel (.xlsx) - Bypasses all filters & includes all DepEd records"
                         >
-                            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                            <span className="hidden xl:inline">Excel Rescue</span>
+                            <FileSpreadsheet className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                            <span className="hidden xl:inline">Rescue</span>
                         </button>
                     </div>
                 </div>
@@ -2663,6 +2694,78 @@ export function EClassRecord() {
                                             <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
                                             <span>OPEN GRADE 1 PACE FORM MODULE</span>
                                             <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : isAdvisoryWithoutTeachingLoad ? (
+                        <div className="w-full h-full min-h-100 flex items-center justify-center p-4 md:p-8">
+                            <div className="max-w-3xl w-full bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-[2.5rem] border border-indigo-100/80 dark:border-slate-800 shadow-[0_20px_60px_rgba(79,70,229,0.08)] p-6 md:p-8 text-center relative overflow-hidden animate-fade-in flex flex-col md:flex-row items-center gap-6 md:gap-8">
+                                {/* Ambient Soft Gradient Orbs */}
+                                <div className="absolute -top-28 -left-28 w-56 h-56 bg-indigo-400/15 rounded-full blur-3xl pointer-events-none" />
+                                <div className="absolute -bottom-28 -right-28 w-56 h-56 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
+
+                                {/* Left/Top Column: Floating 3D Icon Stack */}
+                                <div className="shrink-0 flex justify-center mx-auto md:mx-0">
+                                    <div className="w-28 h-28 md:w-36 md:h-36 bg-white dark:bg-slate-800 rounded-3xl shadow-[0_15px_35px_rgba(79,70,229,0.08)] dark:shadow-[0_15px_35px_rgba(0,0,0,0.3)] flex items-center justify-center relative border border-slate-100 dark:border-slate-700/60 transition-transform duration-500 hover:scale-105">
+                                        <Users className="w-14 h-14 md:w-18 md:h-18 text-indigo-400 dark:text-indigo-400 stroke-[1.5]" />
+                                        
+                                        {/* Overlapping Badge */}
+                                        <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-linear-to-br from-indigo-600 to-blue-600 text-white font-black text-xs md:text-sm tracking-wider flex items-center justify-center shadow-lg shadow-indigo-600/30 absolute -bottom-3 -right-3 border-2 border-white dark:border-slate-900">
+                                            ADV
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Right Column: Information & Action Buttons */}
+                                <div className="flex-1 space-y-3.5 text-center md:text-left flex flex-col items-center md:items-start justify-center">
+                                    {/* Status Pill Header */}
+                                    <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200/80 dark:border-indigo-800/80 text-indigo-700 dark:text-indigo-300 text-[10.5px] font-black uppercase tracking-widest shadow-xs">
+                                        <Shield className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                                        <span>CLASS ADVISER WORKSPACE</span>
+                                    </div>
+
+                                    {/* Title & Section Details */}
+                                    <div className="space-y-1 w-full">
+                                        <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white leading-tight">
+                                            {sectionGradeLevel} - {selectedSection}
+                                        </h2>
+                                        <p className="text-xs md:text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                                            You are viewing this class as <span className="font-bold text-indigo-600 dark:text-indigo-400">Class Adviser</span>. There is currently no personal teaching load assigned to you for this section in E-Class Record.
+                                        </p>
+                                    </div>
+
+                                    {/* Workflow Guidance Card */}
+                                    <div className="p-3.5 bg-white dark:bg-slate-800/70 rounded-2xl border border-indigo-100/60 dark:border-slate-700/50 text-[11px] text-slate-600 dark:text-slate-300 space-y-1.5 text-left w-full shadow-xs">
+                                        <div className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                            <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-500" />
+                                            <span>How Grade Management Works</span>
+                                        </div>
+                                        <p className="leading-relaxed text-[10.5px]">
+                                            Subject teachers record grades in their respective E-Class Records and submit them to your master sheet. In <strong>Grade Management</strong>, you can review consolidated quarterly grades, monitor ranking, compute general averages, and generate official SF9 (Report Cards) & SF10.
+                                        </p>
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="flex flex-wrap items-center gap-3 pt-1 w-full justify-center md:justify-start">
+                                        <button
+                                            onClick={() => {
+                                                if (selectedSection) setSelectedSection(selectedSection);
+                                                setCurrentView('consolidated-grades');
+                                            }}
+                                            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-linear-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 active:scale-95 text-white text-[11px] font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-600/30 hover:shadow-indigo-600/40 cursor-pointer"
+                                        >
+                                            <span>GO TO GRADE MANAGEMENT</span>
+                                            <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                                        </button>
+
+                                        <button
+                                            onClick={() => setCurrentView('sections')}
+                                            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/60 active:scale-95 text-slate-700 dark:text-slate-200 text-[11px] font-bold uppercase tracking-wider transition-all shadow-xs cursor-pointer"
+                                        >
+                                            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
+                                            <span>CONFIGURE TEACHING LOAD</span>
                                         </button>
                                     </div>
                                 </div>
@@ -2949,6 +3052,15 @@ export function EClassRecord() {
                                 </div>
                             </div>
 
+                            {isTermExamHpsMissing && (
+                                <div className="print:hidden mb-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/50 rounded-lg flex items-center gap-2.5 text-[11px] text-amber-800 dark:text-amber-200">
+                                    <span className="text-base">⚠️</span>
+                                    <div>
+                                        <strong className="font-bold">Term Exam HPS Missing:</strong> Summative Test 1 or 2 has a Highest Possible Score, but the Term Exam (TE) HPS is blank. In official DepEd E-Class Records, Term Exam accounts for 40% of the exam weight (12% of final grade). Please provide the HPS for the Term Exam to ensure accurate transmuted final grades.
+                                    </div>
+                                </div>
+                            )}
+
                             <table className="w-full table-fixed border-collapse border-2 border-black text-[10px] text-center">
                                 {isGMRCSubject ? (
                                     <thead>
@@ -3209,7 +3321,7 @@ export function EClassRecord() {
                                     {section.students.map((student, idx) => {
                                         const record = classRecords.find(r =>
                                             r.student_lrn === student.lrn &&
-                                            (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id, r.subject_name))) &&
+                                            (r.subject_id === effectiveSubjectId || isSameSubject(r.subject_id, r.subject_name, effectiveSubjectId, subjectName)) &&
                                             Number(r.quarter) === quarter
                                         );
                                         return (

@@ -898,8 +898,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSections: (sections) => set({ sections }),
   addSection: async (section) => {
     try {
-      set((state) => ({ sections: [...state.sections, section] }));
-      await db.putRecord('sections', section);
+      let sectionToSave = section;
+      // If advisory and taught_subjects is empty or missing, auto-populate from existing DB subjects
+      if (section.is_advisory && (!section.taught_subjects || section.taught_subjects.length === 0)) {
+        const gradeSubjects = get().subjects
+          .filter(s => s.grade_level === section.section_grade_level && !s.is_teaching_load && (!s.section_id || s.section_id === section.id))
+          .map(s => s.subject_name);
+        if (gradeSubjects.length > 0) {
+          sectionToSave = { ...section, taught_subjects: gradeSubjects };
+        }
+      }
+      set((state) => ({ sections: [...state.sections, sectionToSave] }));
+      await db.putRecord('sections', sectionToSave);
       get().showNotification('Section added', 'success');
     } catch (error) {
       console.error('Error adding section:', error);
@@ -1006,6 +1016,35 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       set((state) => ({ subjects: [...state.subjects, subject] }));
       await db.putRecord('subjects', subject);
+
+      // Auto-sync: append to taught_subjects of matching advisory sections
+      // Only for grade-level subjects (not section-specific ones already handled by the wizard)
+      const currentSections = get().sections;
+      const sectionsToUpdate = currentSections.filter(sec =>
+        sec.is_advisory &&
+        sec.section_grade_level === subject.grade_level &&
+        !(sec.taught_subjects || []).some(t =>
+          normalizeSubjectName(t) === normalizeSubjectName(subject.subject_name)
+        )
+      );
+      if (sectionsToUpdate.length > 0) {
+        const updateIds = new Set(sectionsToUpdate.map(s => s.id));
+        const updatedSections = currentSections.map(sec => {
+          if (!updateIds.has(sec.id)) return sec;
+          return {
+            ...sec,
+            taught_subjects: [...(sec.taught_subjects || []), subject.subject_name]
+          };
+        });
+        set({ sections: updatedSections });
+        for (const sec of sectionsToUpdate) {
+          await db.putRecord('sections', {
+            ...sec,
+            taught_subjects: [...(sec.taught_subjects || []), subject.subject_name]
+          });
+        }
+      }
+
       get().showNotification('Subject added', 'success');
     } catch (error) {
       console.error('Error adding subject:', error);
@@ -1044,6 +1083,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           ...sec,
           taught_subjects: sec.taught_subjects?.map(name => 
             normalizeSubjectName(name) === normalizeSubjectName(oldName) ? newName : name
+          ) || [],
+          teaching_subjects: sec.teaching_subjects?.map(name =>
+            normalizeSubjectName(name) === normalizeSubjectName(oldName) ? newName : name
           ) || []
         }));
       }
@@ -1064,7 +1106,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (nameChanged) {
         for (const sec of newSections) {
           const prevSec = previousSections.find(ps => ps.id === sec.id);
-          if (JSON.stringify(prevSec?.taught_subjects) !== JSON.stringify(sec.taught_subjects)) {
+          if (JSON.stringify(prevSec?.taught_subjects) !== JSON.stringify(sec.taught_subjects) ||
+              JSON.stringify(prevSec?.teaching_subjects) !== JSON.stringify(sec.teaching_subjects)) {
             await db.putRecord('sections', sec);
           }
         }
@@ -1095,6 +1138,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           ...sec,
           taught_subjects: sec.taught_subjects?.filter(name => 
             normalizeSubjectName(name) !== normalizeSubjectName(subjectToDelete.subject_name)
+          ) || [],
+          teaching_subjects: sec.teaching_subjects?.filter(name =>
+            normalizeSubjectName(name) !== normalizeSubjectName(subjectToDelete.subject_name)
           ) || []
         };
       });
@@ -1117,7 +1163,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (subjectToDelete) {
         for (const sec of newSections) {
           const prevSec = previousSections.find(ps => ps.id === sec.id);
-          if (JSON.stringify(prevSec?.taught_subjects) !== JSON.stringify(sec.taught_subjects)) {
+          if (JSON.stringify(prevSec?.taught_subjects) !== JSON.stringify(sec.taught_subjects) ||
+              JSON.stringify(prevSec?.teaching_subjects) !== JSON.stringify(sec.teaching_subjects)) {
             await db.putRecord('sections', sec);
           }
         }
@@ -1148,6 +1195,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           ...sec,
           taught_subjects: sec.taught_subjects?.filter(name => 
             !deletedNames.has(normalizeSubjectName(name))
+          ) || [],
+          teaching_subjects: sec.teaching_subjects?.filter(name =>
+            !deletedNames.has(normalizeSubjectName(name))
           ) || []
         };
       });
@@ -1171,7 +1221,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       
       for (const sec of newSections) {
         const prevSec = previousSections.find(ps => ps.id === sec.id);
-        if (JSON.stringify(prevSec?.taught_subjects) !== JSON.stringify(sec.taught_subjects)) {
+        if (JSON.stringify(prevSec?.taught_subjects) !== JSON.stringify(sec.taught_subjects) ||
+            JSON.stringify(prevSec?.teaching_subjects) !== JSON.stringify(sec.teaching_subjects)) {
           await db.putRecord('sections', sec);
         }
       }
@@ -1457,7 +1508,27 @@ export async function initializeAppStore() {
       db.getAllRecords<SchoolProfile>('schoolProfile'),
     ]);
 
-    const subjects: Subject[] = rawSubjects.map(s => ({
+    // Purge any rogue standalone 'Specialization' subject from the database
+    const specializationSubjects = rawSubjects.filter(s => {
+      const norm = (s.subject_name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      return norm === 'specialization';
+    });
+    if (specializationSubjects.length > 0) {
+      for (const s of specializationSubjects) {
+        try {
+          await db.deleteRecord('subjects', s.id);
+        } catch (e) {
+          console.error('Failed to delete rogue Specialization subject record:', e);
+        }
+      }
+    }
+
+    const filteredRawSubjects = rawSubjects.filter(s => {
+      const norm = (s.subject_name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      return norm !== 'specialization';
+    });
+
+    const subjects: Subject[] = filteredRawSubjects.map(s => ({
       ...s,
       term: s.term !== undefined && s.term !== null ? s.term : getDefaultTermForSubject(s.subject_name, s.grade_level)
     }));
@@ -1564,31 +1635,55 @@ export async function initializeAppStore() {
       ? persistedSelectedSection
       : (advisorySection ? advisorySection.section_name : null);
     
-    // Transparent Migration: Ensure Grade 12 Old K-12 PE subjects and sections use the official title
+    // Transparent Migration: 
+    // 1. Ensure Grade 12 Old K-12 PE subjects and sections use the official title
+    // 2. Remove non-curriculum 'Specialization' subject from section rosters (taught_subjects & teaching_subjects)
     let sectionsChanged = false;
     let finalSections = sections.map(sec => {
+      let secChanged = false;
+
+      const cleanedTaught = (sec.taught_subjects || []).filter(s => {
+        const norm = (s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (norm === 'specialization') {
+          secChanged = true;
+          return false;
+        }
+        return true;
+      });
+      const cleanedTeaching = (sec.teaching_subjects || []).filter(s => {
+        const norm = (s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (norm === 'specialization') {
+          secChanged = true;
+          return false;
+        }
+        return true;
+      });
+
       const gNum = parseInt((sec.section_grade_level || '').replace(/\D/g, '')) || 0;
       const isSSHS = (sec.track || '').toLowerCase().includes('sshs') || (sec.track || '').toLowerCase().includes('cluster');
+      let newTaught = cleanedTaught;
+      let newTeaching = cleanedTeaching;
+
       if (gNum === 12 && !isSSHS) {
-        let secChanged = false;
-        const newTaught = (sec.taught_subjects || []).map(s => {
+        newTaught = cleanedTaught.map(s => {
           const norm = normalizeGrade12PESubjectName(s, false);
           if (norm !== s) secChanged = true;
           return norm;
         });
-        const newTeaching = (sec.teaching_subjects || []).map(s => {
+        newTeaching = cleanedTeaching.map(s => {
           const norm = normalizeGrade12PESubjectName(s, false);
           if (norm !== s) secChanged = true;
           return norm;
         });
-        if (secChanged) {
-          sectionsChanged = true;
-          return {
-            ...sec,
-            taught_subjects: newTaught,
-            teaching_subjects: newTeaching
-          };
-        }
+      }
+
+      if (secChanged) {
+        sectionsChanged = true;
+        return {
+          ...sec,
+          taught_subjects: newTaught,
+          teaching_subjects: newTeaching
+        };
       }
       return sec;
     });

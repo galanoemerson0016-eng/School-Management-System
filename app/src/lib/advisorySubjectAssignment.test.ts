@@ -3,7 +3,7 @@ import { mapStudentToShsSf9Data } from '../utils/shsSf9Mapper';
 import { mapStudentToShsSf10Data } from '../utils/shsSf10Mapper';
 import { filterSubjectsForSection } from './rbac';
 import { getClustersForGrade11Track, isGrade11CoreSubject } from './curriculum';
-import type { Student, SchoolProfile, Section, Subject, User } from '../types';
+import type { Student, SchoolProfile, Section, Subject, User, ClassRecord } from '../types';
 
 describe('Advisory Subject Assignment for SF9, SF10 & Grade Management', () => {
     const mockProfile: SchoolProfile = {
@@ -403,6 +403,108 @@ describe('Advisory Subject Assignment for SF9, SF10 & Grade Management', () => {
         expect(filteredNames).toContain('Technology and Livelihood Education');
         expect(filteredNames).toContain('Music and Arts');
         expect(filteredNames).toContain('Physical Education and Health');
+    });
+
+    it('strictly returns only Science when teaching_subjects has Science for Grade 7 section', () => {
+        const mockUser: User = {
+            uid: 'user-1',
+            email: 'teacher@school.gov.ph',
+            displayName: 'Teacher Emerson',
+            role: 'teacher'
+        };
+
+        const mockG7ScienceTeachingSection: Section = {
+            id: 'sec-g7-einstein',
+            section_name: 'Grade 7 - Einstein',
+            section_grade_level: 'Grade 7',
+            is_advisory: true,
+            is_teaching_load: true,
+            adviser_name: 'Teacher Emerson',
+            teaching_subjects: ['Science']
+        };
+
+        const mockG7Subjects: Subject[] = [
+            { id: 'g7-eng', subject_name: 'English', grade_level: 'Grade 7', term: 'all' },
+            { id: 'g7-math', subject_name: 'Mathematics', grade_level: 'Grade 7', term: 'all' },
+            { id: 'g7-sci', subject_name: 'Science', grade_level: 'Grade 7', term: 'all' },
+            { id: 'g7-fil', subject_name: 'Filipino', grade_level: 'Grade 7', term: 'all' },
+            { id: 'g7-ap', subject_name: 'Araling Panlipunan', grade_level: 'Grade 7', term: 'all' },
+            { id: 'g7-ve', subject_name: 'Values Education', grade_level: 'Grade 7', term: 'all' },
+            { id: 'g7-tle', subject_name: 'Technology and Livelihood Education', grade_level: 'Grade 7', term: 'all' },
+            { id: 'g7-ma', subject_name: 'Music and Arts', grade_level: 'Grade 7', term: 'all' },
+            { id: 'g7-peh', subject_name: 'Physical Education and Health', grade_level: 'Grade 7', term: 'all' }
+        ];
+
+        const filtered = filterSubjectsForSection(mockUser, mockG7ScienceTeachingSection, mockG7Subjects);
+        const filteredNames = filtered.map(s => s.subject_name);
+        expect(filteredNames).toEqual(['Science']);
+        expect(filteredNames).not.toContain('Music and Arts');
+        expect(filteredNames).not.toContain('Physical Education and Health');
+        expect(filteredNames).not.toContain('MAPEH');
+    });
+
+    it('populates SHS SF9 grades from classRecords when gradingSheetRecords has not yet been synced', () => {
+        const mockClassRecords: ClassRecord[] = [
+            {
+                id: 'cr-1',
+                student_lrn: mockStudent.lrn,
+                subject_id: 'sub-math',
+                subject_name: 'General Mathematics',
+                section_id: 'sec-einstein',
+                quarter: 1,
+                school_year: '2026-2027',
+                final_grade: 88,
+                written_works: [],
+                performance_tasks: [],
+                quarterly_exam: 0
+            }
+        ];
+
+        const sf9 = mapStudentToShsSf9Data({
+            student: mockStudent,
+            profile: mockProfile,
+            schoolYear: '2026-2027',
+            sectionObj: mockAdvisorySection,
+            subjects: mockAllGradeSubjects,
+            gradingSheetRecords: [],
+            classRecords: mockClassRecords
+        });
+
+        const mathGrade = sf9.subjectGrades.find(s => s.subjectName === 'General Mathematics');
+        expect(mathGrade).toBeDefined();
+        expect(mathGrade?.grades.t1).toBe(88);
+    });
+
+    it('populates SHS SF10 grades from classRecords when gradingSheetRecords has not yet been synced', () => {
+        const mockClassRecords: ClassRecord[] = [
+            {
+                id: 'cr-1',
+                student_lrn: mockStudent.lrn,
+                subject_id: 'sub-math',
+                subject_name: 'General Mathematics',
+                section_id: 'sec-einstein',
+                quarter: 1,
+                school_year: '2026-2027',
+                final_grade: 91,
+                written_works: [],
+                performance_tasks: [],
+                quarterly_exam: 0
+            }
+        ];
+
+        const sf10 = mapStudentToShsSf10Data({
+            student: mockStudent,
+            profile: mockProfile,
+            schoolYear: '2026-2027',
+            sections: [mockAdvisorySection],
+            subjects: mockAllGradeSubjects,
+            gradingSheetRecords: [],
+            classRecords: mockClassRecords
+        });
+
+        const mathRow = sf10.scholasticRecords[0]?.subjects.find(s => s.subjectName === 'General Mathematics');
+        expect(mathRow).toBeDefined();
+        expect(mathRow?.quarter1Grade).toBe('91');
     });
 });
 

@@ -1,22 +1,24 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAppStore, useAuthStore } from '../../stores';
 import type { Section } from '../../types';
 import { 
     STANDARD_SUBJECTS, 
-    SPECIAL_SUBJECTS, 
     SPA_MAJORS,
     getCurriculumTemplatesForSection,
+    JHS_STE_ELECTIVES,
     findElectiveInCatalog, 
     getClustersForGrade11Track, 
     type GradeLevel,
-    getCategoryForSubject
+    getCategoryForSubject,
+    isSubjectAllowedForProgram
 } from '../../lib/curriculum';
 import { normalizeGrade12PESubjectName } from '../../utils/grading-helpers';
 import { motion } from 'framer-motion';
-import { X, Save, Shield, BookOpen, AlertCircle, ChevronRight, Check, RotateCcw } from 'lucide-react';
+import { X, Save, Shield, BookOpen, AlertCircle, ChevronRight, Check, RotateCcw, RefreshCw, Search, Copy } from 'lucide-react';
 
 interface SectionFormProps {
     section: Section | null;
+    isClone?: boolean;
     onClose: () => void;
 }
 
@@ -109,10 +111,13 @@ const normalizeSubjectLabel = (value: string) =>
 
 
 
-export function SectionForm({ section, onClose }: SectionFormProps) {
+
+
+export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
     const { addSection, updateSection, subjects, schoolProfile, updateSchoolProfile, showNotification } = useAppStore();
     const { user } = useAuthStore();
     const [isLoading, setIsLoading] = useState(false);
+    const lastInitializedSectionIdRef = useRef<string | null>(null);
 
     // Initial default name logic
     const getDefaultTeacherName = () => {
@@ -165,12 +170,14 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
 
     const availableSubjects = useMemo(() => {
         const grade = formData.section_grade_level as GradeLevel;
+        if (!grade) return [];
 
         const uniqueList: { name: string; code: string }[] = [];
         const seenNames = new Set<string>();
 
-        const addToList = (name: string, code: string) => {
+        const addToList = (name: string, code: string = '') => {
             if (!name) return;
+            if (!isSubjectAllowedForProgram(name, grade, formData.program)) return;
             const key = name.trim().toLowerCase();
             if (!seenNames.has(key)) {
                 seenNames.add(key);
@@ -191,7 +198,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         // 2. Grade-level generic subjects in database
         const genericSubjects = subjects.filter(s => 
             s.grade_level === grade && 
-            !s.is_teaching_load &&
+            !s.is_teaching_load && 
             !s.section_id
         );
         genericSubjects.forEach(s => addToList(s.subject_name, s.subject_code || ''));
@@ -200,14 +207,15 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         const standard = STANDARD_SUBJECTS[grade] || [];
         standard.forEach(s => addToList(s.name, s.code || ''));
 
-        // 4. Special curriculum templates (TechPro Electives, Specializations, etc.)
-        const special = SPECIAL_SUBJECTS[grade as keyof typeof SPECIAL_SUBJECTS] || [];
-        special.forEach(s => addToList(s.name, s.code || ''));
-
-        // 5. Special Curricular Programs (STE, SPA, SPJ, SPS, SPFL, SPTVE, SSES, ALIVE)
+        // 4. Special Curricular Programs (STE, SPA, SPJ, SPS, SPFL, SPTVE, SSES, ALIVE)
         if (formData.program && formData.program !== 'Regular') {
             const programTemplates = getCurriculumTemplatesForSection(grade, formData.program, formData.spa_majors);
             programTemplates.forEach(s => addToList(s.name, s.code || ''));
+
+            // Cross-grade elective support: Allow STE/SPSTEM sections in JHS to offer any JHS STE Elective
+            if (formData.program === 'STE' || formData.program === 'SPSTEM') {
+                JHS_STE_ELECTIVES.forEach(s => addToList(s.name, s.code || ''));
+            }
         }
 
         // Sort them according to standard DepEd order if possible, otherwise alphabetical
@@ -216,31 +224,60 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
             'Mathematics', 'Science', 'Araling Panlipunan (AP)', 
             'GMRC (Good Manners and Right Conduct)', 'Values Education',
             'Makabansa', 'E.P.P.', 'Technology and Livelihood Education (TLE)', 
-            'Music and Arts', 'Physical Education and Health', 'Specialization'
+            'Music and Arts', 'Physical Education and Health'
         ];
 
-        return uniqueList
-            .filter(a => normalizeSubjectLabel(a.name) !== 'mapeh')
-            .sort((a, b) => {
-                const indexA = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(a.name));
-                const indexB = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(a.name));
+        return uniqueList.sort((a, b) => {
+            const indexA = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(a.name));
+            const indexB = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(b.name));
 
-                if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-                if (indexA !== -1) return -1;
-                if (indexB !== -1) return 1;
-                return a.name.localeCompare(b.name);
-            });
+            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+            if (indexA !== -1) return -1;
+            if (indexB !== -1) return 1;
+            return a.name.localeCompare(b.name);
+        });
     }, [formData.section_grade_level, formData.id, formData.program, formData.spa_majors, subjects]);
 
+    // Standard DepEd curriculum names for this section's grade level and program
     const standardCurriculumSubjectNames = useMemo(() => {
-        return availableSubjects.map(s => s.name);
-    }, [availableSubjects]);
+        const grade = (formData.section_grade_level || 'Grade 7') as GradeLevel;
+        const templates = getCurriculumTemplatesForSection(grade, formData.program, formData.spa_majors);
+        return templates
+            .map(t => t.name)
+            .filter(name => isSubjectAllowedForProgram(name, grade, formData.program));
+    }, [formData.section_grade_level, formData.program, formData.spa_majors]);
+
+    // Subjects in database configured for this grade level (customized on Subjects Page)
+    const existingDbSubjects = useMemo(() => {
+        const grade = formData.section_grade_level as GradeLevel;
+        return subjects.filter(s => 
+            s.grade_level === grade && 
+            !s.is_teaching_load && 
+            isSubjectAllowedForProgram(s.subject_name, grade, formData.program) &&
+            (!s.section_id || (formData.id && s.section_id === formData.id))
+        ).map(s => s.subject_name);
+    }, [subjects, formData.section_grade_level, formData.id, formData.program]);
+
+    // Default advisory curriculum: Prioritize existing DB subjects, fall back to standard template
+    const defaultCurriculumSubjectNames = useMemo(() => {
+        return existingDbSubjects.length > 0 ? existingDbSubjects : standardCurriculumSubjectNames;
+    }, [existingDbSubjects, standardCurriculumSubjectNames]);
+
+    const activeTaughtList = useMemo(() => {
+        const grade = (formData.section_grade_level || 'Grade 7') as GradeLevel;
+        const program = formData.program || 'Regular';
+        const raw = (formData.taught_subjects && formData.taught_subjects.length > 0)
+            ? formData.taught_subjects
+            : defaultCurriculumSubjectNames;
+        return raw.filter(name => isSubjectAllowedForProgram(name, grade, program));
+    }, [formData.taught_subjects, defaultCurriculumSubjectNames, formData.section_grade_level, formData.program]);
 
     const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
+    const [subjectSearchFilter, setSubjectSearchFilter] = useState('');
 
     const toggleCategory = (categoryName: string) => {
         setCollapsedCategories(prev => {
-            const currentVal = prev[categoryName] ?? true; // Default to collapsed
+            const currentVal = prev[categoryName] ?? false;
             return {
                 ...prev,
                 [categoryName]: !currentVal
@@ -262,18 +299,26 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         setFormData({ ...formData, teaching_subjects: next });
     };
 
-    const groupedSubjects = useMemo(() => {
-        const grade = formData.section_grade_level || 'Grade 11';
-        const isSHS = grade.includes('11') || grade.includes('12');
+    const selectAllInAdvisoryCategory = (categorySubjects: { name: string }[]) => {
+        const current = activeTaughtList;
+        const toAdd = categorySubjects.map(s => s.name);
+        const next = Array.from(new Set([...current, ...toAdd]));
+        setFormData({ ...formData, taught_subjects: next });
+    };
 
-        if (!isSHS) {
-            return {
-                '': availableSubjects
-            };
-        }
-        
-        let catOrder: string[] = [];
+    const clearAllInAdvisoryCategory = (categorySubjects: { name: string }[]) => {
+        const current = activeTaughtList;
+        const toRemove = new Set(categorySubjects.map(s => s.name));
+        const next = current.filter(name => !toRemove.has(name));
+        setFormData({ ...formData, taught_subjects: next });
+    };
+
+    const groupedSubjects = useMemo(() => {
+        const grade = formData.section_grade_level || 'Grade 7';
         const gradeNum = parseInt(grade.replace(/\D/g, '')) || 0;
+
+        // Use category grouping for all grade levels
+        let catOrder: string[] = [];
         
         if (gradeNum === 11) {
             catOrder = [
@@ -282,11 +327,39 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 'Academic Elective (Field Experience/ Exposure, and Sports and Arts)',
                 'TechPro Elective (All Other Elective)'
             ];
-        } else {
+        } else if (gradeNum === 12) {
             catOrder = [
                 'Core Subjects',
                 'Applied Subjects',
                 'Specialized Subjects'
+            ];
+        } else if (gradeNum >= 7) {
+            catOrder = [
+                'Core Academic Subjects',
+                'Values / Character Education',
+                'Technology & Livelihood (TLE)',
+                'MAPEH (Music, Arts, PE, Health)',
+                'Science, Technology & Engineering (STE / SPSTEM)',
+                'Special Program in the Arts (SPA)',
+                'Special Program in Journalism (SPJ)',
+                'Special Program in Sports (SPS)',
+                'Special Program in Foreign Language (SPFL)',
+                'Technical-Vocational Education (SPTVE)',
+                'Madrasah / ALIVE Program',
+                'ICT & Computer Education',
+                'Other Subjects'
+            ];
+        } else {
+            catOrder = [
+                'Languages & Literacy',
+                'Core Academic Subjects',
+                'Values / Character Education',
+                'Livelihood & Makabansa',
+                'MAPEH (Music, Arts, PE, Health)',
+                'Special Science Elementary School (SSES)',
+                'Madrasah / ALIVE Program',
+                'ICT & Computer Education',
+                'Other Subjects'
             ];
         }
 
@@ -296,7 +369,13 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
             groups[cat] = [];
         });
 
-        availableSubjects.forEach((subject) => {
+        // Apply search filter
+        const searchLower = subjectSearchFilter.toLowerCase().trim();
+        const filteredSubjects = searchLower 
+            ? availableSubjects.filter(s => s.name.toLowerCase().includes(searchLower))
+            : availableSubjects;
+
+        filteredSubjects.forEach((subject) => {
             const cat = getCategoryForSubject(subject.name, grade);
             if (!groups[cat]) groups[cat] = [];
             groups[cat].push(subject);
@@ -310,7 +389,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         });
 
         return filtered;
-    }, [availableSubjects, formData.section_grade_level]);
+    }, [availableSubjects, formData.section_grade_level, subjectSearchFilter]);
 
     const isElementary = useMemo(() => {
         const grade = formData.section_grade_level || '';
@@ -330,11 +409,24 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         } else if (!isNewElem && newProgram === 'SSES') {
             newProgram = 'Regular';
         }
+
+        let newTaught = formData.taught_subjects;
+        if (!section && formData.is_advisory) {
+            const newGradeDbSubjects = subjects.filter(s => 
+                s.grade_level === newGrade && 
+                !s.is_teaching_load && 
+                !s.section_id
+            ).map(s => s.subject_name);
+            const standardSubjs = (STANDARD_SUBJECTS[newGrade as GradeLevel] || []).map(s => s.name);
+            newTaught = newGradeDbSubjects.length > 0 ? newGradeDbSubjects : standardSubjs;
+        }
+
         setFormData({
             ...formData,
             section_grade_level: newGrade,
             program: newProgram,
-            spa_majors: newProgram === 'SPA' ? (formData.spa_majors || []) : []
+            spa_majors: newProgram === 'SPA' ? (formData.spa_majors || []) : [],
+            taught_subjects: newTaught
         });
     };
 
@@ -344,9 +436,21 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
             is_advisory: checked,
             adviser_name: checked ? (schoolProfile?.adviser_name || user?.displayName || '') : '',
             taught_subjects: checked && (!prev.taught_subjects || prev.taught_subjects.length <= 1)
-                ? standardCurriculumSubjectNames
+                ? defaultCurriculumSubjectNames
                 : (prev.taught_subjects || [])
         }));
+    };
+
+    const syncTaughtSubjectsWithDb = () => {
+        if (existingDbSubjects.length > 0) {
+            setFormData(prev => ({
+                ...prev,
+                taught_subjects: [...existingDbSubjects]
+            }));
+            showNotification(`Synced ${existingDbSubjects.length} subjects from Subjects Page.`, 'success');
+        } else {
+            showNotification('No subjects found in Subjects Page for this grade level.', 'info');
+        }
     };
 
     const resetTaughtSubjectsToStandard = () => {
@@ -358,9 +462,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
     };
 
     const toggleTaughtSubject = (subjectName: string) => {
-        const current = formData.taught_subjects && formData.taught_subjects.length > 0
-            ? formData.taught_subjects
-            : [...standardCurriculumSubjectNames];
+        const current = activeTaughtList;
         if (current.includes(subjectName)) {
             setFormData({ ...formData, taught_subjects: current.filter(s => s !== subjectName) });
         } else {
@@ -387,6 +489,13 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
 
     useEffect(() => {
         if (section) {
+            const initKey = isClone ? `clone_${section.id}` : section.id;
+            // Prevent re-initializing if this section was already initialized
+            if (lastInitializedSectionIdRef.current === initKey) {
+                return;
+            }
+            lastInitializedSectionIdRef.current = initKey;
+
             const profileName = (schoolProfile?.adviser_name || '').trim();
             const isGenericProfile = profileName.toLowerCase() === 'admin' || profileName === '';
             const isAdvisory = section.is_advisory ?? !section.is_teaching_load;
@@ -395,15 +504,25 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 || (isTeaching && !isAdvisory ? (section.taught_subjects || (section.subject_name ? [section.subject_name] : [])) : []) 
                 || [];
             
-            // If it's an advisory section, ensure taught_subjects has the full curriculum list rather than an empty or single-item corrupted list
+            const grade = (section.section_grade_level || 'Grade 7') as GradeLevel;
+            const program = section.program || 'Regular';
+
+            // Sanitize existing taught subjects: strip subjects not allowed for this section's program
             let existingTaught = section.taught_subjects || (section.subject_name ? [section.subject_name] : []);
-            if (isAdvisory && existingTaught.length <= 1 && standardCurriculumSubjectNames.length > 0) {
-                existingTaught = [...standardCurriculumSubjectNames];
+            existingTaught = existingTaught.filter(name => isSubjectAllowedForProgram(name, grade, program));
+
+            if (isAdvisory && existingTaught.length <= 1) {
+                const templates = getCurriculumTemplatesForSection(grade, program, section.spa_majors);
+                existingTaught = templates
+                    .map(t => t.name)
+                    .filter(name => isSubjectAllowedForProgram(name, grade, program));
             }
 
-            // Legacy Migration: If is_advisory is undefined, infer it
+            // Set form data ONCE on section mount/change
             setFormData({
                 ...section,
+                id: isClone ? '' : section.id,
+                section_name: isClone ? `${section.section_name} (Copy)` : section.section_name,
                 // Force update adviser name if profile name is set and it is an advisory class. Otherwise keep it empty/as is.
                 adviser_name: isAdvisory 
                     ? ((!isGenericProfile && profileName) ? profileName : (section.adviser_name || ''))
@@ -418,8 +537,10 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 program: section.program || 'Regular',
                 spa_majors: section.spa_majors || []
             });
+        } else {
+            lastInitializedSectionIdRef.current = null;
         }
-    }, [section, schoolProfile?.adviser_name, standardCurriculumSubjectNames]);
+    }, [section, isClone, schoolProfile?.adviser_name]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -441,13 +562,16 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         try {
             const validSubjectNames = new Set(availableSubjects.map(s => s.name));
             const validTeachingSubjects = isTeaching
-                ? (formData.teaching_subjects || []).filter(s => validSubjectNames.has(s))
+                ? (formData.teaching_subjects || []).filter(s => validSubjectNames.has(s) && normalizeSubjectLabel(s) !== 'specialization')
                 : [];
             
             const isExplicitSSHS = (formData.track || '').toLowerCase().includes('sshs') || (formData.track || '').toLowerCase().includes('cluster');
             
-            // For Advisory classes, use formData.taught_subjects if non-empty, otherwise default to full standard curriculum
+            // For Advisory classes, use formData.taught_subjects if non-empty, otherwise default to DB subjects or standard curriculum
             let finalTaughtSubjects: string[] = [];
+            const gradeLevel = (formData.section_grade_level || 'Grade 7') as GradeLevel;
+            const sectionProgram = formData.program || 'Regular';
+
             if (isAdvisory) {
                 const currentTaught = formData.taught_subjects || [];
                 if (currentTaught.length > 1) {
@@ -455,11 +579,14 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 } else if (section?.taught_subjects && section.taught_subjects.length > 1) {
                     finalTaughtSubjects = section.taught_subjects;
                 } else {
-                    finalTaughtSubjects = [...standardCurriculumSubjectNames];
+                    finalTaughtSubjects = defaultCurriculumSubjectNames;
                 }
             } else {
                 finalTaughtSubjects = validTeachingSubjects;
             }
+
+            // Sanitize final taught subjects to only include allowed subjects for this grade & program
+            finalTaughtSubjects = finalTaughtSubjects.filter(s => isSubjectAllowedForProgram(s, gradeLevel, sectionProgram));
 
             if (isG12 && !isExplicitSSHS) {
                 finalTaughtSubjects = finalTaughtSubjects.map(s => normalizeGrade12PESubjectName(s, false));
@@ -493,7 +620,10 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                     : undefined
             };
 
-            if (section) {
+            if (isClone) {
+                await addSection(sectionData);
+                showNotification('Section configuration cloned successfully.', 'success');
+            } else if (section) {
                 await updateSection(sectionData);
                 showNotification('Section updated successfully.', 'success');
             } else {
@@ -501,20 +631,22 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 showNotification('Section created successfully.', 'success');
             }
 
-            // Sync with Institute Profile if this is the Advisory Class
-            if (sectionData.is_advisory) {
-                await updateSchoolProfile({
-                    ...schoolProfile!,
-                    grade_level: sectionData.section_grade_level,
-                    section: sectionData.section_name
-                });
-            } else if (section && (section.is_advisory ?? !section.is_teaching_load)) {
-                // If it WAS an advisory class but is now NOT, clear the profile fields
-                await updateSchoolProfile({
-                    ...schoolProfile!,
-                    grade_level: '',
-                    section: ''
-                });
+            // Sync with Institute Profile if this is the Advisory Class (and not a cloned section)
+            if (!isClone) {
+                if (sectionData.is_advisory) {
+                    await updateSchoolProfile({
+                        ...schoolProfile!,
+                        grade_level: sectionData.section_grade_level,
+                        section: sectionData.section_name
+                    });
+                } else if (section && (section.is_advisory ?? !section.is_teaching_load)) {
+                    // If it WAS an advisory class but is now NOT, clear the profile fields
+                    await updateSchoolProfile({
+                        ...schoolProfile!,
+                        grade_level: '',
+                        section: ''
+                    });
+                }
             }
 
             onClose();
@@ -551,10 +683,14 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                         <X className="w-5 h-5" />
                     </button>
                     <h3 className="text-2xl font-black tracking-tight mb-1">
-                        {section ? 'Edit Section' : 'Create New Section'}
+                        {isClone ? 'Clone Section Configuration' : section ? 'Edit Section' : 'Create New Section'}
                     </h3>
                     <p className="text-blue-200/60 dark:text-blue-300/60 font-bold uppercase tracking-widest text-[9px]">
-                        {section ? `Modifying ${section.section_name}` : (formData.is_advisory ? 'Setup your official advisory class' : 'Add a section for your teaching load')}
+                        {isClone 
+                            ? `Copying configuration from ${section?.section_name || 'source section'}` 
+                            : section 
+                                ? `Modifying ${section.section_name}` 
+                                : (formData.is_advisory ? 'Setup your official advisory class' : 'Add a section for your teaching load')}
                     </p>
                 </div>
 
@@ -597,11 +733,18 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                     value={formData.program || 'Regular'}
                                     onChange={(e) => {
                                         const p = e.target.value;
+                                        const grade = (formData.section_grade_level || 'Grade 7') as GradeLevel;
+                                        const templates = getCurriculumTemplatesForSection(grade, p, p === 'SPA' ? (formData.spa_majors && formData.spa_majors.length > 0 ? formData.spa_majors : Object.keys(SPA_MAJORS)) : []);
+                                        const cleanNames = templates
+                                            .map(t => t.name)
+                                            .filter(name => isSubjectAllowedForProgram(name, grade, p));
                                         setFormData({
                                             ...formData,
                                             program: p,
+                                            taught_subjects: cleanNames,
                                             spa_majors: p === 'SPA' ? (formData.spa_majors && formData.spa_majors.length > 0 ? formData.spa_majors : Object.keys(SPA_MAJORS)) : []
                                         });
+                                        showNotification(`Curricular program changed to ${p} (${cleanNames.length} official subjects loaded).`, 'info');
                                     }}
                                 >
                                     {isElementary ? (
@@ -783,46 +926,120 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                 >
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 ml-1">
                                         <div>
-                                            <label className="block text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">
-                                                Official Section Curriculum ({((formData.taught_subjects && formData.taught_subjects.length > 0) ? formData.taught_subjects : standardCurriculumSubjectNames).length})
-                                            </label>
+                                            <div className="flex items-center gap-2">
+                                                <label className="block text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">
+                                                    Official Section Curriculum ({activeTaughtList.length})
+                                                </label>
+                                                <span className="px-2 py-0.5 rounded-md text-[8.5px] font-black bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 uppercase tracking-wider">
+                                                    {formData.program || 'Regular'}
+                                                </span>
+                                            </div>
                                             <span className="text-[9px] font-medium text-slate-400 dark:text-slate-500">
                                                 Official subjects for this section (powers SF9, SF10, Consolidated Grades, & Grade Slips)
                                             </span>
                                         </div>
-                                        <button
-                                            type="button"
-                                            onClick={resetTaughtSubjectsToStandard}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40 hover:bg-indigo-100 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer self-start sm:self-auto shadow-xs"
-                                        >
-                                            <RotateCcw className="w-3 h-3" />
-                                            Reset to Standard DepEd
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            {existingDbSubjects.length > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={syncTaughtSubjectsWithDb}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 hover:bg-emerald-100 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer self-start sm:self-auto shadow-xs"
+                                                >
+                                                    <RefreshCw className="w-3 h-3" />
+                                                    Sync with Subjects Page
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={resetTaughtSubjectsToStandard}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40 hover:bg-indigo-100 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer self-start sm:self-auto shadow-xs"
+                                            >
+                                                <RotateCcw className="w-3 h-3" />
+                                                Reset to Standard {formData.program && formData.program !== 'Regular' ? formData.program : 'DepEd'} ({standardCurriculumSubjectNames.length})
+                                            </button>
+                                        </div>
                                     </div>
 
-                                    <div className="p-4 bg-indigo-50/30 dark:bg-indigo-950/20 rounded-2xl border border-indigo-100/70 dark:border-indigo-800/30">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                                            {availableSubjects.map((subj) => {
-                                                const activeList = (formData.taught_subjects && formData.taught_subjects.length > 0) ? formData.taught_subjects : standardCurriculumSubjectNames;
-                                                const isSelected = activeList.includes(subj.name);
-                                                return (
-                                                    <div
-                                                        key={`advisory-${subj.name}`}
-                                                        onClick={() => toggleTaughtSubject(subj.name)}
-                                                        className={`group p-2.5 ps-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 min-h-11 ${isSelected ? 'bg-white dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-600 shadow-xs' : 'bg-white/40 dark:bg-white/5 border-slate-200/50 dark:border-white/10 opacity-60 hover:opacity-100'}`}
-                                                    >
-                                                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                                            <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs' : 'border-slate-300 dark:border-white/20'}`}>
-                                                                {isSelected && <Check className="w-3 h-3 stroke-3" />}
+                                    {/* Search filter */}
+                                    <div className="relative mb-3">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search subjects..."
+                                            value={subjectSearchFilter}
+                                            onChange={(e) => setSubjectSearchFilter(e.target.value)}
+                                            className="w-full pl-9 pr-3 py-2 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-[10px] font-semibold text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-400/40 focus:border-indigo-300"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        {Object.entries(groupedSubjects).map(([category, list]) => {
+                                            const isCollapsed = category ? (collapsedCategories[category] ?? false) : false;
+                                            
+                                            return (
+                                                <div key={`adv-${category}`} className="bg-indigo-50/30 dark:bg-indigo-950/20 border border-indigo-100/70 dark:border-indigo-800/30 rounded-2xl overflow-hidden shadow-xs">
+                                                    {/* Category Header */}
+                                                    {category && (
+                                                        <div className="bg-indigo-100/50 dark:bg-indigo-950/40 px-4 py-2.5 flex items-center justify-between border-b border-indigo-100/70 dark:border-indigo-800/30">
+                                                            <div 
+                                                                onClick={() => toggleCategory(category)}
+                                                                className="flex items-center gap-2 cursor-pointer select-none flex-1 min-w-0"
+                                                            >
+                                                                <ChevronRight className={`w-3.5 h-3.5 text-indigo-400 transform transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}`} />
+                                                                <span className="text-[9.5px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wider truncate">
+                                                                    {category}
+                                                                </span>
+                                                                <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-200/60 dark:bg-indigo-800/40 text-indigo-600 dark:text-indigo-300">
+                                                                    {list.length}
+                                                                </span>
                                                             </div>
-                                                            <span className={`text-[9.5px] font-black uppercase tracking-tight block truncate ${isSelected ? 'text-indigo-950 dark:text-indigo-200' : 'text-slate-500 dark:text-slate-400'}`}>
-                                                                {subj.name}
-                                                            </span>
+                                                            <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider select-none shrink-0 pl-4">
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => selectAllInAdvisoryCategory(list)}
+                                                                    className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors font-bold cursor-pointer"
+                                                                >
+                                                                    Select All
+                                                                </button>
+                                                                <span className="text-indigo-300 dark:text-indigo-700">|</span>
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => clearAllInAdvisoryCategory(list)}
+                                                                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors font-bold cursor-pointer"
+                                                                >
+                                                                    Clear All
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
+                                                    )}
+
+                                                    {/* Category Grid */}
+                                                    {!isCollapsed && (
+                                                        <div className="p-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                                            {list.map((subj) => {
+                                                                const isSelected = activeTaughtList.includes(subj.name);
+                                                                return (
+                                                                    <div
+                                                                        key={`advisory-${subj.name}`}
+                                                                        onClick={() => toggleTaughtSubject(subj.name)}
+                                                                        className={`group p-2.5 ps-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 min-h-11 ${isSelected ? 'bg-white dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-600 shadow-xs' : 'bg-white/40 dark:bg-white/5 border-slate-200/50 dark:border-white/10 opacity-60 hover:opacity-100'}`}
+                                                                    >
+                                                                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                                                            <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs' : 'border-slate-300 dark:border-white/20'}`}>
+                                                                                {isSelected && <Check className="w-3 h-3 stroke-3" />}
+                                                                            </div>
+                                                                            <span className={`text-[9.5px] font-black uppercase tracking-tight block truncate ${isSelected ? 'text-indigo-950 dark:text-indigo-200' : 'text-slate-500 dark:text-slate-400'}`}>
+                                                                                {subj.name}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </motion.div>
                             )}
@@ -834,7 +1051,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                     animate={{ opacity: 1, height: 'auto' }}
                                     className="mt-6 border-t border-slate-100 dark:border-white/10 pt-6"
                                 >
-                                    <div className="flex items-center justify-between mb-4 ml-1">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 ml-1">
                                         <div>
                                             <label className="block text-[9px] font-black text-amber-500 dark:text-amber-400 uppercase tracking-widest">
                                                 My Teaching Load in this Section ({formData.teaching_subjects?.length || 0})
@@ -843,6 +1060,28 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                                 Select subjects you personally teach (powers E-Class Record and LIR)
                                             </span>
                                         </div>
+                                        {formData.is_advisory && activeTaughtList.length > 0 && (
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, teaching_subjects: [...activeTaughtList] })}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40 hover:bg-amber-100 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer shadow-xs"
+                                                    title="Quickly select all official section subjects as your teaching load"
+                                                >
+                                                    <Check className="w-3 h-3 stroke-3" />
+                                                    Teach All ({activeTaughtList.length})
+                                                </button>
+                                                {(formData.teaching_subjects?.length || 0) > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFormData({ ...formData, teaching_subjects: [] })}
+                                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer shadow-xs"
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                         
                                     {availableSubjects.length > 0 ? (
@@ -1001,7 +1240,12 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                             disabled={isLoading}
                             className="flex-3 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-indigo-100 dark:shadow-none hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                         >
-                            {isLoading ? 'Saving...' : (
+                            {isLoading ? 'Saving...' : isClone ? (
+                                <>
+                                    <Copy className="w-4 h-4" />
+                                    Clone Section
+                                </>
+                            ) : (
                                 <>
                                     <Save className="w-4 h-4" />
                                     Save Config

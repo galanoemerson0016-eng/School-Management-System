@@ -394,7 +394,6 @@ export function getSubjectCluster(subjectName: string, gradeLevel?: string, trac
         name.includes('arts') || cleanName.includes('arts') ||
         name.includes('physical education') || cleanName.includes('physicaleducation') ||
         name.includes('health') || cleanName.includes('health') ||
-        name.includes('specialization') || cleanName.includes('specialization') ||
         name.includes('tle') || cleanName.includes('tle') ||
         name.includes('technology and livelihood') || cleanName.includes('technologyandlivelihood') ||
         name.includes('epp') || cleanName.includes('epp') ||
@@ -488,8 +487,8 @@ export function transmuteGrade(initialGrade: number, schoolYear?: string): numbe
     if (isTransitionSY) {
         // Table 4: Adjusted Transmutation Table (only for SY 2026-2027)
         const transmutationRanges = [
-            { min: 100.00, max: 100.00, grade: 100 },
-            { min: 98.32, max: 99.99, grade: 99 },
+            { min: 99.50, max: 100.00, grade: 100 },
+            { min: 98.32, max: 99.49, grade: 99 },
             { min: 97.14, max: 98.31, grade: 98 },
             { min: 95.96, max: 97.13, grade: 97 },
             { min: 94.78, max: 95.95, grade: 96 },

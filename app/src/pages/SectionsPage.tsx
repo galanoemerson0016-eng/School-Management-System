@@ -10,9 +10,13 @@ import {
     Shield,
     BookOpen,
     BookMarked,
-    X
+    X,
+    TableProperties,
+    Copy,
+    AlertTriangle
 } from 'lucide-react';
 import { SectionForm } from '../components/sections/SectionForm';
+import { TeachingLoadMatrixModal } from '../components/sections/TeachingLoadMatrixModal';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { Section } from '../types';
@@ -94,6 +98,8 @@ export function SectionsPage() {
     }, [schoolProfile?.adviser_name, sections, updateSection]);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isCloneModal, setIsCloneModal] = useState(false);
+    const [isMatrixModalOpen, setIsMatrixModalOpen] = useState(false);
     const [editingSection, setEditingSection] = useState<Section | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<Section | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -115,8 +121,17 @@ export function SectionsPage() {
         });
     }, [sections, searchTerm]);
 
-    const getStudentCount = (sec: Section) => {
-        return students.filter(s => s.student_section === sec.section_name || s.student_section === sec.id).length;
+    const getStudentStats = (sec: Section) => {
+        const secStudents = students.filter(s => s.student_section === sec.section_name || s.student_section === sec.id);
+        const total = secStudents.length;
+        let males = 0;
+        let females = 0;
+        secStudents.forEach(s => {
+            const g = (s.gender || '').trim().toLowerCase();
+            if (g === 'male' || g === 'm') males++;
+            else if (g === 'female' || g === 'f') females++;
+        });
+        return { total, males, females };
     };
 
     const groupedSections = useMemo(() => {
@@ -144,6 +159,13 @@ export function SectionsPage() {
 
     const handleEdit = (section: Section) => {
         setEditingSection(section);
+        setIsCloneModal(false);
+        setIsModalOpen(true);
+    };
+
+    const handleClone = (section: Section) => {
+        setEditingSection(section);
+        setIsCloneModal(true);
         setIsModalOpen(true);
     };
 
@@ -158,6 +180,7 @@ export function SectionsPage() {
 
     const openCreateModal = () => {
         setEditingSection(null);
+        setIsCloneModal(false);
         setIsModalOpen(true);
     };
 
@@ -231,6 +254,15 @@ export function SectionsPage() {
                     </div>
 
                     <button
+                        onClick={() => setIsMatrixModalOpen(true)}
+                        className="shrink-0 inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-sm font-semibold rounded-lg border border-indigo-200 dark:border-indigo-800/40 transition-colors active:scale-[0.98] cursor-pointer shadow-xs"
+                        title="Configure teaching subjects across all sections on one screen"
+                    >
+                        <TableProperties className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                        <span className="hidden sm:inline">Teaching Load Matrix</span>
+                    </button>
+
+                    <button
                         onClick={openCreateModal}
                         className="shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-deped-blue hover:bg-deped-blue-dark text-white text-sm font-semibold rounded-lg transition-colors active:scale-[0.98] cursor-pointer shadow-xs"
                     >
@@ -261,9 +293,11 @@ export function SectionsPage() {
 
                             {groupSections.length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                                    {groupSections.map((section) => {
-                                        const subjects = section.is_teaching_load
+                                    {groupSections.map((section) => {                                        const teachingSubjects = section.is_teaching_load
                                             ? [...(section.teaching_subjects || section.taught_subjects || [])].sort((a, b) => a.localeCompare(b))
+                                            : [];
+                                        const curriculumSubjects = section.is_advisory
+                                            ? [...(section.taught_subjects || [])].sort((a, b) => a.localeCompare(b))
                                             : [];
                                         const isGrade11 = (section.section_grade_level || '').includes('Grade 11');
                                         const isGrade12 = (section.section_grade_level || '').includes('Grade 12');
@@ -305,7 +339,7 @@ export function SectionsPage() {
                                                             {isGrade12 && section.track && (
                                                                 <div className="mt-1.5 flex flex-wrap gap-1">
                                                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-100/80 dark:border-purple-500/20 uppercase tracking-wider">
-                                                                        {section.track}
+                                                                            {section.track}
                                                                     </span>
                                                                     {section.strand && (
                                                                         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-100/80 dark:border-indigo-500/20 uppercase tracking-wider">
@@ -332,9 +366,9 @@ export function SectionsPage() {
                                                     </div>
                                                 </div>
 
-                                                {subjects.length > 0 ? (
+                                                {teachingSubjects.length > 0 ? (
                                                     <div className="flex flex-wrap gap-1.5">
-                                                        {subjects.map(subj => (
+                                                        {teachingSubjects.map(subj => (
                                                             <span
                                                                 key={subj}
                                                                 className="px-2 py-0.5 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/50 dark:border-amber-800/40 text-xs font-medium rounded-md"
@@ -344,26 +378,61 @@ export function SectionsPage() {
                                                             </span>
                                                         ))}
                                                     </div>
-                                                ) : section.is_advisory && !section.is_teaching_load ? (
-                                                    <p className="text-xs text-indigo-500 dark:text-indigo-400 font-medium">Curriculum managed in Subjects tab</p>
+                                                ) : section.is_advisory && curriculumSubjects.length > 0 ? (
+                                                    <div className="space-y-1.5">
+                                                        <div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                                                            Official Curriculum ({curriculumSubjects.length}):
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {curriculumSubjects.map(subj => (
+                                                                <span
+                                                                    key={subj}
+                                                                    className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-800/40 text-xs font-medium rounded-md"
+                                                                    title={subj}
+                                                                >
+                                                                    {getShortSubjectName(subj)}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ) : section.is_advisory && curriculumSubjects.length === 0 ? (
+                                                    <div className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/40 rounded-lg text-xs font-medium">
+                                                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                                        <span>⚠️ No official curriculum configured</span>
+                                                    </div>
                                                 ) : (
-                                                    <p className="text-xs text-slate-400 dark:text-slate-500 italic">No subjects loaded</p>
+                                                    <p className="text-xs text-slate-400 dark:text-slate-500 italic">No subjects configured</p>
                                                 )}
 
                                                 <div className="flex items-center justify-between pt-3 mt-auto border-t border-slate-100 dark:border-white/5">
                                                     <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-                                                        <span className="inline-flex items-center gap-1.5" title="Enrolled learners">
-                                                            <Users className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                                                            {getStudentCount(section)} students
-                                                        </span>
+                                                        {(() => {
+                                                            const stats = getStudentStats(section);
+                                                            return (
+                                                                <span className="inline-flex items-center gap-1.5" title={`Enrolled learners: ${stats.males} Male · ${stats.females} Female`}>
+                                                                    <Users className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
+                                                                    <span>
+                                                                        <strong className="font-semibold text-slate-700 dark:text-slate-200">{stats.total} Learners</strong>{' '}
+                                                                        <span className="text-slate-400 dark:text-slate-500 font-normal">({stats.males} M · {stats.females} F)</span>
+                                                                    </span>
+                                                                </span>
+                                                            );
+                                                        })()}
                                                         <span className="inline-flex items-center gap-1.5" title="Loaded subjects">
-                                                            <BookOpen className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                                                            <BookOpen className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
                                                             {section.is_teaching_load 
                                                                 ? `${(section.teaching_subjects?.length ?? section.taught_subjects?.length ?? 0)} taught`
                                                                 : `${(section.taught_subjects?.length || 0)} curriculum`}
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                                        <button
+                                                            onClick={() => handleClone(section)}
+                                                            className="p-2 rounded-lg text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors cursor-pointer"
+                                                            title="Clone section configuration (copy grade, track, program, curriculum)"
+                                                        >
+                                                            <Copy className="w-4 h-4" />
+                                                        </button>
                                                         <button
                                                             onClick={() => handleEdit(section)}
                                                             className="p-2 rounded-lg text-slate-400 hover:text-deped-blue dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors cursor-pointer"
@@ -426,10 +495,19 @@ export function SectionsPage() {
                 {isModalOpen && (
                     <SectionForm
                         section={editingSection}
-                        onClose={() => setIsModalOpen(false)}
+                        isClone={isCloneModal}
+                        onClose={() => {
+                            setIsModalOpen(false);
+                            setIsCloneModal(false);
+                        }}
                     />
                 )}
             </AnimatePresence>
+
+            <TeachingLoadMatrixModal
+                isOpen={isMatrixModalOpen}
+                onClose={() => setIsMatrixModalOpen(false)}
+            />
 
             <ConfirmationModal
                 open={!!deleteTarget}

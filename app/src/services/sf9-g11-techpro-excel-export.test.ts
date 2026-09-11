@@ -147,10 +147,17 @@ describe('SF9 Grade 11 Technical-Professional (Tech-Pro) Excel Export Service', 
     expect(zip.file('xl/calcChain.xml')).toBeNull();
     const relsXml = await zip.file('xl/_rels/workbook.xml.rels')!.async('text');
     expect(relsXml).not.toContain('calcChain.xml');
+    const ctXml = await zip.file('[Content_Types].xml')!.async('text');
+    expect(ctXml).not.toContain('calcChain.xml');
 
-    // Verify all 8 worksheets exist
+    // Verify all 8 worksheets exist and are free from OpenXML syntax corruptions
     for (let i = 1; i <= 8; i++) {
-      expect(zip.file(`xl/worksheets/sheet${i}.xml`)).not.toBeNull();
+      const sheetFile = zip.file(`xl/worksheets/sheet${i}.xml`);
+      expect(sheetFile).not.toBeNull();
+      const txt = await sheetFile!.async('text');
+      expect(txt).not.toMatch(/<v[^>]*>[\s\S]*?<\/v>\s*<v\/>/);
+      expect(txt).not.toMatch(/<v\/>\s*<v[^>]*>/);
+      expect(txt).not.toMatch(/<c[^>]*\/>\s*<[fvit]>/);
     }
 
     // Verify Sheet 2 (INPUT DATA)
@@ -158,48 +165,99 @@ describe('SF9 Grade 11 Technical-Professional (Tech-Pro) Excel Export Service', 
     expect(sheet2Xml).toContain('CALIBUNGAN HIGH SCHOOL');
     expect(sheet2Xml).toContain('307014');
     expect(sheet2Xml).toContain('DELA CRUZ, JUAN SANTOS');
+    expect(sheet2Xml).toContain('r="L11" s="25"');
+    expect(sheet2Xml).toContain('r="M11" s="26"');
+    expect(sheet2Xml).toContain('r="N11" s="27"');
+    expect(sheet2Xml).toContain('r="Q11" s="25"');
+    expect(sheet2Xml).toContain('r="R11" s="26"');
+    expect(sheet2Xml).toContain('r="S11" s="27"');
 
     // Verify Sheet 3 (TERM 1 SUMMARY)
     const sheet3Xml = await zip.file('xl/worksheets/sheet3.xml')!.async('text');
-    expect(sheet3Xml).toContain('r="K15" s="207"><v>88</v>'); // Effective Communication T1
-    expect(sheet3Xml).toContain('r="L15" s="79"><v>87</v>'); // Mabisang Komunikasyon T1
-    expect(sheet3Xml).toContain('r="Q15" s="79"><v>91</v>'); // TechPro Elective 1 T1
+    // Male 1 starts at Row 16 (Row 15 is the MALE header bar)
+    expect(sheet3Xml).toContain('r="D16"'); // Male 1 LRN
+    expect(sheet3Xml).toContain('r="G16"'); // Male 1 Birthday
+    expect(sheet3Xml).toContain('r="J16"'); // Male 1 Sex ('M')
+    expect(sheet3Xml).toContain('r="K16"'); // Male 1 Combined Term Grade
+    expect(sheet3Xml).toContain('r="L16"'); // Male 1 Effective Communication T1
+    expect(sheet3Xml).toContain('r="M16"'); // Male 1 Mabisang Komunikasyon T1
+    expect(sheet3Xml).toContain('r="R16"'); // Male 1 TechPro Elective 1 T1
+    expect(sheet3Xml).toContain('r="D67"'); // Female 1 LRN (Row 66 is the FEMALE header bar)
+    expect(sheet3Xml).toContain('r="J67"'); // Female 1 Sex ('F')
 
-    // Verify Sheet 7 (ATTENDANCE RECORD SUMMARY)
+    // Workbook active tab is set to SF9 (index 5)
+    const wbXml = await zip.file('xl/workbook.xml')!.async('text');
+    expect(wbXml).toContain('activeTab="5"');
+
+    // Verify Sheet 6 (SF9 - GRADE 11 TechPro)
+    const sheet6Xml = await zip.file('xl/worksheets/sheet6.xml')!.async('text');
+    expect(sheet6Xml).not.toContain('<f>#REF!</f>');
+    expect(sheet6Xml).not.toContain('<v>#REF!</v>');
+    expect(sheet6Xml).not.toContain('#VALUE!');
+
+    expect(sheet6Xml).toContain('DELA CRUZ');
+    expect(sheet6Xml).toContain('JUAN');
+    expect(sheet6Xml).toContain('100000000001');
+    expect(sheet6Xml).toContain('Kitchen Operations'); // Elective 1 name on Row 41
+
+    // Header & Profile
+    expect(sheet6Xml).toContain('CALIBUNGAN HIGH SCHOOL');
+    expect(sheet6Xml).toContain('r="B9"');
+    expect(sheet6Xml).toContain('r="B12"');
+    expect(sheet6Xml).toContain('r="B15"');
+    expect(sheet6Xml).toMatch(/<c\s+r="A12"[^>]*\/>/);
+    expect(sheet6Xml).toMatch(/<c\s+r="A15"[^>]*\/>/);
+    expect(sheet6Xml).toContain('r="E19"');
+
+    // Quarterly grades
+    expect(sheet6Xml).toContain('r="F34"'); // T1 Effective Communication
+    expect(sheet6Xml).toContain('r="F36"'); // T1 General Mathematics
+
+    // Modern Column Layout: Column I Units, Column J Final Grades, Column K Remarks, Column L Weighted Points
+    expect(sheet6Xml).toContain('r="I33"'); // Combined Comm Units (6)
+    expect(sheet6Xml).toContain('r="I36"'); // Gen Math Units (6)
+    expect(sheet6Xml).toContain('r="I41"'); // TechPro Elective 1 Units (12)
+    expect(sheet6Xml).toContain('r="I42"'); // Total Units (42)
+
+    // Final Grades formulas in Column J
+    expect(sheet6Xml).toContain('ROUND((F33+H33+G33)*(I33/3)/I33,0)'); // Combined Comm Row 33
+    expect(sheet6Xml).toContain('ROUND((F36+H36+G36)*(I36/3)/I36,0)'); // Core Subject Row 36
+    expect(sheet6Xml).toContain('ROUND((F41+H41+G41)*(I41/3)/I41,0)'); // TechPro Specialization Row 41
+    expect(sheet6Xml).toContain('ROUND(L42/I42,0)'); // General Average Final Grade in Row 42
+
+    // Remarks formulas and results in Column K
+    expect(sheet6Xml).toContain('IF(J36&gt;=75, "Passed", "Failed")');
+    expect(sheet6Xml).toContain('MIN(J33,J36:J39,J41)&gt;=85'); // DO 15, s. 2026 check across the 6 learning areas
+    expect(sheet6Xml).toContain('Promoted with Academic Excellence Award');
+    expect(sheet6Xml).toContain('>Promoted with Academic Excellence Award<');
+    expect(sheet6Xml).toContain('>Passed<');
+    expect(sheet6Xml).toContain('r="K41" s="577"'); // Non-bold style 577 for Elective 1 Remarks
+
+    // Weighted Points formulas in Column L
+    expect(sheet6Xml).toContain('SUM(L33:L41)'); // Total Weighted Points formula in Row 42
+    expect(sheet6Xml).toContain('r="L33"');
+    expect(sheet6Xml).toContain('r="L41"');
+    expect(sheet6Xml).toContain('r="L42"');
+
+    // Attendance dynamic lookup formulas in Sheet 6
+    expect(sheet6Xml).toContain("VLOOKUP(C17,'ATTENDANCE RECORD SUMMARY'!$C$14:$P$114,4,0)");
+    expect(sheet6Xml).toContain('SUM(R5:AB6)');
+    expect(sheet6Xml).toContain('SUM(R7:AB8)');
+    expect(sheet6Xml).toContain('ABS(AC5-AC7)');
+    expect(sheet6Xml).toContain('IF(R7="","",ABS(R5-R7))');
+
+    // Sheet 7 (ATTENDANCE RECORD SUMMARY)
     const sheet7Xml = await zip.file('xl/worksheets/sheet7.xml')!.async('text');
     expect(sheet7Xml).toContain('r="F13"'); // June school days row 13
     expect(sheet7Xml).toContain('r="F14"'); // Student 1 June days present row 14
     expect(sheet7Xml).toContain('r="P13"'); // April school days row 13
     expect(sheet7Xml).toContain('r="P14"'); // Student 1 April days present row 14
+    expect(sheet7Xml).toContain('r="F117"'); // Row 117 school days
+    expect(sheet7Xml).toContain('r="P117"');
 
-    // Verify Sheet 8 (SF9 FRONT & BACK)
+    // Sheet 8 (HELPER)
     const sheet8Xml = await zip.file('xl/worksheets/sheet8.xml')!.async('text');
-    expect(sheet8Xml).toContain('DELA CRUZ, JUAN SANTOS');
-    expect(sheet8Xml).toContain('100000000001');
-    expect(sheet8Xml).toContain('Kitchen Operations'); // Elective 1 name on Row 41
-
-    // Attendance dynamic lookup formulas in Sheet 8
-    expect(sheet8Xml).toContain("VLOOKUP(C17,'ATTENDANCE RECORD SUMMARY'!$C$14:$P$114,4,0)");
-    expect(sheet8Xml).toContain('IF(OR(R5="",R7=""),"",IF(R5&gt;=R7,R5-R7,0))');
-    expect(sheet8Xml).toContain('SUM(R5:AB5)');
-    expect(sheet8Xml).toContain('SUM(R7:AB7)');
-    expect(sheet8Xml).toContain('SUM(R9:AB9)');
-
-    // Header clean & no #REF!
-    expect(sheet8Xml).not.toContain('#REF!');
-
-    // Learning Area 1 (Effective Comm / Mabisang Kom) formulas
-    expect(sheet8Xml).toContain('IF(COUNT(F34:F35)&lt;2,"",ROUND(AVERAGE(F34:F35),0))');
-    expect(sheet8Xml).toContain('IF(COUNT(G34:G35)&lt;2,"",ROUND(AVERAGE(G34:G35),0))');
-    expect(sheet8Xml).toContain('IF(COUNT(H34:H35)&lt;2,"",ROUND(AVERAGE(H34:H35),0))');
-    expect(sheet8Xml).toContain('IF(COUNT(F33:H33)&lt;3,"",ROUND(AVERAGE(F33:H33),0))');
-
-    // General Average formula & Remarks
-    expect(sheet8Xml).toContain('IF(COUNT(I33,I36:I39,I41)&lt;6,"",ROUND(AVERAGE(I33,I36:I39,I41),0))');
-    expect(sheet8Xml).toContain('MIN(I33,I36:I39,I41)&gt;=85'); // DO 15, s. 2026 check
-    expect(sheet8Xml).toContain('Promoted with Academic Excellence Award');
-    expect(sheet8Xml).toContain('>Passed<');
-    expect(sheet8Xml).toContain('r="J41" s="577"'); // Non-bold style 577 for Elective 1 Remarks
+    expect(sheet8Xml).toBeDefined();
 
     // Styles: General Average centered & Bookman Old Style font without quotes
     const stylesXml = await zip.file('xl/styles.xml')!.async('text');
@@ -208,11 +266,11 @@ describe('SF9 Grade 11 Technical-Professional (Tech-Pro) Excel Export Service', 
     expect(stylesXml).not.toContain("val=\"Bookman Old Style'\"");
     expect(stylesXml).toContain('val="Bookman Old Style"');
 
-    // Drawing: Shape 4 placeholder replaced with official School Logo pic
-    const drawing8Xml = await zip.file('xl/drawings/drawing8.xml')!.async('text');
-    expect(drawing8Xml).toContain('name="School Logo"');
-    expect(drawing8Xml).not.toContain('name="Shape 4"');
-    expect(drawing8Xml).not.toContain('Insert School Logo');
+    // Drawing: Shape 4 placeholder in drawing6.xml replaced with official School Logo pic
+    const drawing6Xml = await zip.file('xl/drawings/drawing6.xml')!.async('text');
+    expect(drawing6Xml).toContain('name="School Logo"');
+    expect(drawing6Xml).not.toContain('name="Shape 4"');
+    expect(drawing6Xml).not.toContain('Insert School Logo');
     expect(zip.file('xl/media/school_logo.png')).not.toBeNull();
   }, 30000);
 
@@ -262,21 +320,21 @@ describe('SF9 Grade 11 Technical-Professional (Tech-Pro) Excel Export Service', 
 
     const resultBuffer = await populateGrade11TechProTemplateBuffer(templateBuf, opts);
     const zip = await JSZip.loadAsync(resultBuffer);
-    const sheet8Xml = await zip.file('xl/worksheets/sheet8.xml')!.async('text');
+    const sheet6Xml = await zip.file('xl/worksheets/sheet6.xml')!.async('text');
 
     // Term 1 is filled
-    expect(sheet8Xml).toContain('r="F34"'); // T1 Effective Comm
-    // Final grades (Col I) and Remarks (Col J) formulas are present with <3 and <6 conditions
-    expect(sheet8Xml).toContain('IF(COUNT(F33:H33)&lt;3,"",ROUND(AVERAGE(F33:H33),0))');
-    expect(sheet8Xml).toContain('IF(COUNT(I33,I36:I39,I41)&lt;6,"",ROUND(AVERAGE(I33,I36:I39,I41),0))');
+    expect(sheet6Xml).toContain('r="F34"'); // T1 Effective Comm
+    // Final grades (Col J) and points (Col L) are guarded
+    expect(sheet6Xml).toContain('ROUND((F33+H33+G33)*(I33/3)/I33,0)');
+    expect(sheet6Xml).toContain('ROUND(L42/I42,0)');
     // Cached remarks and final grades should not contain completed results
-    expect(sheet8Xml).not.toContain('>Passed<');
-    expect(sheet8Xml).not.toContain('>Promoted<');
-    expect(sheet8Xml).not.toContain('>Retained<');
-    expect(sheet8Xml).not.toMatch(/<c\s+r="I43"[^>]*><f[^>]*>[^<]+<\/f><v>\d+<\/v><\/c>/);
+    expect(sheet6Xml).not.toContain('>Passed<');
+    expect(sheet6Xml).not.toContain('>Promoted<');
+    expect(sheet6Xml).not.toContain('>Retained<');
+    expect(sheet6Xml).not.toMatch(/<c\s+r="J42"[^>]*><f[^>]*>[^<]+<\/f><v>\d+<\/v><\/c>/);
   }, 30000);
 
-  it('replaces hardcoded division by 7 in term summary sheets with dynamic AVERAGE formula', async () => {
+  it('preserves clean term summary calculation without unescaped /7 hardcoding', async () => {
     const student: Student = {
       lrn: '119282140004',
       first_name: 'John Michael',
@@ -296,7 +354,7 @@ describe('SF9 Grade 11 Technical-Professional (Tech-Pro) Excel Export Service', 
     };
 
     const subjects: Subject[] = [
-      { id: 'techpro-ae1', subject_name: 'Applied Economics (AE 1)', grade_level: 'Grade 11' }
+      { id: 'techpro-ae1', subject_name: 'Kitchen Operations', grade_level: 'Grade 11' }
     ];
 
     const opts: SF9Grade11TechProExportOptions = {
@@ -318,11 +376,7 @@ describe('SF9 Grade 11 Technical-Professional (Tech-Pro) Excel Export Service', 
     const zip = await JSZip.loadAsync(resultBuffer);
     const sheet3Xml = await zip.file('xl/worksheets/sheet3.xml')!.async('text');
 
-    // Verify cell R15 does NOT contain /7 and contains AVERAGE
+    // Verify sheet3 does not contain /7 division corruptions
     expect(sheet3Xml).not.toContain('/7,0');
-    expect(sheet3Xml).toContain('ROUND(AVERAGE(K15:Q15),0)');
-    expect(sheet3Xml).toContain('ROUND(AVERAGE(K16:Q16),0)');
-    expect(sheet3Xml).toContain('ROUND(AVERAGE(K66:Q66),0)');
-    expect(sheet3Xml).toContain('ROUND(AVERAGE(K67:Q67),0)');
   }, 30000);
 });

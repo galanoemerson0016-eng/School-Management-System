@@ -9,6 +9,7 @@ vi.mock('../../services/database', () => ({
     deleteRecord: vi.fn().mockResolvedValue(undefined),
     clearStore: vi.fn().mockResolvedValue(undefined),
     putRecord: vi.fn().mockResolvedValue(undefined),
+    putRecordsBulk: vi.fn().mockResolvedValue(undefined),
   },
   onDatabaseWriteChange: vi.fn(),
 }));
@@ -140,3 +141,55 @@ describe('GradingSlice - clearGradingSheet', () => {
     expect(state.classRecords).toHaveLength(3);
   });
 });
+
+describe('GradingSlice - bulkUpdateGradingSheetRecords', () => {
+  let state: MockStoreState;
+  const set = (updater: any) => {
+    if (typeof updater === 'function') {
+      const next = updater(state);
+      state = { ...state, ...next };
+    } else {
+      state = { ...state, ...updater };
+    }
+  };
+  const get = () => state;
+
+  beforeEach(() => {
+    state = {
+      sections: [],
+      students: [],
+      gradingSheetRecords: [
+        { id: 'rec1', student_lrn: '1001', subject_id: 'sub1', section_id: 'sec1', quarter: 1, school_year: '2026-2027', final_grade: 80, written_works: [], performance_tasks: [], quarterly_exam: 0 },
+        { id: 'rec2', student_lrn: '1002', subject_id: 'sub1', section_id: 'sec1', quarter: 1, school_year: '2026-2027', final_grade: 85, written_works: [], performance_tasks: [], quarterly_exam: 0 },
+      ],
+      classRecords: [],
+      showNotification: vi.fn(),
+    };
+  });
+
+  it('updates existing records and inserts new records in bulk in Zustand state and IndexedDB', async () => {
+    const slice = createGradingSlice(set, get);
+
+    const newRecords: ClassRecord[] = [
+      { id: 'rec1', student_lrn: '1001', subject_id: 'sub1', section_id: 'sec1', quarter: 1, school_year: '2026-2027', final_grade: 95, written_works: [], performance_tasks: [], quarterly_exam: 0 },
+      { id: 'rec3', student_lrn: '1003', subject_id: 'sub1', section_id: 'sec1', quarter: 1, school_year: '2026-2027', final_grade: 90, written_works: [], performance_tasks: [], quarterly_exam: 0 },
+    ];
+
+    await slice.bulkUpdateGradingSheetRecords(newRecords);
+
+    // Should update rec1 to 95
+    expect(state.gradingSheetRecords.find(r => r.id === 'rec1')?.final_grade).toBe(95);
+    // Should preserve rec2
+    expect(state.gradingSheetRecords.find(r => r.id === 'rec2')?.final_grade).toBe(85);
+    // Should insert rec3
+    expect(state.gradingSheetRecords.find(r => r.id === 'rec3')?.final_grade).toBe(90);
+    expect(state.gradingSheetRecords).toHaveLength(3);
+  });
+
+  it('handles empty array without mutating state or calling db', async () => {
+    const slice = createGradingSlice(set, get);
+    await slice.bulkUpdateGradingSheetRecords([]);
+    expect(state.gradingSheetRecords).toHaveLength(2);
+  });
+});
+

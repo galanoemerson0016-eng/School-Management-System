@@ -41,6 +41,8 @@ interface RestoreSummary {
         attendanceRecords: number;
         sf2Sheets: number;
         hpsRecords: number;
+        localStorageData?: number;
+        sf10Records?: number;
     };
     applied: {
         created: number;
@@ -107,6 +109,7 @@ export function BackupRestoreModal({
             'attendanceRecords',
             'sf2Sheets',
             'hpsRecords',
+            'localStorageData',
         ]),
         isProcessing: false,
         error: null,
@@ -137,6 +140,7 @@ export function BackupRestoreModal({
             `- Attendance Records: ${summary.prepared.attendanceRecords}`,
             `- SF2 Attendance Sheets: ${summary.prepared.sf2Sheets}`,
             `- Highest Possible Score Records: ${summary.prepared.hpsRecords}`,
+            `- SF10 Customizations & Settings: ${summary.prepared.localStorageData ?? 0}`,
             '',
             'Applied Actions',
             `- Created: ${summary.applied.created}`,
@@ -229,6 +233,8 @@ export function BackupRestoreModal({
                     systemSettings: dbData.systemSettings || {},
                     adviserAssignments: dbData.adviserAssignments || [],
                     gradingConfiguration: dbData.gradingConfiguration || {},
+                    localStorageData: dbData.localStorageData || rawData.localStorageData || {},
+                    activityLog: dbData.activityLog || rawData.activityLog || [],
                 };
 
                 backup = {
@@ -257,6 +263,7 @@ export function BackupRestoreModal({
                         adviserAssignments: 0,
                         gradingConfiguration: 0,
                         attendanceRecords: payloadData.attendanceRecords.length,
+                        sf10Records: rawData.summary?.sf10Records ?? (payloadData.localStorageData?.['sf10-storage'] ? 1 : 0),
                     },
                     payload: payloadData,
                 };
@@ -376,6 +383,8 @@ export function BackupRestoreModal({
                     attendanceRecords: prepared.attendanceRecords.length,
                     sf2Sheets: prepared.sf2Sheets.length,
                     hpsRecords: prepared.hpsRecords.length,
+                    localStorageData: Object.keys(state.backup.payload.localStorageData || {}).length,
+                    sf10Records: state.backup.summary.sf10Records || (state.backup.payload.localStorageData?.['sf10-storage'] ? 1 : 0),
                 },
                 applied: {
                     created: result.created,
@@ -400,7 +409,8 @@ export function BackupRestoreModal({
                 `• Teacher's Comments/Remarks: ${prepared.observedValues.length}\n` +
                 `• Attendance Records: ${prepared.attendanceRecords.length}\n` +
                 `• SF2 Attendance Sheets: ${prepared.sf2Sheets.length}\n` +
-                `• Highest Possible Score Records: ${prepared.hpsRecords.length}\n\n` +
+                `• Highest Possible Score Records: ${prepared.hpsRecords.length}\n` +
+                `• SF10 Customizations & Settings: ${Object.keys(state.backup.payload.localStorageData || {}).length} item(s)\n\n` +
                 `Database Actions:\n` +
                 `• Created: ${result.created}\n` +
                 `• Updated: ${result.updated}\n` +
@@ -742,6 +752,11 @@ export function BackupRestoreModal({
                                             label: '📢 Announcements',
                                             count: state.backup.summary.announcements,
                                         },
+                                        ...(state.backup.payload.localStorageData && Object.keys(state.backup.payload.localStorageData).length > 0 ? [{
+                                            id: 'localStorageData',
+                                            label: '📋 SF10 Overrides, Form Settings & Remarks',
+                                            count: Object.keys(state.backup.payload.localStorageData).length,
+                                        }] : []),
                                     ].map(item => (
                                         <label
                                             key={item.id}

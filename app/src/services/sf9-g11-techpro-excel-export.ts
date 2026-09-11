@@ -106,7 +106,6 @@ export async function fetchGrade11TechProTemplateBuffer(): Promise<ArrayBuffer> 
   throw new Error('Official DepEd Grade 11 TechPro School Form 9 template not found in public/templates.');
 }
 
-
 function getGradeFromEntry(entry: unknown, quarterIndex: number): number | '' {
   if (entry === undefined || entry === null) return '';
   if (Array.isArray(entry)) {
@@ -561,6 +560,56 @@ function updateCellsBatch(
   return xml;
 }
 
+interface SheetInfo {
+  name: string;
+  sheetId: string;
+  relId: string;
+  path: string;
+}
+
+async function getWorkbookSheetMap(zip: JSZip): Promise<{
+  sheetsByName: Map<string, SheetInfo>;
+  sheetList: SheetInfo[];
+}> {
+  const sheetsByName = new Map<string, SheetInfo>();
+  const sheetList: SheetInfo[] = [];
+
+  const wbFile = zip.file('xl/workbook.xml');
+  const relsFile = zip.file('xl/_rels/workbook.xml.rels');
+  if (!wbFile || !relsFile) return { sheetsByName, sheetList };
+
+  const wbXml = await wbFile.async('text');
+  const relsXml = await relsFile.async('text');
+
+  // Build rId -> target map
+  const relMap = new Map<string, string>();
+  const relRegex = /<Relationship\s+[^>]*?Id="([^"]+)"[^>]*?Target="([^"]+)"/g;
+  let relMatch;
+  while ((relMatch = relRegex.exec(relsXml)) !== null) {
+    const id = relMatch[1];
+    let target = relMatch[2];
+    if (!target.startsWith('xl/')) {
+      target = `xl/${target.replace(/^\.?\//, '')}`;
+    }
+    relMap.set(id, target);
+  }
+
+  // Parse sheets (attribute-order agnostic)
+  const sheetRegex = /<sheet\s+[^>]*?name="([^"]+)"[^>]*?sheetId="([^"]+)"[^>]*?r:id="([^"]+)"[^>]*?\/>/g;
+  let sheetMatch;
+  while ((sheetMatch = sheetRegex.exec(wbXml)) !== null) {
+    const name = sheetMatch[1];
+    const sheetId = sheetMatch[2];
+    const relId = sheetMatch[3];
+    const path = relMap.get(relId) || `xl/worksheets/sheet${sheetId}.xml`;
+    const info: SheetInfo = { name, sheetId, relId, path };
+    sheetsByName.set(name, info);
+    sheetList.push(info);
+  }
+
+  return { sheetsByName, sheetList };
+}
+
 function ensureRemarksStyles(stylesXml: string): { stylesXml: string; style10Id: string; style12Id: string } {
   let updatedStyles = stylesXml;
   const style12Id = '563';
@@ -623,7 +672,7 @@ function ensureRemarksStyles(stylesXml: string): { stylesXml: string; style10Id:
     }
   }
 
-  // Fix style 244 (I43 General Average) alignment
+  // Fix style 244 (I43 / I42 General Average) alignment
   updatedStyles = updatedStyles.replace(
     /(<xf[^>]*?fontId="54"[^>]*?>\s*<alignment)([^>]*?)(\/>)/g,
     '$1 horizontal="center" vertical="center" wrapText="1"$3'
@@ -731,11 +780,11 @@ async function injectSchoolLogoIntoDrawing(
       }
     }
 
-    // Replace Shape 4 with <xdr:pic>
-    const shape4Regex = /<xdr:oneCellAnchor>[\s\S]*?<xdr:cNvPr[^>]*?name="Shape 4"[\s\S]*?<\/xdr:oneCellAnchor>/;
-    if (shape4Regex.test(dXml)) {
+    // Replace Shape 3, Shape 4, or placeholder containing "Insert School Logo" with <xdr:pic>
+    const shapeRegex = /<xdr:oneCellAnchor>[\s\S]*?(?:<xdr:cNvPr[^>]*?name="Shape [34]"|Insert School Logo)[\s\S]*?<\/xdr:oneCellAnchor>/;
+    if (shapeRegex.test(dXml)) {
       const replacementPic = `<xdr:oneCellAnchor><xdr:from><xdr:col>9</xdr:col><xdr:colOff>447675</xdr:colOff><xdr:row>2</xdr:row><xdr:rowOff>200025</xdr:rowOff></xdr:from><xdr:ext cx="1276350" cy="1314450"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="4" name="School Logo" title="School Logo"><a:extLst><a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}"><a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{00000000-0008-0000-0800-000004000000}"/></a:ext></a:extLst></xdr:cNvPr><xdr:cNvPicPr preferRelativeResize="0"/></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="${relId}" cstate="print"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="4418450" y="3081025"/><a:ext cx="1276350" cy="1314450"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></xdr:spPr></xdr:pic><xdr:clientData fLocksWithSheet="0"/></xdr:oneCellAnchor>`;
-      dXml = dXml.replace(shape4Regex, replacementPic);
+      dXml = dXml.replace(shapeRegex, replacementPic);
       zip.file(drawingPath, dXml);
     }
 
@@ -754,17 +803,30 @@ async function injectSchoolLogoIntoDrawing(
       }
     }
   } else {
-    // If no logo data could be found at all, remove Shape 4 so "Insert School Logo" placeholder doesn't appear
-    dXml = dXml.replace(/<xdr:oneCellAnchor>[\s\S]*?<xdr:cNvPr[^>]*?name="Shape 4"[\s\S]*?<\/xdr:oneCellAnchor>/g, '');
+    // If no logo data could be found at all, remove placeholder shape so "Insert School Logo" doesn't appear
+    dXml = dXml.replace(/<xdr:oneCellAnchor>[\s\S]*?(?:<xdr:cNvPr[^>]*?name="Shape [34]"|Insert School Logo)[\s\S]*?<\/xdr:oneCellAnchor>/g, '');
     zip.file(drawingPath, dXml);
   }
+}
+
+function getGenAvgRemarks(avg: number | '' | string, learningAreas: (number | string)[]) {
+  if (typeof avg !== 'number' || avg <= 0) return '';
+  if (avg >= 75) {
+    const validGrades = learningAreas.filter((g): g is number => typeof g === 'number' && g > 0);
+    const hasBelow85 = validGrades.some(g => g < 85);
+    if (avg >= 90 && validGrades.length > 0 && !hasBelow85) {
+      return 'Promoted with Academic Excellence Award';
+    }
+    return 'Promoted';
+  }
+  return 'Retained';
 }
 
 /**
  * Populate the Grade 11 Tech-Pro SF9 Template buffer with learner data and compute all 8 sheets
  */
 export async function populateGrade11TechProTemplateBuffer(
-  templateBuffer: ArrayBuffer | Uint8Array | ArrayLike<number>,
+  templateBuffer: ArrayBuffer | Uint8Array | ArrayLike<number> | Buffer,
   opts: SF9Grade11TechProExportOptions
 ): Promise<ArrayBuffer> {
   const zip = await JSZip.loadAsync(templateBuffer as Parameters<typeof JSZip.loadAsync>[0]);
@@ -789,8 +851,15 @@ export async function populateGrade11TechProTemplateBuffer(
   const relsFile = zip.file('xl/_rels/workbook.xml.rels');
   if (relsFile) {
     let relsXml = await relsFile.async('text');
-    relsXml = relsXml.replace(/<Relationship[^>]*?Target="calcChain\.xml"[^>]*?\/>/g, '');
+    relsXml = relsXml.replace(/<Relationship[^>]*?Target="calcChain\.xml"[^>]*?\/>/gi, '');
+    relsXml = relsXml.replace(/<Relationship[^>]*?Type="[^"]*calcChain"[^>]*?\/>/gi, '');
     zip.file('xl/_rels/workbook.xml.rels', relsXml);
+  }
+  const ctFile = zip.file('[Content_Types].xml');
+  if (ctFile) {
+    let ctXml = await ctFile.async('text');
+    ctXml = ctXml.replace(/<Override[^>]*?PartName="\/xl\/calcChain\.xml"[^>]*?\/>/gi, '');
+    zip.file('[Content_Types].xml', ctXml);
   }
 
   // 2. Separate male and female learners and sort alphabetically (Lastname, Firstname Middlename)
@@ -818,6 +887,7 @@ export async function populateGrade11TechProTemplateBuffer(
   // Extract selected student's grades
   const currentGrades = extractGrade11TechProSubjectGrades(grades, subjects);
   const elective1Title = currentGrades.elective1Name || 'TechPro Elective 1';
+
   // Cleaned profile fields
   const cleanRegion = schoolProfile?.region ? `${schoolProfile.region}` : 'Region III';
   const cleanDivision = (schoolProfile?.division ? `${schoolProfile.division.replace(/^Schools Division of\s*/i, '')}` : 'TARLAC PROVINCE').toUpperCase();
@@ -844,10 +914,54 @@ export async function populateGrade11TechProTemplateBuffer(
     zip.file('xl/styles.xml', res.stylesXml);
   }
 
+  // 3. Resolve workbook sheets map dynamically
+  const { sheetsByName, sheetList } = await getWorkbookSheetMap(zip);
+  const sf9Info = sheetsByName.get('SF9 - GRADE 11 TECHPRO') ||
+                  sheetsByName.get('SF9 - GRADE 11 TechPro') ||
+                  sheetList.find(s => s.name.toUpperCase().includes('SF9') || s.name.toUpperCase().includes('TECHPRO'));
+  const sf9Index = sheetList.findIndex(s => s.name.toUpperCase().includes('SF9') || s.name.toUpperCase().includes('TECHPRO'));
+  const activeTabIndex = sf9Index >= 0 ? sf9Index : (zip.file('xl/worksheets/sheet6.xml') ? 5 : 7);
+
+  const sf9SheetPath = sf9Info?.path || (zip.file('xl/worksheets/sheet6.xml') ? 'xl/worksheets/sheet6.xml' : 'xl/worksheets/sheet8.xml');
+
+  const inputSheetInfo = sheetsByName.get('INPUT DATA') || sheetList.find(s => s.name.toUpperCase().includes('INPUT'));
+  const inputSheetPath = inputSheetInfo?.path || 'xl/worksheets/sheet2.xml';
+
+  const term1Info = sheetsByName.get('TERM 1 SUMMARY') || sheetList.find(s => s.name.toUpperCase().includes('TERM 1'));
+  const term1Path = term1Info?.path || 'xl/worksheets/sheet3.xml';
+
+  const term2Info = sheetsByName.get('TERM 2 SUMMARY') || sheetList.find(s => s.name.toUpperCase().includes('TERM 2'));
+  const term2Path = term2Info?.path || 'xl/worksheets/sheet4.xml';
+
+  const term3Info = sheetsByName.get('TERM 3 SUMMARY') || sheetList.find(s => s.name.toUpperCase().includes('TERM 3'));
+  const term3Path = term3Info?.path || 'xl/worksheets/sheet5.xml';
+
+  const attInfo = sheetsByName.get('ATTENDANCE RECORD SUMMARY') || sheetList.find(s => s.name.toUpperCase().includes('ATTENDANCE'));
+  const attPath = attInfo?.path || 'xl/worksheets/sheet7.xml';
+
+  const finalGradesInfo = sheetsByName.get('FINAL GRADES') || sheetsByName.get('FINAL GRADE SUMMARY');
+  const finalGradesPath = finalGradesInfo && finalGradesInfo.path !== sf9SheetPath ? finalGradesInfo.path : null;
+
+  // Force full calculation on load and set active tab in xl/workbook.xml
+  const wbFile = zip.file('xl/workbook.xml');
+  if (wbFile) {
+    let wbXml = await wbFile.async('text');
+    if (wbXml.includes('<calcPr')) {
+      wbXml = wbXml.replace(/<calcPr([^>]*?)\/>/gi, (_m, p1) => {
+        const clean = p1.replace(/\s+fullCalcOnLoad="[^"]*"/gi, '').replace(/\s+forceFullCalc="[^"]*"/gi, '');
+        return `<calcPr${clean} fullCalcOnLoad="1" forceFullCalc="1"/>`;
+      });
+    } else {
+      wbXml = wbXml.replace('</workbook>', '<calcPr fullCalcOnLoad="1" forceFullCalc="1"/></workbook>');
+    }
+    wbXml = wbXml.replace(/<workbookView[^>]*?\/>/gi, `<workbookView activeTab="${activeTabIndex}"/>`);
+    zip.file('xl/workbook.xml', wbXml);
+  }
+
   // =========================================================================
   // SHEET 2: INPUT DATA
   // =========================================================================
-  const sheet2File = zip.file('xl/worksheets/sheet2.xml');
+  const sheet2File = zip.file(inputSheetPath);
   if (sheet2File) {
     let sheet2Xml = await sheet2File.async('text');
 
@@ -893,7 +1007,7 @@ export async function populateGrade11TechProTemplateBuffer(
     }
 
     sheet2Xml = updateCellsBatch(sheet2Xml, inputDataCells, inputStyles);
-    zip.file('xl/worksheets/sheet2.xml', sheet2Xml);
+    zip.file(inputSheetPath, sheet2Xml);
   }
 
   // Precompute term averages and ranks for all learners across terms 1, 2, 3
@@ -923,14 +1037,25 @@ export async function populateGrade11TechProTemplateBuffer(
       const s6 = g.pklp[termIdx];
       const s7 = g.techProElective1[termIdx];
 
-      const numScores = [s1, s2, s3, s4, s5, s6, s7]
-        .map(v => typeof v === 'number' ? v : parseFloat(String(v)))
-        .filter(v => !isNaN(v) && v > 0);
+      const numA = typeof s1 === 'number' ? s1 : parseFloat(String(s1));
+      const numB = typeof s2 === 'number' ? s2 : parseFloat(String(s2));
+      const comb = !isNaN(numA) && !isNaN(numB)
+        ? Math.round((numA + numB) / 2)
+        : (!isNaN(numA) ? numA : (!isNaN(numB) ? numB : null));
 
-      const rowAvg = numScores.length > 0
-        ? Math.round(numScores.reduce((a, b) => a + b, 0) / numScores.length)
-        : '';
-      maleAverages.push(rowAvg);
+      const numScores = [comb, s3, s4, s5, s6, s7]
+        .map(v => typeof v === 'number' ? v : parseFloat(String(v)))
+        .filter((v): v is number => !isNaN(v) && v > 0);
+
+      if (numScores.length === 6) {
+        // Full weighted average: 6 units each for core (30), 12 units for elective = 42 total units
+        const weightedPoints = (comb as number) * 6 + Number(s3) * 6 + Number(s4) * 6 + Number(s5) * 6 + Number(s6) * 6 + Number(s7) * 12;
+        maleAverages.push(Math.round(weightedPoints / 42));
+      } else if (numScores.length > 0) {
+        maleAverages.push(Math.round(numScores.reduce((a, b) => a + b, 0) / numScores.length));
+      } else {
+        maleAverages.push('');
+      }
     }
 
     const femaleAverages: (number | '')[] = [];
@@ -949,14 +1074,24 @@ export async function populateGrade11TechProTemplateBuffer(
       const s6 = g.pklp[termIdx];
       const s7 = g.techProElective1[termIdx];
 
-      const numScores = [s1, s2, s3, s4, s5, s6, s7]
-        .map(v => typeof v === 'number' ? v : parseFloat(String(v)))
-        .filter(v => !isNaN(v) && v > 0);
+      const numA = typeof s1 === 'number' ? s1 : parseFloat(String(s1));
+      const numB = typeof s2 === 'number' ? s2 : parseFloat(String(s2));
+      const comb = !isNaN(numA) && !isNaN(numB)
+        ? Math.round((numA + numB) / 2)
+        : (!isNaN(numA) ? numA : (!isNaN(numB) ? numB : null));
 
-      const rowAvg = numScores.length > 0
-        ? Math.round(numScores.reduce((a, b) => a + b, 0) / numScores.length)
-        : '';
-      femaleAverages.push(rowAvg);
+      const numScores = [comb, s3, s4, s5, s6, s7]
+        .map(v => typeof v === 'number' ? v : parseFloat(String(v)))
+        .filter((v): v is number => !isNaN(v) && v > 0);
+
+      if (numScores.length === 6) {
+        const weightedPoints = (comb as number) * 6 + Number(s3) * 6 + Number(s4) * 6 + Number(s5) * 6 + Number(s6) * 6 + Number(s7) * 12;
+        femaleAverages.push(Math.round(weightedPoints / 42));
+      } else if (numScores.length > 0) {
+        femaleAverages.push(Math.round(numScores.reduce((a, b) => a + b, 0) / numScores.length));
+      } else {
+        femaleAverages.push('');
+      }
     }
 
     termAveragesMap.set(termIdx, { males: maleAverages, females: femaleAverages });
@@ -964,33 +1099,23 @@ export async function populateGrade11TechProTemplateBuffer(
 
   // =========================================================================
   // SHEETS 3, 4, 5: TERM 1 SUMMARY, TERM 2 SUMMARY, TERM 3 SUMMARY
-  // Subject Column Mapping:
-  //   Col K (Col 11): Effective Communication
-  //   Col L (Col 12): Mabisang Komunikasyon
-  //   Col M (Col 13): General Mathematics
-  //   Col N (Col 14): General Science
-  //   Col O (Col 15): Life and Career Skills
-  //   Col P (Col 16): PKLP
-  //   Col Q (Col 17): TechPro Elective 1 (AE 1)
-  //   Col R (Col 18): General Average (lookup target)
-  //   Col S (Col 19): Rank
-  //
-  // Row Mapping:
-  //   Male:   rows 15 to 64
-  //   Female: rows 66 to 115
   // =========================================================================
   const termSheetConfigs = [
-    { sheetNum: 3, termIdx: 0, path: 'xl/worksheets/sheet3.xml' },
-    { sheetNum: 4, termIdx: 1, path: 'xl/worksheets/sheet4.xml' },
-    { sheetNum: 5, termIdx: 2, path: 'xl/worksheets/sheet5.xml' },
+    { termIdx: 0, path: term1Path },
+    { termIdx: 1, path: term2Path },
+    { termIdx: 2, path: term3Path },
   ];
 
-  for (const { termIdx, path } of termSheetConfigs) {
-    const sFile = zip.file(path);
+  for (const { termIdx, path: sPath } of termSheetConfigs) {
+    const sFile = zip.file(sPath);
     if (!sFile) continue;
     let sXml = await sFile.async('text');
 
-    // Ensure summary formula dynamically averages only graded subjects (averages non-blank cells instead of hardcoded division by 7)
+    const isModernRow16 = sXml.includes('r="C16"') && sXml.includes('r="B16"') && (sXml.includes('L11') || sXml.includes('M11'));
+    const maleStartRow = isModernRow16 ? 16 : 15;
+    const femaleStartRow = isModernRow16 ? 67 : 66;
+
+    // Ensure summary formula dynamically averages only graded subjects
     sXml = sXml.replace(
       /ROUND\(\([A-Z0-9+]+?\)\/7,0\)/g,
       (match) => {
@@ -1003,7 +1128,7 @@ export async function populateGrade11TechProTemplateBuffer(
       }
     );
 
-    // Adjust column 17 width and row 13 height so Q13 ("AE 1") fits and wraps nicely
+    // Adjust column 17 width and row 13 height so Q13/R13 fits and wraps nicely
     sXml = sXml.replace(
       /<col min="16" max="17" width="9.44140625" style="232" customWidth="1"\/>/g,
       '<col min="16" max="16" width="9.44140625" style="232" customWidth="1"/><col min="17" max="17" width="13.5" style="232" customWidth="1"/>'
@@ -1013,9 +1138,7 @@ export async function populateGrade11TechProTemplateBuffer(
       '$128.5$2'
     );
 
-    const termCells: Record<string, string | number> = {
-      'Q13': 'AE 1',
-    };
+    const termCells: Record<string, string | number> = {};
     const termFormulaResults: Record<string, string | number> = {};
 
     // Header updates on Summary sheets
@@ -1049,12 +1172,22 @@ export async function populateGrade11TechProTemplateBuffer(
     const populateLearnerTermRow = (s: StudentWithGrades | undefined, row: number, isMaleRow: boolean, studentIdx: number) => {
       if (!s) {
         termFormulaResults[`C${row}`] = '';
+        termFormulaResults[`D${row}`] = '';
         termFormulaResults[`F${row}`] = '';
+        termFormulaResults[`G${row}`] = '';
         termFormulaResults[`H${row}`] = '';
         termFormulaResults[`I${row}`] = '';
         termFormulaResults[`J${row}`] = '';
+        termFormulaResults[`K${row}`] = '';
+        termFormulaResults[`L${row}`] = '';
+        termFormulaResults[`M${row}`] = '';
+        termFormulaResults[`N${row}`] = '';
+        termFormulaResults[`O${row}`] = '';
+        termFormulaResults[`P${row}`] = '';
+        termFormulaResults[`Q${row}`] = '';
         termFormulaResults[`R${row}`] = '';
         termFormulaResults[`S${row}`] = '';
+        termFormulaResults[`T${row}`] = '';
         return;
       }
 
@@ -1063,10 +1196,7 @@ export async function populateGrade11TechProTemplateBuffer(
         : extractGrade11TechProSubjectGrades(s.grades || {}, subjects);
 
       termFormulaResults[`C${row}`] = formatLearnerName(s);
-      termFormulaResults[`F${row}`] = s.lrn || '';
-      termFormulaResults[`H${row}`] = formatDateToMMDDYYYY(s.birthday);
-      termFormulaResults[`I${row}`] = parseAge(s.age, s.birthday);
-      termCells[`J${row}`] = isMaleRow ? 'M' : 'F';
+      termFormulaResults[`J${row}`] = isMaleRow ? 'M' : 'F';
 
       const s1 = learnerGrades.effectiveComm[termIdx] ?? '';
       const s2 = learnerGrades.mabisangKom[termIdx] ?? '';
@@ -1076,231 +1206,223 @@ export async function populateGrade11TechProTemplateBuffer(
       const s6 = learnerGrades.pklp[termIdx] ?? '';
       const s7 = learnerGrades.techProElective1[termIdx] ?? '';
 
-      if (s1 !== '') termCells[`K${row}`] = Number(s1);
-      if (s2 !== '') termCells[`L${row}`] = Number(s2);
-      if (s3 !== '') termCells[`M${row}`] = Number(s3);
-      if (s4 !== '') termCells[`N${row}`] = Number(s4);
-      if (s5 !== '') termCells[`O${row}`] = Number(s5);
-      if (s6 !== '') termCells[`P${row}`] = Number(s6);
-      if (s7 !== '') termCells[`Q${row}`] = Number(s7);
+      const numA = typeof s1 === 'number' ? s1 : parseFloat(String(s1));
+      const numB = typeof s2 === 'number' ? s2 : parseFloat(String(s2));
+      const comb = !isNaN(numA) && !isNaN(numB)
+        ? Math.round((numA + numB) / 2)
+        : (!isNaN(numA) ? numA : (!isNaN(numB) ? numB : ''));
 
       const studentAvg = isMaleRow ? termAvgs.males[studentIdx] : termAvgs.females[studentIdx];
-      if (studentAvg !== '') {
-        termFormulaResults[`R${row}`] = studentAvg;
-        termFormulaResults[`S${row}`] = getRank(studentAvg);
-      }
+      const rankVal = studentAvg !== '' ? getRank(studentAvg) : '';
 
       const lrnInputCol = isMaleRow ? 'M' : 'R';
       const bdayInputCol = isMaleRow ? 'N' : 'S';
 
-      sXml = updateFormulaCellExplicit(
-        sXml,
-        `F${row}`,
-        `IF('INPUT DATA'!${lrnInputCol}${11 + studentIdx}="","",'INPUT DATA'!${lrnInputCol}${11 + studentIdx})`,
-        s ? (s.lrn || '') : ''
-      );
-      sXml = updateFormulaCellExplicit(
-        sXml,
-        `H${row}`,
-        `IF('INPUT DATA'!${bdayInputCol}${11 + studentIdx}="","",'INPUT DATA'!${bdayInputCol}${11 + studentIdx})`,
-        s ? formatDateToMMDDYYYY(s.birthday) : ''
-      );
-      sXml = updateFormulaCellExplicit(
-        sXml,
-        `I${row}`,
-        `IF(H${row}="","",DATEDIF(H${row},TODAY(),"Y"))`,
-        s ? parseAge(s.age, s.birthday) : ''
-      );
+      if (isModernRow16) {
+        // Modern Layout (Row 16 start for males, Row 67 for females):
+        // Col C: Name, Col D: LRN, Col G: Birthday, Col I: Age, Col J: Sex
+        // Col K: Combined Term Grade
+        // Col L: Effective Communication
+        // Col M: Mabisang Komunikasyon
+        // Col N: General Mathematics
+        // Col O: General Science
+        // Col P: Life and Career Skills
+        // Col Q: PKLP
+        // Col R: TechPro Elective 1
+        // Col S: General Average
+        // Col T: Rank
+        termFormulaResults[`D${row}`] = s.lrn || '';
+        termFormulaResults[`G${row}`] = formatDateToMMDDYYYY(s.birthday);
+        termFormulaResults[`I${row}`] = parseAge(s.age, s.birthday);
+
+        if (comb !== '') termCells[`K${row}`] = Number(comb);
+        if (s1 !== '') termCells[`L${row}`] = Number(s1);
+        if (s2 !== '') termCells[`M${row}`] = Number(s2);
+        if (s3 !== '') termCells[`N${row}`] = Number(s3);
+        if (s4 !== '') termCells[`O${row}`] = Number(s4);
+        if (s5 !== '') termCells[`P${row}`] = Number(s5);
+        if (s6 !== '') termCells[`Q${row}`] = Number(s6);
+        if (s7 !== '') termCells[`R${row}`] = Number(s7);
+
+        if (studentAvg !== '') {
+          termFormulaResults[`S${row}`] = studentAvg;
+          termFormulaResults[`T${row}`] = rankVal;
+        }
+
+        sXml = updateFormulaCellExplicit(
+          sXml,
+          `D${row}`,
+          `IF('INPUT DATA'!${lrnInputCol}${11 + studentIdx}="","",'INPUT DATA'!${lrnInputCol}${11 + studentIdx})`,
+          s.lrn || ''
+        );
+        sXml = updateFormulaCellExplicit(
+          sXml,
+          `G${row}`,
+          `IF('INPUT DATA'!${bdayInputCol}${11 + studentIdx}="","",'INPUT DATA'!${bdayInputCol}${11 + studentIdx})`,
+          formatDateToMMDDYYYY(s.birthday)
+        );
+        sXml = updateFormulaCellExplicit(
+          sXml,
+          `I${row}`,
+          `IF(G${row}="","",DATEDIF(G${row},TODAY(),"Y"))`,
+          parseAge(s.age, s.birthday)
+        );
+      } else {
+        // Legacy Layout (Row 15 start for males, Row 66 for females):
+        // Col C: Name, Col F: LRN, Col H: Birthday, Col I: Age, Col J: Sex
+        // Col K: Effective Communication
+        // Col L: Mabisang Komunikasyon
+        // Col M: General Mathematics
+        // Col N: General Science
+        // Col O: Life and Career Skills
+        // Col P: PKLP
+        // Col Q: TechPro Elective 1
+        // Col R: General Average
+        // Col S: Rank
+        termFormulaResults[`F${row}`] = s.lrn || '';
+        termFormulaResults[`H${row}`] = formatDateToMMDDYYYY(s.birthday);
+        termFormulaResults[`I${row}`] = parseAge(s.age, s.birthday);
+
+        if (s1 !== '') termCells[`K${row}`] = Number(s1);
+        if (s2 !== '') termCells[`L${row}`] = Number(s2);
+        if (s3 !== '') termCells[`M${row}`] = Number(s3);
+        if (s4 !== '') termCells[`N${row}`] = Number(s4);
+        if (s5 !== '') termCells[`O${row}`] = Number(s5);
+        if (s6 !== '') termCells[`P${row}`] = Number(s6);
+        if (s7 !== '') termCells[`Q${row}`] = Number(s7);
+
+        if (studentAvg !== '') {
+          termFormulaResults[`R${row}`] = studentAvg;
+          termFormulaResults[`S${row}`] = rankVal;
+        }
+
+        sXml = updateFormulaCellExplicit(
+          sXml,
+          `F${row}`,
+          `IF('INPUT DATA'!${lrnInputCol}${11 + studentIdx}="","",'INPUT DATA'!${lrnInputCol}${11 + studentIdx})`,
+          s.lrn || ''
+        );
+        sXml = updateFormulaCellExplicit(
+          sXml,
+          `H${row}`,
+          `IF('INPUT DATA'!${bdayInputCol}${11 + studentIdx}="","",'INPUT DATA'!${bdayInputCol}${11 + studentIdx})`,
+          formatDateToMMDDYYYY(s.birthday)
+        );
+        sXml = updateFormulaCellExplicit(
+          sXml,
+          `I${row}`,
+          `IF(H${row}="","",DATEDIF(H${row},TODAY(),"Y"))`,
+          parseAge(s.age, s.birthday)
+        );
+      }
     };
 
-    // Populate male learners (rows 15 to 64)
+    // Populate male learners (50 rows)
     for (let idx = 0; idx < 50; idx++) {
-      populateLearnerTermRow(maleStudents[idx], 15 + idx, true, idx);
+      populateLearnerTermRow(maleStudents[idx], maleStartRow + idx, true, idx);
     }
 
-    // Populate female learners (rows 66 to 115)
+    // Populate female learners (50 rows)
     for (let idx = 0; idx < 50; idx++) {
-      populateLearnerTermRow(femaleStudents[idx], 66 + idx, false, idx);
+      populateLearnerTermRow(femaleStudents[idx], femaleStartRow + idx, false, idx);
     }
 
     sXml = updateFormulaValuesBatch(sXml, termFormulaResults);
     sXml = updateCellsBatch(sXml, termCells);
-    zip.file(path, sXml);
+    zip.file(sPath, sXml);
   }
 
   // =========================================================================
-  // SHEET 6: FINAL GRADE SUMMARY
-  // Populates final grades for all 3 terms, Final General Average, and Final Rank
+  // OPTIONAL: FINAL GRADE SUMMARY (Only if present and not the SF9 sheet)
   // =========================================================================
-  const sheet6File = zip.file('xl/worksheets/sheet6.xml');
-  if (sheet6File) {
-    let sheet6Xml = await sheet6File.async('text');
+  if (finalGradesPath) {
+    const s6File = zip.file(finalGradesPath);
+    if (s6File) {
+      let s6Xml = await s6File.async('text');
+      const s6FormulaResults: Record<string, string | number> = {
+        'E6': cleanRegion,
+        'L6': cleanDivision,
+        'E7': cleanSchoolName,
+        'L7': cleanSchoolId,
+        'R7': cleanSy,
+        'H10': 'Grade 11',
+        'H11': cleanSection || cleanTrack,
+        'P10': cleanAdviser,
+        'O10': cleanAdviser,
+      };
 
-    const sheet6FormulaResults: Record<string, string | number> = {
-      'E6': cleanRegion,
-      'L6': cleanDivision,
-      'E7': cleanSchoolName,
-      'L7': cleanSchoolId,
-      'R7': cleanSy,
-      'H10': 'Grade 11',
-      'H11': cleanSection || cleanTrack,
-      'P10': cleanAdviser,
-      'O10': cleanAdviser,
-    };
+      s6Xml = updateCellInSheetXml(s6Xml, 'O10', cleanAdviser);
+      s6Xml = updateCellInSheetXml(s6Xml, 'P10', cleanAdviser);
 
-    // Replace hardcoded "EUNICE FERNANDEZ" in sheet6Xml with cleanAdviser
-    sheet6Xml = updateCellInSheetXml(sheet6Xml, 'O10', cleanAdviser);
-    sheet6Xml = updateCellInSheetXml(sheet6Xml, 'P10', cleanAdviser);
+      const maleFinalGAs: (number | '')[] = [];
+      for (let idx = 0; idx < 50; idx++) {
+        const t1 = termAveragesMap.get(0)!.males[idx];
+        const t2 = termAveragesMap.get(1)!.males[idx];
+        const t3 = termAveragesMap.get(2)!.males[idx];
+        const valid = [t1, t2, t3].filter((v): v is number => typeof v === 'number' && v > 0);
+        maleFinalGAs.push(valid.length === 3 ? Math.round(valid.reduce((a, b) => a + b, 0) / 3) : '');
+      }
 
-    const maleFinalGAs: (number | '')[] = [];
-    for (let idx = 0; idx < 50; idx++) {
-      const t1 = termAveragesMap.get(0)!.males[idx];
-      const t2 = termAveragesMap.get(1)!.males[idx];
-      const t3 = termAveragesMap.get(2)!.males[idx];
-      const valid = [t1, t2, t3].filter((v): v is number => typeof v === 'number' && v > 0);
-      maleFinalGAs.push(valid.length === 3 ? Math.round(valid.reduce((a, b) => a + b, 0) / 3) : '');
+      const femaleFinalGAs: (number | '')[] = [];
+      for (let idx = 0; idx < 50; idx++) {
+        const t1 = termAveragesMap.get(0)!.females[idx];
+        const t2 = termAveragesMap.get(1)!.females[idx];
+        const t3 = termAveragesMap.get(2)!.females[idx];
+        const valid = [t1, t2, t3].filter((v): v is number => typeof v === 'number' && v > 0);
+        femaleFinalGAs.push(valid.length === 3 ? Math.round(valid.reduce((a, b) => a + b, 0) / 3) : '');
+      }
+
+      const allFinalGAs = [
+        ...maleFinalGAs.filter((v): v is number => typeof v === 'number' && v > 0),
+        ...femaleFinalGAs.filter((v): v is number => typeof v === 'number' && v > 0)
+      ].sort((a, b) => b - a);
+
+      const getFinalRank = (avg: number | '') => {
+        if (typeof avg !== 'number' || avg <= 0) return '';
+        const matching = allFinalGAs.filter(s => s === avg);
+        const higherCount = allFinalGAs.filter(s => s > avg).length;
+        return higherCount + 1 + (matching.length - 1) / 2;
+      };
+
+      for (let idx = 0; idx < 50; idx++) {
+        const row = 15 + idx;
+        const m = maleStudents[idx];
+        s6FormulaResults[`C${row}`] = m ? formatLearnerName(m) : '';
+        const t1 = termAveragesMap.get(0)!.males[idx];
+        const t2 = termAveragesMap.get(1)!.males[idx];
+        const t3 = termAveragesMap.get(2)!.males[idx];
+        const finalGA = maleFinalGAs[idx];
+        s6FormulaResults[`F${row}`] = t1 !== '' ? t1 : '';
+        s6FormulaResults[`J${row}`] = t2 !== '' ? t2 : '';
+        s6FormulaResults[`M${row}`] = t3 !== '' ? t3 : '';
+        s6FormulaResults[`P${row}`] = finalGA !== '' ? finalGA : '';
+        s6FormulaResults[`S${row}`] = finalGA !== '' ? getFinalRank(finalGA) : '';
+      }
+
+      for (let idx = 0; idx < 50; idx++) {
+        const row = 66 + idx;
+        const f = femaleStudents[idx];
+        s6FormulaResults[`C${row}`] = f ? formatLearnerName(f) : '';
+        const t1 = termAveragesMap.get(0)!.females[idx];
+        const t2 = termAveragesMap.get(1)!.females[idx];
+        const t3 = termAveragesMap.get(2)!.females[idx];
+        const finalGA = femaleFinalGAs[idx];
+        s6FormulaResults[`F${row}`] = t1 !== '' ? t1 : '';
+        s6FormulaResults[`J${row}`] = t2 !== '' ? t2 : '';
+        s6FormulaResults[`M${row}`] = t3 !== '' ? t3 : '';
+        s6FormulaResults[`P${row}`] = finalGA !== '' ? finalGA : '';
+        s6FormulaResults[`S${row}`] = finalGA !== '' ? getFinalRank(finalGA) : '';
+      }
+
+      s6Xml = updateFormulaValuesBatch(s6Xml, s6FormulaResults);
+      zip.file(finalGradesPath, s6Xml);
     }
-
-    const femaleFinalGAs: (number | '')[] = [];
-    for (let idx = 0; idx < 50; idx++) {
-      const t1 = termAveragesMap.get(0)!.females[idx];
-      const t2 = termAveragesMap.get(1)!.females[idx];
-      const t3 = termAveragesMap.get(2)!.females[idx];
-      const valid = [t1, t2, t3].filter((v): v is number => typeof v === 'number' && v > 0);
-      femaleFinalGAs.push(valid.length === 3 ? Math.round(valid.reduce((a, b) => a + b, 0) / 3) : '');
-    }
-
-    const allFinalGAs = [
-      ...maleFinalGAs.filter((v): v is number => typeof v === 'number' && v > 0),
-      ...femaleFinalGAs.filter((v): v is number => typeof v === 'number' && v > 0)
-    ].sort((a, b) => b - a);
-
-    const getFinalRank = (avg: number | '') => {
-      if (typeof avg !== 'number' || avg <= 0) return '';
-      const matching = allFinalGAs.filter(s => s === avg);
-      const higherCount = allFinalGAs.filter(s => s > avg).length;
-      return higherCount + 1 + (matching.length - 1) / 2;
-    };
-
-    // Populate male learners (rows 15 to 64)
-    for (let idx = 0; idx < 50; idx++) {
-      const row = 15 + idx;
-      const m = maleStudents[idx];
-      sheet6FormulaResults[`C${row}`] = m ? formatLearnerName(m) : '';
-      const t1 = termAveragesMap.get(0)!.males[idx];
-      const t2 = termAveragesMap.get(1)!.males[idx];
-      const t3 = termAveragesMap.get(2)!.males[idx];
-      const finalGA = maleFinalGAs[idx];
-      sheet6FormulaResults[`F${row}`] = t1 !== '' ? t1 : '';
-      sheet6FormulaResults[`J${row}`] = t2 !== '' ? t2 : '';
-      sheet6FormulaResults[`M${row}`] = t3 !== '' ? t3 : '';
-      sheet6FormulaResults[`P${row}`] = finalGA !== '' ? finalGA : '';
-      sheet6FormulaResults[`S${row}`] = finalGA !== '' ? getFinalRank(finalGA) : '';
-
-      sheet6Xml = updateFormulaCellExplicit(
-        sheet6Xml,
-        `F${row}`,
-        `IF(TRIM(C${row})="","",IFERROR(_xlfn.XLOOKUP(TRIM(C${row}),'TERM 1 SUMMARY'!$C$15:$C$115,'TERM 1 SUMMARY'!$R$15:$R$115),""))`,
-        t1 !== '' ? t1 : ''
-      );
-      sheet6Xml = updateFormulaCellExplicit(
-        sheet6Xml,
-        `J${row}`,
-        `IF(TRIM(C${row})="","",IFERROR(_xlfn.XLOOKUP(TRIM(C${row}),'TERM 2 SUMMARY'!$C$15:$C$115,'TERM 2 SUMMARY'!$R$15:$R$115),""))`,
-        t2 !== '' ? t2 : ''
-      );
-      sheet6Xml = updateFormulaCellExplicit(
-        sheet6Xml,
-        `M${row}`,
-        `IF(TRIM(C${row})="","",IFERROR(_xlfn.XLOOKUP(TRIM(C${row}),'TERM 3 SUMMARY'!$C$15:$C$115,'TERM 3 SUMMARY'!$R$15:$R$115),""))`,
-        t3 !== '' ? t3 : ''
-      );
-      sheet6Xml = updateFormulaCellExplicit(
-        sheet6Xml,
-        `P${row}`,
-        `IF(C${row}="","",IF(COUNT(F${row},J${row},M${row})<3,"",ROUND(AVERAGE(F${row},J${row},M${row}),0)))`,
-        finalGA !== '' ? finalGA : ''
-      );
-      sheet6Xml = updateFormulaCellExplicit(
-        sheet6Xml,
-        `S${row}`,
-        `IF(P${row}="","",_xlfn.RANK.AVG(P${row},$P$15:$P$115))`,
-        finalGA !== '' ? getFinalRank(finalGA) : ''
-      );
-    }
-
-    // Populate female learners (rows 66 to 115)
-    for (let idx = 0; idx < 50; idx++) {
-      const row = 66 + idx;
-      const f = femaleStudents[idx];
-      sheet6FormulaResults[`C${row}`] = f ? formatLearnerName(f) : '';
-      const t1 = termAveragesMap.get(0)!.females[idx];
-      const t2 = termAveragesMap.get(1)!.females[idx];
-      const t3 = termAveragesMap.get(2)!.females[idx];
-      const finalGA = femaleFinalGAs[idx];
-      sheet6FormulaResults[`F${row}`] = t1 !== '' ? t1 : '';
-      sheet6FormulaResults[`J${row}`] = t2 !== '' ? t2 : '';
-      sheet6FormulaResults[`M${row}`] = t3 !== '' ? t3 : '';
-      sheet6FormulaResults[`P${row}`] = finalGA !== '' ? finalGA : '';
-      sheet6FormulaResults[`S${row}`] = finalGA !== '' ? getFinalRank(finalGA) : '';
-
-      sheet6Xml = updateFormulaCellExplicit(
-        sheet6Xml,
-        `F${row}`,
-        `IF(TRIM(C${row})="","",IFERROR(_xlfn.XLOOKUP(TRIM(C${row}),'TERM 1 SUMMARY'!$C$15:$C$115,'TERM 1 SUMMARY'!$R$15:$R$115),""))`,
-        t1 !== '' ? t1 : ''
-      );
-      sheet6Xml = updateFormulaCellExplicit(
-        sheet6Xml,
-        `J${row}`,
-        `IF(TRIM(C${row})="","",IFERROR(_xlfn.XLOOKUP(TRIM(C${row}),'TERM 2 SUMMARY'!$C$15:$C$115,'TERM 2 SUMMARY'!$R$15:$R$115),""))`,
-        t2 !== '' ? t2 : ''
-      );
-      sheet6Xml = updateFormulaCellExplicit(
-        sheet6Xml,
-        `M${row}`,
-        `IF(TRIM(C${row})="","",IFERROR(_xlfn.XLOOKUP(TRIM(C${row}),'TERM 3 SUMMARY'!$C$15:$C$115,'TERM 3 SUMMARY'!$R$15:$R$115),""))`,
-        t3 !== '' ? t3 : ''
-      );
-      sheet6Xml = updateFormulaCellExplicit(
-        sheet6Xml,
-        `P${row}`,
-        `IF(C${row}="","",IF(COUNT(F${row},J${row},M${row})<3,"",ROUND(AVERAGE(F${row},J${row},M${row}),0)))`,
-        finalGA !== '' ? finalGA : ''
-      );
-      sheet6Xml = updateFormulaCellExplicit(
-        sheet6Xml,
-        `S${row}`,
-        `IF(P${row}="","",_xlfn.RANK.AVG(P${row},$P$15:$P$115))`,
-        finalGA !== '' ? getFinalRank(finalGA) : ''
-      );
-    }
-
-    // Populate female learners (rows 66 to 115)
-    for (let idx = 0; idx < 50; idx++) {
-      const row = 66 + idx;
-      const f = femaleStudents[idx];
-      sheet6FormulaResults[`C${row}`] = f ? formatLearnerName(f) : '';
-      const t1 = termAveragesMap.get(0)!.females[idx];
-      const t2 = termAveragesMap.get(1)!.females[idx];
-      const t3 = termAveragesMap.get(2)!.females[idx];
-      const finalGA = femaleFinalGAs[idx];
-      sheet6FormulaResults[`D${row}`] = t1 !== '' ? t1 : '';
-      sheet6FormulaResults[`G${row}`] = t2 !== '' ? t2 : '';
-      sheet6FormulaResults[`K${row}`] = t3 !== '' ? t3 : '';
-      sheet6FormulaResults[`N${row}`] = finalGA !== '' ? finalGA : '';
-      sheet6FormulaResults[`Q${row}`] = finalGA !== '' ? getFinalRank(finalGA) : '';
-    }
-
-    sheet6Xml = updateFormulaValuesBatch(sheet6Xml, sheet6FormulaResults);
-    zip.file('xl/worksheets/sheet6.xml', sheet6Xml);
   }
 
   // =========================================================================
-  // SHEET 7: ATTENDANCE
-  // Monthly class days, days present, and days absent for male & female students
+  // SHEET 7: ATTENDANCE RECORD SUMMARY
   // =========================================================================
-  const sheet7File = zip.file('xl/worksheets/sheet7.xml');
+  const sheet7File = zip.file(attPath);
   if (sheet7File) {
     let sheet7Xml = await sheet7File.async('text');
 
@@ -1322,8 +1444,11 @@ export async function populateGrade11TechProTemplateBuffer(
       attendance.schoolDays.forEach((sd, idx) => {
         if (idx < monthCols.length && sd !== undefined && sd !== null && sd > 0) {
           sheet7Cells[`${monthCols[idx]}13`] = Number(sd);
+          sheet7Cells[`${monthCols[idx]}117`] = Number(sd);
         }
       });
+      const totalDays = attendance.schoolDays.reduce((a, b) => a + (Number(b) || 0), 0);
+      sheet7FormulaResults['A117'] = totalDays;
     }
 
     const populateAttendanceRow = (s: StudentWithGrades | undefined, row: number) => {
@@ -1353,90 +1478,88 @@ export async function populateGrade11TechProTemplateBuffer(
 
     sheet7Xml = updateFormulaValuesBatch(sheet7Xml, sheet7FormulaResults);
     sheet7Xml = updateCellsBatch(sheet7Xml, sheet7Cells);
-    zip.file('xl/worksheets/sheet7.xml', sheet7Xml);
+    zip.file(attPath, sheet7Xml);
   }
 
   // =========================================================================
-  // SHEET 8: SF9 FRONT & BACK (Learner's Performance Report Card)
-  //
-  // Row Mapping:
-  //   Row 33: Effective Communication / Mabisang Komunikasyon
-  //   Row 34: Effective Communication
-  //   Row 35: Mabisang Komunikasyon
-  //   Row 36: General Mathematics
-  //   Row 37: General Science
-  //   Row 38: Life and Career Skills
-  //   Row 39: Pag-aaral ng Kasaysayan at Lipunang Pilipino (PKLP)
-  //   Row 40: Header: Elective Subjects
-  //   Row 41: TechPro Elective 1 (Elective title)
-  //   Row 42: Spacer
-  //   Row 43: General Average
-  //
-  // Columns:
-  //   F = Term 1, G = Term 2, H = Term 3, I = Final Grade, J:K = Remarks
+  // SF9 SHEET (sheet6.xml in updated template, sheet8.xml in legacy)
   // =========================================================================
-  const sheet8File = zip.file('xl/worksheets/sheet8.xml');
-  if (sheet8File) {
-    let sheet8Xml = await sheet8File.async('text');
+  const sf9File = zip.file(sf9SheetPath);
+  if (sf9File) {
+    let sf9Xml = await sf9File.async('text');
+
+    const isModernLayout = sf9Xml.includes('r="L33"') || sf9SheetPath.includes('sheet6') || zip.file('xl/drawings/drawing6.xml') !== null;
 
     // Calculated Age
-    const calculatedAge = student.age || (() => {
-      if (!student.birthday) return '';
-      const b = new Date(student.birthday);
-      if (isNaN(b.getTime())) return '';
-      const now = new Date();
-      let diff = now.getFullYear() - b.getFullYear();
-      const m = now.getMonth() - b.getMonth();
-      if (m < 0 || (m === 0 && now.getDate() < b.getDate())) diff--;
-      return diff >= 0 ? diff : '';
-    })();
+    const calculatedAge = parseAge(student.age, student.birthday);
 
     // 1. Header & Student Info
-    const sf8Cells: Record<string, string | number> = {
+    const sf9Cells: Record<string, string | number> = {
       'C17': currentStudentName,
-      'B41': elective1Title, // Update Elective 1 subject title on report card in B41
+      'B41': elective1Title,
     };
 
-    const sf8FormulaResults: Record<string, string | number> = {
+    const sf9FormulaResults: Record<string, string | number> = {
       'C18': student.lrn || '',
       'I17': calculatedAge,
       'K17': isMale ? 'M' : 'F',
       'I18': 11,
-      'K18': section || '',
+      'K18': cleanSection,
+      'E19': cleanTrack,
     };
 
-    // Replace #REF! cells with valid formulas and values in Sheet 8 Header
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'B7', "'INPUT DATA'!F10", cleanRegion);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'B8', "'INPUT DATA'!F11", cleanDivision);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'B9', "'INPUT DATA'!F13", cleanDistrict);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'B10', "'INPUT DATA'!F15", cleanSchoolId);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'B12', "'INPUT DATA'!F16", cleanSchoolName);
-    sheet8Xml = updateCellInSheetXml(sheet8Xml, 'B15', `School Year ${cleanSy}`);
-    sheet8Xml = updateCellInSheetXml(sheet8Xml, 'A12', '');
-    sheet8Xml = updateCellInSheetXml(sheet8Xml, 'A15', '');
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'K18', "'TERM 1 SUMMARY'!N9", cleanSection);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'C19', '', '');
-    sheet8Xml = updateCellInSheetXml(sheet8Xml, 'C19', '');
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'E19', "'INPUT DATA'!F28", cleanTrack);
-    sheet8Xml = updateCellInSheetXml(sheet8Xml, 'A41', '');
-    sheet8Xml = updateCellInSheetXml(sheet8Xml, 'B41', elective1Title);
+    // Header updates & #REF! elimination
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B7', "'INPUT DATA'!F10", cleanRegion);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B8', "'INPUT DATA'!F11", cleanDivision);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B9', "'INPUT DATA'!F13", cleanDistrict);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B10', "'INPUT DATA'!F15", cleanSchoolId);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B12', "'INPUT DATA'!F16", cleanSchoolName);
+    sf9Xml = updateCellInSheetXml(sf9Xml, 'B15', `School Year ${cleanSy}`);
+    sf9Xml = updateCellInSheetXml(sf9Xml, 'A12', '');
+    sf9Xml = updateCellInSheetXml(sf9Xml, 'A15', '');
 
-    // Signatures: A27 is an empty margin cell with NO formula.
-    // School Head is in B27 (merged B27:F27), Adviser is in H27 (merged H27:K27).
-    sf8FormulaResults['B27'] = cleanPrincipal;
-    sf8FormulaResults['H27'] = cleanAdviser;
-    sf8FormulaResults['X39'] = cleanAdviser;
-    sf8FormulaResults['Q41'] = cleanPrincipal;
-    sf8FormulaResults['J50'] = cleanPrincipal;
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'A27', '', '');
-    sheet8Xml = updateCellInSheetXml(sheet8Xml, 'A27', '');
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'B27', "'INPUT DATA'!F19", cleanPrincipal);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'H27', "'INPUT DATA'!F26", cleanAdviser);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'X39', "'INPUT DATA'!F26", cleanAdviser);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'Q41', "'INPUT DATA'!F19", cleanPrincipal);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'J50', "'INPUT DATA'!F19", cleanPrincipal);
+    sf9Xml = updateCellInSheetXml(sf9Xml, 'C17', currentStudentName);
+    sf9Xml = updateFormulaCellExplicit(
+      sf9Xml,
+      'C18',
+      "IF(C17=\"\",\"\",VLOOKUP(C17,'TERM 1 SUMMARY'!C16:R116,4,0))",
+      student.lrn || ''
+    );
+    sf9Xml = updateFormulaCellExplicit(
+      sf9Xml,
+      'I17',
+      "IF(C17=\"\",\"\",VLOOKUP(C17,'TERM 1 SUMMARY'!C16:R116,7,0))",
+      calculatedAge
+    );
+    sf9Xml = updateFormulaCellExplicit(
+      sf9Xml,
+      'K17',
+      "IF(C17=\"\",\"\",VLOOKUP(C17,'TERM 1 SUMMARY'!C16:R116,8,0))",
+      isMale ? 'M' : 'F'
+    );
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I18', "IF('INPUT DATA'!F27=\"\",\"\",'INPUT DATA'!F27)", 11);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K18', "IF('INPUT DATA'!F29=\"\",\"\",'INPUT DATA'!F29)", cleanSection);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'E19', "IF('INPUT DATA'!F28=\"\",\"\",'INPUT DATA'!F28)", cleanTrack);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'C19', '', '');
+    sf9Xml = updateCellInSheetXml(sf9Xml, 'C19', '');
 
-    // Pre-evaluate subject quarterly grades
+    // Signatures
+    sf9FormulaResults['B27'] = cleanPrincipal;
+    sf9FormulaResults['H27'] = cleanAdviser;
+    sf9FormulaResults['X39'] = cleanAdviser;
+    sf9FormulaResults['Q41'] = cleanPrincipal;
+    sf9FormulaResults['J50'] = cleanPrincipal;
+    sf9FormulaResults['Q50'] = cleanPrincipal;
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'A27', '', '');
+    sf9Xml = updateCellInSheetXml(sf9Xml, 'A27', '');
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B27', "IF('INPUT DATA'!F19=\"\",\"\",'INPUT DATA'!F19)", cleanPrincipal);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'H27', "IF('INPUT DATA'!F26=\"\",\"\",'INPUT DATA'!F26)", cleanAdviser);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'X39', "IF('INPUT DATA'!F26=\"\",\"\",'INPUT DATA'!F26)", cleanAdviser);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'Q41', "IF('INPUT DATA'!F19=\"\",\"\",'INPUT DATA'!F19)", cleanPrincipal);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J50', "IF('INPUT DATA'!F19=\"\",\"\",'INPUT DATA'!F19)", cleanPrincipal);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'Q50', "IF('INPUT DATA'!F19=\"\",\"\",'INPUT DATA'!F19)", cleanPrincipal);
+
+    // Pre-evaluate quarterly subject grades
     const t1_s1 = currentGrades.effectiveComm[0] ?? '';
     const t2_s1 = currentGrades.effectiveComm[1] ?? '';
     const t3_s1 = currentGrades.effectiveComm[2] ?? '';
@@ -1465,45 +1588,6 @@ export async function populateGrade11TechProTemplateBuffer(
     const t2_s7 = currentGrades.techProElective1[1] ?? '';
     const t3_s7 = currentGrades.techProElective1[2] ?? '';
 
-    // Cache quarterly cell results
-    const setTermCellResult = (cell: string, val: number | string) => {
-      if (val !== '') {
-        const num = Number(val);
-        sf8FormulaResults[cell] = !isNaN(num) ? num : val;
-      } else {
-        sf8FormulaResults[cell] = '';
-      }
-    };
-
-    setTermCellResult('F34', t1_s1);
-    setTermCellResult('G34', t2_s1);
-    setTermCellResult('H34', t3_s1);
-
-    setTermCellResult('F35', t1_s2);
-    setTermCellResult('G35', t2_s2);
-    setTermCellResult('H35', t3_s2);
-
-    setTermCellResult('F36', t1_s3);
-    setTermCellResult('G36', t2_s3);
-    setTermCellResult('H36', t3_s3);
-
-    setTermCellResult('F37', t1_s4);
-    setTermCellResult('G37', t2_s4);
-    setTermCellResult('H37', t3_s4);
-
-    setTermCellResult('F38', t1_s5);
-    setTermCellResult('G38', t2_s5);
-    setTermCellResult('H38', t3_s5);
-
-    setTermCellResult('F39', t1_s6);
-    setTermCellResult('G39', t2_s6);
-    setTermCellResult('H39', t3_s6);
-
-    setTermCellResult('F41', t1_s7);
-    setTermCellResult('G41', t2_s7);
-    setTermCellResult('H41', t3_s7);
-
-    // Compute Term Averages for Combined Learning Area 1 (Effective Comm / Mabisang Kom) on Row 33
     const computeTermComb = (a: number | string, b: number | string) => {
       const numA = typeof a === 'number' ? a : parseFloat(String(a));
       const numB = typeof b === 'number' ? b : parseFloat(String(b));
@@ -1515,166 +1599,375 @@ export async function populateGrade11TechProTemplateBuffer(
     const t2_comb = computeTermComb(t2_s1, t2_s2);
     const t3_comb = computeTermComb(t3_s1, t3_s2);
 
-    // Write Explicit Formulas for Combined Learning Area 1 (Row 33)
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'F33', 'IF(COUNT(F34:F35)<2,"",ROUND(AVERAGE(F34:F35),0))', t1_comb);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'G33', 'IF(COUNT(G34:G35)<2,"",ROUND(AVERAGE(G34:G35),0))', t2_comb);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'H33', 'IF(COUNT(H34:H35)<2,"",ROUND(AVERAGE(H34:H35),0))', t3_comb);
-
-    // Compute Final Grade & Remarks for each learning area (shown ONLY if ALL 3 term grades are complete)
-    const computeFinalAndRemarks = (
-      fCell: string,
-      jCell: string,
-      terms: (number | string)[],
-      termsRange: string
-    ): { finalGrade: number | ''; remarks: string } => {
-      const nums = terms.map(v => typeof v === 'number' ? v : parseFloat(String(v))).filter(v => !isNaN(v));
-      const formula = `IF(COUNT(${termsRange})<3,"",ROUND(AVERAGE(${termsRange}),0))`;
-      const remFormula = `IF(${fCell}="","",IF(${fCell}>=75,"Passed","Failed"))`;
-      if (nums.length < 3) {
-        sheet8Xml = updateFormulaCellExplicit(sheet8Xml, fCell, formula, '');
-        sheet8Xml = updateFormulaCellExplicit(sheet8Xml, jCell, remFormula, '');
-        return { finalGrade: '', remarks: '' };
-      }
-      const finalVal = Math.round(nums.reduce((a, b) => a + b, 0) / 3);
-      const rem = finalVal >= 75 ? 'Passed' : 'Failed';
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, fCell, formula, finalVal);
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, jCell, remFormula, rem);
-      return { finalGrade: finalVal, remarks: rem };
+    const calcFinalGrade = (terms: (number | string)[]) => {
+      const valid = terms.map(v => typeof v === 'number' ? v : parseFloat(String(v))).filter(v => !isNaN(v) && v > 0);
+      return valid.length === 3 ? Math.round(valid.reduce((a, b) => a + b, 0) / 3) : '';
     };
 
-    const res_comb = computeFinalAndRemarks('I33', 'J33', [t1_comb, t2_comb, t3_comb], 'F33:H33');
-    computeFinalAndRemarks('I34', 'J34', [t1_s1, t2_s1, t3_s1], 'F34:H34');
-    computeFinalAndRemarks('I35', 'J35', [t1_s2, t2_s2, t3_s2], 'F35:H35');
-    const res_s3 = computeFinalAndRemarks('I36', 'J36', [t1_s3, t2_s3, t3_s3], 'F36:H36');
-    const res_s4 = computeFinalAndRemarks('I37', 'J37', [t1_s4, t2_s4, t3_s4], 'F37:H37');
-    const res_s5 = computeFinalAndRemarks('I38', 'J38', [t1_s5, t2_s5, t3_s5], 'F38:H38');
-    const res_s6 = computeFinalAndRemarks('I39', 'J39', [t1_s6, t2_s6, t3_s6], 'F39:H39');
-    const res_s7 = computeFinalAndRemarks('I41', 'J41', [t1_s7, t2_s7, t3_s7], 'F41:H41');
+    const commFinal = calcFinalGrade([t1_comb, t2_comb, t3_comb]);
+    const mathFinal = calcFinalGrade([t1_s3, t2_s3, t3_s3]);
+    const sciFinal = calcFinalGrade([t1_s4, t2_s4, t3_s4]);
+    const lcsFinal = calcFinalGrade([t1_s5, t2_s5, t3_s5]);
+    const pklpFinal = calcFinalGrade([t1_s6, t2_s6, t3_s6]);
+    const electiveFinal = calcFinalGrade([t1_s7, t2_s7, t3_s7]);
 
-    // Compute General Average across the 6 Learning Areas ONLY if ALL 6 are complete:
-    // Rows 33 (Combined EffComm/MabKom), 36 (GenMath), 37 (GenSci), 38 (LifeCareer), 39 (PKLP), 41 (TechPro Elective 1)
-    const learningAreaFinals = [
-      res_comb.finalGrade,
-      res_s3.finalGrade,
-      res_s4.finalGrade,
-      res_s5.finalGrade,
-      res_s6.finalGrade,
-      res_s7.finalGrade
-    ].filter((v): v is number => typeof v === 'number');
+    const numOrEmpty = (v: unknown): number | '' => {
+      if (v === undefined || v === null || v === '') return '';
+      const n = typeof v === 'number' ? v : parseFloat(String(v));
+      return !isNaN(n) && n > 0 ? n : '';
+    };
+    const getRemarks = (v: number | '') => (typeof v === 'number' && v > 0 ? (v >= 75 ? 'Passed' : 'Failed') : '');
 
-    let generalAverageVal: number | '' = '';
-    let generalRemarksVal = '';
-    let isAcademicExcellence = false;
+    if (isModernLayout) {
+      // Modern DepEd Layout (8-sheet, Sheet 6 = SF9):
+      // - Columns F, G, H: Term 1, Term 2, Term 3
+      // - Column I: Units (6 for core, 12 for TechPro Specialization, 42 total in row 42)
+      // - Column J: Final Grade (Row 33 combined, Rows 36-39 core, Row 41 elective, Row 42 Gen Avg)
+      // - Column K: Remarks ("Passed" / "Failed" / "Promoted with Academic Excellence Award")
+      // - Column L: Weighted Points (J * I guarded against #VALUE!)
+      // - Row 34 & 35: English & Filipino sub-rows, J:L remain empty
 
-    if (learningAreaFinals.length === 6) {
-      generalAverageVal = Math.round(learningAreaFinals.reduce((a, b) => a + b, 0) / 6);
-      const minGrade = Math.min(...learningAreaFinals);
+      // Pre-evaluate term grades in Columns F, G, H
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'F33', t1_comb);
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'G33', t2_comb);
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'H33', t3_comb);
 
-      // DepEd Order No. 15, s. 2026 Academic Excellence criteria
-      if (generalAverageVal >= 75) {
-        if (generalAverageVal >= 90 && minGrade >= 85) {
-          generalRemarksVal = 'Promoted with Academic Excellence Award';
-          isAcademicExcellence = true;
-        } else {
-          generalRemarksVal = 'Promoted';
-        }
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'F34', numOrEmpty(t1_s1));
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'G34', numOrEmpty(t2_s1));
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'H34', numOrEmpty(t3_s1));
+
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'F35', numOrEmpty(t1_s2));
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'G35', numOrEmpty(t2_s2));
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'H35', numOrEmpty(t3_s2));
+
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'F36', numOrEmpty(t1_s3));
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'G36', numOrEmpty(t2_s3));
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'H36', numOrEmpty(t3_s3));
+
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'F37', numOrEmpty(t1_s4));
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'G37', numOrEmpty(t2_s4));
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'H37', numOrEmpty(t3_s4));
+
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'F38', numOrEmpty(t1_s5));
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'G38', numOrEmpty(t2_s5));
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'H38', numOrEmpty(t3_s5));
+
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'F39', numOrEmpty(t1_s6));
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'G39', numOrEmpty(t2_s6));
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'H39', numOrEmpty(t3_s6));
+
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'F41', numOrEmpty(t1_s7));
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'G41', numOrEmpty(t2_s7));
+      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'H41', numOrEmpty(t3_s7));
+
+      // Final Grades (Column J) - shown ONLY if all 3 terms are complete
+      sf9Xml = updateFormulaCellExplicit(
+        sf9Xml,
+        'J33',
+        'IF(SUM(F33:H33)=0, "", ROUND((F33+H33+G33)*(I33/3)/I33,0))',
+        commFinal !== '' ? commFinal : ''
+      );
+      sf9Xml = updateFormulaCellExplicit(
+        sf9Xml,
+        'J36',
+        'IF(SUM(F36:H36)=0, "", ROUND((F36+H36+G36)*(I36/3)/I36,0))',
+        mathFinal !== '' ? mathFinal : ''
+      );
+      sf9Xml = updateFormulaCellExplicit(
+        sf9Xml,
+        'J37',
+        'IF(SUM(F37:H37)=0, "", ROUND((F37+H37+G37)*(I37/3)/I37,0))',
+        sciFinal !== '' ? sciFinal : ''
+      );
+      sf9Xml = updateFormulaCellExplicit(
+        sf9Xml,
+        'J38',
+        'IF(SUM(F38:H38)=0, "", ROUND((F38+H38+G38)*(I38/3)/I38,0))',
+        lcsFinal !== '' ? lcsFinal : ''
+      );
+      sf9Xml = updateFormulaCellExplicit(
+        sf9Xml,
+        'J39',
+        'IF(SUM(F39:H39)=0, "", ROUND((F39+H39+G39)*(I39/3)/I39,0))',
+        pklpFinal !== '' ? pklpFinal : ''
+      );
+      sf9Xml = updateFormulaCellExplicit(
+        sf9Xml,
+        'J41',
+        'IF(SUM(F41:H41)=0, "", ROUND((F41+H41+G41)*(I41/3)/I41,0))',
+        electiveFinal !== '' ? electiveFinal : ''
+      );
+
+      // Rows 34 & 35 have empty final grade, remarks, and points
+      sf9Xml = updateCellInSheetXml(sf9Xml, 'J34', '');
+      sf9Xml = updateCellInSheetXml(sf9Xml, 'K34', '');
+      sf9Xml = updateCellInSheetXml(sf9Xml, 'L34', '');
+      sf9Xml = updateCellInSheetXml(sf9Xml, 'J35', '');
+      sf9Xml = updateCellInSheetXml(sf9Xml, 'K35', '');
+      sf9Xml = updateCellInSheetXml(sf9Xml, 'L35', '');
+
+      // Remarks (Column K)
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K33', 'IF(J33="", "", IF(J33>=75, "Passed", "Failed"))', getRemarks(commFinal));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K36', 'IF(J36="", "", IF(J36>=75, "Passed", "Failed"))', getRemarks(mathFinal));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K37', 'IF(J37="", "", IF(J37>=75, "Passed", "Failed"))', getRemarks(sciFinal));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K38', 'IF(J38="", "", IF(J38>=75, "Passed", "Failed"))', getRemarks(lcsFinal));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K39', 'IF(J39="", "", IF(J39>=75, "Passed", "Failed"))', getRemarks(pklpFinal));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K41', 'IF(J41="", "", IF(J41>=75, "Passed", "Failed"))', getRemarks(electiveFinal), '577');
+
+      // Weighted Points (Column L = J * I) - safely guarded against empty strings to eliminate #VALUE!
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'L33', 'IF(J33="","",J33*I33)', commFinal !== '' ? commFinal * 6 : '');
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'L36', 'IF(J36="","",J36*I36)', mathFinal !== '' ? mathFinal * 6 : '');
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'L37', 'IF(J37="","",J37*I37)', sciFinal !== '' ? sciFinal * 6 : '');
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'L38', 'IF(J38="","",J38*I38)', lcsFinal !== '' ? lcsFinal * 6 : '');
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'L39', 'IF(J39="","",J39*I39)', pklpFinal !== '' ? pklpFinal * 6 : '');
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'L41', 'IF(J41="","",J41*I41)', electiveFinal !== '' ? electiveFinal * 12 : '');
+
+      // General Average (Row 42 across all 6 learning areas weighted by 42 total units)
+      const modernLearningAreas = [commFinal, mathFinal, sciFinal, lcsFinal, pklpFinal, electiveFinal];
+      const validPoints = [
+        commFinal !== '' ? commFinal * 6 : null,
+        mathFinal !== '' ? mathFinal * 6 : null,
+        sciFinal !== '' ? sciFinal * 6 : null,
+        lcsFinal !== '' ? lcsFinal * 6 : null,
+        pklpFinal !== '' ? pklpFinal * 6 : null,
+        electiveFinal !== '' ? electiveFinal * 12 : null,
+      ].filter((p): p is number => p !== null && p > 0);
+
+      const totalWeightedPoints = validPoints.length === 6 ? validPoints.reduce((a, b) => a + b, 0) : '';
+      const modernGenAvg = totalWeightedPoints !== '' ? Math.round(totalWeightedPoints / 42) : '';
+      const modernGenAvgRemarks = getGenAvgRemarks(modernGenAvg, modernLearningAreas);
+      const isAcademicExcellence = modernGenAvgRemarks.includes('Academic Excellence');
+      const k42Style = isAcademicExcellence ? style10Id : style12Id;
+
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I42', 'SUM(I33:I39,I41)', 42);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'L42', 'SUM(L33:L41)', totalWeightedPoints !== '' ? totalWeightedPoints : '');
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J42', 'IF(COUNT(J33,J36:J39,J41)<6,"",ROUND(L42/I42,0))', modernGenAvg !== '' ? modernGenAvg : '');
+      sf9Xml = updateFormulaCellExplicit(
+        sf9Xml,
+        'K42',
+        'IF(J42="","",IF(J42>=75,IF(AND(J42>=90,MIN(J33,J36:J39,J41)>=85),"Promoted with Academic Excellence Award","Promoted"),"Retained"))',
+        modernGenAvgRemarks,
+        k42Style
+      );
+      sf9Xml = sf9Xml.replace(
+        /(<row\s+r="42"[^>]*?\s+ht=")[^"]*(")/,
+        '$136$2'
+      );
+
+      // Attendance in SF9
+      const sf9MonthCols = ['R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA', 'AB']; // Jun to Apr (11 columns)
+      if (attendance?.schoolDays && attendance.schoolDays.length > 0) {
+        attendance.schoolDays.forEach((sd, idx) => {
+          if (idx < sf9MonthCols.length && sd !== undefined && sd !== null && sd > 0) {
+            sf9Xml = updateCellInSheetXml(sf9Xml, `${sf9MonthCols[idx]}5`, Number(sd));
+          }
+        });
+        const totalClassDays = attendance.schoolDays.reduce((a, b) => a + (Number(b) || 0), 0);
+        sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC5', 'SUM(R5:AB6)', totalClassDays > 0 ? totalClassDays : '');
       } else {
-        generalRemarksVal = 'Retained';
+        sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC5', 'SUM(R5:AB6)', '');
       }
-    }
 
-    // Set General Average Formula and Remarks on Row 43 (shown ONLY if ALL 6 learning areas are complete)
-    const gaFormula = 'IF(COUNT(I33,I36:I39,I41)<6,"",ROUND(AVERAGE(I33,I36:I39,I41),0))';
-    const gaRemarksFormula = 'IF(I43="","",IF(I43>=75,IF(AND(I43>=90,MIN(I33,I36:I39,I41)>=85),"Promoted with Academic Excellence Award","Promoted"),"Retained"))';
-
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'I43', gaFormula, generalAverageVal);
-
-    // Style 12pt (style12Id): 12pt centered for Promoted/Retained.
-    // Style 10pt (style10Id): 10pt centered for Promoted with Academic Excellence Award with wrapText=1.
-    const remarksStyleId = isAcademicExcellence ? style10Id : style12Id;
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'J43', gaRemarksFormula, generalRemarksVal, remarksStyleId);
-    sheet8Xml = updateCellInSheetXml(sheet8Xml, 'K43', '', remarksStyleId);
-
-    // Set row 43 height to 36 so wrapped text fits comfortably and borders are never clipped
-    sheet8Xml = sheet8Xml.replace(
-      /(<row\s+r="43"[^>]*?\s+ht=")[^"]*(")/,
-      '$136$2'
-    );
-
-    // TechPro Elective 1 Remarks (J41 & K41) non-bold style 577 while preserving formula
-    sheet8Xml = updateFormulaCellExplicit(
-      sheet8Xml,
-      'J41',
-      'IF(I41="","",IF(I41>=75,"Passed","Failed"))',
-      res_s7.remarks,
-      '577'
-    );
-    sheet8Xml = updateCellInSheetXml(sheet8Xml, 'K41', '', '577');
-
-    // Sheet 8 Attendance Table
-    const sf9MonthCols = ['R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA', 'AB']; // Jun to Apr (11 columns)
-
-    // Row 5: No. of Class Days
-    if (attendance?.schoolDays && attendance.schoolDays.length > 0) {
-      attendance.schoolDays.forEach((sd, idx) => {
-        if (idx < sf9MonthCols.length && sd !== undefined && sd !== null && sd > 0) {
-          sheet8Xml = updateCellInSheetXml(sheet8Xml, `${sf9MonthCols[idx]}5`, Number(sd));
-        }
+      sf9MonthCols.forEach((col, idx) => {
+        const vlookupCol = 4 + idx;
+        const formula = `IF('ATTENDANCE RECORD SUMMARY'!F14="","",IFERROR(VLOOKUP(C17,'ATTENDANCE RECORD SUMMARY'!$C$14:$P$114,${vlookupCol},0),""))`;
+        const cachedVal = (attendance?.daysPresent && attendance.daysPresent[idx] !== undefined && attendance.daysPresent[idx] !== null && attendance.daysPresent[idx] !== ('' as unknown as number))
+          ? Number(attendance.daysPresent[idx])
+          : '';
+        sf9Xml = updateFormulaCellExplicit(sf9Xml, `${col}7`, formula, cachedVal);
       });
-      const totalClassDays = attendance.schoolDays.reduce((a, b) => a + (Number(b) || 0), 0);
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC5', 'SUM(R5:AB5)', totalClassDays > 0 ? totalClassDays : '');
+      const totalPresent = (attendance?.daysPresent && attendance.daysPresent.length > 0)
+        ? attendance.daysPresent.reduce((a, b) => a + (Number(b) || 0), 0)
+        : '';
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC7', 'SUM(R7:AB8)', (totalPresent !== '' && totalPresent > 0) ? totalPresent : (totalPresent === 0 ? 0 : ''));
+
+      sf9MonthCols.forEach((col, idx) => {
+        const classDays = (attendance?.schoolDays && attendance.schoolDays[idx]) ? Number(attendance.schoolDays[idx]) : 0;
+        const dpVal = (attendance?.daysPresent && attendance.daysPresent[idx] !== undefined && attendance.daysPresent[idx] !== null && attendance.daysPresent[idx] !== ('' as unknown as number))
+          ? Number(attendance.daysPresent[idx])
+          : null;
+        const cachedAbsent = (dpVal !== null && classDays > 0)
+          ? Math.max(0, classDays - dpVal)
+          : '';
+        sf9Xml = updateFormulaCellExplicit(sf9Xml, `${col}9`, `IF(${col}7="","",ABS(${col}5-${col}7))`, cachedAbsent);
+      });
+      const totalSchoolDaysNum = (attendance?.schoolDays && attendance.schoolDays.length > 0)
+        ? attendance.schoolDays.reduce((a, b) => a + (Number(b) || 0), 0)
+        : 0;
+      const totalAbsent = attendance?.daysAbsent
+        ? attendance.daysAbsent.reduce((a, b) => a + (Number(b) || 0), 0)
+        : (totalSchoolDaysNum > 0 && typeof totalPresent === 'number' ? Math.max(0, totalSchoolDaysNum - totalPresent) : '');
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC9', 'ABS(AC5-AC7)', totalAbsent !== '' ? totalAbsent : '');
     } else {
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC5', 'SUM(R5:AB5)', '');
+      // Legacy Layout (Sheet 8 fallback where Final Grade is in Column I and General Average is in Row 43)
+      const s8FormulaResults: Record<string, string | number> = {
+        'F34': numOrEmpty(t1_s1),
+        'G34': numOrEmpty(t2_s1),
+        'H34': numOrEmpty(t3_s1),
+
+        'F35': numOrEmpty(t1_s2),
+        'G35': numOrEmpty(t2_s2),
+        'H35': numOrEmpty(t3_s2),
+
+        'F36': numOrEmpty(t1_s3),
+        'G36': numOrEmpty(t2_s3),
+        'H36': numOrEmpty(t3_s3),
+
+        'F37': numOrEmpty(t1_s4),
+        'G37': numOrEmpty(t2_s4),
+        'H37': numOrEmpty(t3_s4),
+
+        'F38': numOrEmpty(t1_s5),
+        'G38': numOrEmpty(t2_s5),
+        'H38': numOrEmpty(t3_s5),
+
+        'F39': numOrEmpty(t1_s6),
+        'G39': numOrEmpty(t2_s6),
+        'H39': numOrEmpty(t3_s6),
+
+        'F41': numOrEmpty(t1_s7),
+        'G41': numOrEmpty(t2_s7),
+        'H41': numOrEmpty(t3_s7),
+      };
+
+      // Parent Subject: Effective Communication / Mabisang Komunikasyon (Row 33)
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'F33', 'IF(COUNT(F34:F35)<2,"",ROUND(AVERAGE(F34:F35),0))', t1_comb);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'G33', 'IF(COUNT(G34:G35)<2,"",ROUND(AVERAGE(G34:G35),0))', t2_comb);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'H33', 'IF(COUNT(H34:H35)<2,"",ROUND(AVERAGE(H34:H35),0))', t3_comb);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I33', 'IF(COUNT(F33:H33)<3,"",ROUND(AVERAGE(F33:H33),0))', commFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J33', 'IF(I33="","",IF(I33>=75,"Passed","Failed"))', getRemarks(commFinal));
+
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I34', 'IF(COUNT(F34:H34)<3,"",ROUND(AVERAGE(F34:H34),0))', calcFinalGrade([t1_s1, t2_s1, t3_s1]));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J34', 'IF(I34="","",IF(I34>=75,"Passed","Failed"))', getRemarks(calcFinalGrade([t1_s1, t2_s1, t3_s1])));
+
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I35', 'IF(COUNT(F35:H35)<3,"",ROUND(AVERAGE(F35:H35),0))', calcFinalGrade([t1_s2, t2_s2, t3_s2]));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J35', 'IF(I35="","",IF(I35>=75,"Passed","Failed"))', getRemarks(calcFinalGrade([t1_s2, t2_s2, t3_s2])));
+
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I36', 'IF(COUNT(F36:H36)<3,"",ROUND(AVERAGE(F36:H36),0))', mathFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J36', 'IF(I36="","",IF(I36>=75,"Passed","Failed"))', getRemarks(mathFinal));
+
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I37', 'IF(COUNT(F37:H37)<3,"",ROUND(AVERAGE(F37:H37),0))', sciFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J37', 'IF(I37="","",IF(I37>=75,"Passed","Failed"))', getRemarks(sciFinal));
+
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I38', 'IF(COUNT(F38:H38)<3,"",ROUND(AVERAGE(F38:H38),0))', lcsFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J38', 'IF(I38="","",IF(I38>=75,"Passed","Failed"))', getRemarks(lcsFinal));
+
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I39', 'IF(COUNT(F39:H39)<3,"",ROUND(AVERAGE(F39:H39),0))', pklpFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J39', 'IF(I39="","",IF(I39>=75,"Passed","Failed"))', getRemarks(pklpFinal));
+
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I41', 'IF(COUNT(F41:H41)<3,"",ROUND(AVERAGE(F41:H41),0))', electiveFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J41', 'IF(I41="","",IF(I41>=75,"Passed","Failed"))', getRemarks(electiveFinal), '577');
+
+      const legacyLearningAreas = [commFinal, mathFinal, sciFinal, lcsFinal, pklpFinal, electiveFinal].filter((v): v is number => typeof v === 'number' && v > 0);
+      const legacyGenAvg = legacyLearningAreas.length === 6 ? Math.round(legacyLearningAreas.reduce((a, b) => a + b, 0) / 6) : '';
+      const legacyGenAvgRemarks = getGenAvgRemarks(legacyGenAvg, legacyLearningAreas);
+      const isAcademicExcellence = legacyGenAvgRemarks.includes('Academic Excellence');
+      const remarksStyleId = isAcademicExcellence ? style10Id : style12Id;
+
+      sf9Xml = updateFormulaCellExplicit(
+        sf9Xml,
+        'I43',
+        'IF(COUNT(I33,I36:I39,I41)<6,"",ROUND(AVERAGE(I33,I36:I39,I41),0))',
+        legacyGenAvg !== '' ? legacyGenAvg : ''
+      );
+      sf9Xml = updateFormulaCellExplicit(
+        sf9Xml,
+        'J43',
+        'IF(I43="","",IF(I43>=75,IF(AND(I43>=90,MIN(I33,I36:I39,I41)>=85),"Promoted with Academic Excellence Award","Promoted"),"Retained"))',
+        legacyGenAvgRemarks,
+        remarksStyleId
+      );
+      sf9Xml = updateCellInSheetXml(sf9Xml, 'K43', '', remarksStyleId);
+
+      sf9Xml = sf9Xml.replace(
+        /(<row\s+r="43"[^>]*?\s+ht=")[^"]*(")/,
+        '$136$2'
+      );
+
+      // Attendance on legacy Sheet 8
+      const sf9MonthCols = ['R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA', 'AB'];
+      if (attendance?.schoolDays && attendance.schoolDays.length > 0) {
+        attendance.schoolDays.forEach((sd, idx) => {
+          if (idx < sf9MonthCols.length && sd !== undefined && sd !== null && sd > 0) {
+            sf9Xml = updateCellInSheetXml(sf9Xml, `${sf9MonthCols[idx]}5`, Number(sd));
+          }
+        });
+        const totalClassDays = attendance.schoolDays.reduce((a, b) => a + (Number(b) || 0), 0);
+        sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC5', 'SUM(R5:AB5)', totalClassDays > 0 ? totalClassDays : '');
+      } else {
+        sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC5', 'SUM(R5:AB5)', '');
+      }
+
+      sf9MonthCols.forEach((col, idx) => {
+        const vlookupCol = 4 + idx;
+        const formula = `IF('ATTENDANCE RECORD SUMMARY'!F14="","",IFERROR(VLOOKUP(C17,'ATTENDANCE RECORD SUMMARY'!$C$14:$P$114,${vlookupCol},0),""))`;
+        const cachedVal = (attendance?.daysPresent && attendance.daysPresent[idx] !== undefined && attendance.daysPresent[idx] !== null && attendance.daysPresent[idx] !== ('' as unknown as number))
+          ? Number(attendance.daysPresent[idx])
+          : '';
+        sf9Xml = updateFormulaCellExplicit(sf9Xml, `${col}7`, formula, cachedVal);
+      });
+      const totalPresent = (attendance?.daysPresent && attendance.daysPresent.length > 0)
+        ? attendance.daysPresent.reduce((a, b) => a + (Number(b) || 0), 0)
+        : '';
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC7', 'SUM(R7:AB7)', (totalPresent !== '' && totalPresent > 0) ? totalPresent : (totalPresent === 0 ? 0 : ''));
+
+      sf9MonthCols.forEach((col, idx) => {
+        const formula = `IF(OR(${col}5="",${col}7=""),"",IF(${col}5>=${col}7,${col}5-${col}7,0))`;
+        const classDays = (attendance?.schoolDays && attendance.schoolDays[idx]) ? Number(attendance.schoolDays[idx]) : 0;
+        const dpVal = (attendance?.daysPresent && attendance.daysPresent[idx] !== undefined && attendance.daysPresent[idx] !== null && attendance.daysPresent[idx] !== ('' as unknown as number))
+          ? Number(attendance.daysPresent[idx])
+          : null;
+        const cachedAbsent = (dpVal !== null && classDays > 0)
+          ? Math.max(0, classDays - dpVal)
+          : '';
+        sf9Xml = updateFormulaCellExplicit(sf9Xml, `${col}9`, formula, cachedAbsent);
+      });
+      const totalSchoolDaysNum = (attendance?.schoolDays && attendance.schoolDays.length > 0)
+        ? attendance.schoolDays.reduce((a, b) => a + (Number(b) || 0), 0)
+        : 0;
+      const totalAbsent = attendance?.daysAbsent
+        ? attendance.daysAbsent.reduce((a, b) => a + (Number(b) || 0), 0)
+        : (totalSchoolDaysNum > 0 && typeof totalPresent === 'number' ? Math.max(0, totalSchoolDaysNum - totalPresent) : '');
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC9', 'SUM(R9:AB9)', totalAbsent !== '' ? totalAbsent : '');
+
+      sf9Xml = updateFormulaValuesBatch(sf9Xml, s8FormulaResults);
     }
 
-    // Row 7: No. of Days Present (Dynamic VLOOKUP formulas referencing C17 and ATTENDANCE RECORD SUMMARY)
-    sf9MonthCols.forEach((col, idx) => {
-      const vlookupCol = 4 + idx; // Column 4 is F (Jun), Column 14 is P (Apr/Total)
-      const formula = `IF('ATTENDANCE RECORD SUMMARY'!F14="","",IFERROR(VLOOKUP(C17,'ATTENDANCE RECORD SUMMARY'!$C$14:$P$114,${vlookupCol},0),""))`;
-      const cachedVal = (attendance?.daysPresent && attendance.daysPresent[idx] !== undefined && attendance.daysPresent[idx] !== null && attendance.daysPresent[idx] !== ('' as unknown as number))
-        ? Number(attendance.daysPresent[idx])
-        : '';
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, `${col}7`, formula, cachedVal);
-    });
-    const totalPresent = (attendance?.daysPresent && attendance.daysPresent.length > 0)
-      ? attendance.daysPresent.reduce((a, b) => a + (Number(b) || 0), 0)
-      : '';
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC7', 'SUM(R7:AB7)', (totalPresent !== '' && totalPresent > 0) ? totalPresent : (totalPresent === 0 ? 0 : ''));
+    sf9Xml = updateFormulaValuesBatch(sf9Xml, sf9FormulaResults);
+    sf9Xml = updateCellsBatch(sf9Xml, sf9Cells);
 
-    // Row 9: No. of Days Absent (Dynamic difference formulas between Class Days and Days Present)
-    sf9MonthCols.forEach((col, idx) => {
-      const formula = `IF(OR(${col}5="",${col}7=""),"",IF(${col}5>=${col}7,${col}5-${col}7,0))`;
-      const classDays = (attendance?.schoolDays && attendance.schoolDays[idx]) ? Number(attendance.schoolDays[idx]) : 0;
-      const dpVal = (attendance?.daysPresent && attendance.daysPresent[idx] !== undefined && attendance.daysPresent[idx] !== null && attendance.daysPresent[idx] !== ('' as unknown as number))
-        ? Number(attendance.daysPresent[idx])
-        : null;
-      const cachedAbsent = (dpVal !== null && classDays > 0)
-        ? Math.max(0, classDays - dpVal)
-        : '';
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, `${col}9`, formula, cachedAbsent);
-    });
-    const totalSchoolDaysNum = (attendance?.schoolDays && attendance.schoolDays.length > 0)
-      ? attendance.schoolDays.reduce((a, b) => a + (Number(b) || 0), 0)
-      : 0;
-    const totalAbsent = attendance?.daysAbsent
-      ? attendance.daysAbsent.reduce((a, b) => a + (Number(b) || 0), 0)
-      : (totalSchoolDaysNum > 0 && typeof totalPresent === 'number' ? Math.max(0, totalSchoolDaysNum - totalPresent) : '');
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC9', 'SUM(R9:AB9)', totalAbsent !== '' ? totalAbsent : '');
-
-    sheet8Xml = updateFormulaValuesBatch(sheet8Xml, sf8FormulaResults);
-    sheet8Xml = updateCellsBatch(sheet8Xml, sf8Cells);
-
-    zip.file('xl/worksheets/sheet8.xml', sheet8Xml);
+    zip.file(sf9SheetPath, sf9Xml);
   }
 
   // =========================================================================
   // EMBED OFFICIAL SCHOOL LOGO
-  // Replace placeholder Shape 4 in drawing8.xml
+  // Dynamically resolve drawing path from worksheet rels
   // =========================================================================
+  let sf9DrawingPath = 'xl/drawings/drawing6.xml';
+  let sf9DrawingRelsPath = 'xl/drawings/_rels/drawing6.xml.rels';
+
+  const sf9RelPath = `xl/worksheets/_rels/${sf9SheetPath.split('/').pop()}.rels`;
+  const sf9RelsFile = zip.file(sf9RelPath);
+  if (sf9RelsFile) {
+    const relsText = await sf9RelsFile.async('text');
+    const drawMatch = relsText.match(/Type="[^"]*drawing"[^>]*?Target="([^"]+)"/i) ||
+                      relsText.match(/Target="([^"]+)"[^>]*?Type="[^"]*drawing"/i);
+    if (drawMatch) {
+      let target = drawMatch[1].replace(/^\.\.\//, 'xl/');
+      if (!target.startsWith('xl/')) target = `xl/${target}`;
+      sf9DrawingPath = target;
+      const dFileName = target.split('/').pop();
+      sf9DrawingRelsPath = `xl/drawings/_rels/${dFileName}.rels`;
+    }
+  } else if (zip.file('xl/drawings/drawing8.xml') && sf9SheetPath.includes('sheet8')) {
+    sf9DrawingPath = 'xl/drawings/drawing8.xml';
+    sf9DrawingRelsPath = 'xl/drawings/_rels/drawing8.xml.rels';
+  }
+
   await injectSchoolLogoIntoDrawing(
     zip,
-    'xl/drawings/drawing8.xml',
-    'xl/drawings/_rels/drawing8.xml.rels',
+    sf9DrawingPath,
+    sf9DrawingRelsPath,
     schoolProfile?.logo_url
   );
 

@@ -16,6 +16,9 @@ import { normalizeRegionForECR } from './ecr-excel-export';
 import { getSubjectCluster, transmuteGrade } from '../lib/grading';
 
 export const TEMPLATE_SHS_G12 = 'SHS E-Class Record SY 2026-2027.xlsx';
+export const TEMPLATE_SHS_G12_LEGACY = 'ECR_3Term - SHS G12 - SY2026-2027.xlsx';
+export const TEMPLATE_SHS_G12_UPDATED = 'ECR_3Term - SHS G12 - SY2026-2027 - Updated_2.xlsx';
+export type SHSG12TemplateLayout = 'legacy' | 'updated';
 
 const MAX_STUDENTS_PER_GENDER = 50;
 const _G12_WW_COUNT = 10;
@@ -33,6 +36,7 @@ export interface SHSG12ExportOptions {
   track?: string;
   termBlock?: string;
   numTerms?: number;
+  templateLayout?: SHSG12TemplateLayout;
 }
 
 export interface SHSG12TermsConfig {
@@ -402,9 +406,9 @@ export function getSHSG12Descriptor(grade: number | ''): string {
   if (grade === '' || grade === null || grade === undefined || isNaN(Number(grade))) return '';
   const g = Number(grade);
   if (g >= 90) return 'Advancing';
-  if (g >= 85) return 'Benchmarking';
-  if (g >= 80) return 'Connecting';
-  if (g >= 75) return 'Developing';
+  if (g >= 80) return 'Benchmarking';
+  if (g >= 75) return 'Connecting';
+  if (g >= 65) return 'Developing';
   return 'Emerging';
 }
 
@@ -562,6 +566,36 @@ export function computeSHSG12StudentTermScores(
   };
 }
 
+function isUpdatedSHSG12TermSheet(sheetXml: string): boolean {
+  return /<c\s+r="AM11"/.test(sheetXml) && /<c\s+r="AD13"/.test(sheetXml);
+}
+
+function getSHSG12AssessmentScores(
+  record: ClassRecord | undefined,
+  hpsRecord: HPSRecord | undefined
+) {
+  const recordWrittenWorks = record?.written_works || [];
+  const hpsWrittenWorks = hpsRecord?.written_works || [];
+  const recordTests = (record as any)?.summative_tests || [];
+  const hpsTests = (hpsRecord as any)?.summative_tests || [];
+  const value = (primary: unknown, fallback: unknown): number | '' => {
+    const candidate = primary !== '' && primary !== undefined && primary !== null ? primary : fallback;
+    const numeric = Number(candidate);
+    return candidate !== '' && candidate !== undefined && candidate !== null && Number.isFinite(numeric) ? numeric : '';
+  };
+
+  return {
+    st1: value(recordTests[0], recordWrittenWorks[5]),
+    st2: value(recordTests[1], recordWrittenWorks[6]),
+    te: value(record?.quarterly_exam, value(recordTests[2], (hpsRecord as any)?.quarterly_exam)),
+    st1Hps: value(hpsTests[0], hpsWrittenWorks[5]),
+    st2Hps: value(hpsTests[1], hpsWrittenWorks[6]),
+    teHps: value((hpsRecord as any)?.quarterly_exam, hpsTests[2]),
+    hasExplicitSummativeTests: recordTests[0] !== '' && recordTests[0] !== undefined && recordTests[0] !== null
+      && recordTests[1] !== '' && recordTests[1] !== undefined && recordTests[1] !== null,
+  };
+}
+
 /**
  * Populates sheet2.xml (INPUT DATA) with school details, subject info, and learner rosters.
  */
@@ -664,7 +698,8 @@ export function populateSHSG12TermXml(
   termNum: number,
   options: SHSG12ExportOptions,
   resolvedTerms: SHSG12TermsConfig,
-  resolvedTrack: string
+  resolvedTrack: string,
+  templateLayout?: SHSG12TemplateLayout
 ): string {
   const { students, classRecords, hpsRecords, schoolYear, subject, section, teacherName } = options;
   const { termDesc } = resolvedTerms;
@@ -677,6 +712,7 @@ export function populateSHSG12TermXml(
     termNum === 1 ? termDesc.includes('1ST') :
     termNum === 2 ? termDesc.includes('2ND') :
     termDesc.includes('3RD');
+  const isUpdatedTemplate = templateLayout === 'updated' || (templateLayout === undefined && isUpdatedSHSG12TermSheet(sheetXml));
 
   // Find HPS Record for this term
   const hpsRecord = hpsRecords.find(r =>
@@ -688,6 +724,8 @@ export function populateSHSG12TermXml(
   const rawHpsWW = hpsRecord?.written_works || [];
   const rawHpsPT = hpsRecord?.performance_tasks || [];
   const rawHpsQA = (hpsRecord as any)?.summative_tests || [];
+  const hasExplicitHpsSummativeTests = rawHpsQA[0] !== '' && rawHpsQA[0] !== undefined && rawHpsQA[0] !== null
+    && rawHpsQA[1] !== '' && rawHpsQA[1] !== undefined && rawHpsQA[1] !== null;
 
   // Group students
   const males = students
@@ -709,9 +747,9 @@ export function populateSHSG12TermXml(
     const v = rawHpsWW[i];
     if (v !== '' && v !== null && v !== undefined && !isNaN(Number(v))) wwHpsTotal += Number(v);
   }
-  const st1HpsVal = rawHpsWW[5] !== undefined && rawHpsWW[5] !== '' ? rawHpsWW[5] : rawHpsQA[0];
+  const st1HpsVal = rawHpsWW[5] !== undefined && rawHpsWW[5] !== '' ? rawHpsWW[5] : (isUpdatedTemplate && hasExplicitHpsSummativeTests ? '' : rawHpsQA[0]);
   if (st1HpsVal !== '' && st1HpsVal !== null && st1HpsVal !== undefined && !isNaN(Number(st1HpsVal))) wwHpsTotal += Number(st1HpsVal);
-  const st2HpsVal = rawHpsWW[6] !== undefined && rawHpsWW[6] !== '' ? rawHpsWW[6] : rawHpsQA[1];
+  const st2HpsVal = rawHpsWW[6] !== undefined && rawHpsWW[6] !== '' ? rawHpsWW[6] : (isUpdatedTemplate && hasExplicitHpsSummativeTests ? '' : rawHpsQA[1]);
   if (st2HpsVal !== '' && st2HpsVal !== null && st2HpsVal !== undefined && !isNaN(Number(st2HpsVal))) wwHpsTotal += Number(st2HpsVal);
   for (let i = 7; i < 10; i++) {
     const v = rawHpsWW[i];
@@ -786,6 +824,10 @@ export function populateSHSG12TermXml(
         const numVal = (val !== '' && val !== null && val !== undefined && !isNaN(Number(val))) ? Number(val) : '';
         updated = setCellNumber(updated, wwCols[i], 14, numVal);
       }
+      if (isUpdatedTemplate && !hasExplicitHpsSummativeTests) {
+        updated = setCellNumber(updated, 'I', 14, '');
+        updated = setCellNumber(updated, 'J', 14, '');
+      }
 
       // WW Total & Weight
       updated = updateCellFormulaValue(updated, 'N', 14, wwHpsTotal);
@@ -802,10 +844,23 @@ export function populateSHSG12TermXml(
       updated = updateCellFormulaValue(updated, 'AA', 14, ptHpsTotal);
       updated = updateCellFormulaValue(updated, 'AC', 14, isTermActive ? weights.pt : '');
 
-      // Term Exam (TE HPS) & Weight
-      updated = setCellNumber(updated, 'AD', 14, teHpsNum);
-      updated = updateCellFormulaValue(updated, 'AE', 14, 100);
-      updated = updateCellFormulaValue(updated, 'AF', 14, isTermActive ? weights.te : '');
+      if (isUpdatedTemplate) {
+        const revisedSt1Hps = (st1HpsVal !== '' && st1HpsVal !== null && st1HpsVal !== undefined && !isNaN(Number(st1HpsVal))) ? Number(st1HpsVal) : '';
+        const revisedSt2Hps = (st2HpsVal !== '' && st2HpsVal !== null && st2HpsVal !== undefined && !isNaN(Number(st2HpsVal))) ? Number(st2HpsVal) : '';
+        updated = setCellNumber(updated, 'AD', 14, revisedSt1Hps);
+        updated = setCellNumber(updated, 'AE', 14, revisedSt2Hps);
+        updated = setCellNumber(updated, 'AF', 14, teHpsNum);
+        updated = updateCellFormulaValue(updated, 'AG', 14, isTermActive ? 30 : '');
+        updated = updateCellFormulaValue(updated, 'AH', 14, isTermActive ? 30 : '');
+        updated = updateCellFormulaValue(updated, 'AI', 14, isTermActive ? 40 : '');
+        updated = updateCellFormulaValue(updated, 'AJ', 14, isTermActive ? 100 : '');
+        updated = updateCellFormulaValue(updated, 'AK', 14, isTermActive ? weights.te : '');
+      } else {
+        // Legacy template: Term Exam (TE HPS) & Weight
+        updated = setCellNumber(updated, 'AD', 14, teHpsNum);
+        updated = updateCellFormulaValue(updated, 'AE', 14, 100);
+        updated = updateCellFormulaValue(updated, 'AF', 14, isTermActive ? weights.te : '');
+      }
     }
 
     // Male Student Scores (Rows 17 to 66)
@@ -825,6 +880,7 @@ export function populateSHSG12TermXml(
         const recWW = rec?.written_works || [];
         const recPT = rec?.performance_tasks || [];
         const recQA = (rec as any)?.summative_tests || [];
+        const assessmentScores = getSHSG12AssessmentScores(rec, hpsRecord);
 
         // WW 1..5
         for (let i = 0; i < 5; i++) {
@@ -834,12 +890,12 @@ export function populateSHSG12TermXml(
         }
 
         // WW 6 (ST1)
-        const st1Val = recWW[5] !== undefined && recWW[5] !== '' ? recWW[5] : recQA[0];
+        const st1Val = recWW[5] !== undefined && recWW[5] !== '' ? recWW[5] : (isUpdatedTemplate && assessmentScores.hasExplicitSummativeTests ? '' : recQA[0]);
         const st1Num = (st1Val !== '' && st1Val !== null && st1Val !== undefined && !isNaN(Number(st1Val))) ? Number(st1Val) : '';
         updated = setCellNumber(updated, wwCols[5], r, st1Num);
 
         // WW 7 (ST2)
-        const st2Val = recWW[6] !== undefined && recWW[6] !== '' ? recWW[6] : recQA[1];
+        const st2Val = recWW[6] !== undefined && recWW[6] !== '' ? recWW[6] : (isUpdatedTemplate && assessmentScores.hasExplicitSummativeTests ? '' : recQA[1]);
         const st2Num = (st2Val !== '' && st2Val !== null && st2Val !== undefined && !isNaN(Number(st2Val))) ? Number(st2Val) : '';
         updated = setCellNumber(updated, wwCols[6], r, st2Num);
 
@@ -849,7 +905,6 @@ export function populateSHSG12TermXml(
           const num = (s !== '' && s !== null && s !== undefined && !isNaN(Number(s))) ? Number(s) : '';
           updated = setCellNumber(updated, wwCols[i], r, num);
         }
-
         // PT 1..10
         for (let i = 0; i < 10; i++) {
           const s = recPT[i];
@@ -857,12 +912,18 @@ export function populateSHSG12TermXml(
           updated = setCellNumber(updated, ptCols[i], r, num);
         }
 
-        // Term Exam (TE in col AD)
-        const teVal = (rec?.quarterly_exam !== '' && rec?.quarterly_exam !== undefined && rec?.quarterly_exam !== null)
-          ? rec.quarterly_exam
-          : recQA[2];
-        const teNum = (teVal !== '' && teVal !== null && teVal !== undefined && !isNaN(Number(teVal))) ? Number(teVal) : '';
-        updated = setCellNumber(updated, 'AD', r, teNum);
+        if (isUpdatedTemplate && !assessmentScores.hasExplicitSummativeTests) {
+          updated = setCellNumber(updated, 'I', r, '');
+          updated = setCellNumber(updated, 'J', r, '');
+        }
+        if (isUpdatedTemplate) {
+          updated = setCellNumber(updated, 'AD', r, assessmentScores.st1);
+          updated = setCellNumber(updated, 'AE', r, assessmentScores.st2);
+          updated = setCellNumber(updated, 'AF', r, assessmentScores.te);
+        } else {
+          const teNum = (assessmentScores.te !== '' && assessmentScores.te !== null && assessmentScores.te !== undefined && !isNaN(Number(assessmentScores.te))) ? Number(assessmentScores.te) : '';
+          updated = setCellNumber(updated, 'AD', r, teNum);
+        }
 
         // Computed live score values
         if (isTermActive) {
@@ -873,10 +934,32 @@ export function populateSHSG12TermXml(
           updated = updateCellFormulaValue(updated, 'AA', r, scores.ptTotal, undefined, `IF(COUNT(Q${r}:Z${r})=0,"",SUM(Q${r}:Z${r}))`);
           updated = updateCellFormulaValue(updated, 'AB', r, scores.ptPs);
           updated = updateCellFormulaValue(updated, 'AC', r, scores.ptWs);
-          updated = updateCellFormulaValue(updated, 'AE', r, scores.tePs);
-          updated = updateCellFormulaValue(updated, 'AF', r, scores.teWs);
-          updated = updateCellFormulaValue(updated, 'AG', r, scores.initialGrade);
-          updated = updateCellFormulaValue(updated, 'AH', r, scores.termGrade);
+          if (isUpdatedTemplate) {
+            const weighted = (score: unknown, hps: unknown, weight: number) => {
+              const n = Number(score);
+              const d = Number(hps);
+              return score !== '' && Number.isFinite(n) && d > 0 ? Math.round((n / d) * weight * 100) / 100 : '';
+            };
+            const st1Weighted = weighted(assessmentScores.st1, assessmentScores.st1Hps, 30);
+            const st2Weighted = weighted(assessmentScores.st2, assessmentScores.st2Hps, 30);
+            const teWeighted = weighted(assessmentScores.te, assessmentScores.teHps, 40);
+            const hasExam = [st1Weighted, st2Weighted, teWeighted].some(v => v !== '');
+            const examPs = hasExam ? Math.round(((Number(st1Weighted || 0) + Number(st2Weighted || 0) + Number(teWeighted || 0)) / 100) * 100 * 100) / 100 : '';
+            const examWs = examPs !== '' ? Math.round(Number(examPs) * weights.te * 100) / 100 : '';
+            const initial = scores.wwWs !== '' || scores.ptWs !== '' || examWs !== '' ? Math.round(((Number(scores.wwWs) || 0) + (Number(scores.ptWs) || 0) + (Number(examWs) || 0)) * 100) / 100 : '';
+            updated = updateCellFormulaValue(updated, 'AG', r, st1Weighted);
+            updated = updateCellFormulaValue(updated, 'AH', r, st2Weighted);
+            updated = updateCellFormulaValue(updated, 'AI', r, teWeighted);
+            updated = updateCellFormulaValue(updated, 'AJ', r, examPs);
+            updated = updateCellFormulaValue(updated, 'AK', r, examWs);
+            updated = updateCellFormulaValue(updated, 'AL', r, initial);
+            updated = updateCellFormulaValue(updated, 'AM', r, initial !== '' ? transmuteGrade(Number(initial), schoolYear) : '');
+          } else {
+            updated = updateCellFormulaValue(updated, 'AE', r, scores.tePs);
+            updated = updateCellFormulaValue(updated, 'AF', r, scores.teWs);
+            updated = updateCellFormulaValue(updated, 'AG', r, scores.initialGrade);
+            updated = updateCellFormulaValue(updated, 'AH', r, scores.termGrade);
+          }
         } else {
           updated = updateCellFormulaValue(updated, 'N', r, '');
           updated = updateCellFormulaValue(updated, 'O', r, '');
@@ -884,26 +967,52 @@ export function populateSHSG12TermXml(
           updated = updateCellFormulaValue(updated, 'AA', r, '', undefined, `IF(COUNT(Q${r}:Z${r})=0,"",SUM(Q${r}:Z${r}))`);
           updated = updateCellFormulaValue(updated, 'AB', r, '');
           updated = updateCellFormulaValue(updated, 'AC', r, '');
-          updated = updateCellFormulaValue(updated, 'AE', r, '');
-          updated = updateCellFormulaValue(updated, 'AF', r, '');
-          updated = updateCellFormulaValue(updated, 'AG', r, '');
-          updated = updateCellFormulaValue(updated, 'AH', r, '');
+          if (isUpdatedTemplate) {
+            updated = updateCellFormulaValue(updated, 'AG', r, '');
+            updated = updateCellFormulaValue(updated, 'AH', r, '');
+            updated = updateCellFormulaValue(updated, 'AI', r, '');
+            updated = updateCellFormulaValue(updated, 'AJ', r, '');
+            updated = updateCellFormulaValue(updated, 'AK', r, '');
+            updated = updateCellFormulaValue(updated, 'AL', r, '');
+            updated = updateCellFormulaValue(updated, 'AM', r, '');
+          } else {
+            updated = updateCellFormulaValue(updated, 'AE', r, '');
+            updated = updateCellFormulaValue(updated, 'AF', r, '');
+            updated = updateCellFormulaValue(updated, 'AG', r, '');
+            updated = updateCellFormulaValue(updated, 'AH', r, '');
+          }
         }
       } else {
         updated = updateCellFormulaValue(updated, 'C', r, '', 'str');
         for (let i = 0; i < 10; i++) updated = setCellNumber(updated, wwCols[i], r, '');
         for (let i = 0; i < 10; i++) updated = setCellNumber(updated, ptCols[i], r, '');
-        updated = setCellNumber(updated, 'AD', r, '');
+        if (isUpdatedTemplate) {
+          updated = setCellNumber(updated, 'AD', r, '');
+          updated = setCellNumber(updated, 'AE', r, '');
+          updated = setCellNumber(updated, 'AF', r, '');
+        } else {
+          updated = setCellNumber(updated, 'AD', r, '');
+        }
         updated = updateCellFormulaValue(updated, 'N', r, '');
         updated = updateCellFormulaValue(updated, 'O', r, '');
         updated = updateCellFormulaValue(updated, 'P', r, '');
         updated = updateCellFormulaValue(updated, 'AA', r, '', undefined, `IF(COUNT(Q${r}:Z${r})=0,"",SUM(Q${r}:Z${r}))`);
         updated = updateCellFormulaValue(updated, 'AB', r, '');
         updated = updateCellFormulaValue(updated, 'AC', r, '');
-        updated = updateCellFormulaValue(updated, 'AE', r, '');
-        updated = updateCellFormulaValue(updated, 'AF', r, '');
-        updated = updateCellFormulaValue(updated, 'AG', r, '');
-        updated = updateCellFormulaValue(updated, 'AH', r, '');
+        if (isUpdatedTemplate) {
+          updated = updateCellFormulaValue(updated, 'AG', r, '');
+          updated = updateCellFormulaValue(updated, 'AH', r, '');
+          updated = updateCellFormulaValue(updated, 'AI', r, '');
+          updated = updateCellFormulaValue(updated, 'AJ', r, '');
+          updated = updateCellFormulaValue(updated, 'AK', r, '');
+          updated = updateCellFormulaValue(updated, 'AL', r, '');
+          updated = updateCellFormulaValue(updated, 'AM', r, '');
+        } else {
+          updated = updateCellFormulaValue(updated, 'AE', r, '');
+          updated = updateCellFormulaValue(updated, 'AF', r, '');
+          updated = updateCellFormulaValue(updated, 'AG', r, '');
+          updated = updateCellFormulaValue(updated, 'AH', r, '');
+        }
       }
     }
 
@@ -924,6 +1033,7 @@ export function populateSHSG12TermXml(
         const recWW = rec?.written_works || [];
         const recPT = rec?.performance_tasks || [];
         const recQA = (rec as any)?.summative_tests || [];
+        const assessmentScores = getSHSG12AssessmentScores(rec, hpsRecord);
 
         // WW 1..5
         for (let i = 0; i < 5; i++) {
@@ -933,12 +1043,12 @@ export function populateSHSG12TermXml(
         }
 
         // WW 6 (ST1)
-        const st1Val = recWW[5] !== undefined && recWW[5] !== '' ? recWW[5] : recQA[0];
+        const st1Val = recWW[5] !== undefined && recWW[5] !== '' ? recWW[5] : (isUpdatedTemplate && assessmentScores.hasExplicitSummativeTests ? '' : recQA[0]);
         const st1Num = (st1Val !== '' && st1Val !== null && st1Val !== undefined && !isNaN(Number(st1Val))) ? Number(st1Val) : '';
         updated = setCellNumber(updated, wwCols[5], r, st1Num);
 
         // WW 7 (ST2)
-        const st2Val = recWW[6] !== undefined && recWW[6] !== '' ? recWW[6] : recQA[1];
+        const st2Val = recWW[6] !== undefined && recWW[6] !== '' ? recWW[6] : (isUpdatedTemplate && assessmentScores.hasExplicitSummativeTests ? '' : recQA[1]);
         const st2Num = (st2Val !== '' && st2Val !== null && st2Val !== undefined && !isNaN(Number(st2Val))) ? Number(st2Val) : '';
         updated = setCellNumber(updated, wwCols[6], r, st2Num);
 
@@ -948,7 +1058,6 @@ export function populateSHSG12TermXml(
           const num = (s !== '' && s !== null && s !== undefined && !isNaN(Number(s))) ? Number(s) : '';
           updated = setCellNumber(updated, wwCols[i], r, num);
         }
-
         // PT 1..10
         for (let i = 0; i < 10; i++) {
           const s = recPT[i];
@@ -956,12 +1065,18 @@ export function populateSHSG12TermXml(
           updated = setCellNumber(updated, ptCols[i], r, num);
         }
 
-        // Term Exam (TE in col AD)
-        const teVal = (rec?.quarterly_exam !== '' && rec?.quarterly_exam !== undefined && rec?.quarterly_exam !== null)
-          ? rec.quarterly_exam
-          : recQA[2];
-        const teNum = (teVal !== '' && teVal !== null && teVal !== undefined && !isNaN(Number(teVal))) ? Number(teVal) : '';
-        updated = setCellNumber(updated, 'AD', r, teNum);
+        if (isUpdatedTemplate && !assessmentScores.hasExplicitSummativeTests) {
+          updated = setCellNumber(updated, 'I', r, '');
+          updated = setCellNumber(updated, 'J', r, '');
+        }
+        if (isUpdatedTemplate) {
+          updated = setCellNumber(updated, 'AD', r, assessmentScores.st1);
+          updated = setCellNumber(updated, 'AE', r, assessmentScores.st2);
+          updated = setCellNumber(updated, 'AF', r, assessmentScores.te);
+        } else {
+          const teNum = (assessmentScores.te !== '' && assessmentScores.te !== null && assessmentScores.te !== undefined && !isNaN(Number(assessmentScores.te))) ? Number(assessmentScores.te) : '';
+          updated = setCellNumber(updated, 'AD', r, teNum);
+        }
 
         // Computed live score values
         if (isTermActive) {
@@ -972,10 +1087,32 @@ export function populateSHSG12TermXml(
           updated = updateCellFormulaValue(updated, 'AA', r, scores.ptTotal, undefined, `IF(COUNT(Q${r}:Z${r})=0,"",SUM(Q${r}:Z${r}))`);
           updated = updateCellFormulaValue(updated, 'AB', r, scores.ptPs);
           updated = updateCellFormulaValue(updated, 'AC', r, scores.ptWs);
-          updated = updateCellFormulaValue(updated, 'AE', r, scores.tePs);
-          updated = updateCellFormulaValue(updated, 'AF', r, scores.teWs);
-          updated = updateCellFormulaValue(updated, 'AG', r, scores.initialGrade);
-          updated = updateCellFormulaValue(updated, 'AH', r, scores.termGrade);
+          if (isUpdatedTemplate) {
+            const weighted = (score: unknown, hps: unknown, weight: number) => {
+              const n = Number(score);
+              const d = Number(hps);
+              return score !== '' && Number.isFinite(n) && d > 0 ? Math.round((n / d) * weight * 100) / 100 : '';
+            };
+            const st1Weighted = weighted(assessmentScores.st1, assessmentScores.st1Hps, 30);
+            const st2Weighted = weighted(assessmentScores.st2, assessmentScores.st2Hps, 30);
+            const teWeighted = weighted(assessmentScores.te, assessmentScores.teHps, 40);
+            const hasExam = [st1Weighted, st2Weighted, teWeighted].some(v => v !== '');
+            const examPs = hasExam ? Math.round(((Number(st1Weighted || 0) + Number(st2Weighted || 0) + Number(teWeighted || 0)) / 100) * 100 * 100) / 100 : '';
+            const examWs = examPs !== '' ? Math.round(Number(examPs) * weights.te * 100) / 100 : '';
+            const initial = scores.wwWs !== '' || scores.ptWs !== '' || examWs !== '' ? Math.round(((Number(scores.wwWs) || 0) + (Number(scores.ptWs) || 0) + (Number(examWs) || 0)) * 100) / 100 : '';
+            updated = updateCellFormulaValue(updated, 'AG', r, st1Weighted);
+            updated = updateCellFormulaValue(updated, 'AH', r, st2Weighted);
+            updated = updateCellFormulaValue(updated, 'AI', r, teWeighted);
+            updated = updateCellFormulaValue(updated, 'AJ', r, examPs);
+            updated = updateCellFormulaValue(updated, 'AK', r, examWs);
+            updated = updateCellFormulaValue(updated, 'AL', r, initial);
+            updated = updateCellFormulaValue(updated, 'AM', r, initial !== '' ? transmuteGrade(Number(initial), schoolYear) : '');
+          } else {
+            updated = updateCellFormulaValue(updated, 'AE', r, scores.tePs);
+            updated = updateCellFormulaValue(updated, 'AF', r, scores.teWs);
+            updated = updateCellFormulaValue(updated, 'AG', r, scores.initialGrade);
+            updated = updateCellFormulaValue(updated, 'AH', r, scores.termGrade);
+          }
         } else {
           updated = updateCellFormulaValue(updated, 'N', r, '');
           updated = updateCellFormulaValue(updated, 'O', r, '');
@@ -1157,12 +1294,14 @@ export function populateSHSG12HelperXml(
   sheetXml: string,
   options: SHSG12ExportOptions,
   resolvedTerms: SHSG12TermsConfig,
-  resolvedTrack: string
+  resolvedTrack: string,
+  templateLayout?: SHSG12TemplateLayout
 ): string {
   const { subject } = options;
   const subjectName = (subject.subject_name || '').toUpperCase();
   const { numTerms, termDesc, code } = resolvedTerms;
   const weights = getSHSG12TrackWeights(resolvedTrack);
+  const isUpdatedTemplate = templateLayout === 'updated';
 
   let xml = sheetXml;
   const rowRegex = /<row r="(\d+)"[^>]*>[\s\S]*?<\/row>/g;
@@ -1180,6 +1319,9 @@ export function populateSHSG12HelperXml(
     if (r === 13) updated = updateCellFormulaValue(updated, 'G', 13, Math.round(weights.ww * 100));
     if (r === 14) updated = updateCellFormulaValue(updated, 'G', 14, Math.round(weights.pt * 100));
     if (r === 15) updated = updateCellFormulaValue(updated, 'G', 15, Math.round(weights.te * 100));
+    if (isUpdatedTemplate && r === 17) updated = updateCellFormulaValue(updated, 'G', 17, 30);
+    if (isUpdatedTemplate && r === 18) updated = updateCellFormulaValue(updated, 'G', 18, 30);
+    if (isUpdatedTemplate && r === 19) updated = updateCellFormulaValue(updated, 'G', 19, 40);
 
     // Term config
     if (r === 21) updated = updateCellFormulaValue(updated, 'G', 21, 1);
@@ -1198,21 +1340,19 @@ export function populateSHSG12HelperXml(
 /**
  * Loads the SHS Grade 12 template workbook from public directory.
  */
-export async function fetchSHSG12TemplateBuffer(): Promise<Uint8Array> {
+export async function fetchSHSG12TemplateBuffer(layout: SHSG12TemplateLayout = 'updated'): Promise<Uint8Array> {
   const cleanBase = (import.meta.env.BASE_URL || '/').endsWith('/') 
     ? (import.meta.env.BASE_URL || '/') 
     : `${import.meta.env.BASE_URL}/`;
   const timestamp = Date.now();
+  const templateName = layout === 'updated' ? TEMPLATE_SHS_G12_UPDATED : TEMPLATE_SHS_G12;
 
   const candidateUrls = [
-    `${cleanBase}templates/${encodeURIComponent(TEMPLATE_SHS_G12)}?t=${timestamp}`,
-    `/templates/${encodeURIComponent(TEMPLATE_SHS_G12)}?t=${timestamp}`,
-    `templates/${encodeURIComponent(TEMPLATE_SHS_G12)}?t=${timestamp}`,
-    `${cleanBase}templates/${TEMPLATE_SHS_G12}?t=${timestamp}`,
-    `/templates/${TEMPLATE_SHS_G12}?t=${timestamp}`,
-    `${cleanBase}templates/${encodeURIComponent('ECR_3Term - SHS G12 - SY2026-2027.xlsx')}?t=${timestamp}`,
-    `/templates/${encodeURIComponent('ECR_3Term - SHS G12 - SY2026-2027.xlsx')}?t=${timestamp}`,
-    `templates/${encodeURIComponent('ECR_3Term - SHS G12 - SY2026-2027.xlsx')}?t=${timestamp}`,
+    `${cleanBase}templates/${encodeURIComponent(templateName)}?t=${timestamp}`,
+    `/templates/${encodeURIComponent(templateName)}?t=${timestamp}`,
+    `templates/${encodeURIComponent(templateName)}?t=${timestamp}`,
+    `${cleanBase}templates/${templateName}?t=${timestamp}`,
+    `/templates/${templateName}?t=${timestamp}`,
   ];
 
   for (const url of candidateUrls) {
@@ -1230,7 +1370,7 @@ export async function fetchSHSG12TemplateBuffer(): Promise<Uint8Array> {
     }
   }
 
-  throw new Error(`Failed to load valid SHS Grade 12 template: ${TEMPLATE_SHS_G12}. Please ensure the template file exists in public/templates.`);
+  throw new Error(`Failed to load valid SHS Grade 12 template: ${templateName}. Please ensure the template file exists in public/templates.`);
 }
 
 /**
@@ -1241,6 +1381,9 @@ export async function populateSHSG12WorkbookZip(
   options: SHSG12ExportOptions
 ): Promise<JSZip> {
   const zip = await JSZip.loadAsync(templateBuffer);
+  const firstTermFile = zip.file('xl/worksheets/sheet3.xml');
+  const firstTermXml = firstTermFile ? await firstTermFile.async('text') : '';
+  const templateLayout: SHSG12TemplateLayout = isUpdatedSHSG12TermSheet(firstTermXml) ? 'updated' : 'legacy';
 
   // 1. Resolve Track and Terms dynamically
   const resolvedTrack = resolveSHSG12Track(
@@ -1275,6 +1418,17 @@ export async function populateSHSG12WorkbookZip(
   zip.remove('xl/externalLinks/externalLink1.xml');
   zip.remove('xl/externalLinks/_rels/externalLink1.xml.rels');
 
+  // Revised DepEd templates may retain external-workbook prefixes such as
+  // '[2]HELPER!' even though the referenced sheets are inside this workbook.
+  // Remove only the workbook index, preserving quoted sheet names and formulas.
+  for (const sheetName of ['sheet2.xml', 'sheet3.xml', 'sheet4.xml', 'sheet5.xml', 'sheet6.xml', 'sheet7.xml']) {
+    const sheetFile = zip.file(`xl/worksheets/${sheetName}`);
+    if (sheetFile) {
+      const sheetXml = await sheetFile.async('string');
+      zip.file(`xl/worksheets/${sheetName}`, sheetXml.replace(/\[\d+\]/g, ''));
+    }
+  }
+
   const wbRel = zip.file('xl/_rels/workbook.xml.rels');
   if (wbRel) {
     let relXml = await wbRel.async('string');
@@ -1303,7 +1457,7 @@ export async function populateSHSG12WorkbookZip(
   const sheet3File = zip.file('xl/worksheets/sheet3.xml');
   if (sheet3File) {
     const rawXml = await sheet3File.async('text');
-    const updatedXml = populateSHSG12TermXml(rawXml, 1, options, resolvedTerms, resolvedTrack);
+    const updatedXml = populateSHSG12TermXml(rawXml, 1, options, resolvedTerms, resolvedTrack, templateLayout);
     zip.file('xl/worksheets/sheet3.xml', updatedXml);
   }
 
@@ -1311,7 +1465,7 @@ export async function populateSHSG12WorkbookZip(
   const sheet4File = zip.file('xl/worksheets/sheet4.xml');
   if (sheet4File) {
     const rawXml = await sheet4File.async('text');
-    const updatedXml = populateSHSG12TermXml(rawXml, 2, options, resolvedTerms, resolvedTrack);
+    const updatedXml = populateSHSG12TermXml(rawXml, 2, options, resolvedTerms, resolvedTrack, templateLayout);
     zip.file('xl/worksheets/sheet4.xml', updatedXml);
   }
 
@@ -1319,7 +1473,7 @@ export async function populateSHSG12WorkbookZip(
   const sheet5File = zip.file('xl/worksheets/sheet5.xml');
   if (sheet5File) {
     const rawXml = await sheet5File.async('text');
-    const updatedXml = populateSHSG12TermXml(rawXml, 3, options, resolvedTerms, resolvedTrack);
+    const updatedXml = populateSHSG12TermXml(rawXml, 3, options, resolvedTerms, resolvedTrack, templateLayout);
     zip.file('xl/worksheets/sheet5.xml', updatedXml);
   }
 
@@ -1335,7 +1489,7 @@ export async function populateSHSG12WorkbookZip(
   const sheet7File = zip.file('xl/worksheets/sheet7.xml');
   if (sheet7File) {
     const rawXml = await sheet7File.async('text');
-    const updatedXml = populateSHSG12HelperXml(rawXml, options, resolvedTerms, resolvedTrack);
+    const updatedXml = populateSHSG12HelperXml(rawXml, options, resolvedTerms, resolvedTrack, templateLayout);
     zip.file('xl/worksheets/sheet7.xml', updatedXml);
   }
 
@@ -1381,7 +1535,7 @@ export async function populateSHSG12WorkbookZip(
  * Generates the .xlsx file and triggers the browser download.
  */
 export async function exportSHSG12EClassRecord(options: SHSG12ExportOptions): Promise<void> {
-  const templateBuffer = await fetchSHSG12TemplateBuffer();
+  const templateBuffer = await fetchSHSG12TemplateBuffer(options.templateLayout || 'updated');
   const zip = await populateSHSG12WorkbookZip(templateBuffer, options);
 
   const outBlob = await zip.generateAsync({

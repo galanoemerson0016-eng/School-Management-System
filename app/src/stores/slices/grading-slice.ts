@@ -1,6 +1,6 @@
 import type { ClassRecord, ObservedValues, HPSRecord } from '../../types';
 import { db } from '../../services/database';
-import { isMatchingSubject } from '../../utils/grading-helpers';
+import { isSameSubject } from '../../utils/grading-helpers';
 
 export interface GradingSlice {
   classRecords: ClassRecord[];
@@ -12,6 +12,7 @@ export interface GradingSlice {
   gradingSheetRecords: ClassRecord[];
   setGradingSheetRecords: (records: ClassRecord[]) => void;
   updateGradingSheetRecord: (record: ClassRecord) => Promise<void>;
+  bulkUpdateGradingSheetRecords: (records: ClassRecord[]) => Promise<void>;
   deleteGradingSheetRecord: (id: string) => Promise<void>;
   clearGradingSheet: (sectionId?: string, quarter?: number | string, schoolYear?: string, studentLrns?: string[]) => Promise<void>;
 
@@ -86,7 +87,7 @@ export function createGradingSlice(set: (state: any) => void, get: () => any): G
         const isMatch = (r: ClassRecord) => {
           if (r.id === record.id) return true;
           const sameStudent = r.student_lrn === record.student_lrn || String(r.student_lrn).trim() === String(record.student_lrn).trim();
-          const sameSubject = isMatchingSubject(r.subject_id, record.subject_id, r.subject_name, record.subject_name);
+          const sameSubject = isSameSubject(r.subject_id, r.subject_name, record.subject_id, record.subject_name);
           const sameQuarter = Number(r.quarter) === Number(record.quarter) || String(r.quarter).toLowerCase() === String(record.quarter).toLowerCase();
           const sameSy = !r.school_year || !record.school_year || r.school_year === record.school_year;
           return sameStudent && sameSubject && sameQuarter && sameSy;
@@ -105,6 +106,46 @@ export function createGradingSlice(set: (state: any) => void, get: () => any): G
         await db.putRecord('gradingSheetRecords', record);
       } catch (error) {
         console.error('Error updating grading sheet record:', error);
+        throw error;
+      }
+    },
+    bulkUpdateGradingSheetRecords: async (records) => {
+      if (!records || records.length === 0) return;
+      try {
+        const state = get();
+        const currentRecords = state.gradingSheetRecords as ClassRecord[];
+
+        const newRecordMap = new Map<string, ClassRecord>();
+        for (const r of records) {
+          const key = `${String(r.student_lrn).trim()}_${r.subject_id}_${r.quarter}_${r.school_year || ''}`;
+          newRecordMap.set(key, r);
+        }
+
+        const isOverwritten = (r: ClassRecord) => {
+          const key = `${String(r.student_lrn).trim()}_${r.subject_id}_${r.quarter}_${r.school_year || ''}`;
+          if (newRecordMap.has(key)) return true;
+          return records.some((newRec) => {
+            const sameStudent = r.student_lrn === newRec.student_lrn || String(r.student_lrn).trim() === String(newRec.student_lrn).trim();
+            const sameSubject = isSameSubject(r.subject_id, r.subject_name, newRec.subject_id, newRec.subject_name);
+            const sameQuarter = Number(r.quarter) === Number(newRec.quarter) || String(r.quarter).toLowerCase() === String(newRec.quarter).toLowerCase();
+            const sameSy = !r.school_year || !newRec.school_year || r.school_year === newRec.school_year;
+            return sameStudent && sameSubject && sameQuarter && sameSy;
+          });
+        };
+
+        const matchingOldRecords = currentRecords.filter(isOverwritten);
+        const remainingRecords = currentRecords.filter((r) => !isOverwritten(r));
+
+        for (const oldRec of matchingOldRecords) {
+          if (oldRec.id && !newRecordMap.has(oldRec.id)) {
+            await db.deleteRecord('gradingSheetRecords', oldRec.id);
+          }
+        }
+
+        set({ gradingSheetRecords: [...remainingRecords, ...records] });
+        await db.putRecordsBulk('gradingSheetRecords', records);
+      } catch (error) {
+        console.error('Error bulk updating grading sheet records:', error);
         throw error;
       }
     },

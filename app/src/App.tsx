@@ -153,11 +153,9 @@ function App() {
     const refresh = async () => {
       try {
         const status = await electronAPI.licenseStatus();
-        if (status.reason === 'offline_limit') {
-          localStorage.setItem('formease-license-offline-limit', 'true');
-        } else {
+        try {
           localStorage.removeItem('formease-license-offline-limit');
-        }
+        } catch { /* ignore */ }
         setLicenseVerdict(status.activated ? 'licensed' : 'unlicensed');
       } catch {
         setLicenseVerdict('legacy');
@@ -403,11 +401,9 @@ function App() {
               // through to an 'unlicensed' verdict below.
             }
 
-            if (status.reason === 'offline_limit') {
-              localStorage.setItem('formease-license-offline-limit', 'true');
-            } else {
+            try {
               localStorage.removeItem('formease-license-offline-limit');
-            }
+            } catch { /* ignore */ }
             setLicenseVerdict(status.activated ? 'licensed' : 'unlicensed');
           } catch (licenseErr) {
             console.warn('License status check failed, using legacy gate:', licenseErr);

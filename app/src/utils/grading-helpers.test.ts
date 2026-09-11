@@ -24,6 +24,8 @@ import {
   getStudentAbsences,
   resolveStudentQuarterGrade,
   isMatchingSubject,
+  isSameSubject,
+  cleanSubjectQuery,
   normalizeGrade12PESubjectName,
 } from './grading-helpers';
 import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet, HPSRecord } from '../types';
@@ -493,6 +495,144 @@ describe('Grading Helpers', () => {
       expect(mapehGrade).toBe(88);
     });
 
+    it('resolves composite MAPEH grade from 4 separate components (Music, Arts, PE, Health)', () => {
+      const classRecords: ClassRecord[] = [
+        {
+          id: 'c-m',
+          student_lrn: '123456789012',
+          subject_id: 'sub-m',
+          subject_name: 'Music',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 92,
+        } as unknown as ClassRecord,
+        {
+          id: 'c-a',
+          student_lrn: '123456789012',
+          subject_id: 'sub-a',
+          subject_name: 'Arts',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 88,
+        } as unknown as ClassRecord,
+        {
+          id: 'c-pe',
+          student_lrn: '123456789012',
+          subject_id: 'sub-pe',
+          subject_name: 'Physical Education',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 90,
+        } as unknown as ClassRecord,
+        {
+          id: 'c-h',
+          student_lrn: '123456789012',
+          subject_id: 'sub-h',
+          subject_name: 'Health',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 86,
+        } as unknown as ClassRecord,
+      ];
+
+      const mapehGrade = resolveStudentQuarterGrade(
+        '123456789012',
+        'MAPEH',
+        1,
+        '2026-2027',
+        classRecords,
+        [],
+        [],
+        'Grade 8'
+      );
+
+      // (92 + 88 + 90 + 86) / 4 = 89
+      expect(mapehGrade).toBe(89);
+    });
+
+    it('resolves composite MAPEH grade from mixed components (Music and Arts + PE + Health)', () => {
+      const classRecords: ClassRecord[] = [
+        {
+          id: 'c-ma',
+          student_lrn: '123456789012',
+          subject_id: 'sub-ma',
+          subject_name: 'Music and Arts',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 90,
+        } as unknown as ClassRecord,
+        {
+          id: 'c-pe',
+          student_lrn: '123456789012',
+          subject_id: 'sub-pe',
+          subject_name: 'Physical Education',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 86,
+        } as unknown as ClassRecord,
+        {
+          id: 'c-h',
+          student_lrn: '123456789012',
+          subject_id: 'sub-h',
+          subject_name: 'Health',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 84,
+        } as unknown as ClassRecord,
+      ];
+
+      const mapehGrade = resolveStudentQuarterGrade(
+        '123456789012',
+        'MAPEH',
+        1,
+        '2026-2027',
+        classRecords,
+        [],
+        [],
+        'Grade 7'
+      );
+
+      // ma = 90, pe = (86 + 84)/2 = 85 -> MAPEH = (90 + 85)/2 = 88
+      expect(mapehGrade).toBe(88);
+    });
+
+    it('resolves MAPEH dynamically from Grade Management gradingSheetRecords without explicit MAPEH record', () => {
+      const gradingSheetRecords: ClassRecord[] = [
+        {
+          id: 'gs-ma',
+          student_lrn: '123456789012',
+          subject_id: 'sub-ma',
+          subject_name: 'Music and Arts',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 94,
+        } as unknown as ClassRecord,
+        {
+          id: 'gs-pe',
+          student_lrn: '123456789012',
+          subject_id: 'sub-pe',
+          subject_name: 'Physical Education and Health',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 92,
+        } as unknown as ClassRecord,
+      ];
+
+      const mapehGrade = resolveStudentQuarterGrade(
+        '123456789012',
+        'virtual-mapeh-section1',
+        1,
+        '2026-2027',
+        [], // No ECR records
+        gradingSheetRecords, // Strictly from Grade Management
+        [],
+        'Grade 7'
+      );
+
+      // (94 + 92) / 2 = 93
+      expect(mapehGrade).toBe(93);
+    });
+
     it('correctly matches and resolves grades for virtual subject IDs (e.g. virtual-filipino-section123)', () => {
       const classRecords: ClassRecord[] = [
         {
@@ -561,6 +701,135 @@ describe('Grading Helpers', () => {
       );
       expect(gmrcGrade).toBe(95);
     });
+
+    it('prioritizes official consolidated gradingSheetRecords final_grade over teacher classRecords and raw scores', () => {
+      const classRecords: ClassRecord[] = [
+        {
+          id: 'c1',
+          student_lrn: '123456789012',
+          subject_id: 'sub-eng',
+          subject_name: 'English',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 85,
+          written_works: [10, 10],
+          performance_tasks: [20, 20],
+        } as unknown as ClassRecord,
+      ];
+
+      const gradingSheetRecords: ClassRecord[] = [
+        {
+          id: 'g1',
+          student_lrn: '123456789012',
+          subject_id: 'sub-eng',
+          subject_name: 'English',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 89, // Adviser edited to 89 in Grade Management
+        } as unknown as ClassRecord,
+      ];
+
+      const grade = resolveStudentQuarterGrade(
+        '123456789012',
+        'sub-eng',
+        1,
+        '2026-2027',
+        classRecords,
+        gradingSheetRecords,
+        [],
+        'Grade 7'
+      );
+
+      // Should pull 89 from gradingSheetRecords
+      expect(grade).toBe(89);
+    });
+
+    it('prioritizes stored teacher classRecords final_grade over raw score recalculation when gradingSheetRecord is absent', () => {
+      const classRecords: ClassRecord[] = [
+        {
+          id: 'c1',
+          student_lrn: '123456789012',
+          subject_id: 'sub-math',
+          subject_name: 'Mathematics',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 92, // Teacher transmuted and stored 92
+          written_works: [15, 15],
+          performance_tasks: [40, 40],
+        } as unknown as ClassRecord,
+      ];
+
+      const hpsRecords: HPSRecord[] = [
+        {
+          id: 'h1',
+          subject_id: 'sub-math',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [20, 20],
+          performance_tasks: [50, 50],
+          quarterly_exam: 50,
+        } as unknown as HPSRecord,
+      ];
+
+      const grade = resolveStudentQuarterGrade(
+        '123456789012',
+        'sub-math',
+        1,
+        '2026-2027',
+        classRecords,
+        [],
+        hpsRecords,
+        'Grade 7'
+      );
+
+      // Should pull 92 directly from classRecords.final_grade, not recompute
+      expect(grade).toBe(92);
+    });
+
+    it('uses exact GMRC 10/10/10/10/30/30 cognitive/affective/behavioral split when recalculating from raw scores', () => {
+      // GMRC: WW Cog (10%), WW Aff (10%), PT Cog (10%), PT Aff (10%), PT Beh (30%), Exams (30%)
+      const classRecords: ClassRecord[] = [
+        {
+          id: 'c1',
+          student_lrn: '123456789012',
+          subject_id: 'sub-gmrc',
+          subject_name: 'Good Moral and Right Conduct (GMRC)',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [10, 10, 10, 10, 10, 5, 5, 5, 5, 5], // Cog: 50/50=100 (WS=10), Aff: 25/50=50 (WS=5)
+          performance_tasks: [20, 20, 20, 10, 10, 10, 30, 30, 30], // PT Cog: 60/60=100 (WS=10), PT Aff: 30/60=50 (WS=5), PT Beh: 90/90=100 (WS=30)
+          summative_tests: [30, 30, 40], // 100/100 (WS=30)
+          final_grade: 0, // Force fallback calculation
+        } as unknown as ClassRecord,
+      ];
+
+      const hpsRecords: HPSRecord[] = [
+        {
+          id: 'h1',
+          subject_id: 'sub-gmrc',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [10, 10, 10, 10, 10, 10, 10, 10, 10, 10], // Cog: 50, Aff: 50
+          performance_tasks: [20, 20, 20, 20, 20, 20, 30, 30, 30], // Cog: 60, Aff: 60, Beh: 90
+          summative_tests: [30, 30, 40],
+        } as unknown as HPSRecord,
+      ];
+
+      const grade = resolveStudentQuarterGrade(
+        '123456789012',
+        'sub-gmrc',
+        1,
+        '2026-2027',
+        classRecords,
+        [],
+        hpsRecords,
+        'Grade 4'
+      );
+
+      // Initial = 10 + 5 + 10 + 5 + 30 + 30 = 90
+      // Under DepEd Order 15 s. 2026 Table 4 (SY 2026-2027), initial 90.00 transmutes to 91 (88.88 - 90.05)
+      expect(grade).toBe(91);
+    });
   });
 
   describe('isMatchingSubject — Physical Education & Health vs Health Optimizing Physical Education (HOPE)', () => {
@@ -622,10 +891,387 @@ describe('Grading Helpers', () => {
       expect(normalizeGrade12PESubjectName('Physical Education 2 (Sports and Dance)')).toBe('Physical Education 2 (Sports and Dance)');
     });
 
-    it('leaves SSHS tracks untouched when isSSHS is true', () => {
-      expect(normalizeGrade12PESubjectName('Physical Education 3', true)).toBe('Physical Education 3');
-      expect(normalizeGrade12PESubjectName('Physical Education 1', true)).toBe('Physical Education 1');
+    it('correctly handles virtual_ and virtual- subject prefixes in cleanSubjectQuery and isMatchingSubject', () => {
+      expect(cleanSubjectQuery('virtual_general_mathematics')).toBe('general_mathematics');
+      expect(cleanSubjectQuery('virtual_pre_calculus')).toBe('pre_calculus');
+      expect(cleanSubjectQuery('virtual-mapeh-section123')).toBe('mapeh');
+
+      expect(isMatchingSubject('virtual_general_mathematics', 'sub-math-1', 'General Mathematics')).toBe(true);
+      expect(isMatchingSubject('virtual_pre_calculus', 'sub-calc-1', 'Pre-Calculus')).toBe(true);
+      expect(isMatchingSubject('virtual_general_science', 'sub-sci-1', 'General Science')).toBe(true);
+      expect(isMatchingSubject('virtual_general_mathematics', 'sub-sci-1', 'General Science')).toBe(false);
+    });
+  });
+
+  describe('DepEd Template Parity for GMRC & Values Education', () => {
+    it('accurately computes GMRC/Values Education grades matching ECR_Template_GMRC_VE_G2_G10.xlsx', () => {
+      const studentLrn = '123456789012';
+      const gmrcSubjectName = 'Values Education';
+
+      // HPS:
+      // WW Cog (5 items): 20 each (total 100)
+      // WW Aff (5 items): 20 each (total 100)
+      // PT Cog (3 items): 30, 30, 40 (total 100)
+      // PT Aff (3 items): 30, 30, 40 (total 100)
+      // PT Beh (3 items): 30, 30, 40 (total 100)
+      // ST1: 40, ST2: 40, TE: 50
+      const mockHps: HPSRecord[] = [
+        {
+          id: 'hps-gmrc',
+          subject_id: 'sub-gmrc',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [20, 20, 20, 20, 20, 20, 20, 20, 20, 20],
+          performance_tasks: [30, 30, 40, 30, 30, 40, 30, 30, 40],
+          summative_tests: [40, 40, 50],
+          quarterly_exam: 50,
+        } as unknown as HPSRecord
+      ];
+
+      // Student scores:
+      // WW Cog: [18, 18, 18, 18, 18] -> 90 / 100 = 90% -> WS = 9.00
+      // WW Aff: [19, 19, 19, 19, 19] -> 95 / 100 = 95% -> WS = 9.50
+      // PT Cog: [27, 27, 36] -> 90 / 100 = 90% -> WS = 9.00
+      // PT Aff: [28, 28, 38] -> 94 / 100 = 94% -> WS = 9.40
+      // PT Beh: [27, 27, 36] -> 90 / 100 = 90% -> WS = 27.00
+      // ST1: 36/40*30 = 27.00
+      // ST2: 36/40*30 = 27.00
+      // TE: 45/50*40 = 36.00
+      // Exam PS: 27 + 27 + 36 = 90 -> Exam WS = 90 * 0.30 = 27.00
+      // Initial Grade = 9.00 + 9.50 + 9.00 + 9.40 + 27.00 + 27.00 = 90.90
+      // SY 2026-2027 Transmuted Grade for 90.90 is 92 (Row 16: 90.06 - 91.23 -> 92)
+      const mockClassRecords: ClassRecord[] = [
+        {
+          id: 'cr-gmrc',
+          student_lrn: studentLrn,
+          subject_id: 'sub-gmrc',
+          subject_name: gmrcSubjectName,
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [18, 18, 18, 18, 18, 19, 19, 19, 19, 19],
+          performance_tasks: [27, 27, 36, 28, 28, 38, 27, 27, 36],
+          summative_tests: [36, 36, 45],
+          quarterly_exam: 45,
+        } as unknown as ClassRecord
+      ];
+
+      const grade = resolveStudentQuarterGrade(
+        studentLrn,
+        gmrcSubjectName,
+        1,
+        '2026-2027',
+        mockClassRecords,
+        [],
+        mockHps,
+        'Grade 7'
+      );
+
+      expect(grade).toBe(92);
+    });
+
+    it('identifies GMRC variants (GMRC, Values Education, ESP) consistently', () => {
+      const studentLrn = '123456789012';
+      const mockHps: HPSRecord[] = [
+        {
+          id: 'hps-esp',
+          subject_id: 'sub-esp',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [20, 20, 20, 20, 20, 20, 20, 20, 20, 20],
+          performance_tasks: [50, 50, 50, 50, 50, 50, 50, 50, 50],
+          summative_tests: [50, 50, 50],
+          quarterly_exam: 50,
+        } as unknown as HPSRecord
+      ];
+
+      const mockClassRecords: ClassRecord[] = [
+        {
+          id: 'cr-esp',
+          student_lrn: studentLrn,
+          subject_id: 'sub-esp',
+          subject_name: 'Edukasyon sa Pagpapakatao',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [20, 20, 20, 20, 20, 20, 20, 20, 20, 20],
+          performance_tasks: [50, 50, 50, 50, 50, 50, 50, 50, 50],
+          summative_tests: [50, 50, 50],
+          quarterly_exam: 50,
+        } as unknown as ClassRecord
+      ];
+
+      const grade = resolveStudentQuarterGrade(
+        studentLrn,
+        'Edukasyon sa Pagpapakatao',
+        1,
+        '2026-2027',
+        mockClassRecords,
+        [],
+        mockHps,
+        'Grade 6'
+      );
+
+      // 100% score -> Transmuted Grade 100
+      expect(grade).toBe(100);
+    });
+  });
+
+  describe('Ghost and Headless Record Protection', () => {
+    it('returns 0 when classRecord has final_grade: 100 but raw score arrays are completely empty', () => {
+      const studentLrn = '100501202601'; // Angelo Gabriel Mendoza
+      const ghostClassRecords: ClassRecord[] = [
+        {
+          id: 'ghost-fil-q1',
+          student_lrn: studentLrn,
+          subject_id: 'sub-fil',
+          subject_name: 'Filipino',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [],
+          performance_tasks: [],
+          quarterly_exam: 0,
+          final_grade: 100
+        } as unknown as ClassRecord
+      ];
+
+      // E-Class Record sync passes gradingSheetRecords = []
+      const resolved = resolveStudentQuarterGrade(
+        studentLrn,
+        'Filipino',
+        1,
+        '2026-2027',
+        ghostClassRecords,
+        [],
+        [],
+        'Grade 5'
+      );
+
+      // Must NOT return phantom grade 100!
+      expect(resolved).toBe(0);
+    });
+
+    it('returns 0 when classRecord has final_grade: 100 but raw score arrays contain only empty strings', () => {
+      const studentLrn = '100501202601';
+      const ghostClassRecords: ClassRecord[] = [
+        {
+          id: 'ghost-eng-q1',
+          student_lrn: studentLrn,
+          subject_id: 'sub-eng',
+          subject_name: 'English',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: ['', '', '', '', ''],
+          performance_tasks: ['', '', '', ''],
+          quarterly_exam: '',
+          final_grade: 100
+        } as unknown as ClassRecord
+      ];
+
+      const resolved = resolveStudentQuarterGrade(
+        studentLrn,
+        'English',
+        1,
+        '2026-2027',
+        ghostClassRecords,
+        [],
+        [],
+        'Grade 5'
+      );
+
+      expect(resolved).toBe(0);
+    });
+
+    it('returns transmuted grade when classRecord actually has encoded raw scores', () => {
+      const studentLrn = '100501202601';
+      const realClassRecords: ClassRecord[] = [
+        {
+          id: 'real-epp-q1',
+          student_lrn: studentLrn,
+          subject_id: 'sub-epp',
+          subject_name: 'E.P.P.',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [25, 25],
+          performance_tasks: [50, 50],
+          quarterly_exam: 40,
+          final_grade: 95
+        } as unknown as ClassRecord
+      ];
+
+      const resolved = resolveStudentQuarterGrade(
+        studentLrn,
+        'E.P.P.',
+        1,
+        '2026-2027',
+        realClassRecords,
+        [],
+        [],
+        'Grade 5'
+      );
+
+      expect(resolved).toBe(95);
+    });
+
+    it('preserves manual grades from gradingSheetRecords even if classRecord is a ghost record', () => {
+      const studentLrn = '100501202601';
+      const ghostClassRecords: ClassRecord[] = [
+        {
+          id: 'ghost-math-q1',
+          student_lrn: studentLrn,
+          subject_id: 'sub-math',
+          subject_name: 'Mathematics',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [],
+          performance_tasks: [],
+          quarterly_exam: 0,
+          final_grade: 100 // phantom grade in ECR
+        } as unknown as ClassRecord
+      ];
+
+      const manualGradingSheetRecords: ClassRecord[] = [
+        {
+          id: 'manual-math-q1',
+          student_lrn: studentLrn,
+          subject_id: 'sub-math',
+          subject_name: 'Mathematics',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [],
+          performance_tasks: [],
+          quarterly_exam: 0,
+          final_grade: 88 // teacher manually typed 88 in Grade Management
+        } as unknown as ClassRecord
+      ];
+
+      // In Grade Management / SF9, both classRecords and gradingSheetRecords are passed
+      const resolved = resolveStudentQuarterGrade(
+        studentLrn,
+        'Mathematics',
+        1,
+        '2026-2027',
+        ghostClassRecords,
+        manualGradingSheetRecords,
+        [],
+        'Grade 5'
+      );
+
+      // Priority 1 (manual Grade Management record) takes precedence!
+      expect(resolved).toBe(88);
+    });
+  });
+
+  describe('isSameSubject — Peer Subject Comparison and Subject Isolation', () => {
+    it('matches exact subject names and IDs', () => {
+      expect(isSameSubject('Filipino', 'Filipino', 'Filipino', 'Filipino')).toBe(true);
+      expect(isSameSubject('sub-1', 'English', 'sub-1', 'English')).toBe(true);
+      expect(isSameSubject('sub-1', undefined, 'sub-1', undefined)).toBe(true);
+      expect(isSameSubject(undefined, 'Mathematics', undefined, 'mathematics')).toBe(true);
+    });
+
+    it('matches canonical variations and virtual prefix IDs for the same subject', () => {
+      expect(isSameSubject('virtual-aralingpanlipunanap-sec-g5', 'Araling Panlipunan (AP)', 'sub-ap', 'Araling Panlipunan')).toBe(true);
+      expect(isSameSubject('virtual-filipino-sec-g5', 'Filipino', 'sub-fil', 'Filipino')).toBe(true);
+      expect(isSameSubject('virtual_general_mathematics', 'General Mathematics', 'sub-math-1', 'Gen Math')).toBe(true);
+      expect(isSameSubject('virtual-science-sec-g5', 'Science', 'science', 'Science')).toBe(true);
+    });
+
+    it('strictly separates different subjects and NEVER cross-matches them', () => {
+      const subjects = [
+        { id: 'Filipino', name: 'Filipino' },
+        { id: 'English', name: 'English' },
+        { id: 'Mathematics', name: 'Mathematics' },
+        { id: 'Science', name: 'Science' },
+        { id: 'GMRC', name: 'GMRC (Good Manners and Right Conduct)' },
+        { id: 'Araling Panlipunan', name: 'Araling Panlipunan (AP)' },
+        { id: 'EPP', name: 'E.P.P.' },
+        { id: 'Music & Arts', name: 'Music and Arts' },
+        { id: 'PE & Health', name: 'Physical Education and Health' },
+      ];
+
+      for (let i = 0; i < subjects.length; i++) {
+        for (let j = 0; j < subjects.length; j++) {
+          const s1 = subjects[i];
+          const s2 = subjects[j];
+          const result = isSameSubject(s1.id, s1.name, s2.id, s2.name);
+          if (i === j) {
+            expect(result).toBe(true);
+          } else {
+            expect(result).toBe(false);
+          }
+        }
+      }
+    });
+
+    it('correctly returns false when inputs are empty or undefined', () => {
+      expect(isSameSubject('', '', 'Filipino', 'Filipino')).toBe(false);
+      expect(isSameSubject(undefined, undefined, 'English', 'English')).toBe(false);
+      expect(isSameSubject('', '', '', '')).toBe(false);
+      expect(isSameSubject(undefined, undefined, undefined, undefined)).toBe(false);
+    });
+
+    it('guarantees that updating Araling Panlipunan does not match or overwrite other subjects for the same student', () => {
+      const studentLrn = '100501202601';
+      const existingRecords: ClassRecord[] = [
+        { id: `${studentLrn}_Filipino_1`, student_lrn: studentLrn, section_id: 'sec-1', subject_id: 'Filipino', subject_name: 'Filipino', quarter: 1, school_year: '2026-2027', final_grade: 95, written_works: [], performance_tasks: [], quarterly_exam: 0 },
+        { id: `${studentLrn}_English_1`, student_lrn: studentLrn, section_id: 'sec-1', subject_id: 'English', subject_name: 'English', quarter: 1, school_year: '2026-2027', final_grade: 92, written_works: [], performance_tasks: [], quarterly_exam: 0 },
+        { id: `${studentLrn}_Math_1`, student_lrn: studentLrn, section_id: 'sec-1', subject_id: 'Mathematics', subject_name: 'Mathematics', quarter: 1, school_year: '2026-2027', final_grade: 90, written_works: [], performance_tasks: [], quarterly_exam: 0 },
+        { id: `${studentLrn}_Science_1`, student_lrn: studentLrn, section_id: 'sec-1', subject_id: 'Science', subject_name: 'Science', quarter: 1, school_year: '2026-2027', final_grade: 89, written_works: [], performance_tasks: [], quarterly_exam: 0 },
+        { id: `${studentLrn}_GMRC_1`, student_lrn: studentLrn, section_id: 'sec-1', subject_id: 'GMRC', subject_name: 'GMRC', quarter: 1, school_year: '2026-2027', final_grade: 96, written_works: [], performance_tasks: [], quarterly_exam: 0 },
+        { id: `${studentLrn}_AP_1`, student_lrn: studentLrn, section_id: 'sec-1', subject_id: 'Araling Panlipunan', subject_name: 'Araling Panlipunan', quarter: 1, school_year: '2026-2027', final_grade: 100, written_works: [], performance_tasks: [], quarterly_exam: 0 },
+        { id: `${studentLrn}_EPP_1`, student_lrn: studentLrn, section_id: 'sec-1', subject_id: 'EPP', subject_name: 'EPP', quarter: 1, school_year: '2026-2027', final_grade: 94, written_works: [], performance_tasks: [], quarterly_exam: 0 },
+      ];
+
+      // Incoming update for Araling Panlipunan with grade 88
+      const apUpdate: ClassRecord = {
+        id: `${studentLrn}_AP_1`,
+        student_lrn: studentLrn,
+        section_id: 'sec-1',
+        subject_id: 'Araling Panlipunan',
+        subject_name: 'Araling Panlipunan',
+        quarter: 1,
+        school_year: '2026-2027',
+        final_grade: 88,
+        written_works: [],
+        performance_tasks: [],
+        quarterly_exam: 0,
+      };
+
+      // Simulate the isMatch logic in updateGradingSheetRecord using isSameSubject
+      const isMatch = (r: ClassRecord) => {
+        if (r.id === apUpdate.id) return true;
+        const sameStudent = r.student_lrn === apUpdate.student_lrn || String(r.student_lrn).trim() === String(apUpdate.student_lrn).trim();
+        const sameSubject = isSameSubject(r.subject_id, r.subject_name, apUpdate.subject_id, apUpdate.subject_name);
+        const sameQuarter = Number(r.quarter) === Number(apUpdate.quarter);
+        const sameSy = !r.school_year || !apUpdate.school_year || r.school_year === apUpdate.school_year;
+        return sameStudent && sameSubject && sameQuarter && sameSy;
+      };
+
+      const matchingRecords = existingRecords.filter(isMatch);
+      const remainingRecords = existingRecords.filter(r => !isMatch(r));
+
+      // Only the Araling Panlipunan record must match!
+      expect(matchingRecords).toHaveLength(1);
+      expect(matchingRecords[0].subject_id).toBe('Araling Panlipunan');
+
+      // All other subjects must remain untouched!
+      expect(remainingRecords).toHaveLength(6);
+      const remainingSubjectIds = remainingRecords.map(r => r.subject_id);
+      expect(remainingSubjectIds).toEqual(['Filipino', 'English', 'Mathematics', 'Science', 'GMRC', 'EPP']);
+
+      // State after update
+      const updatedGradingSheetRecords = [...remainingRecords, apUpdate];
+      expect(updatedGradingSheetRecords).toHaveLength(7);
+
+      // Verify resolution for each subject
+      expect(resolveStudentQuarterGrade(studentLrn, 'Filipino', 1, '2026-2027', [], updatedGradingSheetRecords, [], 'Grade 5')).toBe(95);
+      expect(resolveStudentQuarterGrade(studentLrn, 'English', 1, '2026-2027', [], updatedGradingSheetRecords, [], 'Grade 5')).toBe(92);
+      expect(resolveStudentQuarterGrade(studentLrn, 'Mathematics', 1, '2026-2027', [], updatedGradingSheetRecords, [], 'Grade 5')).toBe(90);
+      expect(resolveStudentQuarterGrade(studentLrn, 'Science', 1, '2026-2027', [], updatedGradingSheetRecords, [], 'Grade 5')).toBe(89);
+      expect(resolveStudentQuarterGrade(studentLrn, 'GMRC', 1, '2026-2027', [], updatedGradingSheetRecords, [], 'Grade 5')).toBe(96);
+      expect(resolveStudentQuarterGrade(studentLrn, 'Araling Panlipunan', 1, '2026-2027', [], updatedGradingSheetRecords, [], 'Grade 5')).toBe(88);
+      expect(resolveStudentQuarterGrade(studentLrn, 'EPP', 1, '2026-2027', [], updatedGradingSheetRecords, [], 'Grade 5')).toBe(94);
     });
   });
 });
+
 

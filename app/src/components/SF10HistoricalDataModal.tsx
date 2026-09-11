@@ -1,10 +1,10 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { X, Save, History, Trash2, Info } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { X, Save, History, Trash2, Info, ChevronDown, Check, RotateCcw, Sparkles } from 'lucide-react';
 import { useAppStore } from '../stores';
 import { useSF10Store } from '../stores/sf10-store';
 import type { SF10Version } from '../stores/sf10-store';
 import type { Student, SchoolProfile } from '../types';
-import { getSF10RowsForGrade } from '../lib/subjectConfig';
+import { getSF10RowsForGrade, getSubjectsForGrade } from '../lib/subjectConfig';
 import { isThreeTermSchoolYear } from '../lib/terms';
 
 interface SF10HistoricalDataModalProps {
@@ -21,6 +21,206 @@ interface GradeVal {
     finalRating?: string;
     remarks?: string;
     label?: string;
+}
+
+interface SubjectComboboxProps {
+    value: string;
+    defaultValue: string;
+    isComponent: boolean;
+    rowKey: string;
+    rowIdx: number;
+    totalRows: number;
+    disabled?: boolean;
+    options: { category: string; name: string }[];
+    onChange: (newLabel: string) => void;
+    onReset?: () => void;
+}
+
+function SubjectCombobox({
+    value,
+    defaultValue,
+    isComponent,
+    rowIdx,
+    totalRows,
+    disabled,
+    options,
+    onChange,
+    onReset
+}: SubjectComboboxProps) {
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    // Close on click outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isOpen]);
+
+    const isCustomized = defaultValue !== '' && value !== defaultValue && value.trim() !== '';
+    const isBlank = value.trim() === '';
+    const openUpwards = rowIdx >= Math.max(5, totalRows - 5);
+
+    // Filter options based on input text
+    const filteredOptions = useMemo(() => {
+        const query = value.trim().toLowerCase();
+        if (!query) return options;
+        return options.filter(opt => opt.name.toLowerCase().includes(query));
+    }, [options, value]);
+
+    // Group filtered options by category
+    const grouped = useMemo(() => {
+        const map = new Map<string, string[]>();
+        filteredOptions.forEach(opt => {
+            if (!map.has(opt.category)) {
+                map.set(opt.category, []);
+            }
+            map.get(opt.category)!.push(opt.name);
+        });
+        return Array.from(map.entries());
+    }, [filteredOptions]);
+
+    return (
+        <div ref={containerRef} className="relative w-full">
+            <div className={`flex items-center gap-1.5 w-full rounded-xl transition-all ${isComponent ? 'pl-5' : ''}`}>
+                <input
+                    ref={inputRef}
+                    type="text"
+                    disabled={disabled}
+                    value={value}
+                    onChange={(e) => {
+                        onChange(e.target.value);
+                        if (!isOpen) setIsOpen(true);
+                    }}
+                    onFocus={() => setIsOpen(true)}
+                    placeholder={defaultValue ? defaultValue : "-- Reserved Blank Row --"}
+                    className={`w-full bg-transparent px-2 py-1 text-xs font-bold outline-none border-b transition-colors ${
+                        isBlank 
+                            ? 'border-dashed border-slate-300 text-slate-400 italic placeholder:text-slate-300' 
+                            : isCustomized
+                                ? 'border-blue-400 text-blue-800 font-extrabold focus:border-blue-600'
+                                : 'border-transparent hover:border-slate-300 focus:border-blue-500 text-slate-800'
+                    }`}
+                />
+
+                {isComponent && (
+                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[8.5px] font-black uppercase tracking-wider bg-slate-200 text-slate-600">
+                        Component
+                    </span>
+                )}
+
+                {isCustomized && onReset && (
+                    <button
+                        type="button"
+                        tabIndex={-1}
+                        onClick={onReset}
+                        disabled={disabled}
+                        title={`Reset to original "${defaultValue}"`}
+                        className="p-1 rounded text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors shrink-0 cursor-pointer"
+                    >
+                        <RotateCcw className="w-3 h-3" />
+                    </button>
+                )}
+
+                <button
+                    type="button"
+                    tabIndex={-1}
+                    disabled={disabled}
+                    onClick={() => setIsOpen(prev => !prev)}
+                    title="Choose from subjects list"
+                    className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors shrink-0 cursor-pointer"
+                >
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isOpen ? 'rotate-180 text-blue-600' : ''}`} />
+                </button>
+            </div>
+
+            {/* Dropdown Menu */}
+            {isOpen && !disabled && (
+                <div 
+                    className={`absolute left-0 right-0 z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden min-w-64 max-h-64 flex flex-col ${
+                        openUpwards ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+                    }`}
+                >
+                    {/* Quick Action Buttons */}
+                    <div className="p-1.5 bg-slate-50 border-b border-slate-100 flex items-center gap-1 shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                onChange('');
+                                setIsOpen(false);
+                            }}
+                            className="flex-1 px-2 py-1.5 text-[10px] font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors text-left flex items-center gap-1.5 cursor-pointer"
+                        >
+                            <span>🚫 Blank Reserved Row</span>
+                        </button>
+                        {defaultValue && defaultValue !== value && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    onChange(defaultValue);
+                                    setIsOpen(false);
+                                }}
+                                className="px-2 py-1.5 text-[10px] font-bold text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-1 cursor-pointer shrink-0"
+                            >
+                                <RotateCcw className="w-3 h-3" />
+                                <span>Reset Default</span>
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Options List */}
+                    <div className="overflow-y-auto custom-scrollbar flex-1 p-1">
+                        {grouped.length > 0 ? (
+                            grouped.map(([category, items]) => (
+                                <div key={category} className="mb-1.5 last:mb-0">
+                                    <div className="px-2.5 py-1 text-[9px] font-black text-slate-400 uppercase tracking-wider bg-slate-50 rounded-md">
+                                        {category}
+                                    </div>
+                                    <div className="space-y-0.5 mt-0.5">
+                                        {items.map(name => {
+                                            const isSelected = name.toLowerCase() === value.trim().toLowerCase();
+                                            return (
+                                                <button
+                                                    key={name}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        onChange(name);
+                                                        setIsOpen(false);
+                                                    }}
+                                                    className={`w-full text-left px-2.5 py-1.5 text-xs font-semibold rounded-lg flex items-center justify-between transition-colors cursor-pointer ${
+                                                        isSelected 
+                                                            ? 'bg-blue-600 text-white font-bold shadow-xs' 
+                                                            : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700'
+                                                    }`}
+                                                >
+                                                    <span className="truncate">{name}</span>
+                                                    {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="p-3 text-center">
+                                <p className="text-xs text-slate-500 font-medium">No predefined match.</p>
+                                <p className="text-[10px] text-slate-400 mt-1">Press Tab to keep custom name "{value}"</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 }
 
 export function SF10HistoricalDataModal({
@@ -92,14 +292,114 @@ export function SF10HistoricalDataModal({
         });
     }, [selectedBlockGrade, overrides, blockIdx, getVal]);
 
+    // Subjects in school database
+    const dbSubjects = useAppStore(state => state.subjects);
+
+    // Curated subject options categorized for easy selection
+    const availableSubjects = useMemo(() => {
+        const list: { category: string; name: string }[] = [];
+        
+        // 1. DepEd Standard for this grade
+        const standardForGrade = getSubjectsForGrade(selectedBlockGrade);
+        standardForGrade.forEach(s => {
+            if (s.name && !list.some(item => item.name.toLowerCase() === s.name.toLowerCase())) {
+                list.push({ category: `DepEd Grade ${selectedBlockGrade} Standard`, name: s.name });
+            }
+        });
+
+        // 2. Pre-MATATAG / 2016 K-12 subjects for JHS
+        if (curriculumType === 'JHS') {
+            const k12Subjects = [
+                'Edukasyon sa Pagpapakatao (EsP)',
+                'Music',
+                'Arts',
+                'Physical Education',
+                'Health'
+            ];
+            k12Subjects.forEach(name => {
+                if (!list.some(item => item.name.toLowerCase() === name.toLowerCase())) {
+                    list.push({ category: 'DepEd 2016 K-12 Standard', name });
+                }
+            });
+        }
+
+        // 3. Database subjects matching this grade or marked as special program
+        dbSubjects.forEach(s => {
+            const matchesGrade = s.grade_level?.includes(String(selectedBlockGrade));
+            if ((matchesGrade || s.is_special_program) && s.subject_name) {
+                if (!list.some(item => item.name.toLowerCase() === s.subject_name.toLowerCase())) {
+                    list.push({ category: 'School Database Subjects', name: s.subject_name });
+                }
+            }
+        });
+
+        // 4. Common TVE / Specialized Electives
+        const tveElectives = [
+            'ICT',
+            'Computer Systems Servicing (CSS)',
+            'Technical Drafting',
+            'Home Economics',
+            'Cookery',
+            'Bread and Pastry Production',
+            'Food and Beverage Services',
+            'Beauty Care / Nail Care',
+            'Dressmaking',
+            'Agri-Fishery Arts',
+            'Crop Production',
+            'Animal Production',
+            'Industrial Arts',
+            'Electrical Installation & Maintenance (EIM)',
+            'Shielded Metal Arc Welding (SMAW)',
+            'Automotive Servicing',
+            'Specialization I',
+            'Specialization II',
+            'Journalism',
+            'Foreign Language (SPFL)',
+            'Robotics'
+        ];
+        tveElectives.forEach(name => {
+            if (!list.some(item => item.name.toLowerCase() === name.toLowerCase())) {
+                list.push({ category: 'Specialized & TVE Electives', name });
+            }
+        });
+
+        return list;
+    }, [selectedBlockGrade, curriculumType, dbSubjects]);
+
     // Subjects for the selected grade
     const rows = useMemo(() => {
-        const customCurriculum = schoolProfile.curriculum;
+        const customCurriculum = schoolProfile.sf10_curriculum || schoolProfile.curriculum;
         const useOldCurriculum = curriculumType === 'JHS' && gradeNum >= 9 && selectedBlockGrade > 0 && selectedBlockGrade < gradeNum;
         const finalRows = getSF10RowsForGrade(selectedBlockGrade, customCurriculum, { useOldCurriculum });
         
         return finalRows;
     }, [selectedBlockGrade, schoolProfile, curriculumType, gradeNum]);
+
+    const isComponentSubject = useCallback((rowKey: string, label?: string): boolean => {
+        const norm = (label || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (norm === 'mapeh') return false;
+        
+        if (
+            norm.includes('musicandarts') || 
+            norm.includes('musicarts') || 
+            norm.includes('peandhealth') || 
+            norm.includes('pehealth') || 
+            norm.includes('physicaleducationandhealth') ||
+            norm === 'music' || 
+            norm === 'arts' || 
+            norm === 'physicaleducation' || 
+            norm === 'health' || 
+            norm === 'pe'
+        ) {
+            return true;
+        }
+        
+        const targetRow = rows.find(r => r.key === rowKey);
+        if (targetRow?.indent && targetRow?.key !== 'mapeh' && (!label || label === targetRow.label)) {
+            return true;
+        }
+        return false;
+    }, [rows]);
 
     const [grades, setGrades] = useState<Record<string, GradeVal | string>>({});
 
@@ -108,7 +408,16 @@ export function SF10HistoricalDataModal({
         const newGrades: Record<string, GradeVal | string> = {};
         rows.forEach(row => {
             const base = `scholasticRecords[${blockIdx}].subjects.${row.key}`;
+            const dotKey = `${base}.label`;
+            const underKey = `scholasticRecords[${blockIdx}].subjects.${row.key}_label`;
+            const hasOverride = (dotKey in currentOverrides) || (underKey in currentOverrides);
+            const customLabel = hasOverride
+                ? (currentOverrides[dotKey] !== undefined ? currentOverrides[dotKey] : currentOverrides[underKey])
+                : undefined;
+            const defaultLabel = row.key.startsWith('extra_') ? '' : row.label;
+
             newGrades[row.key] = {
+                label: customLabel !== undefined ? customLabel : defaultLabel,
                 q1: getVal(`${base}.q1`),
                 q2: getVal(`${base}.q2`),
                 q3: getVal(`${base}.q3`),
@@ -119,17 +428,38 @@ export function SF10HistoricalDataModal({
         });
         // General Average
         newGrades['generalAverage'] = getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`);
-        // Load custom labels for extra rows
-        rows.forEach(row => {
-            if (row.key.startsWith('extra_')) {
-                const gradeVal = newGrades[row.key];
-                if (typeof gradeVal === 'object' && gradeVal !== null) {
-                    gradeVal.label = getVal(`scholasticRecords[${blockIdx}].subjects.${row.key}.label`);
+        setGrades(newGrades);
+    }, [selectedBlockGrade, student.lrn, blockIdx, getVal, rows, currentOverrides]);
+
+    const recalcGeneralAverage = useCallback((currentGrades: Record<string, GradeVal | string>) => {
+        let total = 0;
+        let count = 0;
+        
+        Object.keys(currentGrades).forEach(key => {
+            if (key === 'generalAverage') return;
+            const gradeObj = currentGrades[key];
+            if (typeof gradeObj === 'object' && gradeObj !== null) {
+                const label = gradeObj.label;
+                const hasValidLabel = label !== undefined ? label.trim() !== '' : !key.startsWith('extra_');
+                const isComponentRow = isComponentSubject(key, label);
+                const final = parseFloat(gradeObj.finalRating || '') || 0;
+                
+                if (final > 0 && !isComponentRow && hasValidLabel) {
+                    total += final;
+                    count++;
                 }
             }
         });
-        setGrades(newGrades);
-    }, [selectedBlockGrade, student.lrn, blockIdx, getVal, rows]);
+
+        if (count > 0) {
+            const genAvg = Math.round(total / count);
+            currentGrades['generalAverage'] = genAvg.toString();
+            setOverride(student.lrn, `page_${pageNum}`, `scholasticRecords[${blockIdx}].subjects.generalAverage`, genAvg.toString());
+        } else {
+            currentGrades['generalAverage'] = '';
+            setOverride(student.lrn, `page_${pageNum}`, `scholasticRecords[${blockIdx}].subjects.generalAverage`, '');
+        }
+    }, [blockIdx, isComponentSubject, pageNum, setOverride, student.lrn]);
 
     const handleMetadataChange = (field: string, value: string) => {
         setMetadata(prev => ({ ...prev, [field]: value }));
@@ -139,6 +469,63 @@ export function SF10HistoricalDataModal({
         setOverride(student.lrn, `page_${pageNum}`, `scholasticRecords[${blockIdx}].gradeLevel`, `Grade ${selectedBlockGrade}`);
         setOverride(student.lrn, `page_${pageNum}`, `scholasticRecords[${blockIdx}].gradeLevelNum`, String(selectedBlockGrade));
     };
+
+    const handleLabelChange = useCallback((subjectKey: string, newLabel: string) => {
+        const isBlank = newLabel.trim() === '' || newLabel === '-- Reserved Blank Row --';
+        const finalLabel = isBlank ? '' : newLabel;
+
+        setOverride(student.lrn, `page_${pageNum}`, `scholasticRecords[${blockIdx}].subjects.${subjectKey}.label`, finalLabel);
+        setOverride(student.lrn, `page_${pageNum}`, `scholasticRecords[${blockIdx}].subjects.${subjectKey}_label`, finalLabel);
+
+        setGrades(prev => {
+            const prevRow = (prev[subjectKey] as GradeVal) || {};
+            const isComponentRow = isComponentSubject(subjectKey, finalLabel);
+
+            const updatedRow: GradeVal = {
+                ...prevRow,
+                label: finalLabel
+            };
+
+            const base = `scholasticRecords[${blockIdx}].subjects.${subjectKey}`;
+
+            if (isBlank) {
+                updatedRow.q1 = '';
+                updatedRow.q2 = '';
+                updatedRow.q3 = '';
+                updatedRow.q4 = '';
+                updatedRow.finalRating = '';
+                updatedRow.remarks = '';
+                setOverride(student.lrn, `page_${pageNum}`, `${base}.q1`, '');
+                setOverride(student.lrn, `page_${pageNum}`, `${base}.q2`, '');
+                setOverride(student.lrn, `page_${pageNum}`, `${base}.q3`, '');
+                setOverride(student.lrn, `page_${pageNum}`, `${base}.q4`, '');
+                setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, '');
+                setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, '');
+            } else if (isComponentRow) {
+                updatedRow.finalRating = '';
+                updatedRow.remarks = '';
+                setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, '');
+                setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, '');
+            } else {
+                const q1 = parseFloat(updatedRow.q1 || '') || 0;
+                const q2 = parseFloat(updatedRow.q2 || '') || 0;
+                const q3 = parseFloat(updatedRow.q3 || '') || 0;
+                const q4 = parseFloat(updatedRow.q4 || '') || 0;
+                const filled = is3Term ? [q1, q2, q3].filter(v => v > 0) : [q1, q2, q3, q4].filter(v => v > 0);
+                if (filled.length > 0) {
+                    const avg = Math.round(filled.reduce((a, b) => a + b, 0) / filled.length);
+                    updatedRow.finalRating = avg.toString();
+                    updatedRow.remarks = avg >= 75 ? 'PASSED' : 'FAILED';
+                    setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, avg.toString());
+                    setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, updatedRow.remarks);
+                }
+            }
+
+            const nextGrades = { ...prev, [subjectKey]: updatedRow };
+            recalcGeneralAverage(nextGrades);
+            return nextGrades;
+        });
+    }, [blockIdx, is3Term, isComponentSubject, pageNum, recalcGeneralAverage, setOverride, student.lrn]);
 
     const handleGradeChange = (subjectKey: string, quarter: string, value: string) => {
         const updatedGrades = { ...grades };
@@ -158,11 +545,10 @@ export function SF10HistoricalDataModal({
             ? [q1, q2, q3].filter(v => v > 0)
             : [q1, q2, q3, q4].filter(v => v > 0);
             
-        const isExtra = subjectKey.startsWith('extra_reserved_');
-        const hasLabel = isExtra ? (subjectGrade.label?.trim() || '') !== '' : true;
-
         const targetRow = rows.find(r => r.key === subjectKey);
-        const isComponent = ['music', 'arts', 'physicalEducation', 'health', 'musicAndArts', 'peAndHealth', 'musicarts', 'pehealth'].includes(subjectKey) || (targetRow?.indent && targetRow?.key !== 'mapeh');
+        const label = subjectGrade.label !== undefined ? subjectGrade.label : (targetRow?.key.startsWith('extra_') ? '' : targetRow?.label || '');
+        const hasLabel = (label?.trim() || '') !== '';
+        const isComponent = isComponentSubject(subjectKey, label);
 
         if (isComponent) {
             // MAPEH components should not have final rating or remarks in SF10
@@ -183,7 +569,7 @@ export function SF10HistoricalDataModal({
             setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, avg.toString());
             setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, subjectGrade.remarks);
         } else {
-            // Clear everything if no grades are left or no label is present for extra subjects
+            // Clear everything if no grades are left or no label is present
             const base = `scholasticRecords[${blockIdx}].subjects.${subjectKey}`;
             subjectGrade.finalRating = '';
             subjectGrade.remarks = '';
@@ -192,37 +578,66 @@ export function SF10HistoricalDataModal({
             setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, '');
         }
 
-        // Recalculate General Average
-        let total = 0;
-        let count = 0;
-        
-        Object.keys(updatedGrades).forEach(key => {
-            if (key === 'generalAverage') return;
-            // Exclude components from GPA (standard SF10 rules)
-            const isComponent = ['music', 'arts', 'physicalEducation', 'health', 'musicAndArts', 'peAndHealth'].includes(key);
-            const gradeObj = updatedGrades[key];
-            if (typeof gradeObj === 'object' && gradeObj !== null) {
-                const final = parseFloat(gradeObj.finalRating || '') || 0;
-                const hasLabel = key.startsWith('extra_') ? (gradeObj.label?.trim() || '') !== '' : true;
-                
-                if (final > 0 && !isComponent && hasLabel) {
-                    total += final;
-                    count++;
-                }
-            }
-        });
-
-        if (count > 0) {
-            const genAvg = Math.round(total / count);
-            updatedGrades['generalAverage'] = genAvg.toString();
-            setOverride(student.lrn, `page_${pageNum}`, `scholasticRecords[${blockIdx}].subjects.generalAverage`, genAvg.toString());
-        } else {
-            updatedGrades['generalAverage'] = '';
-            setOverride(student.lrn, `page_${pageNum}`, `scholasticRecords[${blockIdx}].subjects.generalAverage`, '');
-        }
-
+        recalcGeneralAverage(updatedGrades);
         setGrades(updatedGrades);
     };
+
+    // Batch Presets
+    const applyMatatagPreset = useCallback(() => {
+        let presetNames: string[] = [];
+        if (curriculumType === 'JHS') {
+            presetNames = [
+                'Filipino',
+                'English',
+                'Mathematics',
+                'Science',
+                'Araling Panlipunan (AP)',
+                'Values Education',
+                'Technology and Livelihood Education (TLE)',
+                'MAPEH',
+                'Music and Arts',
+                'Physical Education and Health',
+                '', '', '', ''
+            ];
+        } else {
+            const std = getSubjectsForGrade(selectedBlockGrade);
+            presetNames = std.map(s => s.name);
+        }
+        rows.forEach((row, idx) => {
+            const newName = presetNames[idx] ?? '';
+            handleLabelChange(row.key, newName);
+        });
+    }, [curriculumType, handleLabelChange, rows, selectedBlockGrade]);
+
+    const applyK12Preset = useCallback(() => {
+        if (curriculumType !== 'JHS') return;
+        const presetNames = [
+            'Filipino',
+            'English',
+            'Mathematics',
+            'Science',
+            'Araling Panlipunan (AP)',
+            'Edukasyon sa Pagpapakatao (EsP)',
+            'Technology and Livelihood Education (TLE)',
+            'MAPEH',
+            'Music',
+            'Arts',
+            'Physical Education',
+            'Health',
+            '', ''
+        ];
+        rows.forEach((row, idx) => {
+            const newName = presetNames[idx] ?? '';
+            handleLabelChange(row.key, newName);
+        });
+    }, [curriculumType, handleLabelChange, rows]);
+
+    const resetAllRowLabels = useCallback(() => {
+        rows.forEach((row) => {
+            const defaultLabel = row.key.startsWith('extra_') ? '' : row.label;
+            handleLabelChange(row.key, defaultLabel);
+        });
+    }, [handleLabelChange, rows]);
 
     const handleReset = () => {
         if (confirm(`Are you sure you want to reset Grade ${selectedBlockGrade} to system-computed data? All manual edits for this block will be cleared.`)) {
@@ -426,8 +841,57 @@ export function SF10HistoricalDataModal({
                             </div>
                         </div>
 
+                        {/* Learning Areas Header with Presets Toolbar */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-black text-slate-800 uppercase tracking-wider">
+                                    Learning Areas & Ratings
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-bold hidden sm:inline">
+                                    (Click subject to choose or type custom name)
+                                </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mr-1 hidden sm:inline">
+                                    Presets:
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={applyMatatagPreset}
+                                    disabled={isLocked}
+                                    className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-black text-[9px] uppercase tracking-wider transition-all border border-blue-200 shadow-xs active:scale-95 disabled:opacity-40 cursor-pointer flex items-center gap-1"
+                                    title="Apply DepEd MATATAG (2024-Present) subject names"
+                                >
+                                    <Sparkles className="w-3 h-3" />
+                                    <span>MATATAG (2024)</span>
+                                </button>
+                                {curriculumType === 'JHS' && (
+                                    <button
+                                        type="button"
+                                        onClick={applyK12Preset}
+                                        disabled={isLocked}
+                                        className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-black text-[9px] uppercase tracking-wider transition-all border border-indigo-200 shadow-xs active:scale-95 disabled:opacity-40 cursor-pointer flex items-center gap-1"
+                                        title="Apply 2016 K-12 subject names (with EsP & 4 MAPEH components)"
+                                    >
+                                        <span>2016 K-12 (EsP)</span>
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={resetAllRowLabels}
+                                    disabled={isLocked}
+                                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-black text-[9px] uppercase tracking-wider transition-all border border-slate-200 shadow-xs active:scale-95 disabled:opacity-40 cursor-pointer flex items-center gap-1"
+                                    title="Reset all subject names to curriculum defaults"
+                                >
+                                    <RotateCcw className="w-3 h-3" />
+                                    <span>Reset Names</span>
+                                </button>
+                            </div>
+                        </div>
+
                         {/* Grades Grid */}
-                        <div className="bg-slate-50 rounded-4xl border border-slate-100 overflow-hidden shadow-sm">
+                        <div className="bg-slate-50 rounded-4xl border border-slate-100 overflow-visible shadow-sm">
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="bg-slate-900 text-white">
@@ -441,48 +905,27 @@ export function SF10HistoricalDataModal({
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200">
-                                    {rows.map((row) => {
+                                    {rows.map((row, rIdx) => {
                                         const rowGrade = grades[row.key] as GradeVal | undefined;
+                                        const defaultLabel = row.key.startsWith('extra_') ? '' : row.label;
+                                        const currentVal = rowGrade?.label !== undefined ? rowGrade.label : defaultLabel;
+                                        const isComp = isComponentSubject(row.key, currentVal);
+
                                         return (
                                             <tr key={row.key} className="hover:bg-white transition-colors group">
-                                                <td className="px-6 py-3 font-bold text-slate-700 border-r border-slate-200">
-                                                    {(row.key.startsWith('extra_') || (rowGrade?.label !== undefined && rowGrade.label !== row.label)) ? (
-                                                        <input
-                                                            type="text"
-                                                            className="w-full bg-transparent border-b border-dashed border-slate-200 focus:border-blue-500 outline-none px-1 py-0.5 font-bold text-slate-700"
-                                                            value={rowGrade?.label !== undefined ? rowGrade.label : row.label}
-                                                            onChange={(e) => {
-                                                                const val = e.target.value;
-                                                                setGrades(prev => {
-                                                                    const prevGrade = (prev[row.key] as GradeVal) || {};
-                                                                    return {
-                                                                        ...prev,
-                                                                        [row.key]: { ...prevGrade, label: val }
-                                                                    };
-                                                                });
-                                                                setOverride(student.lrn, `page_${pageNum}`, `scholasticRecords[${blockIdx}].subjects.${row.key}.label`, val);
-                                                                
-                                                                // If label is cleared, clear everything else too
-                                                                if (val.trim() === '') {
-                                                                    const base = `scholasticRecords[${blockIdx}].subjects.${row.key}`;
-                                                                    setOverride(student.lrn, `page_${pageNum}`, `${base}.q1`, '');
-                                                                    setOverride(student.lrn, `page_${pageNum}`, `${base}.q2`, '');
-                                                                    setOverride(student.lrn, `page_${pageNum}`, `${base}.q3`, '');
-                                                                    setOverride(student.lrn, `page_${pageNum}`, `${base}.q4`, '');
-                                                                    setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, '');
-                                                                    setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, '');
-                                                                    setGrades(prev => ({
-                                                                        ...prev,
-                                                                        [row.key]: { label: '', q1: '', q2: '', q3: '', q4: '', finalRating: '', remarks: '' }
-                                                                    }));
-                                                                }
-                                                            }}
-                                                            placeholder="Type subject name..."
-                                                            disabled={isLocked}
-                                                        />
-                                                    ) : (
-                                                        row.label
-                                                    )}
+                                                <td className="px-3 py-2 font-bold text-slate-700 border-r border-slate-200">
+                                                    <SubjectCombobox
+                                                        value={currentVal}
+                                                        defaultValue={defaultLabel}
+                                                        isComponent={isComp}
+                                                        rowKey={row.key}
+                                                        rowIdx={rIdx}
+                                                        totalRows={rows.length}
+                                                        disabled={isLocked}
+                                                        options={availableSubjects}
+                                                        onChange={(val) => handleLabelChange(row.key, val)}
+                                                        onReset={() => handleLabelChange(row.key, defaultLabel)}
+                                                    />
                                                 </td>
                                                 {['q1', 'q2', 'q3', ...(!is3Term ? ['q4'] : [])].map((q) => (
                                                     <td key={q} className="p-1.5 border-r border-slate-200 bg-slate-50/50 group-hover:bg-transparent transition-colors">
@@ -535,7 +978,7 @@ export function SF10HistoricalDataModal({
                                         </td>
                                         <td className="px-6 text-center">
                                             <span className={`text-xs font-black uppercase tracking-widest ${parseFloat((grades.generalAverage as string) || '0') >= 75 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                {parseFloat((grades.generalAverage as string) || '0') >= 75 ? 'PROMOTED' : ''}
+                                                {parseFloat((grades.generalAverage as string) || '0') >= 75 ? 'PROMOTED' : (parseFloat((grades.generalAverage as string) || '0') > 0 ? 'RETAINED' : '')}
                                             </span>
                                         </td>
                                     </tr>

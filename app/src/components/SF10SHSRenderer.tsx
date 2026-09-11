@@ -1,7 +1,7 @@
 import React from 'react';
-import { AutoShrinkText, asString, type SF10RendererProps } from './SF10Shared';
+import { AutoShrinkText, asString, SF10SubjectCombobox, SF10RemarkCombobox, SF10GeneralAverageRemarkCombobox, type SF10RendererProps } from './SF10Shared';
 
-export const SF10SHSRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data, onUpdate }) => {
+export const SF10SHSRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data, onUpdate, dbSubjects = [] }) => {
     const getRaw = (path: string): unknown => {
         if (!path) return '';
         if (data[path] !== undefined) return data[path];
@@ -106,16 +106,64 @@ export const SF10SHSRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data,
                     <tbody>
                         {Array.from({ length: 11 }).map((_, rIdx) => {
                             const sub = getRaw(`scholasticRecords[${blockIdx}].subjects[${rIdx}]`) as Record<string, unknown> || {};
+                            const rawGrade = getVal(`scholasticRecords[${blockIdx}].gradeLevel`) || "";
+                            const blockGrade = parseInt(rawGrade.replace(/\D/g, "")) || (blockIdx >= 2 ? 12 : 11);
+                            const subName = asString(sub.subjectName);
+                            const isBlank = !subName || subName.trim() === '';
+                            const shouldShowData = !isBlank;
+
                             return (
                                 <tr key={rIdx} className="h-3.75">
-                                    <td className="uppercase text-[8.3px]">{asString(sub.subjectCode) || ''}</td>
-                                    <td className="text-left px-1 font-bold truncate">
-                                        {asString(sub.subjectName)}
+                                    <td className="uppercase text-[8.3px]">
+                                        <input
+                                            type="text"
+                                            className="w-full text-center border-none bg-transparent focus:outline-none focus:bg-amber-50/70 uppercase text-[8.3px]"
+                                            value={shouldShowData ? (asString(sub.subjectCode) || '') : ''}
+                                            onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects[${rIdx}].subjectCode`, e.target.value)}
+                                        />
                                     </td>
-                                    <td>{asString(sub.quarter1Grade)}</td>
-                                    <td>{asString(sub.quarter2Grade)}</td>
-                                    <td className="font-bold">{asString(sub.finalGrade)}</td>
-                                    <td className="uppercase text-[8.3px]">{asString(sub.remarks)}</td>
+                                    <td className="text-left px-1 font-bold">
+                                        <SF10SubjectCombobox
+                                            value={subName}
+                                            onChange={(val) => {
+                                                onUpdate?.(`scholasticRecords[${blockIdx}].subjects[${rIdx}].subjectName`, val);
+                                            }}
+                                            placeholder=""
+                                            level="shs"
+                                            gradeLevel={blockGrade}
+                                            dbSubjects={dbSubjects}
+                                        />
+                                    </td>
+                                    <td>
+                                        <input
+                                            type="text"
+                                            className="w-full text-center border-none bg-transparent focus:outline-none focus:bg-amber-50/70 text-[9px]"
+                                            value={shouldShowData ? asString(sub.quarter1Grade) : ''}
+                                            onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects[${rIdx}].quarter1Grade`, e.target.value)}
+                                        />
+                                    </td>
+                                    <td>
+                                        <input
+                                            type="text"
+                                            className="w-full text-center border-none bg-transparent focus:outline-none focus:bg-amber-50/70 text-[9px]"
+                                            value={shouldShowData ? asString(sub.quarter2Grade) : ''}
+                                            onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects[${rIdx}].quarter2Grade`, e.target.value)}
+                                        />
+                                    </td>
+                                    <td className="font-bold">
+                                        <input
+                                            type="text"
+                                            className="w-full text-center border-none bg-transparent focus:outline-none focus:bg-amber-50/70 font-bold text-[9.5px]"
+                                            value={shouldShowData ? asString(sub.finalGrade) : ''}
+                                            onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects[${rIdx}].finalGrade`, e.target.value)}
+                                        />
+                                    </td>
+                                    <td className="uppercase text-[8.3px]">
+                                        <SF10RemarkCombobox
+                                            value={shouldShowData ? asString(sub.remarks) : ''}
+                                            onChange={(val) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects[${rIdx}].remarks`, val)}
+                                        />
+                                    </td>
                                 </tr>
                             );
                         })}
@@ -129,10 +177,22 @@ export const SF10SHSRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data,
                                 />
                             </td>
                             <td className="uppercase text-[8.3px]">
-                                <input type="text" className="border-none bg-transparent w-full text-center font-bold focus:outline-none" 
-                                    value={getVal(`scholasticRecords[${blockIdx}].generalAverageRemarks`)} 
-                                    onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].generalAverageRemarks`, e.target.value)} 
-                                />
+                                {(() => {
+                                    const genAvgRemPath = `scholasticRecords[${blockIdx}].generalAverageRemarks`;
+                                    const hasGenAvgRemOverride = data[genAvgRemPath] !== undefined;
+                                    const genAvgRaw = parseFloat(getVal(`scholasticRecords[${blockIdx}].generalAverage`));
+                                    const computedGenAvgRem = genAvgRaw >= 75 ? 'PROMOTED' : genAvgRaw > 0 ? 'RETAINED' : '';
+                                    const rawRem = getVal(genAvgRemPath);
+                                    const displayGenAvgRem = hasGenAvgRemOverride 
+                                        ? asString(data[genAvgRemPath]) 
+                                        : (rawRem === 'PASSED' ? 'PROMOTED' : (rawRem || computedGenAvgRem));
+                                    return (
+                                        <SF10GeneralAverageRemarkCombobox
+                                            value={displayGenAvgRem}
+                                            onChange={(val) => onUpdate?.(genAvgRemPath, val)}
+                                        />
+                                    );
+                                })()}
                             </td>
                         </tr>
                     </tbody>

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { db } from '../services/database';
+import { generatePreUpdateSafetyVault } from '../services/pre-update-safety';
 import type { Student } from '../types';
 
 export interface UpdateChecklist {
@@ -42,6 +43,8 @@ interface UpdateState {
   };
   errorMessage: string | null;
   reconciliationReport: ReconciliationReport | null;
+  safetyStatusText: string | null;
+  safetyVaultFilename: string | null;
   
   // Actions
   checkForUpdates: () => void;
@@ -183,6 +186,8 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
     errorMessage: null,
     reconciliationReport: null,
+    safetyStatusText: null,
+    safetyVaultFilename: null,
 
     checkForUpdates: () => {
       if (window.electronAPI?.checkForUpdates) {
@@ -203,7 +208,13 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     runPreUpdatePipeline: async () => {
-      set({ updateStep: 'health-checks', checklist: { ...initialChecklist }, errorMessage: null });
+      set({
+        updateStep: 'health-checks',
+        checklist: { ...initialChecklist },
+        errorMessage: null,
+        safetyStatusText: null,
+        safetyVaultFilename: null
+      });
       const api = window.electronAPI;
       if (!api) {
         set({ updateStep: 'failed', errorMessage: 'Desktop platform interface not detected.' });
@@ -253,20 +264,30 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
         }
         set({ checklist: { ...activeChecklist } });
 
-        // --- 4. Automatic Full Backup ---
-        set({ updateStep: 'backup' });
+        // --- 4. Automatic Multi-Format Safety Vault & Backup ---
+        set({ updateStep: 'backup', safetyStatusText: 'Initializing Pre-Update Multi-Format Safety Vault...' });
         let backupFilename = '';
         try {
+          const targetVer = get().updateInfo?.version || 'Latest';
           const backupData = await db.exportAllData();
           const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          backupFilename = `preupdate_backup_${get().updateInfo?.version || '2.0.0'}_${timestamp}.json`;
+          backupFilename = `preupdate_backup_${targetVer}_${timestamp}.json`;
           
-          const result = await api.saveAutoBackup(backupData, backupFilename);
-          if (result.success) {
-            activeChecklist.backup = 'success';
+          // 1. Electron JSON local copy
+          await api.saveAutoBackup(backupData, backupFilename);
+
+          // 2. Comprehensive Multi-Format Safety Vault (Master Excel, ECRs, Consolidated Grades, JSON)
+          const vaultResult = await generatePreUpdateSafetyVault(targetVer, (statusText) => {
+            set({ safetyStatusText: statusText });
+          });
+
+          if (vaultResult.success) {
+            set({ safetyVaultFilename: vaultResult.filename });
           } else {
-            throw new Error(result.error || 'Filesystem write failed');
+            console.warn('Pre-update safety vault notice:', vaultResult.error);
           }
+
+          activeChecklist.backup = 'success';
         } catch (backupErr) {
           activeChecklist.backup = 'failed';
           const errMsg = backupErr instanceof Error ? backupErr.message : String(backupErr);

@@ -72,7 +72,6 @@ function matchSubjectKey(subjectName: string, subjectsData: SubjectsData): strin
   else if (name.includes('arts') || name.includes('sining')) key = 'arts';
   else if (name.includes('physicaleducation') || name === 'pe' || name.includes('pe.')) key = 'physicalEducation';
   else if (name.includes('health') || name.includes('kalusugan')) key = 'health';
-  else if (name.includes('specialization')) key = 'specialization';
 
 
   if (!key) return null;
@@ -102,6 +101,7 @@ interface MapperParams {
   teachers?: User[];
   subjects?: Subject[];
   gradingSheetRecords?: ClassRecord[];
+  classRecords?: ClassRecord[];
 }
 
 /**
@@ -119,6 +119,7 @@ export function mapStudentToSpecData({
   sections,
   teachers = [],
   gradingSheetRecords = [],
+  classRecords: passedClassRecords,
   subjects: dbSubjects = [],
 }: MapperParams) {
 
@@ -150,10 +151,92 @@ export function mapStudentToSpecData({
   // Parse the student's current grade level number
   const currentGradeNum = parseInt(student.grade_level?.toString().replace(/\D/g, '') || '0');
 
+  // Hoist records lookup for both curriculum filtering and scholastic block mapping
+  const classRecords = passedClassRecords || useAppStore.getState().classRecords || [];
+  const hpsRecords = useAppStore.getState().hpsRecords || [];
+  const allRecords = [...classRecords, ...gradingSheetRecords];
+
+  // Helper to identify specialized electives, TVE tracks, or exploratory areas that should not be standalone core SF10 subjects
+  const isSpecializedOrExploratory = (subName: string, isSpecialProg?: boolean) => {
+    const norm = normalizeSubjectName(subName);
+    if (norm.includes('specialization') || norm.includes('sptve')) return true;
+    if (norm.includes('ict') || norm.includes('computereducation')) return true;
+    if (norm.includes('homeeconomics') || norm.includes('cookery') || norm.includes('technicaldrafting') || norm.includes('drafting')) return true;
+    if (norm.includes('automotive') || norm.includes('electrical') || norm.includes('welding') || norm.includes('smaw') || norm.includes('beautycare')) return true;
+    if (norm.includes('agriculture') || norm.includes('cropproduction') || norm.includes('animalproduction')) return true;
+    if (isSpecialProg) return true;
+    return false;
+  };
+
+  // Helper to check if this student actually has recorded grades for a subject in that grade
+  const studentHasRecordForSubject = (targetGrade: number, subId: string, subName: string) => {
+    return allRecords.some(r => {
+      if (r.student_lrn !== student.lrn) return false;
+      const dbSub = dbSubjects.find(s => s.id === r.subject_id);
+      const subGrade = parseInt((dbSub?.grade_level || '').replace(/\D/g, '')) || 0;
+      if (subGrade !== 0 && subGrade !== targetGrade) return false;
+      const matches = isMatchingSubject(subName, r.subject_id, r.subject_name || dbSub?.subject_name);
+      return matches && Number(r.final_grade) > 0;
+    });
+  };
+
   // If school curriculum exists but doesn't yet include Specialization,
   // augment it using actual subject entries found in the database per grade.
   const effectiveCurriculum: SchoolCurriculum | undefined = (() => {
     const augmentGradeSubjects = (grade: number, currentList: CurriculumSubject[] | undefined) => {
+      // If the teacher or school profile already defined a custom list of subjects for this grade, respect it directly!
+      if (currentList && currentList.length > 0) {
+        return currentList;
+      }
+
+      // Check section-level custom layout selections for this grade
+      const sf10Selections = studentSection?.section_metadata?.sf10SubjectSelections;
+      const sf9Selections = studentSection?.section_metadata?.sf9SubjectSelections;
+      const selections = (sf10Selections && Object.keys(sf10Selections).some(k => /^\d+$/.test(k)))
+        ? sf10Selections
+        : (sf9Selections && Object.keys(sf9Selections).some(k => /^\d+$/.test(k)) ? sf9Selections : undefined);
+
+      if (grade === currentGradeNum && selections) {
+          const orderedList: CurriculumSubject[] = [];
+          const seenOrdered = new Set<string>();
+          for (let i = 0; i < 14; i++) {
+              const subjId = selections[i];
+              if (subjId && subjId !== 'none') {
+                  const subj = dbSubjects.find(s => s.id === subjId);
+                  if (subj) {
+                      const norm = normalizeSubjectName(subj.subject_name);
+                      if (seenOrdered.has(norm)) continue;
+                      seenOrdered.add(norm);
+
+                      orderedList.push({ name: subj.subject_name, code: subj.subject_code || '' });
+                      
+                      // Handle MAPEH components auto-insertion logic for SF10
+                      if (norm === 'mapeh') {
+                          const components = dbSubjects.filter(s => {
+                              const isGenericMatch = !s.section_id && (parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0') === currentGradeNum);
+                              const isDirectMatch = studentSection ? s.section_id === studentSection.id : false;
+                              if (!isGenericMatch && !isDirectMatch) return false;
+
+                              const n = normalizeSubjectName(s.subject_name);
+                              return (n.includes('musicandarts') || n.includes('musicarts') || 
+                                     n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth') ||
+                                     n === 'music' || n === 'arts' || n === 'physicaleducation' || n === 'health' || n === 'pe') &&
+                                     !seenOrdered.has(n);
+                          });
+                          components.forEach(c => {
+                              const n = normalizeSubjectName(c.subject_name);
+                              if (!seenOrdered.has(n)) {
+                                  orderedList.push({ name: c.subject_name, code: c.subject_code || 'MAPEH' });
+                                  seenOrdered.add(n);
+                              }
+                          });
+                      }
+                  }
+              }
+          }
+          if (orderedList.length > 0) return orderedList;
+      }
+
       // Get all subjects for this grade from the database
       let dbSubjectsForGrade = dbSubjects.filter(s => {
         const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
@@ -205,15 +288,27 @@ export function mapStudentToSpecData({
             });
           };
 
+          const isSpecialProgramSection = Boolean(studentSection.program && studentSection.program !== 'Regular');
+
           if (taughtRaw.length > 1) {
-            dbSubjectsForGrade = dbSubjectsForGrade.filter(s => isSubjectAllowedInTaught(s.id, s.subject_name) || s.section_id === studentSection.id || s.is_special_program);
+            dbSubjectsForGrade = dbSubjectsForGrade.filter(s => {
+              if (isSubjectAllowedInTaught(s.id, s.subject_name) || s.section_id === studentSection.id) return true;
+              if (isSpecializedOrExploratory(s.subject_name, s.is_special_program)) {
+                return isSpecialProgramSection || studentHasRecordForSubject(grade, s.id, s.subject_name);
+              }
+              return false;
+            });
           } else {
             dbSubjectsForGrade = dbSubjectsForGrade.filter(s => {
               const isGeneric = !s.section_id;
               const isDirect = s.section_id === studentSection.id;
               const isIntended = intendedSubjects.some((intended: { name: string }) => isMatchingSubject(intended.name, s.id, s.subject_name) || normalizeSubjectName(intended.name) === normalizeSubjectName(s.subject_name));
               const isExplicitlyTaught = isSubjectAllowedInTaught(s.id, s.subject_name);
-              return (isGeneric || isDirect) && (isIntended || isExplicitlyTaught || isDirect || s.is_special_program);
+
+              if (isSpecializedOrExploratory(s.subject_name, s.is_special_program)) {
+                return isExplicitlyTaught || (isSpecialProgramSection && (isGeneric || isDirect)) || studentHasRecordForSubject(grade, s.id, s.subject_name);
+              }
+              return (isGeneric || isDirect) && (isIntended || isExplicitlyTaught || isDirect);
             });
           }
         }
@@ -224,6 +319,15 @@ export function mapStudentToSpecData({
           const bDirect = b.section_id === studentSection.id ? 1 : 0;
           return bDirect - aDirect;
         });
+      } else {
+        // For other grades (e.g. historical grade blocks), only include specialized/exploratory subjects
+        // if this student actually took and has recorded grades for that subject!
+        dbSubjectsForGrade = dbSubjectsForGrade.filter(s => {
+          if (isSpecializedOrExploratory(s.subject_name, s.is_special_program)) {
+            return studentHasRecordForSubject(grade, s.id, s.subject_name);
+          }
+          return true;
+        });
       }
 
       // Final deduplication by name
@@ -233,52 +337,6 @@ export function mapStudentToSpecData({
         seen.add(norm);
         return true;
       });
-
-      // If we have manual selections for the current grade, use that order!
-      const selections = studentSection?.section_metadata?.sf9SubjectSelections;
-      const hasNumericKeys = selections && Object.keys(selections).some(k => /^\d+$/.test(k));
-      if (grade === currentGradeNum && hasNumericKeys && selections) {
-          const orderedList: CurriculumSubject[] = [];
-          
-          const seenOrdered = new Set<string>();
-          for (let i = 0; i < 13; i++) {
-              const subjId = selections[i];
-              if (subjId && subjId !== 'none') {
-                  const subj = dbSubjects.find(s => s.id === subjId);
-                  if (subj) {
-                      const norm = normalizeSubjectName(subj.subject_name);
-                      if (seenOrdered.has(norm)) continue;
-                      seenOrdered.add(norm);
-
-                      orderedList.push({ name: subj.subject_name, code: subj.subject_code || '' });
-                      
-                      // Handle MAPEH components auto-insertion logic for SF10
-                      if (norm === 'mapeh') {
-                          const components = dbSubjects.filter(s => {
-                              // Check if it's a section-specific subject OR a generic subject for this grade level
-                              const isGenericMatch = !s.section_id && (parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0') === currentGradeNum);
-                              const isDirectMatch = s.section_id === studentSection.id;
-                              if (!isGenericMatch && !isDirectMatch) return false;
-
-                              const n = normalizeSubjectName(s.subject_name);
-                              return (n.includes('musicandarts') || n.includes('musicarts') || 
-                                     n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth')) &&
-                                     !seenOrdered.has(n);
-                          });
-                          components.forEach(c => {
-                              const n = normalizeSubjectName(c.subject_name);
-                              if (!seenOrdered.has(n)) {
-                                  orderedList.push({ name: c.subject_name, code: c.subject_code || 'MAPEH' });
-                                  seenOrdered.add(n);
-                              }
-                          });
-                      }
-                  }
-              }
-          }
-          
-          if (orderedList.length > 0) return orderedList;
-      }
 
       if (dbSubjectsForGrade.length > 0) {
         const newList: CurriculumSubject[] = dbSubjectsForGrade.map(s => ({
@@ -296,7 +354,8 @@ export function mapStudentToSpecData({
             const n = normalizeSubjectName(s.name);
             return n !== 'mapeh' && (
                 n.includes('musicandarts') || n.includes('musicarts') || 
-                n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth')
+                n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth') ||
+                n === 'music' || n === 'arts' || n === 'physicaleducation' || n === 'health' || n === 'pe'
             );
         });
 
@@ -327,7 +386,8 @@ export function mapStudentToSpecData({
       return currentList ? sortSubjects([...currentList], s => s.name) : [];
     };
 
-    const nextCurriculum: SchoolCurriculum = profile.curriculum ? { ...profile.curriculum } : { school_id: profile.school_id };
+    const baseCurriculum = profile.sf10_curriculum || profile.curriculum;
+    const nextCurriculum: SchoolCurriculum = baseCurriculum ? { ...baseCurriculum } : { school_id: profile.school_id };
 
     nextCurriculum.grade_1_subjects = augmentGradeSubjects(1, nextCurriculum.grade_1_subjects);
     nextCurriculum.grade_2_subjects = augmentGradeSubjects(2, nextCurriculum.grade_2_subjects);
@@ -365,11 +425,6 @@ export function mapStudentToSpecData({
     const yearDiff = currentGradeNum - gradeLevel;
     const blockStartYear = currentStartYear - yearDiff;
     const inferredSchoolYear = `${blockStartYear}-${blockStartYear + 1}`;
-
-    // If we have actual grading sheet records or class records for this student, try to fill in real grades
-    const classRecords = useAppStore.getState().classRecords || [];
-    const hpsRecords = useAppStore.getState().hpsRecords || [];
-    const allRecords = [...classRecords, ...gradingSheetRecords];
 
     let studentRecords: ClassRecord[] = [];
     if (allRecords.length > 0) {

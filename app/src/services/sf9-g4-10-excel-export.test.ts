@@ -93,7 +93,7 @@ describe('Grade 4-10 SF9 Excel Export Service', () => {
     expect(formatLearnerName(femaleWithHyphen)).toBe('RAFAL, SHEICY LEE');
   });
 
-  it('populates official Grade 4-10 template with 8 subjects + MAPEH components and preserves all 8 worksheets', async () => {
+  it('populates official Grade 4-10 template with 8 subjects + MAPEH components and preserves all worksheets', async () => {
     const templatePath = path.resolve(process.cwd(), 'public/templates/G4-10  School Form 9 (SY 26-27).xlsx');
     const templateBuf = fs.readFileSync(templatePath);
 
@@ -188,8 +188,8 @@ describe('Grade 4-10 SF9 Excel Export Service', () => {
 
     const zip = await JSZip.loadAsync(resultBuffer);
 
-    // Verify all 8 worksheets exist
-    for (let i = 1; i <= 8; i++) {
+    // Verify all worksheets exist (official updated DepEd template has 7 worksheets)
+    for (let i = 1; i <= 7; i++) {
       expect(zip.file(`xl/worksheets/sheet${i}.xml`)).not.toBeNull();
     }
 
@@ -242,9 +242,22 @@ describe('Grade 4-10 SF9 Excel Export Service', () => {
     expect(sheet5Xml).not.toContain('r="Q16" s="84"><v>91</v>'); // Male 2 without grade must NOT retain dummy 91
     expect(sheet5Xml).not.toContain('r="Q17" s="84"><v>91</v>'); // Male 3 without grade must NOT retain dummy 91
 
-    // Sheet 6: FINAL GRADES
-    const sheet6Xml = await zip.file('xl/worksheets/sheet6.xml')!.async('text');
-    expect(sheet6Xml).toContain('JUAN DELA CRUZ');
+    // Sheet 6: SF9 - GRADE 4-10 (Sheet 6 in updated template)
+    const sf9Xml = await zip.file('xl/worksheets/sheet6.xml')!.async('text');
+    expect(sf9Xml).toContain('DELA CRUZ, JUAN JR.');
+    expect(sf9Xml).toContain('BACARRA CENTRAL ELEMENTARY SCHOOL'); // B12
+    expect(sf9Xml).toContain('REGION I'); // B7
+    expect(sf9Xml).toContain('100123'); // B10
+    expect(sf9Xml).toContain('MARIA SANTOS, PhD'); // B27, Q41, Q49
+    expect(sf9Xml).toContain('r="K17"'); // Sex on Card
+    expect(sf9Xml).toContain('r="I17"'); // Age on Card
+    expect(sf9Xml).toMatch(/r="R5"[^>]*><v>20<\/v>/); // Single-row school days
+    expect(sf9Xml).not.toMatch(/r="R6"[^>]*><v>20<\/v>/); // No duplicated row 6
+    expect(sf9Xml).not.toContain('<f>#REF!</f>');
+    expect(sf9Xml).not.toContain('<v>#REF!</v>');
+    expect(sf9Xml).toContain('r="J32"'); // Remarks Column J
+    expect(sf9Xml).toContain('Passed');
+    expect(sf9Xml).toContain('r="I42"'); // General Average
 
     // Sheet 7: ATTENDANCE RECORD SUMMARY
     const sheet7Xml = await zip.file('xl/worksheets/sheet7.xml')!.async('text');
@@ -253,19 +266,8 @@ describe('Grade 4-10 SF9 Excel Export Service', () => {
     expect(sheet7Xml).toContain('r="F14"'); // Male 1 attendance on Row 14
     expect(sheet7Xml).toContain('r="F65"'); // Female 1 attendance on Row 65
 
-    // Sheet 8: SF9 - GRADE 4-10
-    const sheet8Xml = await zip.file('xl/worksheets/sheet8.xml')!.async('text');
-    expect(sheet8Xml).toContain('DELA CRUZ, JUAN JR.');
-    expect(sheet8Xml).toContain('BACARRA CENTRAL ELEMENTARY SCHOOL'); // B12
-    expect(sheet8Xml).toContain('REGION I'); // B7
-    expect(sheet8Xml).toContain('100123'); // B10
-    expect(sheet8Xml).toContain('MARIA SANTOS, PhD'); // B27, Q41, Q49
-    expect(sheet8Xml).toContain('r="K17"'); // Sex on Card
-    expect(sheet8Xml).toContain('r="I17"'); // Age on Card
-    expect(sheet8Xml).toContain('r="R5" s="566"><v>20</v>'); // Single-row school days
-    expect(sheet8Xml).not.toContain('r="R6" s="567"><v>20</v>'); // No duplicated row 6
-    expect(sheet8Xml).not.toContain('<f>#REF!</f>');
-    expect(sheet8Xml).not.toContain('<v>#REF!</v>');
+    // Drawings: Drawing 6 exists for SF9 School Logo
+    expect(zip.file('xl/drawings/drawing6.xml')).not.toBeNull();
   }, 15000);
 
   it('correctly matches E.P.P. (with periods) and T.L.E. in extractGrade4to10SubjectGrades', () => {

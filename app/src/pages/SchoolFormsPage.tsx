@@ -292,13 +292,13 @@ export function SchoolFormsPage() {
         },
         {
             id: 'pace',
-            title: 'PACE Form',
-            description: 'Performance Assessment in Reading and Literacy (PACE Form 138-Reading). DepEd MATATAG competency assessment.',
+            title: 'PACE Form (Grade 1)',
+            description: 'MATATAG Early Grade Competency Assessment: Reading & Literacy, Language, Mathematics, and GMRC & Makabansa with Descriptors A–E.',
             icon: FileText,
             color: 'amber',
             stats: [
-                { label: 'Competencies', value: 27 },
-                { label: 'Terms', value: 3 },
+                { label: 'Learning Areas', value: 4 },
+                { label: 'Descriptors', value: 'A–E' },
             ],
         },
     ];

@@ -535,6 +535,7 @@ export const SPSTEM_SUBJECTS: Record<string, SpecialSubjectItem[]> = {
         { name: 'Creative Technology', code: 'SPSTEM-CT7', program: 'SPSTEM' },
         { name: 'Research MIM/SIP', code: 'SPSTEM-RES7', program: 'SPSTEM' },
         { name: 'Environmental Science', code: 'STE-ES', program: 'STE' },
+        { name: 'Research I', code: 'STE-RES1', program: 'STE' },
         { name: 'Research I (Scientific Investigation)', code: 'STE-RES1', program: 'STE' },
         { name: 'Computer Science I', code: 'STE-CS1', program: 'STE' }
     ],
@@ -544,6 +545,7 @@ export const SPSTEM_SUBJECTS: Record<string, SpecialSubjectItem[]> = {
         { name: 'Creative Technology', code: 'SPSTEM-CT8', program: 'SPSTEM' },
         { name: 'Research MIM/SIP', code: 'SPSTEM-RES8', program: 'SPSTEM' },
         { name: 'Biotechnology', code: 'STE-BIO', program: 'STE' },
+        { name: 'Research II', code: 'STE-RES2', program: 'STE' },
         { name: 'Research II (Research Methodology)', code: 'STE-RES2', program: 'STE' },
         { name: 'Advanced Statistics', code: 'STE-STAT', program: 'STE' }
     ],
@@ -553,6 +555,7 @@ export const SPSTEM_SUBJECTS: Record<string, SpecialSubjectItem[]> = {
         { name: 'Creative Technology', code: 'SPSTEM-CT9', program: 'SPSTEM' },
         { name: 'Research MIM/SIP', code: 'SPSTEM-RES9', program: 'SPSTEM' },
         { name: 'Consumer Chemistry', code: 'STE-CHEM', program: 'STE' },
+        { name: 'Research III', code: 'STE-RES3', program: 'STE' },
         { name: 'Advanced Physics (Electronics)', code: 'STE-PHYS', program: 'STE' },
         { name: 'Research III (Science Investigatory Project)', code: 'STE-RES3', program: 'STE' }
     ],
@@ -561,13 +564,40 @@ export const SPSTEM_SUBJECTS: Record<string, SpecialSubjectItem[]> = {
         { name: 'Enhanced Mathematics', code: 'SPSTEM-MTH10', program: 'SPSTEM' },
         { name: 'Creative Technology', code: 'SPSTEM-CT10', program: 'SPSTEM' },
         { name: 'Research MIM/SIP', code: 'SPSTEM-RES10', program: 'SPSTEM' },
-        { name: 'Advanced Chemistry', code: 'STE-ACHEM', program: 'STE' },
+        { name: 'Electronics and Robotics', code: 'STE-ROB', program: 'STE' },
         { name: 'Robotics and Digital Electronics', code: 'STE-ROB', program: 'STE' },
-        { name: 'Research IV (SIP Defense & Capstone)', code: 'STE-RES4', program: 'STE' }
+        { name: 'Research IV', code: 'STE-RES4', program: 'STE' },
+        { name: 'Research IV (SIP Defense & Capstone)', code: 'STE-RES4', program: 'STE' },
+        { name: 'Advanced Chemistry', code: 'STE-ACHEM', program: 'STE' }
     ]
 };
 
 export const STE_SUBJECTS: Record<string, SpecialSubjectItem[]> = SPSTEM_SUBJECTS;
+
+/**
+ * Master catalog of all Junior High School STE Electives.
+ * Allows implementing schools to offer any of these subjects across Grades 7-10.
+ */
+export const JHS_STE_ELECTIVES: SpecialSubjectItem[] = [
+    { name: 'Environmental Science', code: 'STE-ES', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+    { name: 'Research I', code: 'STE-RES1', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+    { name: 'Biotechnology', code: 'STE-BIO', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+    { name: 'Research II', code: 'STE-RES2', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+    { name: 'Consumer Chemistry', code: 'STE-CHEM', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+    { name: 'Research III', code: 'STE-RES3', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+    { name: 'Electronics and Robotics', code: 'STE-ROB', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+    { name: 'Research IV', code: 'STE-RES4', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+    // Aliases & Additional Specialized Offerings
+    { name: 'Research I (Scientific Investigation)', code: 'STE-RES1', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+    { name: 'Research II (Research Methodology)', code: 'STE-RES2', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+    { name: 'Research III (Science Investigatory Project)', code: 'STE-RES3', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+    { name: 'Research IV (SIP Defense & Capstone)', code: 'STE-RES4', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+    { name: 'Robotics and Digital Electronics', code: 'STE-ROB', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+    { name: 'Advanced Statistics', code: 'STE-STAT', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+    { name: 'Computer Science I', code: 'STE-CS1', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+    { name: 'Advanced Physics (Electronics)', code: 'STE-PHYS', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+    { name: 'Advanced Chemistry', code: 'STE-ACHEM', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true }
+];
 
 export const SPA_MAJORS: Record<string, SpecialSubjectItem[]> = {
     'General': [
@@ -1495,9 +1525,11 @@ export const getCategoryForSubject = (subjectName: string, gradeLevel: string): 
             'ste -', 'ste-', 'spstem', 'special program in stem', 'enhanced science', 'enhanced math',
             'creative technology', 'research mim', 'research sip', 'mim/sip', 'environmental science', 
             'scientific investigation', 'research i', 'research ii', 'research iii', 'research iv', 
+            'research 1', 'research 2', 'research 3', 'research 4',
             'biotechnology', 'advanced statistics', 'consumer chemistry', 'advanced physics', 
-            'advanced chemistry', 'robotics and digital electronics', 'sip defense', 'capstone',
-            'science investigatory project'
+            'advanced chemistry', 'electronics and robotics', 'electronics & robotics', 'robotics and electronics',
+            'robotics and digital electronics', 'sip defense', 'capstone',
+            'science investigatory project', 'computer science i', 'computer science ii', 'computer science 1', 'computer science 2'
         ];
         if (steKeywords.some(k => normalized.includes(k)) || stripped.startsWith('ste') || stripped.startsWith('spstem')) {
             return 'Science, Technology & Engineering (STE / SPSTEM)';
@@ -1594,7 +1626,7 @@ export const getCategoryForSubject = (subjectName: string, gradeLevel: string): 
         if (values.some(v => normalized.includes(v))) {
             return 'Values / Character Education';
         }
-        const livelihood = ['technology and livelihood', 'tle', 'specialization', 'e.p.p.', 'epp'];
+        const livelihood = ['technology and livelihood', 'tle', 'e.p.p.', 'epp'];
         if (livelihood.some(l => normalized.includes(l))) {
             return 'Technology & Livelihood (TLE)';
         }
@@ -1619,7 +1651,7 @@ export const getCategoryForSubject = (subjectName: string, gradeLevel: string): 
     if (values.some(v => normalized.includes(v))) {
         return 'Values / Character Education';
     }
-    const livelihood = ['makabansa', 'e.p.p.', 'epp', 'tle', 'technology and livelihood', 'specialization'];
+    const livelihood = ['makabansa', 'e.p.p.', 'epp', 'tle', 'technology and livelihood'];
     if (livelihood.some(l => normalized.includes(l))) {
         return 'Livelihood & Makabansa';
     }
@@ -1635,5 +1667,181 @@ export const getCategoryForSubject = (subjectName: string, gradeLevel: string): 
 export * from './sshsCatalog';
 export * from './sshsGraduation';
 export * from './sshsEquivalency';
+
+/**
+ * Helper to check if a subject belongs to the given program and grade level.
+ * Regular sections should NEVER have special program subjects (SPA, SPJ, SPS, SPFL, SPTVE, STE, SSES, ALIVE).
+ * Special program sections should only have core/regular subjects PLUS their specific program subjects.
+ */
+export function isSubjectAllowedForProgram(subjectName: string, gradeLevel: string = '', program: string = 'Regular'): boolean {
+    const normName = subjectName.toLowerCase().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)/g, '').trim();
+    if (!normName || normName === 'specialization' || normName === 'mapeh') {
+        return false;
+    }
+
+    const isSHS = gradeLevel.includes('11') || gradeLevel.includes('12');
+    if (isSHS) {
+        return true;
+    }
+
+    const prog = (program || 'Regular').trim().toLowerCase();
+    const cat = getCategoryForSubject(subjectName, gradeLevel);
+
+    const isSTE = cat === 'Science, Technology & Engineering (STE / SPSTEM)';
+    const isSPA = cat === 'Special Program in the Arts (SPA)';
+    const isSPJ = cat === 'Special Program in Journalism (SPJ)';
+    const isSPS = cat === 'Special Program in Sports (SPS)';
+    const isSPFL = cat === 'Special Program in Foreign Language (SPFL)';
+    const isSPTVE = cat === 'Technical-Vocational Education (SPTVE)';
+    const isSSES = cat === 'Special Science Elementary School (SSES)';
+    const isALIVE = cat === 'Madrasah / ALIVE Program';
+
+    const isSpecialProgramCategory = isSTE || isSPA || isSPJ || isSPS || isSPFL || isSPTVE || isSSES || isALIVE;
+
+    if (prog === 'regular') {
+        return !isSpecialProgramCategory;
+    }
+
+    if (prog === 'ste' || prog === 'spstem') {
+        return !isSPA && !isSPJ && !isSPS && !isSPFL && !isSPTVE && !isSSES && !isALIVE;
+    }
+
+    if (prog === 'spa') {
+        return !isSTE && !isSPJ && !isSPS && !isSPFL && !isSPTVE && !isSSES && !isALIVE;
+    }
+
+    if (prog === 'spj') {
+        return !isSTE && !isSPA && !isSPS && !isSPFL && !isSPTVE && !isSSES && !isALIVE;
+    }
+
+    if (prog === 'sps') {
+        return !isSTE && !isSPA && !isSPJ && !isSPFL && !isSPTVE && !isSSES && !isALIVE;
+    }
+
+    if (prog === 'spfl') {
+        return !isSTE && !isSPA && !isSPJ && !isSPS && !isSPTVE && !isSSES && !isALIVE;
+    }
+
+    if (prog === 'sptve') {
+        return !isSTE && !isSPA && !isSPJ && !isSPS && !isSPFL && !isSSES && !isALIVE;
+    }
+
+    if (prog === 'sses') {
+        return !isSTE && !isSPA && !isSPJ && !isSPS && !isSPFL && !isSPTVE && !isALIVE;
+    }
+
+    if (prog === 'alive' || prog === 'madrasah') {
+        return !isSTE && !isSPA && !isSPJ && !isSPS && !isSPFL && !isSPTVE && !isSSES;
+    }
+
+    return true;
+}
+
+export type JhsTrackFilter = 'all' | 'core' | 'ste' | 'spa' | 'spj' | 'tvl';
+
+/**
+ * Classifies a Junior High School (Grade 7-10) subject into its curricular track filter:
+ * 'core' (Core MATATAG), 'ste' (STE/SPSTEM), 'spa' (Arts), 'spj' (Journalism), 'tvl' (Technical-Vocational)
+ */
+export function classifyJhsSubjectTrack(subjectName: string, gradeLevel: string = 'Grade 7', subjectCode?: string): 'core' | 'ste' | 'spa' | 'spj' | 'tvl' {
+    const norm = (subjectName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const code = (subjectCode || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const category = getCategoryForSubject(subjectName, gradeLevel);
+
+    // 1. STE / SPSTEM
+    if (
+        category === 'Science, Technology & Engineering (STE / SPSTEM)' ||
+        norm.includes('spstem') || code.includes('spstem') ||
+        norm.startsWith('ste') || code.startsWith('ste') ||
+        norm.includes('enhancedscience') || norm.includes('enhancedmath') ||
+        norm.includes('creativetechnology') || norm.includes('environmentalscience') ||
+        norm.includes('biotechnology') || norm.includes('consumerchemistry') ||
+        norm.includes('robotics') || norm.includes('scientificinvestigation') ||
+        norm.includes('advancedscience') || norm.includes('scientificresearch') ||
+        (norm.includes('research') && !norm.includes('practicalresearch'))
+    ) {
+        return 'ste';
+    }
+
+    // 2. SPA (Special Program in the Arts)
+    if (
+        category === 'Special Program in the Arts (SPA)' ||
+        norm.startsWith('spa') || code.startsWith('spa') ||
+        norm.includes('specialprograminthearts') ||
+        norm.includes('visualarts') || norm.includes('theaterarts') ||
+        norm.includes('mediaarts') || norm.includes('creativewriting') ||
+        (norm.includes('dance') && !norm.includes('peandhealth') && !norm.includes('physicaleducation'))
+    ) {
+        return 'spa';
+    }
+
+    // 3. SPJ (Special Program in Journalism)
+    if (
+        category === 'Special Program in Journalism (SPJ)' ||
+        norm.startsWith('spj') || code.startsWith('spj') ||
+        norm.includes('specialprograminjournalism') ||
+        norm.includes('journalism') || norm.includes('pamamahayag') ||
+        norm.includes('peryodismo') ||
+        norm.includes('broadcasting') || norm.includes('photojournalism')
+    ) {
+        return 'spj';
+    }
+
+    // 4. TVL / SPTVE
+    if (
+        category === 'Technical-Vocational Education (SPTVE)' ||
+        norm.startsWith('sptve') || code.startsWith('sptve') ||
+        norm.startsWith('stvep') || code.startsWith('stvep') ||
+        norm.includes('technicaldrafting') || norm.includes('technicaldrawing') ||
+        norm.includes('carpentry') || norm.includes('welding') ||
+        norm.includes('automotive') || norm.includes('electronics') ||
+        norm.includes('electricalinstallation') || norm.includes('foodtrades') ||
+        norm.includes('food') || norm.includes('beverage') ||
+        norm.includes('cookery') || norm.includes('garments') ||
+        norm.includes('dressmaking') || norm.includes('breadandpastry')
+    ) {
+        return 'tvl';
+    }
+
+    // 5. Default: Core MATATAG (Languages, Math, Science, AP, Values, TLE, MAPEH)
+    return 'core';
+}
+
+/**
+ * Returns standard DepEd grading weights (DO 8, s. 2015 / DepEd Standard):
+ * - Languages, AP, EsP/Values, GMRC, Makabansa: 30% WW, 50% PT, 20% QA
+ * - Mathematics, Science: 40% WW, 40% PT, 20% QA
+ * - TLE, EPP, MAPEH (Music, Arts, PE, Health): 20% WW, 60% PT, 20% QA
+ */
+export function getDepEdStandardWeights(subjectName: string): { written_weight: number; performance_weight: number; exam_weight: number } {
+    const norm = (subjectName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // 1. Math and Science: 40 / 40 / 20
+    if (
+        norm.includes('math') || norm.includes('science') ||
+        norm.includes('calculus') || norm.includes('algebra') ||
+        norm.includes('geometry') || norm.includes('statistics') ||
+        norm.includes('biology') || norm.includes('biotechnology') ||
+        norm.includes('chemistry') || norm.includes('physics') ||
+        norm.includes('research')
+    ) {
+        return { written_weight: 0.40, performance_weight: 0.40, exam_weight: 0.20 };
+    }
+
+    // 2. TLE / EPP / MAPEH (and specialized technical / arts): 20 / 60 / 20
+    if (
+        norm.includes('tle') || norm.includes('technology') || norm.includes('epp') ||
+        norm.includes('edukasyongpantahanan') || norm.includes('livelihood') ||
+        norm.includes('mapeh') || norm.includes('music') || norm.includes('arts') ||
+        norm.includes('physicaleducation') || norm.includes('pe') || norm.includes('health') ||
+        norm.includes('spa') || norm.includes('sptve') || norm.includes('drafting') ||
+        norm.includes('cookery') || norm.includes('welding') || norm.includes('carpentry')
+    ) {
+        return { written_weight: 0.20, performance_weight: 0.60, exam_weight: 0.20 };
+    }
+
+    // 3. Languages, AP, EsP, Values, GMRC, Makabansa, Reading: 30 / 50 / 20
+    return { written_weight: 0.30, performance_weight: 0.50, exam_weight: 0.20 };
+}
 
 

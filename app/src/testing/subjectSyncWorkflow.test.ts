@@ -415,4 +415,326 @@ describe('Unified Subject Architecture: Grade Management, SF9, SF10 & TGS Synchr
         expect(recoveredNames).toContain('Technology and Livelihood Education (TLE)');
         expect(recoveredNames).toContain('MAPEH');
     });
+
+    it('ensures E-Class Record is the authoritative basis: returns 0 when ECR has no scores and clears stale grading sheet entries', () => {
+        // When teacher ECR has no scores entered (WW, PT, QA all blank/empty)
+        const emptyTeacherClassRecords: ClassRecord[] = [
+            {
+                id: 'rec-life-q1',
+                student_lrn: '101101202601',
+                section_id: 'sec-g11',
+                subject_id: 'virtual-lifeandcareerskills-sec-g11',
+                subject_name: 'Life and Career Skills',
+                quarter: 1,
+                school_year: '2026-2027',
+                written_works: [],
+                performance_tasks: [],
+                quarterly_exam: 0,
+                final_grade: 0
+            }
+        ];
+
+        // Resolving from teacher E-Class Records strictly yields 0
+        const computedGrade = resolveStudentQuarterGrade(
+            '101101202601',
+            'Life and Career Skills',
+            1,
+            '2026-2027',
+            emptyTeacherClassRecords,
+            [], // Strictly evaluate ECR
+            [],
+            'Grade 11',
+            'Academic'
+        );
+
+        expect(computedGrade).toBe(0);
+
+        // Pre-existing / stale grading sheet records (e.g. placeholder 100)
+        let gradingSheetRecords: ClassRecord[] = [
+            {
+                id: '101101202601_virtual-lifeandcareerskills_1_2026-2027',
+                student_lrn: '101101202601',
+                section_id: 'sec-g11',
+                subject_id: 'virtual-lifeandcareerskills-sec-g11',
+                subject_name: 'Life and Career Skills',
+                quarter: 1,
+                school_year: '2026-2027',
+                written_works: [],
+                performance_tasks: [],
+                quarterly_exam: 0,
+                final_grade: 100
+            }
+        ];
+
+        // When syncing from ECR with empty scores, the stale grading sheet record must be deleted
+        if (computedGrade === 0) {
+            gradingSheetRecords = gradingSheetRecords.filter(r => r.id !== '101101202601_virtual-lifeandcareerskills_1_2026-2027');
+        }
+
+        expect(gradingSheetRecords).toHaveLength(0);
+    });
+
+    it('SF9 Sync: synchronizes subjects and grades based on Grade Management taught_subjects and gradingSheetRecords', () => {
+        // Section where subjects were customized and reordered in Grade Management:
+        // Science first, then Mathematics, then English, then Filipino, etc.
+        const customOrderTaught = [
+            'Science',
+            'Mathematics',
+            'English',
+            'Filipino',
+            'Araling Panlipunan (AP)',
+            'Values Education',
+            'Technology and Livelihood Education (TLE)',
+            'MAPEH'
+        ];
+
+        const sectionWithCustomOrder: Section = {
+            ...mockG7Section,
+            taught_subjects: customOrderTaught,
+            section_metadata: {
+                // Pre-existing stale layout selections that had a different order
+                sf9SubjectSelections: {
+                    0: 'sub-fil',
+                    1: 'sub-eng',
+                    2: 'sub-math'
+                }
+            }
+        };
+
+        // Grades saved in Grade Management (gradingSheetRecords)
+        const mockGradingRecords: ClassRecord[] = [
+            {
+                id: 'rec-sci-q1',
+                student_lrn: mockStudent.lrn,
+                section_id: sectionWithCustomOrder.id,
+                subject_id: 'sub-sci',
+                subject_name: 'Science',
+                quarter: 1,
+                school_year: '2026-2027',
+                written_works: [],
+                performance_tasks: [],
+                quarterly_exam: 0,
+                final_grade: 92
+            },
+            {
+                id: 'rec-math-q1',
+                student_lrn: mockStudent.lrn,
+                section_id: sectionWithCustomOrder.id,
+                subject_id: 'sub-math',
+                subject_name: 'Mathematics',
+                quarter: 1,
+                school_year: '2026-2027',
+                written_works: [],
+                performance_tasks: [],
+                quarterly_exam: 0,
+                final_grade: 89
+            },
+            {
+                id: 'rec-eng-q1',
+                student_lrn: mockStudent.lrn,
+                section_id: sectionWithCustomOrder.id,
+                subject_id: 'sub-eng',
+                subject_name: 'English',
+                quarter: 1,
+                school_year: '2026-2027',
+                written_works: [],
+                performance_tasks: [],
+                quarterly_exam: 0,
+                final_grade: 95
+            }
+        ];
+
+        // 1. Before sync: section_metadata has stale sf9SubjectSelections
+        expect(sectionWithCustomOrder.section_metadata?.sf9SubjectSelections).toBeDefined();
+
+        // 2. Perform sync operation: reset sf9SubjectSelections so Grade Management order takes effect
+        const syncedSection: Section = {
+            ...sectionWithCustomOrder,
+            section_metadata: {
+                ...sectionWithCustomOrder.section_metadata,
+                sf9SubjectSelections: undefined
+            }
+        };
+
+        expect(syncedSection.section_metadata?.sf9SubjectSelections).toBeUndefined();
+
+        // 3. Verify that resolving subjects according to taught_subjects puts Science first, Math second, English third
+        const getTaughtIndex = (subName: string) => {
+            const norm = normalizeSubjectName(subName);
+            return customOrderTaught.findIndex(t => normalizeSubjectName(t) === norm || isMatchingSubject(t, '', subName));
+        };
+
+        const sortedSubjects = [...mockG7Subjects].sort((a, b) => {
+            const idxA = getTaughtIndex(a.subject_name);
+            const idxB = getTaughtIndex(b.subject_name);
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return 0;
+        });
+
+        expect(sortedSubjects[0].subject_name).toBe('Science');
+        expect(sortedSubjects[1].subject_name).toBe('Mathematics');
+        expect(sortedSubjects[2].subject_name).toBe('English');
+
+        // 4. Verify that student grades for these synced subjects resolve properly from gradingSheetRecords
+        const scienceQ1Grade = resolveStudentQuarterGrade(
+            mockStudent.lrn,
+            'Science',
+            1,
+            '2026-2027',
+            [],
+            mockGradingRecords,
+            [],
+            'Grade 7'
+        );
+        const mathQ1Grade = resolveStudentQuarterGrade(
+            mockStudent.lrn,
+            'Mathematics',
+            1,
+            '2026-2027',
+            [],
+            mockGradingRecords,
+            [],
+            'Grade 7'
+        );
+        const englishQ1Grade = resolveStudentQuarterGrade(
+            mockStudent.lrn,
+            'English',
+            1,
+            '2026-2027',
+            [],
+            mockGradingRecords,
+            [],
+            'Grade 7'
+        );
+
+        expect(scienceQ1Grade).toBe(92);
+        expect(mathQ1Grade).toBe(89);
+        expect(englishQ1Grade).toBe(95);
+    });
+
+    it('8. Accurately collapses MAPEH sub-components into 1 official learning area yielding 8 official subjects', () => {
+        const taughtWithComponents = [
+            'Filipino',
+            'English',
+            'Mathematics',
+            'Science',
+            'Araling Panlipunan (AP)',
+            'Values Education',
+            'Technology and Livelihood Education (TLE)',
+            'Music and Arts',
+            'Physical Education and Health'
+        ];
+
+        const isMapehComp = (name: string) => {
+            const n = name.toLowerCase().replace(/[^a-z]/g, '');
+            return (
+                n.includes('musicandarts') || n.includes('musicarts') || (n.includes('music') && n.includes('arts')) ||
+                n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth') ||
+                n === 'music' || n === 'arts' || n === 'pe' || n === 'health'
+            );
+        };
+
+        const hasMapehOrComponents = taughtWithComponents.some(s => s.trim().toUpperCase() === 'MAPEH' || isMapehComp(s));
+        const nonMapehTaught = taughtWithComponents.filter(s => s.trim().toUpperCase() !== 'MAPEH' && !isMapehComp(s));
+        const officialSubjectCount = nonMapehTaught.length + (hasMapehOrComponents ? 1 : 0);
+
+        expect(taughtWithComponents.length).toBe(9); // Raw array has 9 items
+        expect(officialSubjectCount).toBe(8); // Collapses to 8 official DepEd learning areas
+    });
+
+    it('9. SF10 synchronization dynamically adopts Grade Management taught_subjects and maps updated student grades', () => {
+        const studentForSF10: Student = {
+            lrn: '123456789099',
+            first_name: 'Maria',
+            last_name: 'Santos',
+            gender: 'Female',
+            grade_level: 'Grade 7',
+            student_section: 'sec-g7-sf10-sync',
+            birthday: '2012-08-20',
+            age: 13,
+            address: 'Malolos, Bulacan'
+        };
+
+        const sectionWithTaught: Section = {
+            id: 'sec-g7-sf10-sync',
+            section_name: 'SF10-Sync-Section',
+            section_grade_level: 'Grade 7',
+            is_advisory: true,
+            taught_subjects: [
+                'Science',
+                'Mathematics',
+                'English',
+                'Filipino',
+                'Araling Panlipunan (AP)',
+                'Values Education',
+                'Technology and Livelihood Education (TLE)',
+                'Music and Arts',
+                'Physical Education and Health'
+            ]
+        };
+
+        const freshGradingRecords: ClassRecord[] = [
+            {
+                id: 'rec-sf10-sci-q1',
+                student_lrn: studentForSF10.lrn,
+                section_id: sectionWithTaught.id,
+                subject_id: 'sub-sci',
+                subject_name: 'Science',
+                quarter: 1,
+                school_year: '2026-2027',
+                written_works: [],
+                performance_tasks: [],
+                quarterly_exam: 0,
+                final_grade: 94
+            },
+            {
+                id: 'rec-sf10-math-q1',
+                student_lrn: studentForSF10.lrn,
+                section_id: sectionWithTaught.id,
+                subject_id: 'sub-math',
+                subject_name: 'Mathematics',
+                quarter: 1,
+                school_year: '2026-2027',
+                written_works: [],
+                performance_tasks: [],
+                quarterly_exam: 0,
+                final_grade: 91
+            }
+        ];
+
+        // Map student data for SF10 specification
+        const sf10Data = mapStudentToSpecData({
+            student: studentForSF10,
+            profile: mockSchoolProfile,
+            schoolYear: '2026-2027',
+            sections: [sectionWithTaught],
+            teachers: [],
+            gradingSheetRecords: freshGradingRecords,
+            classRecords: [],
+            subjects: mockG7Subjects
+        });
+
+        expect(sf10Data).toBeDefined();
+        // Grade 7 is the first block in JHS scholasticRecords
+        const g7Block = sf10Data.scholasticRecords[0];
+        expect(g7Block).toBeDefined();
+        expect(g7Block.section).toBe('SF10-Sync-Section');
+        
+        const subjectsData = g7Block.subjects;
+
+        // Check that Science has q1 grade resolved
+        const sciEntry = subjectsData['science'] as { q1: string; q2: string; q3: string; q4: string; finalRating: string; remarks: string };
+        expect(sciEntry).toBeDefined();
+        expect(sciEntry.q1).toBe('94');
+
+        // Check that Mathematics has q1 grade resolved
+        const mathEntry = subjectsData['mathematics'] as { q1: string; q2: string; q3: string; q4: string; finalRating: string; remarks: string };
+        expect(mathEntry).toBeDefined();
+        expect(mathEntry.q1).toBe('91');
+    });
 });
+
+
+

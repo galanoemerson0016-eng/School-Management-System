@@ -2,9 +2,9 @@ import React from 'react';
 import { getSF10RowsForGrade } from '../lib/subjectConfig';
 import { formatGradeForDisplay } from '../lib/grading';
 import type { SchoolCurriculum } from '../types';
-import { AutoShrinkText, asString, type AnyObject, type SF10RendererProps } from './SF10Shared';
+import { AutoShrinkText, asString, SF10SubjectCombobox, SF10RemarkCombobox, SF10GeneralAverageRemarkCombobox, EditableSpan, type AnyObject, type SF10RendererProps } from './SF10Shared';
 
-export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data, onUpdate }) => {
+export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data, onUpdate, dbSubjects }) => {
     
     // Helper to resolve nested data paths (e.g., 'learner.lastName')
     const getRaw = (path: string): unknown => {
@@ -146,48 +146,48 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                         <span className="whitespace-nowrap ml-1">Division:</span>
                                                         <span className="fill-blank flex-[1.2] px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].division`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Region:</span>
-                                                        <span className="fill-blank min-w-6.25 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].region`)}</span>
+                                                        <span className="fill-blank flex-[0.75] min-w-8 max-w-20 px-1 uppercase font-bold text-center"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].region`)} /></span>
                                                     </div>
                                                     <div className="flex items-end mb-0 flex-nowrap shrink-0 gap-1">
                                                         <span className="whitespace-nowrap">Classified as Grade:</span>
-                                                        <span className="fill-blank min-w-5 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].gradeLevel`).replace(/\D/g, "")}</span>
+                                                        <span className="fill-blank min-w-5 max-w-7 px-1 uppercase font-bold text-center"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].gradeLevel`).replace(/\D/g, "") || getVal(`scholasticRecords[${blockIdx}].gradeLevel`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Section:</span>
                                                         <span className="fill-blank flex-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].section`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">School Year:</span>
-                                                        <span className="fill-blank min-w-16.25 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].schoolYear`)}</span>
+                                                        <span className="fill-blank min-w-13.5 max-w-18 px-1 uppercase font-bold text-center"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].schoolYear`)} /></span>
                                                     </div>
                                                     <div className="flex items-end mb-0 flex-nowrap shrink-0 gap-1">
                                                         <span className="whitespace-nowrap">Name of Adviser/Teacher:</span>
                                                         <span className="fill-blank grow uppercase font-bold"><AutoShrinkText align="left" text={getVal(`scholasticRecords[${blockIdx}].adviserTeacher`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Signature:</span>
-                                                        <span className="fill-blank min-w-12.5"></span>
+                                                        <span className="fill-blank min-w-8 max-w-10"></span>
                                                     </div>
                                                 </>
                                             ) : (
                                                 <div className={`px-2 py-0.5 space-y-0 border-thick-b text-[11px] bg-white`}>
                                                     <div className="flex items-end mb-0 flex-nowrap shrink-0 gap-1">
                                                         <span className="whitespace-nowrap">School:</span>
-                                                        <span className="fill-blank flex-[1.7] uppercase font-bold text-[10.3px]"><AutoShrinkText align="left" text={getVal(`scholasticRecords[${blockIdx}].schoolName`)} /></span>
+                                                        <span className="fill-blank flex-[1.6] uppercase font-bold text-[10.3px]"><AutoShrinkText align="left" text={getVal(`scholasticRecords[${blockIdx}].schoolName`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">School ID:</span>
-                                                        <span className="fill-blank min-w-14 px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].schoolId`)} /></span>
+                                                        <span className="fill-blank min-w-13 max-w-16 px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].schoolId`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">District:</span>
-                                                        <span className="fill-blank flex-[1.2] px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].district`)} /></span>
+                                                        <span className="fill-blank flex-1 px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].district`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Division:</span>
-                                                        <span className="fill-blank flex-[1.2] px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].division`)} /></span>
+                                                        <span className="fill-blank flex-[1.4] px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].division`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Region:</span>
-                                                        <span className="fill-blank min-w-7.5 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].region`)}</span>
+                                                        <span className="fill-blank flex-[0.75] min-w-10 max-w-22 px-1 uppercase font-bold text-center"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].region`)} /></span>
                                                     </div>
                                                     <div className="flex items-end mb-0 flex-nowrap shrink-0 gap-1">
                                                         <span className="whitespace-nowrap">Classified as Grade:</span>
-                                                        <span className="fill-blank min-w-12.5 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].gradeLevel`)}</span>
+                                                        <span className="fill-blank min-w-5 max-w-7 px-1 uppercase font-bold text-center"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].gradeLevel`).replace(/\D/g, "") || getVal(`scholasticRecords[${blockIdx}].gradeLevel`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Section:</span>
-                                                        <span className="fill-blank flex-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].section`)} /></span>
+                                                        <span className="fill-blank flex-[1.4] min-w-18 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].section`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">School Year:</span>
-                                                        <span className="fill-blank min-w-17 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].schoolYear`)}</span>
+                                                        <span className="fill-blank min-w-14 max-w-18 px-1 uppercase font-bold text-center"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].schoolYear`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Name of Adviser/Teacher:</span>
-                                                        <span className="fill-blank flex-[1.35] uppercase font-bold"><AutoShrinkText align="left" text={getVal(`scholasticRecords[${blockIdx}].adviserTeacher`)} /></span>
+                                                        <span className="fill-blank flex-[2.6] min-w-28 uppercase font-bold"><AutoShrinkText align="left" text={getVal(`scholasticRecords[${blockIdx}].adviserTeacher`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Signature:</span>
-                                                        <span className="fill-blank min-w-12.5"></span>
+                                                        <span className="fill-blank min-w-8 max-w-10"></span>
                                                     </div>
                                                 </div>
                                             )}
@@ -227,9 +227,16 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                         <tbody>
                                                             {finalRows.map((row, rIdx) => {
                                                                 const sub = (getRaw(`scholasticRecords[${blockIdx}].subjects.${row.key}`) as AnyObject) || {};
-                                                                const displayLabel = asString(sub.label) || row.label;
-                                                                const isExtra = row.key.startsWith('extra_reserved_');
-                                                                const shouldShowData = !isExtra || (displayLabel && displayLabel.trim() !== '');
+                                                                const dotKey = `scholasticRecords[${blockIdx}].subjects.${row.key}.label`;
+                                                                const underKey = `scholasticRecords[${blockIdx}].subjects.${row.key}_label`;
+                                                                const hasOverride = sub.label !== undefined || data[dotKey] !== undefined || data[underKey] !== undefined;
+                                                                const customLabel = hasOverride
+                                                                    ? asString(sub.label !== undefined ? sub.label : (data[dotKey] !== undefined ? data[dotKey] : data[underKey]))
+                                                                    : undefined;
+
+                                                                const displayLabel = customLabel !== undefined ? customLabel : (row.label !== " " ? row.label : "");
+                                                                const isBlank = !displayLabel || displayLabel.trim() === '';
+                                                                const shouldShowData = !isBlank;
 
                                                                 const isComponent = ['music', 'arts', 'physicalEducation', 'health', 'musicAndArts', 'peAndHealth', 'musicarts', 'pehealth'].includes(row.key) || (row.indent && row.key !== 'mapeh');
                                                                 const finalRatingVal = isComponent ? '' : (shouldShowData ? formatGradeForDisplay(asString(sub.finalRating), blockGradeLevel) : '');
@@ -238,28 +245,101 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                                 return (
                                                                     <tr key={rIdx} className="h-4">
                                                                         <td className={`text-left px-1 ${getLearningAreaIndentClass(row)} ${(displayLabel && (displayLabel.includes("Arabic") || displayLabel.includes("Islamic"))) ? "text-[8.3px]" : ""}`}>
-                                                                            {displayLabel}
+                                                                            <SF10SubjectCombobox
+                                                                                value={displayLabel}
+                                                                                onChange={(val) => {
+                                                                                    onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}_label`, val);
+                                                                                    onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}.label`, val);
+                                                                                }}
+                                                                                placeholder=""
+                                                                                dbSubjects={dbSubjects}
+                                                                                isComponent={isComponent}
+                                                                                level={isES || (blockGradeNum >= 1 && blockGradeNum <= 6) ? 'elem' : 'jhs'}
+                                                                                gradeLevel={blockGradeNum || (isES ? 1 : 7)}
+                                                                            />
                                                                         </td>
-                                                                        <td>{shouldShowData ? formatGradeForDisplay(asString(sub.q1), blockGradeLevel) : ''}</td>
-                                                                        <td>{shouldShowData ? formatGradeForDisplay(asString(sub.q2), blockGradeLevel) : ''}</td>
-                                                                        <td>{shouldShowData ? formatGradeForDisplay(asString(sub.q3), blockGradeLevel) : ''}</td>
-                                                                        {(!is3Term) && <td>{shouldShowData ? formatGradeForDisplay(asString(sub.q4), blockGradeLevel) : ''}</td>}
-                                                                        <td className="font-bold">{finalRatingVal}</td>
-                                                                        <td className="uppercase text-[8.3px]">{remarksVal}</td>
+                                                                        <td>
+                                                                            <input
+                                                                                type="text"
+                                                                                className="w-full text-center border-none bg-transparent focus:outline-none focus:bg-amber-50/70 text-[10px]"
+                                                                                value={shouldShowData ? formatGradeForDisplay(asString(sub.q1), blockGradeLevel) : ''}
+                                                                                onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}.q1`, e.target.value)}
+                                                                            />
+                                                                        </td>
+                                                                        <td>
+                                                                            <input
+                                                                                type="text"
+                                                                                className="w-full text-center border-none bg-transparent focus:outline-none focus:bg-amber-50/70 text-[10px]"
+                                                                                value={shouldShowData ? formatGradeForDisplay(asString(sub.q2), blockGradeLevel) : ''}
+                                                                                onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}.q2`, e.target.value)}
+                                                                            />
+                                                                        </td>
+                                                                        <td>
+                                                                            <input
+                                                                                type="text"
+                                                                                className="w-full text-center border-none bg-transparent focus:outline-none focus:bg-amber-50/70 text-[10px]"
+                                                                                value={shouldShowData ? formatGradeForDisplay(asString(sub.q3), blockGradeLevel) : ''}
+                                                                                onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}.q3`, e.target.value)}
+                                                                            />
+                                                                        </td>
+                                                                        {(!is3Term) && (
+                                                                            <td>
+                                                                                <input
+                                                                                    type="text"
+                                                                                    className="w-full text-center border-none bg-transparent focus:outline-none focus:bg-amber-50/70 text-[10px]"
+                                                                                    value={shouldShowData ? formatGradeForDisplay(asString(sub.q4), blockGradeLevel) : ''}
+                                                                                    onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}.q4`, e.target.value)}
+                                                                                />
+                                                                            </td>
+                                                                        )}
+                                                                        <td className="font-bold">
+                                                                            <input
+                                                                                type="text"
+                                                                                disabled={isComponent}
+                                                                                className="w-full text-center border-none bg-transparent font-bold focus:outline-none focus:bg-amber-50/70 text-[10px] disabled:opacity-0"
+                                                                                value={finalRatingVal}
+                                                                                onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}.finalRating`, e.target.value)}
+                                                                            />
+                                                                        </td>
+                                                                        <td className="uppercase text-[8.3px]">
+                                                                            <SF10RemarkCombobox
+                                                                                disabled={isComponent}
+                                                                                value={remarksVal}
+                                                                                onChange={(val) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}.remarks`, val)}
+                                                                            />
+                                                                        </td>
                                                                     </tr>
                                                                 );
                                                             })}
                                                             <tr className="font-bold h-4 border-t-black border-t">
                                                                 <td></td>
                                                                 <td colSpan={is3Term ? 3 : 4} className="text-center italic font-bold text-[10.3px]">General Average</td>
-                                                                <td className="border-l-black border-l">{formatGradeForDisplay(getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`), blockGradeLevel)}</td>
-                                                                <td className="uppercase text-[8.3px]">{(() => {
-                                                                    const r = getVal(`scholasticRecords[${blockIdx}].subjects.remarks`);
-                                                                    if (r === 'PASSED') return 'PROMOTED';
-                                                                    if (r) return r;
-                                                                    const genAvg = parseFloat(getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`));
-                                                                    return genAvg >= 75 ? 'PROMOTED' : genAvg > 0 ? 'RETAINED' : '';
-                                                                })()}</td>
+                                                                <td className="border-l-black border-l">
+                                                                    <input
+                                                                        type="text"
+                                                                        className="w-full text-center border-none bg-transparent font-bold focus:outline-none focus:bg-amber-50/70 text-[10px]"
+                                                                        value={formatGradeForDisplay(getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`), blockGradeLevel)}
+                                                                        onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.generalAverage`, e.target.value)}
+                                                                    />
+                                                                </td>
+                                                                <td className="uppercase text-[8.3px]">
+                                                                    {(() => {
+                                                                        const genAvgRemPath = `scholasticRecords[${blockIdx}].subjects.remarks`;
+                                                                        const hasGenAvgRemOverride = data[genAvgRemPath] !== undefined;
+                                                                        const genAvgRaw = parseFloat(getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`));
+                                                                        const computedGenAvgRem = genAvgRaw >= 75 ? 'PROMOTED' : genAvgRaw > 0 ? 'RETAINED' : '';
+                                                                        const rawRem = getVal(genAvgRemPath);
+                                                                        const displayGenAvgRem = hasGenAvgRemOverride 
+                                                                            ? asString(data[genAvgRemPath]) 
+                                                                            : (rawRem === 'PASSED' ? 'PROMOTED' : (rawRem || computedGenAvgRem));
+                                                                        return (
+                                                                            <SF10GeneralAverageRemarkCombobox
+                                                                                value={displayGenAvgRem}
+                                                                                onChange={(val) => onUpdate?.(genAvgRemPath, val)}
+                                                                            />
+                                                                        );
+                                                                    })()}
+                                                                </td>
                                                             </tr>
                                                     </tbody>
                                                     </>
@@ -274,9 +354,23 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                         <td className="text-center font-bold text-[9.3px] border-black border-b border-r" style={{ width: '30%' }}>Remedial Classes</td>
                                                         <td colSpan={4} className="text-left text-[9.3px] px-2 font-bold border-black border-b">
                                                             <span>Conducted from (mm/dd/yyyy)</span>
-                                                            <span className="fill-blank min-w-20 mx-1 h-4"></span>
+                                                            <span className="fill-blank min-w-20 mx-1 h-4 px-1">
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full text-center border-none bg-transparent focus:outline-none text-[8.5px]"
+                                                                    value={getVal(`scholasticRecords[${blockIdx}].remedial.conductedFrom`)}
+                                                                    onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].remedial.conductedFrom`, e.target.value)}
+                                                                />
+                                                            </span>
                                                             <span className="ml-8">to (mm/dd/yyyy)</span>
-                                                            <span className="fill-blank min-w-20 mx-1 h-4"></span>
+                                                            <span className="fill-blank min-w-20 mx-1 h-4 px-1">
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full text-center border-none bg-transparent focus:outline-none text-[8.5px]"
+                                                                    value={getVal(`scholasticRecords[${blockIdx}].remedial.conductedTo`)}
+                                                                    onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].remedial.conductedTo`, e.target.value)}
+                                                                />
+                                                            </span>
                                                         </td>
                                                     </tr>
                                                     <tr className="h-3.75 font-bold uppercase text-[8.0px] bg-white">
@@ -290,11 +384,46 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                 <tbody>
                                                     {[0, 1].map((rIdx) => (
                                                         <tr key={rIdx} className="h-3.5">
-                                                            <td className="border-black border-r"></td>
-                                                            <td className="border-black border-r"></td>
-                                                            <td className="border-black border-r"></td>
-                                                            <td className="border-black border-r"></td>
-                                                            <td></td>
+                                                            <td className="border-black border-r text-left px-1">
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full border-none bg-transparent focus:outline-none text-[8.5px] uppercase"
+                                                                    value={getVal(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].learningArea`)}
+                                                                    onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].learningArea`, e.target.value)}
+                                                                />
+                                                            </td>
+                                                            <td className="border-black border-r">
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full text-center border-none bg-transparent focus:outline-none text-[8.5px]"
+                                                                    value={getVal(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].finalRating`)}
+                                                                    onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].finalRating`, e.target.value)}
+                                                                />
+                                                            </td>
+                                                            <td className="border-black border-r">
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full text-center border-none bg-transparent focus:outline-none text-[8.5px]"
+                                                                    value={getVal(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].remedialMark`)}
+                                                                    onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].remedialMark`, e.target.value)}
+                                                                />
+                                                            </td>
+                                                            <td className="border-black border-r">
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full text-center border-none bg-transparent focus:outline-none text-[8.5px]"
+                                                                    value={getVal(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].recomputedGrade`)}
+                                                                    onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].recomputedGrade`, e.target.value)}
+                                                                />
+                                                            </td>
+                                                            <td>
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full text-center border-none bg-transparent uppercase focus:outline-none text-[8.5px]"
+                                                                    value={getVal(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].remarks`)}
+                                                                    onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].remarks`, e.target.value)}
+                                                                />
+                                                            </td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -316,27 +445,81 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                 {(isES ? [1, 2, 3] : [1]).map((certIdx) => (
                                     <div key={certIdx} className="border-thick bg-white overflow-hidden shadow-sm">
                                         <div className="text-center font-bold sf-header-shade border-thick-b py-0 text-[10pt]">CERTIFICATION</div>
-                                        <div className="p-1 px-3 text-[10px] leading-tight">
-                                            <div className="flex items-end mb-0.5 flex-nowrap shrink-0">
-                                                <span className="mr-1 whitespace-nowrap">I CERTIFY that this is a true record of</span>
-                                                <span className="fill-blank grow uppercase px-1"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal(`certification.page2_cert${certIdx}.recordOf`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.recordOf`, e.target.value)} placeholder="Enter Name" /></span>
-                                                <span className="mx-1 whitespace-nowrap">with LRN</span>
-                                                <span className="fill-blank min-w-27.5 px-1 uppercase"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal(`certification.page2_cert${certIdx}.lrn`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.lrn`, e.target.value)} /></span>
-                                                <span className="mx-1 whitespace-nowrap">and that he/she is eligible for admission to Grade</span>
-                                                <span className="fill-blank min-w-7.5 px-1 uppercase"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal(`certification.page2_cert${certIdx}.admissionGrade`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.admissionGrade`, e.target.value)} placeholder="Grade" /></span>
-                                                <span className="ml-0.5">.</span>
+                                        <div className="p-1 px-3 text-[10px] leading-relaxed">
+                                            <div className="flex items-end mb-0.5 flex-nowrap shrink-0 gap-1">
+                                                <span className="whitespace-nowrap">I CERTIFY that this is a true record of</span>
+                                                <span className="fill-blank grow min-w-35 uppercase font-bold text-center px-1">
+                                                    <input
+                                                        type="text"
+                                                        className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none text-[9.5px] tracking-tight placeholder:text-gray-300 print:placeholder:text-transparent"
+                                                        value={getVal(`certification.page2_cert${certIdx}.recordOf`)}
+                                                        onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.recordOf`, e.target.value)}
+                                                        placeholder="Enter Name"
+                                                    />
+                                                </span>
+                                                <span className="whitespace-nowrap">with LRN</span>
+                                                <span className="fill-blank w-20 min-w-18 max-w-21 shrink-0 uppercase font-bold text-center px-0.5">
+                                                    <input
+                                                        type="text"
+                                                        className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none text-[9.5px]"
+                                                        value={getVal(`certification.page2_cert${certIdx}.lrn`)}
+                                                        onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.lrn`, e.target.value)}
+                                                    />
+                                                </span>
+                                                <span className="whitespace-nowrap">and that he/she is eligible for admission to Grade</span>
+                                                <span className="fill-blank w-7 min-w-6 max-w-7.5 shrink-0 uppercase font-bold text-center px-0.5">
+                                                    <input
+                                                        type="text"
+                                                        className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none text-[9.5px] placeholder:text-gray-300 print:placeholder:text-transparent"
+                                                        value={getVal(`certification.page2_cert${certIdx}.admissionGrade`)}
+                                                        onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.admissionGrade`, e.target.value)}
+                                                        placeholder="Grade"
+                                                    />
+                                                </span>
+                                                <span>.</span>
                                             </div>
-                                            <div className="flex items-end mb-1 flex-nowrap shrink-0 gap-2">
-                                                <span className="mr-1 whitespace-nowrap">Name of School:</span>
-                                                <span className="fill-blank grow uppercase px-1"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal(`certification.page2_cert${certIdx}.schoolName`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.schoolName`, e.target.value)} placeholder="School Name" /></span>
+                                            <div className="flex items-end mb-1 flex-nowrap shrink-0 gap-1">
+                                                <span className="whitespace-nowrap">Name of School:</span>
+                                                <span className="fill-blank grow uppercase font-bold text-center px-1">
+                                                    <input
+                                                        type="text"
+                                                        className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none text-[9.5px] placeholder:text-gray-300 print:placeholder:text-transparent"
+                                                        value={getVal(`certification.page2_cert${certIdx}.schoolName`)}
+                                                        onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.schoolName`, e.target.value)}
+                                                        placeholder="School Name"
+                                                    />
+                                                </span>
                                                 <span className="whitespace-nowrap">School ID:</span>
-                                                <span className="fill-blank min-w-17.5 uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal(`certification.page2_cert${certIdx}.schoolId`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.schoolId`, e.target.value)} placeholder="ID" /></span>
+                                                <span className="fill-blank w-17.5 min-w-15 shrink-0 uppercase font-bold text-center px-0.5">
+                                                    <input
+                                                        type="text"
+                                                        className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none text-[9.5px]"
+                                                        value={getVal(`certification.page2_cert${certIdx}.schoolId`)}
+                                                        onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.schoolId`, e.target.value)}
+                                                        placeholder="ID"
+                                                    />
+                                                </span>
                                                 {isES && <>
                                                     <span className="whitespace-nowrap">Division:</span>
-                                                    <span className="fill-blank grow uppercase px-1"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal(`certification.page2_cert${certIdx}.division`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.division`, e.target.value)} /></span>
+                                                    <span className="fill-blank grow uppercase px-1">
+                                                        <input
+                                                            type="text"
+                                                            className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none text-[9.5px]"
+                                                            value={getVal(`certification.page2_cert${certIdx}.division`)}
+                                                            onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.division`, e.target.value)}
+                                                        />
+                                                    </span>
                                                 </>}
-                                                <span className="whitespace-nowrap text-[11.3px]">Last School Year Attended:</span>
-                                                <span className="fill-blank min-w-17.5 uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal(`certification.page2_cert${certIdx}.lastSchoolYearAttended`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.lastSchoolYearAttended`, e.target.value)} placeholder="YYYY-YYYY" /></span>
+                                                <span className="whitespace-nowrap">Last School Year Attended:</span>
+                                                <span className="fill-blank w-20 min-w-18 shrink-0 uppercase font-bold text-center px-0.5">
+                                                    <input
+                                                        type="text"
+                                                        className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none text-[9.5px]"
+                                                        value={getVal(`certification.page2_cert${certIdx}.lastSchoolYearAttended`)}
+                                                        onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.lastSchoolYearAttended`, e.target.value)}
+                                                        placeholder="YYYY-YYYY"
+                                                    />
+                                                </span>
                                             </div>
                                             <div className="flex justify-between items-end mt-1 px-4">
                                                 <div className="min-w-30 text-center">
@@ -452,21 +635,21 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                         <div className="p-1 px-4 text-[11px]">
                             <div className="flex items-end mb-0.5 flex-nowrap shrink-0">
                                 <span className="mr-1 whitespace-nowrap">LAST NAME:</span>
-                                <span className="fill-blank min-w-30 px-2 uppercase" style={{ fontWeight: 'bold' }}>{getVal('learner.lastName')}</span>
+                                <EditableSpan className="fill-blank min-w-30 px-2 uppercase font-bold" value={getVal('learner.lastName')} onChange={(v) => onUpdate?.('learner.lastName', v)} />
                                 <span className="mx-1 whitespace-nowrap">FIRST NAME:</span>
-                                <span className="fill-blank grow px-2 uppercase" style={{ fontWeight: 'bold' }}>{getVal('learner.firstName')}</span>
+                                <EditableSpan className="fill-blank grow px-2 uppercase font-bold" value={getVal('learner.firstName')} onChange={(v) => onUpdate?.('learner.firstName', v)} />
                                 <span className="mx-1 whitespace-nowrap">NAME EXTN. (Jr,I,II):</span>
-                                <span className="fill-blank min-w-12.5 px-1 uppercase">{getVal('learner.nameExtension')}</span>
+                                <EditableSpan className="fill-blank min-w-12.5 px-1 uppercase" value={getVal('learner.nameExtension')} onChange={(v) => onUpdate?.('learner.nameExtension', v)} />
                                 <span className="mx-1 whitespace-nowrap">MIDDLE NAME:</span>
-                                <span className="fill-blank min-w-25 px-2 uppercase">{getVal('learner.middleName')}</span>
+                                <EditableSpan className="fill-blank min-w-25 px-2 uppercase" value={getVal('learner.middleName')} onChange={(v) => onUpdate?.('learner.middleName', v)} />
                             </div>
                             <div className="flex items-end mb-1 flex-nowrap shrink-0">
                                 <span className="mr-1 whitespace-nowrap">Learner Reference Number (LRN):</span>
-                                <span className="fill-blank min-w-37.5 px-4 uppercase" style={{ fontWeight: 'bold', fontSize: '13px' }}>{getVal('learner.lrn')}</span>
+                                <EditableSpan className="fill-blank min-w-37.5 px-4 uppercase font-bold text-[13px]" value={getVal('learner.lrn')} onChange={(v) => onUpdate?.('learner.lrn', v)} />
                                 <span className="mx-4 whitespace-nowrap">Birthdate (mm/dd/yyyy):</span>
                                 <span className="fill-blank min-w-25 px-2 uppercase">{formatDate(getVal('learner.birthdate'))}</span>
                                 <span className="mx-4 whitespace-nowrap">Sex:</span>
-                                <span className="fill-blank grow px-1 uppercase">{getVal('learner.sex')}</span>
+                                <EditableSpan className="fill-blank grow px-1 uppercase" value={getVal('learner.sex')} onChange={(v) => onUpdate?.('learner.sex', v)} />
                             </div>
                         </div>
                     </div>
@@ -640,48 +823,48 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                         <span className="whitespace-nowrap ml-1">Division:</span>
                                                         <span className="fill-blank flex-[1.2] px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].division`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Region:</span>
-                                                        <span className="fill-blank min-w-6.25 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].region`)}</span>
+                                                        <span className="fill-blank flex-[0.75] min-w-8 max-w-20 px-1 uppercase font-bold text-center"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].region`)} /></span>
                                                     </div>
                                                     <div className="flex items-end mb-0 flex-nowrap shrink-0 gap-1">
                                                         <span className="whitespace-nowrap">Classified as Grade:</span>
-                                                        <span className="fill-blank min-w-5 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].gradeLevel`).replace(/\D/g, "")}</span>
+                                                        <span className="fill-blank min-w-5 max-w-7 px-1 uppercase font-bold text-center"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].gradeLevel`).replace(/\D/g, "") || getVal(`scholasticRecords[${blockIdx}].gradeLevel`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Section:</span>
                                                         <span className="fill-blank flex-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].section`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">School Year:</span>
-                                                        <span className="fill-blank min-w-16.25 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].schoolYear`)}</span>
+                                                        <span className="fill-blank min-w-13.5 max-w-18 px-1 uppercase font-bold text-center"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].schoolYear`)} /></span>
                                                     </div>
                                                     <div className="flex items-end mb-0 flex-nowrap shrink-0 gap-1">
                                                         <span className="whitespace-nowrap">Name of Adviser/Teacher:</span>
                                                         <span className="fill-blank grow uppercase font-bold"><AutoShrinkText align="left" text={getVal(`scholasticRecords[${blockIdx}].adviserTeacher`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Signature:</span>
-                                                        <span className="fill-blank min-w-12.5"></span>
+                                                        <span className="fill-blank min-w-8 max-w-10"></span>
                                                     </div>
                                                 </>
                                             ) : (
                                                 <>
                                                     <div className="flex items-end mb-0 flex-nowrap shrink-0 gap-1">
                                                         <span className="whitespace-nowrap">School:</span>
-                                                        <span className="fill-blank flex-[1.7] uppercase font-bold text-[10.3px]"><AutoShrinkText align="left" text={getVal(`scholasticRecords[${blockIdx}].schoolName`)} /></span>
+                                                        <span className="fill-blank flex-[1.6] uppercase font-bold text-[10.3px]"><AutoShrinkText align="left" text={getVal(`scholasticRecords[${blockIdx}].schoolName`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">School ID:</span>
-                                                        <span className="fill-blank min-w-14 px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].schoolId`)} /></span>
+                                                        <span className="fill-blank min-w-13 max-w-16 px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].schoolId`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">District:</span>
-                                                        <span className="fill-blank flex-[1.2] px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].district`)} /></span>
+                                                        <span className="fill-blank flex-1 px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].district`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Division:</span>
-                                                        <span className="fill-blank flex-[1.2] px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].division`)} /></span>
+                                                        <span className="fill-blank flex-[1.4] px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].division`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Region:</span>
-                                                        <span className="fill-blank min-w-7.5 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].region`)}</span>
+                                                        <span className="fill-blank flex-[0.75] min-w-10 max-w-22 px-1 uppercase font-bold text-center"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].region`)} /></span>
                                                     </div>
                                                     <div className="flex items-end mb-0 flex-nowrap shrink-0 gap-1">
                                                         <span className="whitespace-nowrap">Classified as Grade:</span>
-                                                        <span className="fill-blank min-w-5 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].gradeLevel`).replace(/\D/g, "")}</span>
+                                                        <span className="fill-blank min-w-5 max-w-7 px-1 uppercase font-bold text-center"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].gradeLevel`).replace(/\D/g, "") || getVal(`scholasticRecords[${blockIdx}].gradeLevel`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Section:</span>
-                                                        <span className="fill-blank flex-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].section`)} /></span>
+                                                        <span className="fill-blank flex-[1.4] min-w-18 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].section`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">School Year:</span>
-                                                        <span className="fill-blank min-w-17 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].schoolYear`)}</span>
+                                                        <span className="fill-blank min-w-14 max-w-18 px-1 uppercase font-bold text-center"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].schoolYear`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Name of Adviser/Teacher:</span>
-                                                        <span className="fill-blank flex-[1.35] uppercase font-bold"><AutoShrinkText align="left" text={getVal(`scholasticRecords[${blockIdx}].adviserTeacher`)} /></span>
+                                                        <span className="fill-blank flex-[2.6] min-w-28 uppercase font-bold"><AutoShrinkText align="left" text={getVal(`scholasticRecords[${blockIdx}].adviserTeacher`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Signature:</span>
-                                                        <span className="fill-blank min-w-12.5"></span>
+                                                        <span className="fill-blank min-w-8 max-w-10"></span>
                                                     </div>
                                                 </>
                                             )}
@@ -734,37 +917,121 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                         <tbody>
                                                             {finalRows.map((row, rIdx) => {
                                                                 const sub = (getRaw(`scholasticRecords[${blockIdx}].subjects.${row.key}`) as AnyObject) || {};
+                                                                const dotKey = `scholasticRecords[${blockIdx}].subjects.${row.key}.label`;
+                                                                const underKey = `scholasticRecords[${blockIdx}].subjects.${row.key}_label`;
+                                                                const hasOverride = sub.label !== undefined || data[dotKey] !== undefined || data[underKey] !== undefined;
+                                                                const customLabel = hasOverride
+                                                                    ? asString(sub.label !== undefined ? sub.label : (data[dotKey] !== undefined ? data[dotKey] : data[underKey]))
+                                                                    : undefined;
+
+                                                                const displayLabel = customLabel !== undefined ? customLabel : (row.label !== " " ? row.label : "");
+                                                                const isBlank = !displayLabel || displayLabel.trim() === '';
+                                                                const shouldShowData = !isBlank;
+
                                                                 const isComponent = ['music', 'arts', 'physicalEducation', 'health', 'musicAndArts', 'peAndHealth', 'musicarts', 'pehealth'].includes(row.key) || (row.indent && row.key !== 'mapeh');
-                                                                const finalRatingVal = isComponent ? '' : formatGradeForDisplay(asString(sub.finalRating), blockGradeLevel);
-                                                                const remarksVal = isComponent ? '' : asString(sub.remarks);
+                                                                const finalRatingVal = isComponent ? '' : (shouldShowData ? formatGradeForDisplay(asString(sub.finalRating), blockGradeLevel) : '');
+                                                                const remarksVal = isComponent ? '' : (shouldShowData ? asString(sub.remarks) : '');
 
                                                                 return (
                                                                     <tr key={rIdx} className={isES ? "h-[15.6px]" : "h-4.5"}>
                                                                         <td className={`text-left ${getLearningAreaIndentClass(row)} ${isES ? "text-[11.8px]" : ""} ${row.label?.startsWith('*') ? 'italic font-normal' : ''}`}>
-                                                                            {(row.key.startsWith("extra") || (!isES && blockIdx === 4)) ? (
-                                                                                <input type="text" className="w-full border-none bg-transparent focus:outline-none uppercase" value={getVal(`scholasticRecords[${blockIdx}].subjects.${row.key}_label`) || (row.label !== " " ? row.label : "")} onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}_label`, e.target.value)} placeholder={row.label === " " ? "" : row.label} />
-                                                                            ) : row.label}
+                                                                            <SF10SubjectCombobox
+                                                                                value={displayLabel}
+                                                                                onChange={(val) => {
+                                                                                    onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}_label`, val);
+                                                                                    onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}.label`, val);
+                                                                                }}
+                                                                                placeholder=""
+                                                                                dbSubjects={dbSubjects}
+                                                                                isComponent={isComponent}
+                                                                                level={isES || (blockGradeNum >= 1 && blockGradeNum <= 6) ? 'elem' : 'jhs'}
+                                                                                gradeLevel={blockGradeNum || (isES ? 1 : 7)}
+                                                                            />
                                                                         </td>
-                                                                        <td className={`${is3Term ? "w-[11%]" : (isES ? "w-[8.25%]" : "w-[11%]")} ${isES ? "text-[11.8px]" : ""}`}>{formatGradeForDisplay(asString(sub.q1), blockGradeLevel)}</td>
-                                                                        <td className={`${is3Term ? "w-[11%]" : (isES ? "w-[8.25%]" : "w-[11%]")} ${isES ? "text-[11.8px]" : ""}`}>{formatGradeForDisplay(asString(sub.q2), blockGradeLevel)}</td>
-                                                                        <td className={`${is3Term ? "w-[11%]" : (isES ? "w-[8.25%]" : "w-[11%]")} ${isES ? "text-[11.8px]" : ""}`}>{formatGradeForDisplay(asString(sub.q3), blockGradeLevel)}</td>
-                                                                        {(!is3Term) && <td className={`${isES ? "w-[8.25%]" : "w-[11%]"} ${isES ? "text-[11.8px]" : ""}`}>{formatGradeForDisplay(asString(sub.q4), blockGradeLevel)}</td>}
-                                                                        <td className={`font-bold ${isES ? "text-[11.3px]" : ""}`}>{finalRatingVal}</td>
-                                                                        <td className={`uppercase ${isES ? "text-[10.3px]" : "text-[9.3px]"}`}>{remarksVal}</td>
+                                                                        <td className={`${is3Term ? "w-[11%]" : (isES ? "w-[8.25%]" : "w-[11%]")} ${isES ? "text-[11.8px]" : ""}`}>
+                                                                            <input
+                                                                                type="text"
+                                                                                className="w-full text-center border-none bg-transparent focus:outline-none focus:bg-amber-50/70 text-[10px]"
+                                                                                value={shouldShowData ? formatGradeForDisplay(asString(sub.q1), blockGradeLevel) : ''}
+                                                                                onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}.q1`, e.target.value)}
+                                                                            />
+                                                                        </td>
+                                                                        <td className={`${is3Term ? "w-[11%]" : (isES ? "w-[8.25%]" : "w-[11%]")} ${isES ? "text-[11.8px]" : ""}`}>
+                                                                            <input
+                                                                                type="text"
+                                                                                className="w-full text-center border-none bg-transparent focus:outline-none focus:bg-amber-50/70 text-[10px]"
+                                                                                value={shouldShowData ? formatGradeForDisplay(asString(sub.q2), blockGradeLevel) : ''}
+                                                                                onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}.q2`, e.target.value)}
+                                                                            />
+                                                                        </td>
+                                                                        <td className={`${is3Term ? "w-[11%]" : (isES ? "w-[8.25%]" : "w-[11%]")} ${isES ? "text-[11.8px]" : ""}`}>
+                                                                            <input
+                                                                                type="text"
+                                                                                className="w-full text-center border-none bg-transparent focus:outline-none focus:bg-amber-50/70 text-[10px]"
+                                                                                value={shouldShowData ? formatGradeForDisplay(asString(sub.q3), blockGradeLevel) : ''}
+                                                                                onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}.q3`, e.target.value)}
+                                                                            />
+                                                                        </td>
+                                                                        {(!is3Term) && (
+                                                                            <td className={`${isES ? "w-[8.25%]" : "w-[11%]"} ${isES ? "text-[11.8px]" : ""}`}>
+                                                                                <input
+                                                                                    type="text"
+                                                                                    className="w-full text-center border-none bg-transparent focus:outline-none focus:bg-amber-50/70 text-[10px]"
+                                                                                    value={shouldShowData ? formatGradeForDisplay(asString(sub.q4), blockGradeLevel) : ''}
+                                                                                    onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}.q4`, e.target.value)}
+                                                                                />
+                                                                            </td>
+                                                                        )}
+                                                                        <td className={`font-bold ${isES ? "text-[11.3px]" : ""}`}>
+                                                                            <input
+                                                                                type="text"
+                                                                                disabled={isComponent}
+                                                                                className="w-full text-center border-none bg-transparent font-bold focus:outline-none focus:bg-amber-50/70 text-[10px] disabled:opacity-0"
+                                                                                value={finalRatingVal}
+                                                                                onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}.finalRating`, e.target.value)}
+                                                                            />
+                                                                        </td>
+                                                                        <td className={`uppercase ${isES ? "text-[10.3px]" : "text-[9.3px]"}`}>
+                                                                            <SF10RemarkCombobox
+                                                                                disabled={isComponent}
+                                                                                inputClassName={isES ? "text-[10.3px]" : "text-[8.5px]"}
+                                                                                value={remarksVal}
+                                                                                onChange={(val) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}.remarks`, val)}
+                                                                            />
+                                                                        </td>
                                                                     </tr>
                                                                 );
                                                             })}
                                                             <tr className={isES ? "font-bold h-[15.6px] bg-white" : "font-bold h-4.5"}>
                                                                 <td></td>
                                                                 <td colSpan={is3Term ? 3 : 4} className="text-center italic font-bold text-[10.3px]">General Average</td>
-                                                                <td className={`border-l-black border-l ${isES ? "text-[11.3px]" : ""}`}>{formatGradeForDisplay(getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`), blockGradeLevel)}</td>
-                                                                <td className="uppercase text-[10.3px]">{(() => {
-                                                                    const r = getVal(`scholasticRecords[${blockIdx}].subjects.remarks`);
-                                                                    if (r === 'PASSED') return 'PROMOTED';
-                                                                    if (r) return r;
-                                                                    const genAvg = parseFloat(getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`));
-                                                                    return genAvg >= 75 ? 'PROMOTED' : genAvg > 0 ? 'RETAINED' : '';
-                                                                })()}</td>
+                                                                <td className={`border-l-black border-l ${isES ? "text-[11.3px]" : ""}`}>
+                                                                    <input
+                                                                        type="text"
+                                                                        className="w-full text-center border-none bg-transparent font-bold focus:outline-none focus:bg-amber-50/70 text-[10px]"
+                                                                        value={formatGradeForDisplay(getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`), blockGradeLevel)}
+                                                                        onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.generalAverage`, e.target.value)}
+                                                                    />
+                                                                </td>
+                                                                <td className="uppercase text-[10.3px]">
+                                                                    {(() => {
+                                                                        const genAvgRemPath = `scholasticRecords[${blockIdx}].subjects.remarks`;
+                                                                        const hasGenAvgRemOverride = data[genAvgRemPath] !== undefined;
+                                                                        const genAvgRaw = parseFloat(getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`));
+                                                                        const computedGenAvgRem = genAvgRaw >= 75 ? 'PROMOTED' : genAvgRaw > 0 ? 'RETAINED' : '';
+                                                                        const rawRem = getVal(genAvgRemPath);
+                                                                        const displayGenAvgRem = hasGenAvgRemOverride 
+                                                                            ? asString(data[genAvgRemPath]) 
+                                                                            : (rawRem === 'PASSED' ? 'PROMOTED' : (rawRem || computedGenAvgRem));
+                                                                        return (
+                                                                            <SF10GeneralAverageRemarkCombobox
+                                                                                inputClassName={isES ? "text-[10.3px]" : "text-[8.5px]"}
+                                                                                value={displayGenAvgRem}
+                                                                                onChange={(val) => onUpdate?.(genAvgRemPath, val)}
+                                                                            />
+                                                                        );
+                                                                    })()}
+                                                                </td>
                                                             </tr>
                                                         </tbody>
                                                     </>
@@ -778,9 +1045,23 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                         <td className="border-black border-b border-r" style={{ width: '30%' }}>Remedial Classes</td>
                                                         <td colSpan={4} className="text-left text-[9.3px] px-2 font-bold border-black border-b">
                                                             <span>Conducted from:</span>
-                                                            <span className="fill-blank min-w-15 mx-1"></span>
+                                                            <span className="fill-blank min-w-15 mx-1 px-1">
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full text-center border-none bg-transparent focus:outline-none text-[8.5px]"
+                                                                    value={getVal(`scholasticRecords[${blockIdx}].remedial.conductedFrom`)}
+                                                                    onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].remedial.conductedFrom`, e.target.value)}
+                                                                />
+                                                            </span>
                                                             <span className="ml-6">to:</span>
-                                                            <span className="fill-blank min-w-15 mx-1"></span>
+                                                            <span className="fill-blank min-w-15 mx-1 px-1">
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full text-center border-none bg-transparent focus:outline-none text-[8.5px]"
+                                                                    value={getVal(`scholasticRecords[${blockIdx}].remedial.conductedTo`)}
+                                                                    onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].remedial.conductedTo`, e.target.value)}
+                                                                />
+                                                            </span>
                                                         </td>
                                                     </tr>
                                                     <tr className="h-3.5 font-bold text-[9.3px] uppercase bg-white">
@@ -794,11 +1075,46 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                 <tbody>
                                                     {[0, 1].map((rIdx) => (
                                                         <tr key={rIdx} className="h-[13.5px]">
-                                                            <td className="border-black border-r text-left px-1"></td>
-                                                            <td className="border-black border-r"></td>
-                                                            <td className="border-black border-r"></td>
-                                                            <td className="border-black border-r"></td>
-                                                            <td></td>
+                                                            <td className="border-black border-r text-left px-1">
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full border-none bg-transparent focus:outline-none text-[8.5px] uppercase"
+                                                                    value={getVal(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].learningArea`)}
+                                                                    onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].learningArea`, e.target.value)}
+                                                                />
+                                                            </td>
+                                                            <td className="border-black border-r">
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full text-center border-none bg-transparent focus:outline-none text-[8.5px]"
+                                                                    value={getVal(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].finalRating`)}
+                                                                    onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].finalRating`, e.target.value)}
+                                                                />
+                                                            </td>
+                                                            <td className="border-black border-r">
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full text-center border-none bg-transparent focus:outline-none text-[8.5px]"
+                                                                    value={getVal(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].remedialMark`)}
+                                                                    onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].remedialMark`, e.target.value)}
+                                                                />
+                                                            </td>
+                                                            <td className="border-black border-r">
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full text-center border-none bg-transparent focus:outline-none text-[8.5px]"
+                                                                    value={getVal(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].recomputedGrade`)}
+                                                                    onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].recomputedGrade`, e.target.value)}
+                                                                />
+                                                            </td>
+                                                            <td>
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full text-center border-none bg-transparent uppercase focus:outline-none text-[8.5px]"
+                                                                    value={getVal(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].remarks`)}
+                                                                    onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].remedial.classes[${rIdx}].remarks`, e.target.value)}
+                                                                />
+                                                            </td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -812,22 +1128,70 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                             <div className="mt-0.5 mb-0.5 bg-white overflow-hidden">
                                 <div className="text-[11.3px] font-bold p-1 px-2 uppercase leading-tight border-b border-black bg-white">For Transfer Out / JHS Completer Only</div>
                                 <div className="text-center font-bold sf-header-shade border-b border-black py-0.5 text-[11.5pt]">CERTIFICATION</div>
-                                <div className="p-2 text-[11.3px] leading-relaxed">
-                                    <div className="flex items-end mb-2 flex-nowrap shrink-0 gap-1">
-                                        <span className="mr-1 whitespace-nowrap">I CERTIFY that this is a true record of</span>
-                                        <span className="fill-blank grow uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal("certification.page1.recordOf")} onChange={(e) => onUpdate?.("certification.page1.recordOf", e.target.value)} placeholder="Enter Name" /></span>
-                                        <span className="mx-1 whitespace-nowrap">with LRN</span>
-                                        <span className="fill-blank min-w-25 uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal("certification.page1.lrn")} onChange={(e) => onUpdate?.("certification.page1.lrn", e.target.value)} /></span>
-                                        <span className="mx-1 whitespace-nowrap">and that he/she is eligible for admission to Grade</span>
-                                        <span className="fill-blank min-w-15 uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal("certification.page1.eligibleForGrade")} onChange={(e) => onUpdate?.("certification.page1.eligibleForGrade", e.target.value)} placeholder="Grade" /></span>
+                                <div className="p-1 px-2 text-[10px] leading-relaxed">
+                                    <div className="flex items-end mb-1 flex-nowrap shrink-0 gap-1">
+                                        <span className="whitespace-nowrap">I CERTIFY that this is a true record of</span>
+                                        <span className="fill-blank grow min-w-35 uppercase font-bold text-center px-1">
+                                            <input
+                                                type="text"
+                                                className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none text-[9.5px] tracking-tight placeholder:text-gray-300 print:placeholder:text-transparent"
+                                                value={getVal("certification.page1.recordOf")}
+                                                onChange={(e) => onUpdate?.("certification.page1.recordOf", e.target.value)}
+                                                placeholder="Enter Name"
+                                            />
+                                        </span>
+                                        <span className="whitespace-nowrap">with LRN</span>
+                                        <span className="fill-blank w-20 min-w-18 max-w-21 shrink-0 uppercase font-bold text-center px-0.5">
+                                            <input
+                                                type="text"
+                                                className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none text-[9.5px]"
+                                                value={getVal("certification.page1.lrn")}
+                                                onChange={(e) => onUpdate?.("certification.page1.lrn", e.target.value)}
+                                            />
+                                        </span>
+                                        <span className="whitespace-nowrap">and that he/she is eligible for admission to Grade</span>
+                                        <span className="fill-blank w-7 min-w-6 max-w-7.5 shrink-0 uppercase font-bold text-center px-0.5">
+                                            <input
+                                                type="text"
+                                                className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none text-[9.5px] placeholder:text-gray-300 print:placeholder:text-transparent"
+                                                value={getVal("certification.page1.eligibleForGrade")}
+                                                onChange={(e) => onUpdate?.("certification.page1.eligibleForGrade", e.target.value)}
+                                                placeholder="Grade"
+                                            />
+                                        </span>
+                                        <span>.</span>
                                     </div>
-                                    <div className="flex items-end mb-3 flex-nowrap shrink-0 gap-1">
-                                        <span className="mr-1 whitespace-nowrap">Name of School:</span>
-                                        <span className="fill-blank grow uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal("certification.page1.schoolName")} onChange={(e) => onUpdate?.("certification.page1.schoolName", e.target.value)} placeholder="School Name" /></span>
-                                        <span className="mx-1 whitespace-nowrap">School ID:</span>
-                                        <span className="fill-blank min-w-20 uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal("certification.page1.schoolId")} onChange={(e) => onUpdate?.("certification.page1.schoolId", e.target.value)} placeholder="ID" /></span>
-                                        <span className="mx-1 whitespace-nowrap">Last School Year Attended:</span>
-                                        <span className="fill-blank min-w-20 uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal("certification.page1.lastSchoolYearAttended")} onChange={(e) => onUpdate?.("certification.page1.lastSchoolYearAttended", e.target.value)} placeholder="YYYY-YYYY" /></span>
+                                    <div className="flex items-end mb-1 flex-nowrap shrink-0 gap-1">
+                                        <span className="whitespace-nowrap">Name of School:</span>
+                                        <span className="fill-blank grow uppercase font-bold text-center px-1">
+                                            <input
+                                                type="text"
+                                                className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none text-[9.5px] placeholder:text-gray-300 print:placeholder:text-transparent"
+                                                value={getVal("certification.page1.schoolName")}
+                                                onChange={(e) => onUpdate?.("certification.page1.schoolName", e.target.value)}
+                                                placeholder="School Name"
+                                            />
+                                        </span>
+                                        <span className="whitespace-nowrap">School ID:</span>
+                                        <span className="fill-blank w-17.5 min-w-15 shrink-0 uppercase font-bold text-center px-0.5">
+                                            <input
+                                                type="text"
+                                                className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none text-[9.5px]"
+                                                value={getVal("certification.page1.schoolId")}
+                                                onChange={(e) => onUpdate?.("certification.page1.schoolId", e.target.value)}
+                                                placeholder="ID"
+                                            />
+                                        </span>
+                                        <span className="whitespace-nowrap">Last School Year Attended:</span>
+                                        <span className="fill-blank w-20 min-w-18 shrink-0 uppercase font-bold text-center px-0.5">
+                                            <input
+                                                type="text"
+                                                className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none text-[9.5px]"
+                                                value={getVal("certification.page1.lastSchoolYearAttended")}
+                                                onChange={(e) => onUpdate?.("certification.page1.lastSchoolYearAttended", e.target.value)}
+                                                placeholder="YYYY-YYYY"
+                                            />
+                                        </span>
                                     </div>
                                     <div className="flex justify-between items-end gap-4 pt-2">
                                         <div className="min-w-25 text-center">

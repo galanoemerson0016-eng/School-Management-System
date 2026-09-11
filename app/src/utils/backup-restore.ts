@@ -1,4 +1,5 @@
 import { db } from '../services/database';
+import { useSF10Store } from '../stores/sf10-store';
 import type {
     SchoolProfile,
     Student,
@@ -51,6 +52,7 @@ export interface BackupSummary {
     gradingConfiguration: number;
     attendanceRecords: number;
     activityLog?: number;
+    sf10Records?: number;
 }
 
 export interface BackupUser {
@@ -122,6 +124,11 @@ export function collectBackupLocalStorage(): Record<string, string> {
             if (!key || EXCLUDED_KEYS.has(key) || key.startsWith('formease-license-')) continue;
 
             const isWhitelisted =
+                key === 'sf10-storage' ||
+                key === 'activeSchoolYear' ||
+                key === 'formease_subjects_autoloaded' ||
+                key === 'formease_shs_subjects_migrated_v2' ||
+                key === 'formease_last_app_version' ||
                 key.startsWith('formease_sf') ||
                 key.startsWith('formease_pace_') ||
                 key.startsWith('g1_remarks_') ||
@@ -162,6 +169,17 @@ export function restoreBackupLocalStorage(data?: Record<string, string>): void {
                 localStorage.setItem(key, value);
             }
         });
+
+        // Instantly rehydrate Zustand SF10 store so in-memory React state is up-to-date
+        if (data['sf10-storage']) {
+            try {
+                useSF10Store.persist?.rehydrate?.();
+                console.log('✅ Rehydrated SF10 store from restored backup data.');
+            } catch (rehydrateErr) {
+                console.warn('Could not rehydrate SF10 store immediately:', rehydrateErr);
+            }
+        }
+
         console.log(`✅ Restored ${Object.keys(data).length} configuration and assessment settings to localStorage.`);
     } catch (e) {
         console.warn('⚠️ Failed to restore localStorage data:', e);
@@ -189,6 +207,18 @@ export async function createComprehensiveBackup(
     const users = await db.getAllRecords<BackupUser>('users').catch(() => []);
     const activityLog = await db.getAllRecords<unknown>('activityLog').catch(() => []);
     const localStorageData = collectBackupLocalStorage();
+
+    // Calculate count of learners with SF10 overrides/customizations
+    let sf10Records = 0;
+    if (localStorageData['sf10-storage']) {
+        try {
+            const parsed = JSON.parse(localStorageData['sf10-storage']);
+            const overrides = parsed?.state?.overrides || parsed?.overrides || {};
+            sf10Records = Object.keys(overrides).length;
+        } catch {
+            sf10Records = 0;
+        }
+    }
 
     const backup: ComprehensiveBackup = {
         metadata: {
@@ -218,6 +248,7 @@ export async function createComprehensiveBackup(
             gradingConfiguration: 1,
             attendanceRecords: attendanceRecords.length,
             activityLog: activityLog.length,
+            sf10Records,
         },
         payload: {
             schoolProfile,
@@ -264,6 +295,7 @@ export function generateBackupReport(backup: ComprehensiveBackup): string {
         `Teacher's Comments/Remarks: ${backup.summary.observedValues}`,
         `Announcements: ${backup.summary.announcements}`,
         `Attendance Records: ${backup.summary.attendanceRecords ?? 0}`,
+        `SF10 Customizations & Remarks: ${backup.summary.sf10Records ?? (backup.payload.localStorageData?.['sf10-storage'] ? 'Included' : 0)} learner(s)`,
     ].join('\n');
 }
 
@@ -278,6 +310,15 @@ export async function validateBackup(backup: ComprehensiveBackup): Promise<{ isV
     }
     if (!Array.isArray(backup?.payload?.sections)) {
         issues.push('Sections payload is invalid');
+    }
+
+    // Verify SF10 storage integrity if present in payload
+    if (backup?.payload?.localStorageData?.['sf10-storage']) {
+        try {
+            JSON.parse(backup.payload.localStorageData['sf10-storage']);
+        } catch {
+            issues.push('SF10 storage data is corrupted or invalid JSON');
+        }
     }
 
     if (backup?.metadata?.payloadHash) {

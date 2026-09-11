@@ -4,8 +4,10 @@ import fs from 'fs';
 import path from 'path';
 import {
   TEMPLATE_SHS_G12,
+  TEMPLATE_SHS_G12_UPDATED,
   resolveSHSG12Track,
-  populateSHSG12WorkbookZip
+  populateSHSG12WorkbookZip,
+  getSHSG12Descriptor
 } from './shs-g12-excel-export';
 import type { Section, Subject, Student, SchoolProfile, ClassRecord, HPSRecord } from '../types';
 
@@ -310,6 +312,32 @@ describe('SHS Grade 12 E-Class Record Export Service', () => {
     }
   });
 
+  it('populates the revised Grade 12 template with ST1/ST2/TE in the new columns', async () => {
+    const revisedTemplatePath = path.join(templatesDir, TEMPLATE_SHS_G12_UPDATED);
+    const templateBuffer = fs.readFileSync(revisedTemplatePath);
+    const populatedZip = await populateSHSG12WorkbookZip(templateBuffer, {
+      schoolProfile: mockSchoolProfile,
+      schoolYear: '2026-2027',
+      section: mockSection,
+      subject: mockSubject,
+      students: mockStudents,
+      classRecords: mockClassRecords,
+      hpsRecords: mockHpsRecords,
+      teacherName: 'Emerson M. Galano',
+      numTerms: 3
+    });
+
+    const termXml = await populatedZip.file('xl/worksheets/sheet3.xml')!.async('string');
+    expect(termXml).toMatch(/<c r="AD17"[^>]*><v>27<\/v><\/c>/);
+    expect(termXml).toMatch(/<c r="AE17"[^>]*><v>32<\/v><\/c>/);
+    expect(termXml).toMatch(/<c r="AF17"[^>]*><v>45<\/v><\/c>/);
+    expect(termXml).toMatch(/<c r="AL17"[^>]*><f[^>]*>[\s\S]*?<\/f><v>\d+(\.\d+)?<\/v><\/c>/);
+    expect(termXml).toMatch(/<c r="AM17"[^>]*><f[^>]*>[\s\S]*?<\/f><v>\d+<\/v><\/c>/);
+    expect(termXml).not.toMatch(/<c r="I17"[^>]*><v>27<\/v><\/c>/);
+    expect(termXml).not.toMatch(/<c r="J17"[^>]*><v>32<\/v><\/c>/);
+    expect(termXml).not.toContain('[2]');
+  });
+
   it('correctly resolves terms and exports 1-term subject like HOPE 3 with dynamic term detection', async () => {
     const hopeSubject: Subject = {
       id: 'sub-hope-3',
@@ -504,5 +532,23 @@ describe('SHS Grade 12 E-Class Record Export Service', () => {
     expect(s6Xml).toMatch(/<c r="E68"[^>]*><f[^>]*>[\s\S]*?<\/f><v>\d+<\/v><\/c>/);
     expect(s6Xml).toMatch(/<c r="H68"[^>]*><f[^>]*>[\s\S]*?<\/f><v>\d+<\/v><\/c>/);
     expect(s6Xml).toMatch(/<c r="J68"[^>]*><f[^>]*>[\s\S]*?<\/f><v>PASSED<\/v><\/c>/);
+  });
+
+  describe('getSHSG12Descriptor', () => {
+    it('accurately maps grades to official DepEd qualitative descriptors', () => {
+      expect(getSHSG12Descriptor(95)).toBe('Advancing');
+      expect(getSHSG12Descriptor(90)).toBe('Advancing');
+      expect(getSHSG12Descriptor(89)).toBe('Benchmarking');
+      expect(getSHSG12Descriptor(82)).toBe('Benchmarking');
+      expect(getSHSG12Descriptor(80)).toBe('Benchmarking');
+      expect(getSHSG12Descriptor(79)).toBe('Connecting');
+      expect(getSHSG12Descriptor(75)).toBe('Connecting');
+      expect(getSHSG12Descriptor(74)).toBe('Developing');
+      expect(getSHSG12Descriptor(70)).toBe('Developing');
+      expect(getSHSG12Descriptor(65)).toBe('Developing');
+      expect(getSHSG12Descriptor(64)).toBe('Emerging');
+      expect(getSHSG12Descriptor(60)).toBe('Emerging');
+      expect(getSHSG12Descriptor('')).toBe('');
+    });
   });
 });

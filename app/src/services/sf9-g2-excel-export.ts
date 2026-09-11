@@ -395,6 +395,91 @@ async function getLogoImageBytes(logoUrl: string | undefined): Promise<{ ext: st
   return null;
 }
 
+interface SheetInfo {
+  name: string;
+  sheetId: string;
+  relId: string;
+  path: string;
+}
+
+/**
+ * Dynamically parse workbook.xml and workbook.xml.rels to map sheet names to their internal worksheet XML paths.
+ */
+async function getWorkbookSheetMap(zip: JSZip): Promise<{ sheetsByName: Map<string, SheetInfo>; sheetList: SheetInfo[] }> {
+  const wbFile = zip.file('xl/workbook.xml');
+  const relsFile = zip.file('xl/_rels/workbook.xml.rels');
+  const sheetsByName = new Map<string, SheetInfo>();
+  const sheetList: SheetInfo[] = [];
+
+  if (!wbFile || !relsFile) return { sheetsByName, sheetList };
+
+  const wbXml = await wbFile.async('text');
+  const relsXml = await relsFile.async('text');
+
+  // Parse rels
+  const relMap = new Map<string, string>();
+  const relRegex = /<Relationship\s+[^>]*?Id="([^"]+)"[^>]*?Target="([^"]+)"/g;
+  let relMatch;
+  while ((relMatch = relRegex.exec(relsXml)) !== null) {
+    const id = relMatch[1];
+    let target = relMatch[2];
+    if (!target.startsWith('xl/')) {
+      target = `xl/${target.replace(/^\.?\//, '')}`;
+    }
+    relMap.set(id, target);
+  }
+
+  // Parse sheets
+  const sheetRegex = /<sheet\s+[^>]*?name="([^"]+)"[^>]*?sheetId="([^"]+)"[^>]*?r:id="([^"]+)"[^>]*?\/>/g;
+  let sheetMatch;
+  while ((sheetMatch = sheetRegex.exec(wbXml)) !== null) {
+    const name = sheetMatch[1];
+    const sheetId = sheetMatch[2];
+    const relId = sheetMatch[3];
+    const path = relMap.get(relId) || `xl/worksheets/sheet${sheetId}.xml`;
+    const info: SheetInfo = { name, sheetId, relId, path };
+    sheetsByName.set(name, info);
+    sheetList.push(info);
+  }
+
+  return { sheetsByName, sheetList };
+}
+
+/**
+ * Dynamically resolve the drawing XML path and drawing rels path for a worksheet.
+ */
+async function getSheetDrawingInfo(
+  zip: JSZip,
+  sheetPath: string
+): Promise<{ drawingPath: string; drawingRelsPath: string } | null> {
+  const parts = sheetPath.split('/');
+  const fileName = parts.pop();
+  if (!fileName) return null;
+  const dir = parts.join('/');
+  const sheetRelsPath = `${dir}/_rels/${fileName}.rels`;
+
+  const relsFile = zip.file(sheetRelsPath);
+  if (!relsFile) return null;
+
+  const relsXml = await relsFile.async('text');
+  const drawingMatch = relsXml.match(/<Relationship\s+[^>]*?Type="http:\/\/schemas\.openxmlformats\.org\/officeDocument\/2006\/relationships\/drawing"[^>]*?Target="([^"]+)"/);
+  if (!drawingMatch) return null;
+
+  let target = drawingMatch[1];
+  if (target.startsWith('../')) {
+    target = `xl/${target.substring(3)}`;
+  } else if (!target.startsWith('xl/')) {
+    target = `xl/${target}`;
+  }
+
+  const dParts = target.split('/');
+  const dFile = dParts.pop();
+  const dDir = dParts.join('/');
+  const drawingRelsPath = `${dDir}/_rels/${dFile}.rels`;
+
+  return { drawingPath: target, drawingRelsPath };
+}
+
 async function injectSchoolLogoIntoDrawing(
   zip: JSZip,
   drawingPath: string,
@@ -429,11 +514,11 @@ async function injectSchoolLogoIntoDrawing(
       }
     }
 
-    // Replace Shape 4 with <xdr:pic>
-    const shape4Regex = /<xdr:oneCellAnchor>[\s\S]*?<xdr:cNvPr[^>]*?name="Shape 4"[\s\S]*?<\/xdr:oneCellAnchor>/;
-    if (shape4Regex.test(dXml)) {
+    // Replace Shape 3, Shape 4, or placeholder containing "Insert School Logo" with <xdr:pic>
+    const shapeRegex = /<xdr:oneCellAnchor>[\s\S]*?(?:<xdr:cNvPr[^>]*?name="Shape [34]"|Insert School Logo)[\s\S]*?<\/xdr:oneCellAnchor>/;
+    if (shapeRegex.test(dXml)) {
       const replacementPic = `<xdr:oneCellAnchor><xdr:from><xdr:col>9</xdr:col><xdr:colOff>447675</xdr:colOff><xdr:row>2</xdr:row><xdr:rowOff>200025</xdr:rowOff></xdr:from><xdr:ext cx="1276350" cy="1314450"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="4" name="School Logo" title="School Logo"><a:extLst><a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}"><a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{00000000-0008-0000-0800-000004000000}"/></a:ext></a:extLst></xdr:cNvPr><xdr:cNvPicPr preferRelativeResize="0"/></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="${relId}" cstate="print"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="4418450" y="3081025"/><a:ext cx="1276350" cy="1314450"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></xdr:spPr></xdr:pic><xdr:clientData fLocksWithSheet="0"/></xdr:oneCellAnchor>`;
-      dXml = dXml.replace(shape4Regex, replacementPic);
+      dXml = dXml.replace(shapeRegex, replacementPic);
       zip.file(drawingPath, dXml);
     }
 
@@ -452,8 +537,8 @@ async function injectSchoolLogoIntoDrawing(
       }
     }
   } else {
-    // If no logo data could be found at all, remove Shape 4 so "Insert School Logo" placeholder doesn't appear
-    dXml = dXml.replace(/<xdr:oneCellAnchor>[\s\S]*?<xdr:cNvPr[^>]*?name="Shape 4"[\s\S]*?<\/xdr:oneCellAnchor>/g, '');
+    // If no logo data could be found at all, remove placeholder shape so "Insert School Logo" doesn't appear
+    dXml = dXml.replace(/<xdr:oneCellAnchor>[\s\S]*?(?:<xdr:cNvPr[^>]*?name="Shape [34]"|Insert School Logo)[\s\S]*?<\/xdr:oneCellAnchor>/g, '');
     zip.file(drawingPath, dXml);
   }
 }
@@ -494,7 +579,12 @@ export async function populateGrade2TemplateBuffer(
     zip.file('[Content_Types].xml', ctXml);
   }
 
-  // 2. Force Full Calculation on Load in workbook.xml
+  // 2. Resolve workbook sheet map and force Full Calculation on Load in workbook.xml
+  const { sheetsByName, sheetList } = await getWorkbookSheetMap(zip);
+  const sf9Info = sheetsByName.get('SF9 - GRADE 2') || sheetList.find(s => s.name.toUpperCase().includes('SF9'));
+  const sf9Index = sheetList.findIndex(s => s.name.toUpperCase().includes('SF9'));
+  const activeTabIndex = sf9Index >= 0 ? sf9Index : 5;
+
   const wbFile = zip.file('xl/workbook.xml');
   if (wbFile) {
     let wbXml = await wbFile.async('text');
@@ -503,8 +593,16 @@ export async function populateGrade2TemplateBuffer(
     } else {
       wbXml = wbXml.replace('</workbook>', '<calcPr calcId="191029" fullCalcOnLoad="1" forceFullCalc="1"/></workbook>');
     }
-    // Set active tab to SF9 - GRADE 2 (Sheet 8, tab index 7)
-    wbXml = wbXml.replace(/activeTab="\d+"/, 'activeTab="7"');
+    // Set active tab dynamically to the SF9 - GRADE 2 sheet index
+    if (wbXml.includes('activeTab=')) {
+      wbXml = wbXml.replace(/activeTab="\d+"/, `activeTab="${activeTabIndex}"`);
+    } else if (wbXml.includes('<workbookView')) {
+      wbXml = wbXml.replace(/<workbookView\b([^>]*?)\/>/, `<workbookView$1 activeTab="${activeTabIndex}"/>`);
+    } else if (wbXml.includes('<bookViews>')) {
+      wbXml = wbXml.replace('<bookViews>', `<bookViews><workbookView activeTab="${activeTabIndex}"/>`);
+    } else if (wbXml.includes('<sheets>')) {
+      wbXml = wbXml.replace('<sheets>', `<bookViews><workbookView activeTab="${activeTabIndex}"/></bookViews><sheets>`);
+    }
     zip.file('xl/workbook.xml', wbXml);
   }
 
@@ -559,9 +657,11 @@ export async function populateGrade2TemplateBuffer(
   cleanMuniCity = (cleanMuniCity || 'VICTORIA').toUpperCase();
 
   // -------------------------------------------------------------------------
-  // 3. Sheet 2: INPUT DATA (xl/worksheets/sheet2.xml)
+  // 3. Sheet: INPUT DATA
   // -------------------------------------------------------------------------
-  const sheet2File = zip.file('xl/worksheets/sheet2.xml');
+  const inputDataInfo = sheetsByName.get('INPUT DATA');
+  const inputDataPath = inputDataInfo?.path || 'xl/worksheets/sheet2.xml';
+  const sheet2File = zip.file(inputDataPath);
   if (sheet2File) {
     let sheet2Xml = await sheet2File.async('text');
 
@@ -618,23 +718,24 @@ export async function populateGrade2TemplateBuffer(
     }
 
     sheet2Xml = updateCellsBatch(sheet2Xml, inputCells, inputStyles);
-    zip.file('xl/worksheets/sheet2.xml', sheet2Xml);
+    zip.file(inputDataPath, sheet2Xml);
   }
 
   // -------------------------------------------------------------------------
   // 4. Extract Grades per student and update TERM 1, 2, 3 SUMMARIES
   // -------------------------------------------------------------------------
   const summarySheets = [
-    { file: 'sheet3.xml', termIndex: 0 }, // TERM 1 SUMMARY
-    { file: 'sheet4.xml', termIndex: 1 }, // TERM 2 SUMMARY
-    { file: 'sheet5.xml', termIndex: 2 }, // TERM 3 SUMMARY
+    { name: 'TERM 1 SUMMARY', defaultPath: 'xl/worksheets/sheet3.xml', termIndex: 0 },
+    { name: 'TERM 2 SUMMARY', defaultPath: 'xl/worksheets/sheet4.xml', termIndex: 1 },
+    { name: 'TERM 3 SUMMARY', defaultPath: 'xl/worksheets/sheet5.xml', termIndex: 2 },
   ];
 
   type StudentWithGrades = { grades?: Record<string, number[]> };
   const currentGrades = extractG2SubjectGrades(grades, subjects);
 
-  for (const { file, termIndex } of summarySheets) {
-    const sFile = zip.file(`xl/worksheets/${file}`);
+  for (const { name, defaultPath, termIndex } of summarySheets) {
+    const sPath = sheetsByName.get(name)?.path || defaultPath;
+    const sFile = zip.file(sPath);
     if (!sFile) continue;
 
     let sXml = await sFile.async('text');
@@ -712,50 +813,55 @@ export async function populateGrade2TemplateBuffer(
 
     sXml = updateFormulaValuesBatch(sXml, formulaResults);
     sXml = updateCellsBatch(sXml, termCells);
-    zip.file(`xl/worksheets/${file}`, sXml);
+    zip.file(sPath, sXml);
   }
 
   // -------------------------------------------------------------------------
-  // 5. Sheet 6: FINAL GRADES (xl/worksheets/sheet6.xml)
+  // 5. Sheet: FINAL GRADES (Only if present in workbook)
   // -------------------------------------------------------------------------
-  const sheet6File = zip.file('xl/worksheets/sheet6.xml');
-  if (sheet6File) {
-    let sheet6Xml = await sheet6File.async('text');
-    // Overwrite template's hardcoded adviser in P10:T11 merged range
-    const adviserCells = ['P10', 'Q10', 'R10', 'S10', 'T10', 'P11', 'Q11', 'R11', 'S11', 'T11'];
-    adviserCells.forEach(cell => {
-      sheet6Xml = updateCellInSheetXml(sheet6Xml, cell, cleanAdviser);
-    });
+  const finalGradesInfo = sheetsByName.get('FINAL GRADES');
+  if (finalGradesInfo) {
+    const sheet6File = zip.file(finalGradesInfo.path);
+    if (sheet6File) {
+      let sheet6Xml = await sheet6File.async('text');
+      // Overwrite template's hardcoded adviser in P10:T11 merged range
+      const adviserCells = ['P10', 'Q10', 'R10', 'S10', 'T10', 'P11', 'Q11', 'R11', 'S11', 'T11'];
+      adviserCells.forEach(cell => {
+        sheet6Xml = updateCellInSheetXml(sheet6Xml, cell, cleanAdviser);
+      });
 
-    const fgResults: Record<string, string | number> = {
-      'E6': cleanRegion,
-      'L6': cleanDivision,
-      'E7': cleanSchoolName,
-      'L7': cleanSchoolId,
-      'R7': cleanSy,
-      'H10': 2,
-      'H11': cleanSection,
-    };
+      const fgResults: Record<string, string | number> = {
+        'E6': cleanRegion,
+        'L6': cleanDivision,
+        'E7': cleanSchoolName,
+        'L7': cleanSchoolId,
+        'R7': cleanSy,
+        'H10': 2,
+        'H11': cleanSection,
+      };
 
-    for (let idx = 0; idx < 50; idx++) {
-      const r = 15 + idx;
-      const m = males[idx];
-      fgResults[`C${r}`] = m ? formatLearnerName(m) : '';
+      for (let idx = 0; idx < 50; idx++) {
+        const r = 15 + idx;
+        const m = males[idx];
+        fgResults[`C${r}`] = m ? formatLearnerName(m) : '';
+      }
+      for (let idx = 0; idx < 50; idx++) {
+        const r = 66 + idx;
+        const f = females[idx];
+        fgResults[`C${r}`] = f ? formatLearnerName(f) : '';
+      }
+
+      sheet6Xml = updateFormulaValuesBatch(sheet6Xml, fgResults);
+      zip.file(finalGradesInfo.path, sheet6Xml);
     }
-    for (let idx = 0; idx < 50; idx++) {
-      const r = 66 + idx;
-      const f = females[idx];
-      fgResults[`C${r}`] = f ? formatLearnerName(f) : '';
-    }
-
-    sheet6Xml = updateFormulaValuesBatch(sheet6Xml, fgResults);
-    zip.file('xl/worksheets/sheet6.xml', sheet6Xml);
   }
 
   // -------------------------------------------------------------------------
-  // 6. Sheet 7: ATTENDANCE RECORD SUMMARY (xl/worksheets/sheet7.xml)
+  // 6. Sheet: ATTENDANCE RECORD SUMMARY
   // -------------------------------------------------------------------------
-  const sheet7File = zip.file('xl/worksheets/sheet7.xml');
+  const attInfo = sheetsByName.get('ATTENDANCE RECORD SUMMARY');
+  const attPath = attInfo?.path || 'xl/worksheets/sheet7.xml';
+  const sheet7File = zip.file(attPath);
   if (sheet7File) {
     let sheet7Xml = await sheet7File.async('text');
     const attCells: Record<string, string | number> = {};
@@ -833,30 +939,31 @@ export async function populateGrade2TemplateBuffer(
 
     sheet7Xml = updateFormulaValuesBatch(sheet7Xml, attFormulaResults);
     sheet7Xml = updateCellsBatch(sheet7Xml, attCells);
-    zip.file('xl/worksheets/sheet7.xml', sheet7Xml);
+    zip.file(attPath, sheet7Xml);
   }
 
   // -------------------------------------------------------------------------
-  // 7. Sheet 8: SF9 - GRADE 2 (xl/worksheets/sheet8.xml)
+  // 7. Sheet: SF9 - GRADE 2
   // -------------------------------------------------------------------------
-  const sheet8File = zip.file('xl/worksheets/sheet8.xml');
-  if (sheet8File) {
-    let sheet8Xml = await sheet8File.async('text');
+  const sf9Path = sf9Info?.path || 'xl/worksheets/sheet6.xml';
+  const sf9File = zip.file(sf9Path);
+  if (sf9File) {
+    let sf9Xml = await sf9File.async('text');
 
     // 1. Fix School Profile header lines (replaces broken template #REF! and dummy text)
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'B7', "'INPUT DATA'!F10", cleanRegion);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'B8', "'INPUT DATA'!F11", cleanDivision);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'B9', "'INPUT DATA'!F13", schoolProfile?.district ? `${schoolProfile.district} District` : (schoolProfile?.city || schoolProfile?.municipality || ''));
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'B10', "'INPUT DATA'!F15", cleanSchoolId ? `School ID: ${cleanSchoolId}` : '');
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'B12', "'INPUT DATA'!F16", cleanSchoolName);
-    sheet8Xml = updateCellInSheetXml(sheet8Xml, 'B15', `School Year ${cleanSy}`);
-    sheet8Xml = updateCellInSheetXml(sheet8Xml, 'F39', '');
-    sheet8Xml = updateCellInSheetXml(sheet8Xml, 'F40', '');
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'B27', "'INPUT DATA'!F19", cleanHead);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'H27', "'INPUT DATA'!F26", cleanAdviser);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'X40', "'INPUT DATA'!F26", cleanAdviser);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'Q41', "'INPUT DATA'!F19", cleanHead);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'Q49', "'INPUT DATA'!F19", cleanHead);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B7', "'INPUT DATA'!F10", cleanRegion);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B8', "'INPUT DATA'!F11", cleanDivision);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B9', "'INPUT DATA'!F13", schoolProfile?.district ? `${schoolProfile.district} District` : (schoolProfile?.city || schoolProfile?.municipality || ''));
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B10', "'INPUT DATA'!F15", cleanSchoolId ? `School ID: ${cleanSchoolId}` : '');
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B12', "'INPUT DATA'!F16", cleanSchoolName);
+    sf9Xml = updateCellInSheetXml(sf9Xml, 'B15', `School Year ${cleanSy}`);
+    sf9Xml = updateCellInSheetXml(sf9Xml, 'F39', '');
+    sf9Xml = updateCellInSheetXml(sf9Xml, 'F40', '');
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B27', "'INPUT DATA'!F19", cleanHead);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'H27', "'INPUT DATA'!F26", cleanAdviser);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'X40', "'INPUT DATA'!F26", cleanAdviser);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'Q41', "'INPUT DATA'!F19", cleanHead);
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'Q49', "'INPUT DATA'!F19", cleanHead);
 
     const calculatedAge = (() => {
       if (!student.birthday) return '';
@@ -878,19 +985,82 @@ export async function populateGrade2TemplateBuffer(
       'K17': isMale ? 'M' : 'F',
     };
 
+    // Pre-populate and cache Term Grades on F33:H37
+    if (currentGrades.filipino[0] !== '') sf9FormulaResults['F33'] = currentGrades.filipino[0];
+    if (currentGrades.filipino[1] !== '') sf9FormulaResults['G33'] = currentGrades.filipino[1];
+    if (currentGrades.filipino[2] !== '') sf9FormulaResults['H33'] = currentGrades.filipino[2];
+
+    if (currentGrades.english[0] !== '') sf9FormulaResults['F34'] = currentGrades.english[0];
+    if (currentGrades.english[1] !== '') sf9FormulaResults['G34'] = currentGrades.english[1];
+    if (currentGrades.english[2] !== '') sf9FormulaResults['H34'] = currentGrades.english[2];
+
+    if (currentGrades.math[0] !== '') sf9FormulaResults['F35'] = currentGrades.math[0];
+    if (currentGrades.math[1] !== '') sf9FormulaResults['G35'] = currentGrades.math[1];
+    if (currentGrades.math[2] !== '') sf9FormulaResults['H35'] = currentGrades.math[2];
+
+    if (currentGrades.gmrc[0] !== '') sf9FormulaResults['F36'] = currentGrades.gmrc[0];
+    if (currentGrades.gmrc[1] !== '') sf9FormulaResults['G36'] = currentGrades.gmrc[1];
+    if (currentGrades.gmrc[2] !== '') sf9FormulaResults['H36'] = currentGrades.gmrc[2];
+
+    if (currentGrades.makabansa[0] !== '') sf9FormulaResults['F37'] = currentGrades.makabansa[0];
+    if (currentGrades.makabansa[1] !== '') sf9FormulaResults['G37'] = currentGrades.makabansa[1];
+    if (currentGrades.makabansa[2] !== '') sf9FormulaResults['H37'] = currentGrades.makabansa[2];
+
+    // Pre-compute and cache Final Grades (Column I) and Official DepEd Remarks (Column J)
+    const calcFinalAndRemark = (termGrades: (number | '')[]) => {
+      const nums = termGrades.filter((g): g is number => typeof g === 'number' && !isNaN(g));
+      if (nums.length === 0) return { finalGrade: '', remark: '' };
+      const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
+      const rounded = Math.round(avg);
+      return {
+        finalGrade: rounded,
+        remark: rounded >= 75 ? 'Passed' : 'Failed'
+      };
+    };
+
+    const filFinal = calcFinalAndRemark(currentGrades.filipino);
+    const engFinal = calcFinalAndRemark(currentGrades.english);
+    const mathFinal = calcFinalAndRemark(currentGrades.math);
+    const gmrcFinal = calcFinalAndRemark(currentGrades.gmrc);
+    const makFinal = calcFinalAndRemark(currentGrades.makabansa);
+
+    if (filFinal.finalGrade !== '') sf9FormulaResults['I33'] = filFinal.finalGrade;
+    if (filFinal.remark !== '') sf9FormulaResults['J33'] = filFinal.remark;
+
+    if (engFinal.finalGrade !== '') sf9FormulaResults['I34'] = engFinal.finalGrade;
+    if (engFinal.remark !== '') sf9FormulaResults['J34'] = engFinal.remark;
+
+    if (mathFinal.finalGrade !== '') sf9FormulaResults['I35'] = mathFinal.finalGrade;
+    if (mathFinal.remark !== '') sf9FormulaResults['J35'] = mathFinal.remark;
+
+    if (gmrcFinal.finalGrade !== '') sf9FormulaResults['I36'] = gmrcFinal.finalGrade;
+    if (gmrcFinal.remark !== '') sf9FormulaResults['J36'] = gmrcFinal.remark;
+
+    if (makFinal.finalGrade !== '') sf9FormulaResults['I37'] = makFinal.finalGrade;
+    if (makFinal.remark !== '') sf9FormulaResults['J37'] = makFinal.remark;
+
+    const allFinals = [filFinal.finalGrade, engFinal.finalGrade, mathFinal.finalGrade, gmrcFinal.finalGrade, makFinal.finalGrade]
+      .filter((g): g is number => typeof g === 'number' && !isNaN(g));
+
+    if (allFinals.length > 0) {
+      const genAvg = Math.round(allFinals.reduce((a, b) => a + b, 0) / allFinals.length);
+      sf9FormulaResults['I38'] = genAvg;
+      sf9FormulaResults['J38'] = genAvg >= 75 ? 'Passed' : 'Failed';
+    }
+
     const sf9MonthCols = ['R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA', 'AB']; // Jun to Apr (11 columns)
 
     // Row 5: No. of Class Days
     if (attendance?.schoolDays && attendance.schoolDays.length > 0) {
       attendance.schoolDays.forEach((sd, idx) => {
         if (idx < sf9MonthCols.length && sd !== undefined && sd !== null && sd > 0) {
-          sheet8Xml = updateCellInSheetXml(sheet8Xml, `${sf9MonthCols[idx]}5`, Number(sd));
+          sf9Xml = updateCellInSheetXml(sf9Xml, `${sf9MonthCols[idx]}5`, Number(sd));
         }
       });
       const totalClassDays = attendance.schoolDays.reduce((a, b) => a + (Number(b) || 0), 0);
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC5', 'SUM(R5:AB5)', totalClassDays > 0 ? totalClassDays : '');
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC5', 'SUM(R5:AB5)', totalClassDays > 0 ? totalClassDays : '');
     } else {
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC5', 'SUM(R5:AB5)', '');
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC5', 'SUM(R5:AB5)', '');
     }
 
     // Row 7: No. of Days Present (Dynamic VLOOKUP formulas referencing C17 and ATTENDANCE RECORD SUMMARY)
@@ -900,12 +1070,12 @@ export async function populateGrade2TemplateBuffer(
       const cachedVal = (attendance?.daysPresent && attendance.daysPresent[idx] !== undefined && attendance.daysPresent[idx] !== null && attendance.daysPresent[idx] !== ('' as unknown as number))
         ? Number(attendance.daysPresent[idx])
         : '';
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, `${col}7`, formula, cachedVal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, `${col}7`, formula, cachedVal);
     });
     const totalPresent = (attendance?.daysPresent && attendance.daysPresent.length > 0)
       ? attendance.daysPresent.reduce((a, b) => a + (Number(b) || 0), 0)
       : '';
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC7', 'SUM(R7:AB7)', (totalPresent !== '' && totalPresent > 0) ? totalPresent : (totalPresent === 0 ? 0 : ''));
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC7', 'SUM(R7:AB7)', (totalPresent !== '' && totalPresent > 0) ? totalPresent : (totalPresent === 0 ? 0 : ''));
 
     // Row 9: No. of Days Absent (Dynamic difference formulas between Class Days and Days Present)
     sf9MonthCols.forEach((col, idx) => {
@@ -917,7 +1087,7 @@ export async function populateGrade2TemplateBuffer(
       const cachedAbsent = (dpVal !== null && classDays > 0)
         ? Math.max(0, classDays - dpVal)
         : '';
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, `${col}9`, formula, cachedAbsent);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, `${col}9`, formula, cachedAbsent);
     });
     const totalSchoolDaysNum = (attendance?.schoolDays && attendance.schoolDays.length > 0)
       ? attendance.schoolDays.reduce((a, b) => a + (Number(b) || 0), 0)
@@ -925,21 +1095,33 @@ export async function populateGrade2TemplateBuffer(
     const totalAbsent = attendance?.daysAbsent
       ? attendance.daysAbsent.reduce((a, b) => a + (Number(b) || 0), 0)
       : (totalSchoolDaysNum > 0 && typeof totalPresent === 'number' ? Math.max(0, totalSchoolDaysNum - totalPresent) : '');
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC9', 'SUM(R9:AB9)', totalAbsent !== '' ? totalAbsent : '');
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC9', 'SUM(R9:AB9)', totalAbsent !== '' ? totalAbsent : '');
 
-    sheet8Xml = updateFormulaValuesBatch(sheet8Xml, sf9FormulaResults);
-    sheet8Xml = updateCellsBatch(sheet8Xml, sf9Cells);
+    sf9Xml = updateFormulaValuesBatch(sf9Xml, sf9FormulaResults);
+    sf9Xml = updateCellsBatch(sf9Xml, sf9Cells);
 
-    zip.file('xl/worksheets/sheet8.xml', sheet8Xml);
+    zip.file(sf9Path, sf9Xml);
   }
 
-  // Replace placeholder Shape 4 with School Logo if available
-  await injectSchoolLogoIntoDrawing(
-    zip,
-    'xl/drawings/drawing8.xml',
-    'xl/drawings/_rels/drawing8.xml.rels',
-    schoolProfile?.logo_url
-  );
+  // Dynamically resolve SF9 drawing path and replace placeholder Shape with School Logo
+  const sf9Drawing = await getSheetDrawingInfo(zip, sf9Path);
+  if (sf9Drawing) {
+    await injectSchoolLogoIntoDrawing(
+      zip,
+      sf9Drawing.drawingPath,
+      sf9Drawing.drawingRelsPath,
+      schoolProfile?.logo_url
+    );
+  } else {
+    const fallbackDrawing = zip.file('xl/drawings/drawing6.xml') ? 'xl/drawings/drawing6.xml' : 'xl/drawings/drawing8.xml';
+    const fallbackRels = zip.file('xl/drawings/drawing6.xml') ? 'xl/drawings/_rels/drawing6.xml.rels' : 'xl/drawings/_rels/drawing8.xml.rels';
+    await injectSchoolLogoIntoDrawing(
+      zip,
+      fallbackDrawing,
+      fallbackRels,
+      schoolProfile?.logo_url
+    );
+  }
 
   return await zip.generateAsync({ type: 'arraybuffer' });
 }
