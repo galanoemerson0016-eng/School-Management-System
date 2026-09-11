@@ -383,6 +383,31 @@ async function deleteRecord(storeName: string, key: string): Promise<void> {
 }
 
 /**
+ * Delete multiple records in a single transaction
+ */
+async function deleteRecordsBulk(storeName: string, keys: string[]): Promise<void> {
+  if (!keys || keys.length === 0) return;
+  notifyWriteChange(keys.length);
+  try {
+    const db = await openDatabase();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(storeName, 'readwrite');
+      const store = transaction.objectStore(storeName);
+
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+
+      for (const key of keys) {
+        store.delete(key);
+      }
+    });
+    notifyChange(storeName, 'delete');
+  } finally {
+    notifyWriteChange(-keys.length);
+  }
+}
+
+/**
  * Clear all records from a store
  */
 async function clearStore(storeName: string): Promise<void> {
@@ -757,6 +782,7 @@ export const db = {
   putRecord,
   putRecordsBulk,
   deleteRecord,
+  deleteRecordsBulk,
   clearStore,
   getStoreCount,
   exportAllData,

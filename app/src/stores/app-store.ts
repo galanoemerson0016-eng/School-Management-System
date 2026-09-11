@@ -1014,17 +1014,45 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSubjects: (subjects) => set({ subjects }),
   addSubject: async (subject) => {
     try {
-      set((state) => ({ subjects: [...state.subjects, subject] }));
-      await db.putRecord('subjects', subject);
+      const cleanName = (subject.subject_name || '').trim();
+      if (!cleanName) return;
+
+      const currentSubjects = get().subjects;
+      const normalizedNew = normalizeSubjectName(cleanName);
+      const cleanGrade = (subject.grade_level || 'all').trim();
+      const cleanSection = (subject.section_id || 'all').trim();
+
+      // Store-level deduplication guard: Prevent creating duplicate subjects for the same grade/section
+      const existing = currentSubjects.find(s =>
+        (s.grade_level || 'all').trim() === cleanGrade &&
+        (s.section_id || 'all').trim() === cleanSection &&
+        normalizeSubjectName((s.subject_name || '').trim()) === normalizedNew
+      );
+
+      if (existing) {
+        // If subject exists but was hidden (term: 'none'), unhide it
+        if (existing.term === 'none' && subject.term !== 'none') {
+          await get().updateSubject({ ...existing, term: subject.term || 'all' });
+        }
+        return;
+      }
+
+      const sanitizedSubject: Subject = {
+        ...subject,
+        subject_name: cleanName
+      };
+
+      set((state) => ({ subjects: [...state.subjects, sanitizedSubject] }));
+      await db.putRecord('subjects', sanitizedSubject);
 
       // Auto-sync: append to taught_subjects of matching advisory sections
       // Only for grade-level subjects (not section-specific ones already handled by the wizard)
       const currentSections = get().sections;
       const sectionsToUpdate = currentSections.filter(sec =>
         sec.is_advisory &&
-        sec.section_grade_level === subject.grade_level &&
+        sec.section_grade_level === sanitizedSubject.grade_level &&
         !(sec.taught_subjects || []).some(t =>
-          normalizeSubjectName(t) === normalizeSubjectName(subject.subject_name)
+          normalizeSubjectName(t) === normalizeSubjectName(sanitizedSubject.subject_name)
         )
       );
       if (sectionsToUpdate.length > 0) {
@@ -1033,14 +1061,14 @@ export const useAppStore = create<AppState>((set, get) => ({
           if (!updateIds.has(sec.id)) return sec;
           return {
             ...sec,
-            taught_subjects: [...(sec.taught_subjects || []), subject.subject_name]
+            taught_subjects: [...(sec.taught_subjects || []), sanitizedSubject.subject_name]
           };
         });
         set({ sections: updatedSections });
         for (const sec of sectionsToUpdate) {
           await db.putRecord('sections', {
             ...sec,
-            taught_subjects: [...(sec.taught_subjects || []), subject.subject_name]
+            taught_subjects: [...(sec.taught_subjects || []), sanitizedSubject.subject_name]
           });
         }
       }
@@ -1060,8 +1088,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     
     if (!oldSubject) return;
 
+    const sanitizedSubject: Subject = {
+      ...subject,
+      subject_name: (subject.subject_name || '').trim()
+    };
     const oldName = oldSubject.subject_name;
-    const newName = subject.subject_name;
+    const newName = sanitizedSubject.subject_name;
     const nameChanged = normalizeSubjectName(oldName) !== normalizeSubjectName(newName);
 
     try {
@@ -1758,6 +1790,11 @@ export async function initializeAppStore() {
     if (reconciliation.subjectsModified) {
       console.log(`[FormEase Pro] Self-healing restored visibility for ${reconciliation.subjects.length} subjects with recorded grades.`);
       await db.putRecordsBulk('subjects', reconciliation.subjects);
+    }
+
+    if (reconciliation.deletedSubjectIds && reconciliation.deletedSubjectIds.length > 0) {
+      console.log(`[FormEase Pro] Self-healing purged ${reconciliation.deletedSubjectIds.length} duplicate subject record(s) and re-linked their grades.`);
+      await db.deleteRecordsBulk('subjects', reconciliation.deletedSubjectIds);
     }
 
     useAppStore.setState({

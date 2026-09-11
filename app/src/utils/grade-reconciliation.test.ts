@@ -247,4 +247,84 @@ describe('grade-reconciliation', () => {
         expect(peRecord.subject_id).toBe('subj-new-pe-health');
         expect(peRecord.subject_name).toBe('Physical Education and Health');
     });
+
+    it('auto-heals duplicate subject clusters and re-links split grades seamlessly', () => {
+        // Simulating the user's situation: 2 duplicate subject records for the same subject
+        const subjects: Subject[] = [
+            { id: 'sub_temp_filipino_dup1', subject_name: 'Filipino 2 (Filipino sa Isports)', grade_level: 'Grade 12', term: 'all' },
+            { id: 'subject-grade12-filipino2', subject_name: 'Filipino 2 (Filipino sa Isports)', grade_level: 'Grade 12', term: 'all' },
+            { id: 'sub_untrimmed_science ', subject_name: 'Science ', grade_level: 'Grade 9', term: 'all' },
+            { id: 'subject-grade9-science', subject_name: 'Science', grade_level: 'Grade 9', term: 'all' },
+        ];
+
+        const sections: Section[] = [
+            { id: 'sec-g12', section_name: 'Rizal', section_grade_level: 'Grade 12' },
+            { id: 'sec-g9', section_name: 'Molave', section_grade_level: 'Grade 9' }
+        ];
+
+        const students: Student[] = [
+            { lrn: '111222333444', first_name: 'Maria', last_name: 'Clara', student_section: 'sec-g12' } as unknown as Student
+        ];
+
+        // Class record encoded under the duplicate/temporary subject ID
+        const classRecords: ClassRecord[] = [
+            {
+                id: 'grade_111222333444_sub_temp_filipino_dup1_Q1',
+                student_lrn: '111222333444',
+                section_id: 'sec-g12',
+                subject_id: 'sub_temp_filipino_dup1', // Duplicate ID!
+                subject_name: 'Filipino 2 (Filipino sa Isports)',
+                school_year: '2026-2027',
+                quarter: 1,
+                written_works: [30],
+                performance_tasks: [50],
+                quarterly_exam: 20,
+                final_grade: 91
+            },
+            {
+                id: 'grade_111222333444_sub_untrimmed_science_Q1',
+                student_lrn: '111222333444',
+                section_id: 'sec-g9',
+                subject_id: 'sub_untrimmed_science ', // Duplicate ID with trailing space!
+                subject_name: 'Science ',
+                school_year: '2026-2027',
+                quarter: 1,
+                written_works: [25],
+                performance_tasks: [45],
+                quarterly_exam: 20,
+                final_grade: 89
+            }
+        ];
+
+        const result = reconcileOrphanedGradesAndSubjects({
+            subjects,
+            sections,
+            students,
+            classRecords,
+            hpsRecords: [],
+            gradingSheetRecords: []
+        });
+
+        // 1. Should detect and deduplicate subjects
+        expect(result.subjectsModified).toBe(true);
+        expect(result.subjects).toHaveLength(2); // Only 2 canonical subjects remain
+        expect(result.subjects.map(s => s.id)).toEqual(['subject-grade12-filipino2', 'subject-grade9-science']);
+
+        // 2. Duplicate IDs should be flagged for deletion from IndexedDB
+        expect(result.deletedSubjectIds).toContain('sub_temp_filipino_dup1');
+        expect(result.deletedSubjectIds).toContain('sub_untrimmed_science ');
+
+        // 3. Class records must be re-linked to canonical subject IDs
+        expect(result.modified).toBe(true);
+        const filipinoRecord = result.classRecords.find(cr => cr.student_lrn === '111222333444' && cr.subject_name === 'Filipino 2 (Filipino sa Isports)');
+        expect(filipinoRecord).toBeDefined();
+        expect(filipinoRecord?.subject_id).toBe('subject-grade12-filipino2');
+        expect(filipinoRecord?.final_grade).toBe(91);
+
+        const scienceRecord = result.classRecords.find(cr => cr.student_lrn === '111222333444' && cr.subject_name === 'Science');
+        expect(scienceRecord).toBeDefined();
+        expect(scienceRecord?.subject_id).toBe('subject-grade9-science');
+        expect(scienceRecord?.final_grade).toBe(89);
+    });
 });
+

@@ -15,6 +15,7 @@ export interface ReconciliationInput {
 export interface ReconciliationResult {
     subjects: Subject[];
     subjectsModified: boolean;
+    deletedSubjectIds: string[];
     classRecords: ClassRecord[];
     hpsRecords: HPSRecord[];
     gradingSheetRecords: ClassRecord[];
@@ -117,6 +118,57 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
     for (const sec of sections) {
         if (sec.id) sectionGradeMap.set(sec.id, sec.section_grade_level);
         if (sec.section_name) sectionGradeMap.set(sec.section_name, sec.section_grade_level);
+    }
+
+    // 0. Auto-heal duplicate subject clusters (early users / legacy databases)
+    // Detects subjects sharing the exact same grade, section, and normalized name,
+    // picks the canonical subject, and maps all duplicates to it so all grades re-link seamlessly.
+    const duplicateIdToCanonicalMap = new Map<string, Subject>();
+    const deletedSubjectIds: string[] = [];
+
+    const clusters: Record<string, Subject[]> = {};
+    for (const sub of workingSubjects) {
+        const cleanGrade = (sub.grade_level || 'all').trim();
+        const cleanSection = (sub.section_id || 'all').trim();
+        const normName = normalizeSubjectName(sub.subject_name);
+        if (!normName) continue;
+        const clusterKey = `${cleanGrade}::${cleanSection}::${normName}`;
+        if (!clusters[clusterKey]) clusters[clusterKey] = [];
+        clusters[clusterKey].push(sub);
+    }
+
+    const deduplicatedSubjects: Subject[] = [];
+    for (const cluster of Object.values(clusters)) {
+        if (cluster.length === 1) {
+            const single = cluster[0];
+            if (single.subject_name !== single.subject_name.trim()) {
+                single.subject_name = single.subject_name.trim();
+                subjectsModified = true;
+            }
+            deduplicatedSubjects.push(single);
+            continue;
+        }
+
+        // Multiple subjects in cluster! Find canonical:
+        // Prefer one with clean trimmed name and without temporary ID
+        const canonical = cluster.find(s => !s.id.startsWith('sub_') && s.subject_name === s.subject_name.trim()) || cluster[0];
+        if (canonical.subject_name !== canonical.subject_name.trim()) {
+            canonical.subject_name = canonical.subject_name.trim();
+            subjectsModified = true;
+        }
+        deduplicatedSubjects.push(canonical);
+
+        const duplicates = cluster.filter(s => s.id !== canonical.id);
+        for (const dup of duplicates) {
+            duplicateIdToCanonicalMap.set(dup.id, canonical);
+            deletedSubjectIds.push(dup.id);
+            subjectsModified = true;
+        }
+    }
+
+    if (deletedSubjectIds.length > 0) {
+        workingSubjects.length = 0;
+        workingSubjects.push(...deduplicatedSubjects);
     }
 
     // 1. Unhide any subjects that have encoded grades but were incorrectly assigned term: 'none',
@@ -241,6 +293,19 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
 
     // 2. Reconcile ClassRecords
     const updatedClassRecords = classRecords.map((cr) => {
+        if (duplicateIdToCanonicalMap.has(cr.subject_id)) {
+            const canonical = duplicateIdToCanonicalMap.get(cr.subject_id)!;
+            ensureSubjectActive(canonical);
+            repairedCount++;
+            modified = true;
+            return {
+                ...cr,
+                subject_id: canonical.id,
+                subject_name: canonical.subject_name,
+                id: `grade_${cr.student_lrn}_${canonical.id}_Q${cr.quarter}`
+            };
+        }
+
         if (currentSubjectIds.has(cr.subject_id)) {
             // Already connected to a valid subject. Ensure subject is active and subject_name is populated if missing.
             const existingSub = workingSubjects.find(s => s.id === cr.subject_id);
@@ -275,6 +340,18 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
 
     // 3. Reconcile HPSRecords
     const updatedHpsRecords = hpsRecords.map((hps) => {
+        if (duplicateIdToCanonicalMap.has(hps.subject_id)) {
+            const canonical = duplicateIdToCanonicalMap.get(hps.subject_id)!;
+            ensureSubjectActive(canonical);
+            repairedCount++;
+            modified = true;
+            return {
+                ...hps,
+                subject_id: canonical.id,
+                id: `hps_${canonical.id}_${hps.section_id || 'all'}_${hps.school_year || ''}_Q${hps.quarter}`
+            };
+        }
+
         if (currentSubjectIds.has(hps.subject_id)) {
             const existingSub = workingSubjects.find(s => s.id === hps.subject_id);
             if (existingSub) ensureSubjectActive(existingSub);
@@ -298,6 +375,19 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
 
     // 4. Reconcile GradingSheetRecords
     const updatedGradingSheetRecords = gradingSheetRecords.map((gs) => {
+        if (duplicateIdToCanonicalMap.has(gs.subject_id)) {
+            const canonical = duplicateIdToCanonicalMap.get(gs.subject_id)!;
+            ensureSubjectActive(canonical);
+            repairedCount++;
+            modified = true;
+            return {
+                ...gs,
+                subject_id: canonical.id,
+                subject_name: canonical.subject_name,
+                id: `${gs.student_lrn}_${canonical.id}_${gs.quarter}_${gs.school_year || ''}`
+            };
+        }
+
         if (currentSubjectIds.has(gs.subject_id)) {
             const existingSub = workingSubjects.find(s => s.id === gs.subject_id);
             if (existingSub) {
@@ -330,6 +420,7 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
     return {
         subjects: workingSubjects,
         subjectsModified,
+        deletedSubjectIds,
         classRecords: updatedClassRecords,
         hpsRecords: updatedHpsRecords,
         gradingSheetRecords: updatedGradingSheetRecords,

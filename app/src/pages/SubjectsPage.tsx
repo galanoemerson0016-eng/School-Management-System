@@ -15,6 +15,7 @@ import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
 import { isMatchingSubject, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
 import { generateDeterministicSubjectId, reconcileOrphanedGradesAndSubjects } from '../utils/grade-reconciliation';
+import { normalizeSubjectName } from '../lib/subjectConfig';
 
 const GRADE_METADATA: Record<string, { icon: LucideIcon; color: string; description: string; bg: string }> = {
     'Grade 1': { icon: BookOpen, color: 'from-pink-500 to-rose-600', bg: 'bg-pink-50', description: 'Emerging Learners - Focus on literacy and numeracy foundations.' },
@@ -1512,6 +1513,28 @@ export function SubjectsPage() {
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
 
+        const cleanName = formData.subject_name.trim();
+        if (!cleanName) {
+            showNotification('Subject name is required.', 'error');
+            return;
+        }
+
+        const grade = (formData.grade_level || selectedGrade || '').trim();
+        const targetSection = (formData.section_id || '').trim();
+
+        // Tier 3 Prevention: Guard against adding or renaming to a duplicate subject
+        const duplicateSubject = subjects.find(s =>
+            s.id !== editingSubjectId &&
+            (s.grade_level || '').trim() === grade &&
+            (s.section_id || '').trim() === targetSection &&
+            normalizeSubjectName((s.subject_name || '').trim()) === normalizeSubjectName(cleanName)
+        );
+
+        if (duplicateSubject) {
+            showNotification(`A subject named "${duplicateSubject.subject_name}" already exists for ${grade || 'this grade'}${targetSection ? ' in this section' : ''}.`, 'error');
+            return;
+        }
+
         // Validation: If any weight is specified, check that all three are specified and sum to 100
         const hasWritten = formData.written_weight.trim() !== '';
         const hasPerformance = formData.performance_weight.trim() !== '';
@@ -1547,17 +1570,16 @@ export function SubjectsPage() {
             examVal = ex / 100;
         }
 
-        const grade = formData.grade_level || selectedGrade || '';
         const gNum = parseInt(grade.replace(/\D/g, '')) || 0;
         const isElemOrJhs = (gNum >= 1 && gNum <= 10) || grade.toLowerCase().includes('kinder');
         const finalTerm = isElemOrJhs ? 'all' : (formData.term === 'all' ? 'all' : (formData.term === 'none' ? 'none' : Number(formData.term) as 1 | 2 | 3));
 
         const subjectData: Subject = {
-            id: editingSubjectId || `subject-${Date.now()}`,
-            subject_name: formData.subject_name,
-            subject_code: formData.subject_code,
-            grade_level: formData.grade_level,
-            section_id: formData.section_id || undefined,
+            id: editingSubjectId || generateDeterministicSubjectId(grade, cleanName, targetSection || undefined),
+            subject_name: cleanName,
+            subject_code: formData.subject_code ? formData.subject_code.trim() : '',
+            grade_level: grade,
+            section_id: targetSection || undefined,
             teacher_id: formData.teacher_id || undefined,
             term: finalTerm,
             written_weight: writtenVal,
@@ -3098,158 +3120,183 @@ export function SubjectsPage() {
 
 
             {/* Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4" onClick={() => setIsModalOpen(false)}>
-                    <div className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-white/10" onClick={(e) => e.stopPropagation()}>
-                        <div className="bg-deped-blue dark:bg-[#0f172a] text-white px-6 py-4 flex justify-between items-center rounded-t-2xl border-b border-deped-blue/30 dark:border-white/10">
-                            <h3 className="text-xl font-bold">{editingSubjectId ? 'Edit Subject' : 'Add Subject'}</h3>
-                            <button onClick={() => setIsModalOpen(false)} className="text-white hover:text-gray-200 cursor-pointer">×</button>
-                        </div>
-                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-1">Subject Name</label>
-                                <input
-                                    type="text"
-                                    value={formData.subject_name}
-                                    onChange={(e) => setFormData({ ...formData, subject_name: e.target.value })}
-                                    placeholder="Type or select a subject..."
-                                    className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white focus:bg-white dark:focus:bg-[#0d1225] rounded-xl border border-slate-200 dark:border-white/10 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-11 px-4"
-                                    list="shs-subjects-list"
-                                    required
-                                />
-                                {shsSubjectSuggestions.length > 0 && (
-                                    <datalist id="shs-subjects-list">
-                                        {shsSubjectSuggestions.map((name, idx) => (
-                                            <option key={idx} value={name} />
-                                        ))}
-                                    </datalist>
-                                )}
+            {isModalOpen && (() => {
+                const cleanModalName = formData.subject_name.trim();
+                const modalGrade = (formData.grade_level || selectedGrade || '').trim();
+                const modalSection = (formData.section_id || '').trim();
+                const normModalName = normalizeSubjectName(cleanModalName);
+                const duplicateExistingSubject = normModalName ? subjects.find(s =>
+                    s.id !== editingSubjectId &&
+                    (s.grade_level || '').trim() === modalGrade &&
+                    (s.section_id || '').trim() === modalSection &&
+                    normalizeSubjectName((s.subject_name || '').trim()) === normModalName
+                ) : null;
+
+                return (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4" onClick={() => setIsModalOpen(false)}>
+                        <div className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-white/10" onClick={(e) => e.stopPropagation()}>
+                            <div className="bg-deped-blue dark:bg-[#0f172a] text-white px-6 py-4 flex justify-between items-center rounded-t-2xl border-b border-deped-blue/30 dark:border-white/10">
+                                <h3 className="text-xl font-bold">{editingSubjectId ? 'Edit Subject' : 'Add Subject'}</h3>
+                                <button onClick={() => setIsModalOpen(false)} className="text-white hover:text-gray-200 cursor-pointer">×</button>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Subject Code (Optional)</label>
-                                <input
-                                    type="text"
-                                    value={formData.subject_code}
-                                    onChange={(e) => setFormData({ ...formData, subject_code: e.target.value })}
-                                    className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white rounded-xl border border-slate-200 dark:border-white/10"
-                                />
-                            </div>
-                            {(() => {
-                                const g = formData.grade_level || selectedGrade || '';
-                                const gn = parseInt(g.replace(/\D/g, '')) || 0;
-                                const isSHS = gn === 11 || gn === 12;
-                                if (!isSHS) return null;
-                                return (
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Term Offered</label>
-                                        <select
-                                            value={formData.term}
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                const parsed = val === 'all' ? 'all' : (val === 'none' ? 'none' : Number(val) as 1 | 2 | 3);
-                                                setFormData({ ...formData, term: parsed });
-                                            }}
-                                            className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white rounded-xl border border-slate-200 dark:border-white/10"
+                            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-1">Subject Name</label>
+                                    <input
+                                        type="text"
+                                        value={formData.subject_name}
+                                        onChange={(e) => setFormData({ ...formData, subject_name: e.target.value })}
+                                        placeholder="Type or select a subject..."
+                                        className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white focus:bg-white dark:focus:bg-[#0d1225] rounded-xl border border-slate-200 dark:border-white/10 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-11 px-4"
+                                        list="shs-subjects-list"
+                                        required
+                                    />
+                                    {shsSubjectSuggestions.length > 0 && (
+                                        <datalist id="shs-subjects-list">
+                                            {shsSubjectSuggestions.map((name, idx) => (
+                                                <option key={idx} value={name} />
+                                            ))}
+                                        </datalist>
+                                    )}
+                                    {duplicateExistingSubject && (
+                                        <div className="mt-2.5 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-200">
+                                            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                            <div>
+                                                <span className="font-bold">Duplicate Detected:</span> A subject named &quot;{duplicateExistingSubject.subject_name}&quot; already exists for {modalGrade || 'this grade'}{modalSection ? ' in this section' : ''}. Adding duplicate records splits student grades.
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Subject Code (Optional)</label>
+                                    <input
+                                        type="text"
+                                        value={formData.subject_code}
+                                        onChange={(e) => setFormData({ ...formData, subject_code: e.target.value })}
+                                        className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white rounded-xl border border-slate-200 dark:border-white/10"
+                                    />
+                                </div>
+                                {(() => {
+                                    const g = formData.grade_level || selectedGrade || '';
+                                    const gn = parseInt(g.replace(/\D/g, '')) || 0;
+                                    const isSHS = gn === 11 || gn === 12;
+                                    if (!isSHS) return null;
+                                    return (
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Term Offered</label>
+                                            <select
+                                                value={formData.term}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    const parsed = val === 'all' ? 'all' : (val === 'none' ? 'none' : Number(val) as 1 | 2 | 3);
+                                                    setFormData({ ...formData, term: parsed });
+                                                }}
+                                                className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white rounded-xl border border-slate-200 dark:border-white/10"
+                                            >
+                                                <option value="all" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">All Terms</option>
+                                                <option value="1" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Term 1 Only</option>
+                                                <option value="2" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Term 2 Only</option>
+                                                <option value="3" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Term 3 Only</option>
+                                                <option value="none" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Not Offered</option>
+                                            </select>
+                                        </div>
+                                    );
+                                })()}
+                                <div className="border-t border-slate-100 dark:border-white/10 pt-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h4 className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Custom Grading Weights (Optional)</h4>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5 mb-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, written_weight: '30', performance_weight: '50', exam_weight: '20' })}
+                                            className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors cursor-pointer"
+                                            title="Languages, AP, EsP / Values, GMRC, Makabansa (30% WW, 50% PT, 20% QA)"
                                         >
-                                            <option value="all" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">All Terms</option>
-                                            <option value="1" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Term 1 Only</option>
-                                            <option value="2" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Term 2 Only</option>
-                                            <option value="3" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Term 3 Only</option>
-                                            <option value="none" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Not Offered</option>
-                                        </select>
+                                            Languages/AP/EsP (30-50-20)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, written_weight: '40', performance_weight: '40', exam_weight: '20' })}
+                                            className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer"
+                                            title="Mathematics and Science (40% WW, 40% PT, 20% QA)"
+                                        >
+                                            Math/Science (40-40-20)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, written_weight: '20', performance_weight: '60', exam_weight: '20' })}
+                                            className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-colors cursor-pointer"
+                                            title="TLE, EPP, MAPEH (20% WW, 60% PT, 20% QA)"
+                                        >
+                                            TLE/EPP/MAPEH (20-60-20)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, written_weight: '', performance_weight: '', exam_weight: '' })}
+                                            className="px-2.5 py-1 text-[10px] font-medium rounded-lg bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/10 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors cursor-pointer"
+                                            title="Reset to DepEd cluster defaults (clears manual overrides)"
+                                        >
+                                            Reset to Default
+                                        </button>
                                     </div>
-                                );
-                            })()}
-                            <div className="border-t border-slate-100 dark:border-white/10 pt-4">
-                                <div className="flex items-center justify-between mb-2">
-                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Custom Grading Weights (Optional)</h4>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Written Works %</label>
+                                            <input
+                                                type="number"
+                                                value={formData.written_weight}
+                                                onChange={(e) => setFormData({ ...formData, written_weight: e.target.value })}
+                                                placeholder="Default"
+                                                className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white focus:bg-white dark:focus:bg-[#0d1225] rounded-xl border border-slate-200 dark:border-white/10 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-10 px-3 text-center text-sm"
+                                                min="0"
+                                                max="100"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Performance %</label>
+                                            <input
+                                                type="number"
+                                                value={formData.performance_weight}
+                                                onChange={(e) => setFormData({ ...formData, performance_weight: e.target.value })}
+                                                placeholder="Default"
+                                                className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white focus:bg-white dark:focus:bg-[#0d1225] rounded-xl border border-slate-200 dark:border-white/10 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-10 px-3 text-center text-sm"
+                                                min="0"
+                                                max="100"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Summative %</label>
+                                            <input
+                                                type="number"
+                                                value={formData.exam_weight}
+                                                onChange={(e) => setFormData({ ...formData, exam_weight: e.target.value })}
+                                                placeholder="Default"
+                                                className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white focus:bg-white dark:focus:bg-[#0d1225] rounded-xl border border-slate-200 dark:border-white/10 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-10 px-3 text-center text-sm"
+                                                min="0"
+                                                max="100"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 dark:text-slate-400 mt-2 italic">Leave empty to use standard DepEd cluster defaults. If custom weights are used, they must sum to 100%.</p>
                                 </div>
-                                <div className="flex flex-wrap gap-1.5 mb-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setFormData({ ...formData, written_weight: '30', performance_weight: '50', exam_weight: '20' })}
-                                        className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors cursor-pointer"
-                                        title="Languages, AP, EsP / Values, GMRC, Makabansa (30% WW, 50% PT, 20% QA)"
-                                    >
-                                        Languages/AP/EsP (30-50-20)
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFormData({ ...formData, written_weight: '40', performance_weight: '40', exam_weight: '20' })}
-                                        className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer"
-                                        title="Mathematics and Science (40% WW, 40% PT, 20% QA)"
-                                    >
-                                        Math/Science (40-40-20)
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFormData({ ...formData, written_weight: '20', performance_weight: '60', exam_weight: '20' })}
-                                        className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-colors cursor-pointer"
-                                        title="TLE, EPP, MAPEH (20% WW, 60% PT, 20% QA)"
-                                    >
-                                        TLE/EPP/MAPEH (20-60-20)
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFormData({ ...formData, written_weight: '', performance_weight: '', exam_weight: '' })}
-                                        className="px-2.5 py-1 text-[10px] font-medium rounded-lg bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/10 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors cursor-pointer"
-                                        title="Reset to DepEd cluster defaults (clears manual overrides)"
-                                    >
-                                        Reset to Default
-                                    </button>
-                                </div>
-                                <div className="grid grid-cols-3 gap-3">
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Written Works %</label>
-                                        <input
-                                            type="number"
-                                            value={formData.written_weight}
-                                            onChange={(e) => setFormData({ ...formData, written_weight: e.target.value })}
-                                            placeholder="Default"
-                                            className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white focus:bg-white dark:focus:bg-[#0d1225] rounded-xl border border-slate-200 dark:border-white/10 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-10 px-3 text-center text-sm"
-                                            min="0"
-                                            max="100"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Performance %</label>
-                                        <input
-                                            type="number"
-                                            value={formData.performance_weight}
-                                            onChange={(e) => setFormData({ ...formData, performance_weight: e.target.value })}
-                                            placeholder="Default"
-                                            className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white focus:bg-white dark:focus:bg-[#0d1225] rounded-xl border border-slate-200 dark:border-white/10 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-10 px-3 text-center text-sm"
-                                            min="0"
-                                            max="100"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Summative %</label>
-                                        <input
-                                            type="number"
-                                            value={formData.exam_weight}
-                                            onChange={(e) => setFormData({ ...formData, exam_weight: e.target.value })}
-                                            placeholder="Default"
-                                            className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white focus:bg-white dark:focus:bg-[#0d1225] rounded-xl border border-slate-200 dark:border-white/10 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-10 px-3 text-center text-sm"
-                                            min="0"
-                                            max="100"
-                                        />
+                                <div>
+                                    <div className="flex justify-end gap-3 pt-4">
+                                        <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2 border border-slate-200 dark:border-white/10 rounded-xl font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-all cursor-pointer">Cancel</button>
+                                        <button
+                                            type="submit"
+                                            disabled={Boolean(duplicateExistingSubject)}
+                                            className={`btn-primary cursor-pointer shadow-md ${duplicateExistingSubject ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
+                                        >
+                                            {editingSubjectId ? 'Update' : 'Add'}
+                                        </button>
                                     </div>
                                 </div>
-                                <p className="text-[10px] text-slate-400 dark:text-slate-400 mt-2 italic">Leave empty to use standard DepEd cluster defaults. If custom weights are used, they must sum to 100%.</p>
-                            </div>
-                            <div>
-                                <div className="flex justify-end gap-3 pt-4">
-                                <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2 border border-slate-200 dark:border-white/10 rounded-xl font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-all cursor-pointer">Cancel</button>
-                                <button type="submit" className="btn-primary cursor-pointer shadow-md">
-                                    {editingSubjectId ? 'Update' : 'Add'}
-                                </button>
-                                </div>
-                            </div>
-                        </form>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             <ConfirmationModal
                 open={showDeleteAllConfirm}
