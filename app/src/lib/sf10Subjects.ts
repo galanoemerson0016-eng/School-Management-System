@@ -213,6 +213,10 @@ export const SHS_SPECIALIZED_SUBJECTS = [
     'TVL: Food and Beverage Services (NC II)',
     'TVL: Cookery (NC II)',
     'TVL: Computer Systems Servicing (NC II)',
+    'TVL: Computer Programming (Java) ( NC III )',
+    'Computer Programming (Java) ( NC III )',
+    'TVL: Computer Programming (.Net Technology) ( NC III )',
+    'TVL: Computer Programming (Oracle Database) ( NC III )',
     'TVL: Shielded Metal Arc Welding (NC II)',
     'TVL: Electrical Installation and Maintenance (NC II)'
 ];

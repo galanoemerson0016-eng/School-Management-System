@@ -466,16 +466,21 @@ function updateFormulaValueInSheetXml(
   value: string | number | undefined | null
 ): string {
   if (value === undefined || value === null) return sheetXml;
-  const formattedVal = escapeXml(value);
+  const hasValue = value !== '';
   const isNum = typeof value === 'number' && !isNaN(value);
-  const typeAttr = isNum ? '' : ' t="str"';
 
   const selfClosingRegex = new RegExp(`<c\\s+r="${cellRef}"([^>]*?)\\/>`);
   if (selfClosingRegex.test(sheetXml)) {
     return sheetXml.replace(selfClosingRegex, (_match, attrs) => {
       const styleMatch = attrs.match(/\s+s="(\d+)"/);
       const styleAttr = styleMatch ? ` s="${styleMatch[1]}"` : '';
-      return `<c r="${cellRef}"${styleAttr}${typeAttr}><v>${formattedVal}</v></c>`;
+      if (!hasValue) {
+        return `<c r="${cellRef}"${styleAttr}/>`;
+      }
+      if (isNum) {
+        return `<c r="${cellRef}"${styleAttr}><v>${value}</v></c>`;
+      }
+      return `<c r="${cellRef}"${styleAttr} t="inlineStr"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`;
     });
   }
 
@@ -485,7 +490,19 @@ function updateFormulaValueInSheetXml(
       const cleanAttrs = attrs.replace(/\s+t="[^"]*"/g, '');
       const fMatch = body.match(/<f[^>]*>[\s\S]*?<\/f>/);
       const fTag = fMatch ? fMatch[0] : '';
-      return `<c r="${cellRef}"${cleanAttrs}${typeAttr}>${fTag}<v>${formattedVal}</v></c>`;
+      if (!hasValue) {
+        if (fTag) {
+          return `<c r="${cellRef}"${cleanAttrs}>${fTag}</c>`;
+        }
+        return `<c r="${cellRef}"${cleanAttrs}/>`;
+      }
+      if (isNum) {
+        return `<c r="${cellRef}"${cleanAttrs}>${fTag}<v>${value}</v></c>`;
+      }
+      if (fTag) {
+        return `<c r="${cellRef}"${cleanAttrs} t="str">${fTag}<v>${escapeXml(value)}</v></c>`;
+      }
+      return `<c r="${cellRef}"${cleanAttrs} t="inlineStr"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`;
     });
   }
 
@@ -507,11 +524,20 @@ function updateFormulaCellExplicit(
   value: string | number | undefined | null,
   forceStyle?: string
 ): string {
-  const formattedVal = escapeXml(value);
+  const hasValue = value !== undefined && value !== null && value !== '';
   const isNum = typeof value === 'number' && !isNaN(value);
-  const typeAttr = isNum ? '' : ' t="str"';
   const fTag = formula ? `<f>${escapeFormula(formula)}</f>` : '';
-  const vTag = `<v>${formattedVal}</v>`;
+
+  let typeAttr = '';
+  let valTag = '';
+  if (hasValue) {
+    if (isNum) {
+      valTag = `<v>${value}</v>`;
+    } else {
+      typeAttr = ' t="str"';
+      valTag = `<v>${escapeXml(value)}</v>`;
+    }
+  }
 
   const selfClosingRegex = new RegExp(`<c\\s+r="${cellRef}"([^>]*?)\\/>`);
   if (selfClosingRegex.test(sheetXml)) {
@@ -519,7 +545,10 @@ function updateFormulaCellExplicit(
       const styleMatch = attrs.match(/\s+s="(\d+)"/);
       const styleId = forceStyle || (styleMatch ? styleMatch[1] : '');
       const styleAttr = styleId ? ` s="${styleId}"` : '';
-      return `<c r="${cellRef}"${styleAttr}${typeAttr}>${fTag}${vTag}</c>`;
+      if (!fTag && !valTag) {
+        return `<c r="${cellRef}"${styleAttr}/>`;
+      }
+      return `<c r="${cellRef}"${styleAttr}${typeAttr}>${fTag}${valTag}</c>`;
     });
   }
 
@@ -529,7 +558,10 @@ function updateFormulaCellExplicit(
       const styleMatch = attrs.match(/\s+s="(\d+)"/);
       const styleId = forceStyle || (styleMatch ? styleMatch[1] : '');
       const styleAttr = styleId ? ` s="${styleId}"` : '';
-      return `<c r="${cellRef}"${styleAttr}${typeAttr}>${fTag}${vTag}</c>`;
+      if (!fTag && !valTag) {
+        return `<c r="${cellRef}"${styleAttr}/>`;
+      }
+      return `<c r="${cellRef}"${styleAttr}${typeAttr}>${fTag}${valTag}</c>`;
     });
   }
 
@@ -612,7 +644,7 @@ async function getWorkbookSheetMap(zip: JSZip): Promise<{
 
 function ensureRemarksStyles(stylesXml: string): { stylesXml: string; style10Id: string; style12Id: string } {
   let updatedStyles = stylesXml;
-  const style12Id = '563';
+  const style12Id = '146';
 
   let font10Index = -1;
   const fontsMatch = updatedStyles.match(/<fonts\s+count="(\d+)"([^>]*)>([\s\S]*?)<\/fonts>/);
@@ -641,7 +673,7 @@ function ensureRemarksStyles(stylesXml: string): { stylesXml: string; style10Id:
     }
   }
 
-  let style10Id = '563';
+  let style10Id = style12Id;
   const cellXfsMatch = updatedStyles.match(/<cellXfs\s+count="(\d+)"([^>]*)>([\s\S]*?)<\/cellXfs>/);
   if (cellXfsMatch && font10Index !== -1) {
     let xfCount = parseInt(cellXfsMatch[1], 10);
@@ -661,7 +693,7 @@ function ensureRemarksStyles(stylesXml: string): { stylesXml: string; style10Id:
       }
     }
 
-    if (style10Id === '563') {
+    if (style10Id === style12Id) {
       style10Id = String(xfItems.length);
       const newXf = `<xf numFmtId="3" fontId="${font10Index}" fillId="0" borderId="97" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>`;
       xfCount++;
@@ -904,8 +936,8 @@ export async function populateGrade11TechProTemplateBuffer(
 
   // Ensure 10pt and 12pt wrapped remarks styles in xl/styles.xml
   const stylesFile = zip.file('xl/styles.xml');
-  let style10Id = '563';
-  let style12Id = '563';
+  let style10Id = '146';
+  let style12Id = '146';
   if (stylesFile) {
     const stylesXml = await stylesFile.async('text');
     const res = ensureRemarksStyles(stylesXml);
@@ -1712,7 +1744,7 @@ export async function populateGrade11TechProTemplateBuffer(
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K37', 'IF(J37="", "", IF(J37>=75, "Passed", "Failed"))', getRemarks(sciFinal));
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K38', 'IF(J38="", "", IF(J38>=75, "Passed", "Failed"))', getRemarks(lcsFinal));
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K39', 'IF(J39="", "", IF(J39>=75, "Passed", "Failed"))', getRemarks(pklpFinal));
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K41', 'IF(J41="", "", IF(J41>=75, "Passed", "Failed"))', getRemarks(electiveFinal), '577');
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K41', 'IF(J41="", "", IF(J41>=75, "Passed", "Failed"))', getRemarks(electiveFinal));
 
       // Weighted Points (Column L = J * I) - safely guarded against empty strings to eliminate #VALUE!
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'L33', 'IF(J33="","",J33*I33)', commFinal !== '' ? commFinal * 6 : '');
@@ -1856,7 +1888,7 @@ export async function populateGrade11TechProTemplateBuffer(
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J39', 'IF(I39="","",IF(I39>=75,"Passed","Failed"))', getRemarks(pklpFinal));
 
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I41', 'IF(COUNT(F41:H41)<3,"",ROUND(AVERAGE(F41:H41),0))', electiveFinal);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J41', 'IF(I41="","",IF(I41>=75,"Passed","Failed"))', getRemarks(electiveFinal), '577');
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J41', 'IF(I41="","",IF(I41>=75,"Passed","Failed"))', getRemarks(electiveFinal));
 
       const legacyLearningAreas = [commFinal, mathFinal, sciFinal, lcsFinal, pklpFinal, electiveFinal].filter((v): v is number => typeof v === 'number' && v > 0);
       const legacyGenAvg = legacyLearningAreas.length === 6 ? Math.round(legacyLearningAreas.reduce((a, b) => a + b, 0) / 6) : '';

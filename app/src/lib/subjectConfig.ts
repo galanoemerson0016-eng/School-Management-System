@@ -496,6 +496,17 @@ export function getCanonicalSubjectKey(name: string, gradeLevel?: string | numbe
     return `physicaleducationandhealth${num}`;
   }
 
+  // Computer Programming specializations (Java, .Net, Oracle)
+  if (norm.includes('computerprogrammingjava') || norm.includes('programmingjava')) {
+    return 'computerprogrammingjava';
+  }
+  if (norm.includes('computerprogrammingdotnet') || norm.includes('programmingdotnet') || norm.includes('programmingnet')) {
+    return 'computerprogrammingdotnet';
+  }
+  if (norm.includes('computerprogrammingoracle') || norm.includes('programmingoracle')) {
+    return 'computerprogrammingoracle';
+  }
+
   const gNum = gradeLevel ? (typeof gradeLevel === 'number' ? gradeLevel : parseInt(String(gradeLevel).replace(/\D/g, '')) || 0) : 0;
   const isSHS = gNum === 11 || gNum === 12;
 

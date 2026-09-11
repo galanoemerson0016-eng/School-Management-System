@@ -372,7 +372,7 @@ export const testGrade1To12Sections: Section[] = [
             'Mabisang Komunikasyon',
             'Pag-aaral ng Kasaysayan at Lipunang Pilipino',
             'Computer Systems Servicing',
-            'Computer Programming (Java)',
+            'Computer Programming (Java) ( NC III )',
             'Broadband Installation'
         ],
         teaching_subjects: [
@@ -383,7 +383,7 @@ export const testGrade1To12Sections: Section[] = [
             'Mabisang Komunikasyon',
             'Pag-aaral ng Kasaysayan at Lipunang Pilipino',
             'Computer Systems Servicing',
-            'Computer Programming (Java)',
+            'Computer Programming (Java) ( NC III )',
             'Broadband Installation'
         ]
     },

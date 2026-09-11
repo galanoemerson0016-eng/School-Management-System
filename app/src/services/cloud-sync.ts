@@ -1,4 +1,5 @@
-import { db } from './database';
+import { exportFullDatabaseBackup } from '../utils/backup-restore';
+import { embedChecksum } from '../utils/backup-integrity';
 
 export interface CloudSyncState {
   linked: boolean;
@@ -279,11 +280,12 @@ export const CloudSyncService = {
 
     try {
       this.emitStatusChange({ ...state, isSyncing: true });
-      console.log('🔄 Exporting fresh school data backup for cloud sync...');
-      const backupData = await db.exportAllData();
+      console.log('🔄 Exporting fresh full comprehensive school data backup for cloud sync...');
+      const comprehensive = await exportFullDatabaseBackup('Google Drive Cloud Sync');
+      const backupData = await embedChecksum(comprehensive as unknown as Record<string, unknown>);
       const backupJsonStr = JSON.stringify(backupData, null, 2);
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `SMS_Backup_Cloud_${timestamp}.json`;
+      const filename = `SMS_Backup_Comprehensive_Cloud_${timestamp}.json`;
 
       if (window.electronAPI?.gdriveUploadBackup) {
         await window.electronAPI.gdriveUploadBackup({ backupJsonStr, filename });

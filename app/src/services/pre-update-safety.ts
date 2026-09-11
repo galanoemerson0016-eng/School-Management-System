@@ -12,11 +12,10 @@
  */
 
 import JSZip from 'jszip';
-import { db } from './database';
 import { getMasterExcelBackupBuffer } from './master-excel-backup';
 import { generateConsolidatedExcelBuffer, generateConsolidatedPDFBuffer } from './consolidated-export-service';
 import type { Section, Student, Subject, ClassRecord } from '../types';
-import type { ComprehensiveBackup } from '../utils/backup-restore';
+import { exportFullDatabaseBackup, type ComprehensiveBackup } from '../utils/backup-restore';
 
 export type SafetyBackupDataInput = ComprehensiveBackup | ComprehensiveBackup['payload'] | Record<string, unknown>;
 
@@ -116,7 +115,7 @@ export async function generatePreUpdateSafetyVault(
     let backupData: SafetyBackupDataInput | undefined = customBackup;
     if (!backupData) {
       if (typeof indexedDB !== 'undefined') {
-        backupData = (await db.exportAllData()) as unknown as ComprehensiveBackup;
+        backupData = await exportFullDatabaseBackup('Pre-Update Safety Backup');
       } else {
         backupData = {
           activeSchoolYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,

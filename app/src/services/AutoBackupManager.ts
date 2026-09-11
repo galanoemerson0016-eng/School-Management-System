@@ -1,4 +1,6 @@
 import { db } from './database';
+import { exportFullDatabaseBackup, type ComprehensiveBackup } from '../utils/backup-restore';
+import { embedChecksum } from '../utils/backup-integrity';
 
 export interface AutomatedBackupEntry {
   id: string;
@@ -20,7 +22,7 @@ export interface AutomatedBackupEntry {
     users?: number;
     activityLog?: number;
   };
-  data: Awaited<ReturnType<typeof db.exportAllData>>;
+  data: ComprehensiveBackup | Awaited<ReturnType<typeof db.exportAllData>>;
 }
 
 export const AutoBackupManager = {
@@ -136,7 +138,8 @@ export const AutoBackupManager = {
    */
   async triggerBackup(): Promise<string> {
     try {
-      const data = await db.exportAllData();
+      const comprehensive = await exportFullDatabaseBackup('Automated Daily Backup Snapshot');
+      const data = (await embedChecksum(comprehensive as unknown as Record<string, unknown>)) as unknown as ComprehensiveBackup;
       const backupId = `auto_backup_${Date.now()}`;
       const timestamp = Date.now();
       const dateStr = new Date(timestamp).toLocaleDateString();
@@ -148,19 +151,19 @@ export const AutoBackupManager = {
         label,
         fileSize: JSON.stringify(data).length,
         recordCounts: {
-          students: data.students?.length || 0,
-          sections: data.sections?.length || 0,
-          subjects: data.subjects?.length || 0,
-          classRecords: data.classRecords?.length || 0,
-          enrollments: data.enrollments?.length || 0,
-          announcements: data.announcements?.length || 0,
-          attendanceRecords: data.attendanceRecords?.length || 0,
-          gradingSheetRecords: data.gradingSheetRecords?.length || 0,
-          observedValues: data.observedValues?.length || 0,
-          sf2Sheets: data.sf2Sheets?.length || 0,
-          hpsRecords: data.hpsRecords?.length || 0,
-          users: data.users?.length || 0,
-          activityLog: data.activityLog?.length || 0,
+          students: data.summary.students,
+          sections: data.summary.sections,
+          subjects: data.summary.subjects,
+          classRecords: data.summary.grades,
+          enrollments: data.summary.enrollments,
+          announcements: data.summary.announcements,
+          attendanceRecords: data.summary.attendanceRecords ?? 0,
+          gradingSheetRecords: data.summary.gradingSheetRecords ?? 0,
+          observedValues: data.summary.observedValues ?? 0,
+          sf2Sheets: data.summary.sf2Sheets ?? 0,
+          hpsRecords: data.summary.hpsRecords ?? 0,
+          users: data.summary.users ?? 0,
+          activityLog: data.summary.activityLog ?? 0,
         },
         data,
       };
@@ -172,7 +175,7 @@ export const AutoBackupManager = {
       if (window.electronAPI?.saveAutoBackup) {
         try {
           const timestampStr = new Date(timestamp).toISOString().replace(/[:.]/g, '-');
-          const fsFilename = `snapshot_backup_${timestampStr}.json`;
+          const fsFilename = `SMS_Backup_Comprehensive_${timestampStr}.json`;
           await window.electronAPI.saveAutoBackup(data, fsFilename);
         } catch (fsErr) {
           console.error('Failed to write backup snapshot to local drive:', fsErr);

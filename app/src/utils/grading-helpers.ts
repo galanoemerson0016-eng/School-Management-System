@@ -150,6 +150,26 @@ export function isMatchingSubject(
         if (normTarget.includes(k) && (normName.includes(k) || cleanedId.includes(k))) return true;
     }
 
+    // 3.13 Computer Programming specializations (Java, .Net, Oracle)
+    if (
+        (normTarget.includes('computerprogrammingjava') || normTarget.includes('programmingjava')) &&
+        (normName.includes('computerprogrammingjava') || normName.includes('programmingjava') || cleanedId.includes('computerprogrammingjava') || cleanedId.includes('programmingjava'))
+    ) {
+        return true;
+    }
+    if (
+        (normTarget.includes('computerprogrammingdotnet') || normTarget.includes('programmingdotnet') || normTarget.includes('programmingnet')) &&
+        (normName.includes('computerprogrammingdotnet') || normName.includes('programmingdotnet') || normName.includes('programmingnet') || cleanedId.includes('computerprogrammingdotnet') || cleanedId.includes('programmingdotnet'))
+    ) {
+        return true;
+    }
+    if (
+        (normTarget.includes('computerprogrammingoracle') || normTarget.includes('programmingoracle')) &&
+        (normName.includes('computerprogrammingoracle') || normName.includes('programmingoracle') || cleanedId.includes('computerprogrammingoracle') || cleanedId.includes('programmingoracle'))
+    ) {
+        return true;
+    }
+
     return false;
 }
 

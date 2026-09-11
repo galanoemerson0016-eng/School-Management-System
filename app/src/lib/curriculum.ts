@@ -231,7 +231,7 @@ export const STANDARD_SUBJECTS = {
         // Cluster: ICT SUPPORT AND COMPUTER PROGRAMMING TECHNOLOGIES
         { name: 'Broadband Installation', code: '' },
         { name: 'Computer Programming (.Net Technology)', code: '' },
-        { name: 'Computer Programming (Java)', code: '' },
+        { name: 'Computer Programming (Java) ( NC III )', code: '' },
         { name: 'Computer Programming (Oracle Database)', code: '' },
         { name: 'Computer Systems Servicing', code: '' },
         { name: 'Contact Center Services', code: '' },
@@ -381,7 +381,7 @@ export const STANDARD_SUBJECTS = {
         // Cluster: ICT SUPPORT AND COMPUTER PROGRAMMING TECHNOLOGIES
         { name: 'Broadband Installation', code: '' },
         { name: 'Computer Programming (.Net Technology)', code: '' },
-        { name: 'Computer Programming (Java)', code: '' },
+        { name: 'Computer Programming (Java) ( NC III )', code: '' },
         { name: 'Computer Programming (Oracle Database)', code: '' },
         { name: 'Computer Systems Servicing', code: '' },
         { name: 'Contact Center Services', code: '' },
@@ -947,7 +947,7 @@ export const SPECIAL_SUBJECTS: Record<string, SpecialSubjectItem[]> = {
         { name: 'Mechatronics', code: '' },
         { name: 'Photovoltaic Systems Installation', code: '' },
         { name: 'Broadband Installation', code: '' },
-        { name: 'Computer Programming (Java)', code: '' },
+        { name: 'Computer Programming (Java) ( NC III )', code: '' },
         { name: 'Computer Programming (.Net Technology)', code: '' },
         { name: 'Computer Programming (Oracle Database)', code: '' },
         { name: 'Computer Systems Servicing', code: '' },
@@ -1160,7 +1160,7 @@ export const SSHS_TECHPRO_CLUSTERS: Record<string, string[]> = {
     ],
     'ICT Support and Computer Programming Technologies': [
         'Broadband Installation',
-        'Computer Programming (Java)',
+        'Computer Programming (Java) ( NC III )',
         'Computer Programming (.Net Technology)',
         'Computer Programming (Oracle Database)',
         'Computer Systems Servicing',

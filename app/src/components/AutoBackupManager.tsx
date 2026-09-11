@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useState } from 'react';
-import { db } from '../services/database';
 import { ConfirmationModal } from './ui/ConfirmationModal';
+import { exportFullDatabaseBackup } from '../utils/backup-restore';
+import { embedChecksum } from '../utils/backup-integrity';
 
 export function AutoBackupManager() {
   const [showConfirm, setShowConfirm] = useState(false);
@@ -10,13 +11,14 @@ export function AutoBackupManager() {
 
   const performSilentBackup = useCallback(async () => {
     try {
-      // 1. Export all data from IndexedDB
-      const data = await db.exportAllData();
+      // 1. Export full comprehensive database backup
+      const comprehensive = await exportFullDatabaseBackup('Silent Auto-Backup');
+      const data = await embedChecksum(comprehensive as unknown as Record<string, unknown>);
       
       // 2. Prepare filename with timestamp
       const now = new Date();
       const timestamp = now.toISOString().replace(/[:.]/g, '-');
-      const filename = `autobackup_${timestamp}.json`;
+      const filename = `SMS_Backup_Comprehensive_${timestamp}.json`;
 
       // 3. Call Electron IPC to save silently
       if (window.electronAPI && window.electronAPI.saveAutoBackup) {

@@ -474,26 +474,36 @@ async function exportAllData() {
   };
 }
 
-/**
- * Import data from backup JSON
- */
-async function importFromBackup(backupData: {
-  schoolProfile: SchoolProfile[];
-  students: Student[];
-  sections: Section[];
-  subjects: Subject[];
-  classRecords: ClassRecord[];
-  enrollments: Enrollment[];
-  announcements: Announcement[];
-  attendanceRecords: AttendanceRecord[];
-  sf2Sheets: SF2Sheet[];
-  hpsRecords: HPSRecord[];
+export interface BackupImportPayload {
+  schoolProfile?: SchoolProfile[] | SchoolProfile;
+  students?: Student[];
+  studentProfiles?: Student[];
+  sections?: Section[];
+  subjects?: Subject[];
+  classRecords?: ClassRecord[];
+  grades?: ClassRecord[];
+  enrollments?: Enrollment[];
+  announcements?: Announcement[];
+  attendanceRecords?: AttendanceRecord[];
+  sf2Sheets?: SF2Sheet[];
+  hpsRecords?: HPSRecord[];
   gradingSheetRecords?: ClassRecord[];
   observedValues?: ObservedValues[];
   users?: unknown[];
   activityLog?: unknown[];
   localStorageData?: Record<string, string>;
-}) {
+  payload?: BackupImportPayload;
+  data?: BackupImportPayload;
+  [key: string]: unknown;
+}
+
+/**
+ * Import data from backup JSON
+ */
+async function importFromBackup(rawBackupData: BackupImportPayload) {
+  const backupData = (rawBackupData?.payload || rawBackupData?.data || rawBackupData) as BackupImportPayload;
+  if (!backupData) return;
+
   // Clear existing data
   const stores = [
     'schoolProfile',
@@ -522,7 +532,8 @@ async function importFromBackup(backupData: {
 
   // Import new data
   if (backupData.schoolProfile) {
-    await putRecordsBulk('schoolProfile', backupData.schoolProfile);
+    const profiles = Array.isArray(backupData.schoolProfile) ? backupData.schoolProfile : [backupData.schoolProfile];
+    await putRecordsBulk('schoolProfile', profiles);
   }
   if (backupData.students) {
     await putRecordsBulk('students', backupData.students);
@@ -533,8 +544,8 @@ async function importFromBackup(backupData: {
   if (backupData.subjects) {
     await putRecordsBulk('subjects', backupData.subjects);
   }
-  if (backupData.classRecords) {
-    await putRecordsBulk('classRecords', backupData.classRecords);
+  if (backupData.classRecords || backupData.grades) {
+    await putRecordsBulk('classRecords', backupData.classRecords || backupData.grades);
   }
   if (backupData.enrollments) {
     await putRecordsBulk('enrollments', backupData.enrollments);

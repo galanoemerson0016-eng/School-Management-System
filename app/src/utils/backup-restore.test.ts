@@ -17,6 +17,8 @@ import {
     restoreBackupLocalStorage,
     createComprehensiveBackup,
     generateBackupReport,
+    exportFullDatabaseBackup,
+    downloadComprehensiveBackup,
 } from './backup-restore';
 import type { ComprehensiveBackup } from './backup-restore';
 import type { SchoolProfile } from '../types';
@@ -233,6 +235,43 @@ describe('collectBackupLocalStorage & restoreBackupLocalStorage', () => {
 
         const report = generateBackupReport(backup);
         expect(report).toContain('SF10 Customizations & Remarks: 2 learner(s)');
+    });
+
+    it('exports full database backup as ComprehensiveBackup with metadata, summary, and payload', async () => {
+        const backup = await exportFullDatabaseBackup('automated-test');
+
+        expect(backup).toBeDefined();
+        expect(backup.metadata).toBeDefined();
+        expect(backup.metadata.version).toBe('2.0.0-local');
+        expect(backup.metadata.exportedBy).toBe('automated-test');
+        expect(backup.metadata.payloadHash).toBeDefined();
+        expect(backup.summary).toBeDefined();
+        expect(backup.payload).toBeDefined();
+        expect(backup.payload.schoolProfile).toBeDefined();
+        expect(Array.isArray(backup.payload.students)).toBe(true);
+        expect(Array.isArray(backup.payload.sections)).toBe(true);
+        expect(Array.isArray(backup.payload.subjects)).toBe(true);
+        expect(Array.isArray(backup.payload.classRecords)).toBe(true);
+        expect(backup._checksum).toBeDefined();
+
+        const validation = await validateBackup(backup);
+        expect(validation.isValid).toBe(true);
+    });
+
+    it('downloadComprehensiveBackup creates download element with SMS_Backup_Comprehensive filename', () => {
+        const fakeBackup = makeBackup();
+        const appendChildSpy = vi.spyOn(document.body, 'appendChild');
+        const removeChildSpy = vi.spyOn(document.body, 'removeChild');
+
+        downloadComprehensiveBackup(fakeBackup);
+
+        expect(appendChildSpy).toHaveBeenCalled();
+        const link = appendChildSpy.mock.calls[0][0] as HTMLAnchorElement;
+        expect(link.download).toMatch(/^SMS_Backup_Comprehensive_\d{4}-\d{2}-\d{2}\.json$/);
+        expect(removeChildSpy).toHaveBeenCalledWith(link);
+
+        appendChildSpy.mockRestore();
+        removeChildSpy.mockRestore();
     });
 });
 

@@ -1349,7 +1349,7 @@ export const SSHS_ELECTIVE_CATALOG: SshsElective[] = [
         ncLevel: 'NC II'
     },
     {
-        title: 'Computer Programming (Java)',
+        title: 'Computer Programming (Java) ( NC III )',
         hours: 320,
         gradeLevel: '11/12',
         cluster: 'ICT Support and Computer Programming Technologies',

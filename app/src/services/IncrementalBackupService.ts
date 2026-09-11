@@ -1,4 +1,6 @@
 import { db } from './database';
+import { exportFullDatabaseBackup } from '../utils/backup-restore';
+import { embedChecksum } from '../utils/backup-integrity';
 
 let isDirty = false;
 let timerId: ReturnType<typeof setInterval> | null = null;
@@ -29,9 +31,10 @@ export const IncrementalBackupService = {
   async triggerIncrementalBackup(): Promise<void> {
     try {
       console.log('📦 Background scheduler: modifications detected. Generating incremental backup...');
-      const backupData = await db.exportAllData();
+      const comprehensive = await exportFullDatabaseBackup('Incremental Snapshot');
+      const backupData = await embedChecksum(comprehensive as unknown as Record<string, unknown>);
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `incremental_backup_${timestamp}.json`;
+      const filename = `SMS_Backup_Comprehensive_incremental_${timestamp}.json`;
 
       if (window.electronAPI?.saveAutoBackup) {
         // Incremental backups are written using standard auto-backup filesystem logic
@@ -65,7 +68,7 @@ export const IncrementalBackupService = {
       const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
       for (const entry of backups) {
-        if (entry.filename.startsWith('incremental_backup_')) {
+        if (entry.filename.startsWith('incremental_backup_') || entry.filename.startsWith('SMS_Backup_Comprehensive_incremental_')) {
           const fileAge = now - entry.mtime;
           if (fileAge > ONE_DAY_MS) {
             console.log(`🧹 Cleaning up old incremental backup file: ${entry.filename}`);

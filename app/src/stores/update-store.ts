@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { db } from '../services/database';
 import { generatePreUpdateSafetyVault } from '../services/pre-update-safety';
+import { exportFullDatabaseBackup } from '../utils/backup-restore';
+import { embedChecksum } from '../utils/backup-integrity';
 import type { Student } from '../types';
 
 export interface UpdateChecklist {
@@ -269,9 +271,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
         let backupFilename = '';
         try {
           const targetVer = get().updateInfo?.version || 'Latest';
-          const backupData = await db.exportAllData();
+          const comprehensive = await exportFullDatabaseBackup(`Pre-Update Safety Backup - v${targetVer}`);
+          const backupData = await embedChecksum(comprehensive as unknown as Record<string, unknown>);
           const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          backupFilename = `preupdate_backup_${targetVer}_${timestamp}.json`;
+          backupFilename = `SMS_Backup_Comprehensive_preupdate_${targetVer}_${timestamp}.json`;
           
           // 1. Electron JSON local copy
           await api.saveAutoBackup(backupData, backupFilename);

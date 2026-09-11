@@ -480,16 +480,21 @@ function updateFormulaValueInSheetXml(
   value: string | number | undefined | null
 ): string {
   if (value === undefined || value === null) return sheetXml;
-  const formattedVal = escapeXml(value);
+  const hasValue = value !== '';
   const isNum = typeof value === 'number' && !isNaN(value);
-  const typeAttr = isNum ? '' : ' t="str"';
 
   const selfClosingRegex = new RegExp(`<c\\s+r="${cellRef}"([^>]*?)\\/>`);
   if (selfClosingRegex.test(sheetXml)) {
     return sheetXml.replace(selfClosingRegex, (_match, attrs) => {
       const styleMatch = attrs.match(/\s+s="(\d+)"/);
       const styleAttr = styleMatch ? ` s="${styleMatch[1]}"` : '';
-      return `<c r="${cellRef}"${styleAttr}${typeAttr}><v>${formattedVal}</v></c>`;
+      if (!hasValue) {
+        return `<c r="${cellRef}"${styleAttr}/>`;
+      }
+      if (isNum) {
+        return `<c r="${cellRef}"${styleAttr}><v>${value}</v></c>`;
+      }
+      return `<c r="${cellRef}"${styleAttr} t="inlineStr"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`;
     });
   }
 
@@ -499,7 +504,19 @@ function updateFormulaValueInSheetXml(
       const cleanAttrs = attrs.replace(/\s+t="[^"]*"/g, '');
       const fMatch = body.match(/<f[^>]*>[\s\S]*?<\/f>/);
       const fTag = fMatch ? fMatch[0] : '';
-      return `<c r="${cellRef}"${cleanAttrs}${typeAttr}>${fTag}<v>${formattedVal}</v></c>`;
+      if (!hasValue) {
+        if (fTag) {
+          return `<c r="${cellRef}"${cleanAttrs}>${fTag}</c>`;
+        }
+        return `<c r="${cellRef}"${cleanAttrs}/>`;
+      }
+      if (isNum) {
+        return `<c r="${cellRef}"${cleanAttrs}>${fTag}<v>${value}</v></c>`;
+      }
+      if (fTag) {
+        return `<c r="${cellRef}"${cleanAttrs} t="str">${fTag}<v>${escapeXml(value)}</v></c>`;
+      }
+      return `<c r="${cellRef}"${cleanAttrs} t="inlineStr"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`;
     });
   }
 
@@ -518,14 +535,23 @@ function updateFormulaCellExplicit(
   sheetXml: string,
   cellRef: string,
   formula: string,
-  value: string | number,
+  value: string | number | undefined | null,
   forceStyle?: string
 ): string {
-  const formattedVal = escapeXml(value);
+  const hasValue = value !== undefined && value !== null && value !== '';
   const isNum = typeof value === 'number' && !isNaN(value);
-  const typeAttr = isNum ? '' : ' t="str"';
   const fTag = formula ? `<f>${escapeFormula(formula)}</f>` : '';
-  const vTag = `<v>${formattedVal}</v>`;
+
+  let typeAttr = '';
+  let valTag = '';
+  if (hasValue) {
+    if (isNum) {
+      valTag = `<v>${value}</v>`;
+    } else {
+      typeAttr = ' t="str"';
+      valTag = `<v>${escapeXml(value)}</v>`;
+    }
+  }
 
   const selfClosingRegex = new RegExp(`<c\\s+r="${cellRef}"([^>]*?)\\/>`);
   if (selfClosingRegex.test(sheetXml)) {
@@ -533,7 +559,10 @@ function updateFormulaCellExplicit(
       const styleMatch = attrs.match(/\s+s="(\d+)"/);
       const styleId = forceStyle || (styleMatch ? styleMatch[1] : '');
       const styleAttr = styleId ? ` s="${styleId}"` : '';
-      return `<c r="${cellRef}"${styleAttr}${typeAttr}>${fTag}${vTag}</c>`;
+      if (!fTag && !valTag) {
+        return `<c r="${cellRef}"${styleAttr}/>`;
+      }
+      return `<c r="${cellRef}"${styleAttr}${typeAttr}>${fTag}${valTag}</c>`;
     });
   }
 
@@ -543,7 +572,10 @@ function updateFormulaCellExplicit(
       const styleMatch = attrs.match(/\s+s="(\d+)"/);
       const styleId = forceStyle || (styleMatch ? styleMatch[1] : '');
       const styleAttr = styleId ? ` s="${styleId}"` : '';
-      return `<c r="${cellRef}"${styleAttr}${typeAttr}>${fTag}${vTag}</c>`;
+      if (!fTag && !valTag) {
+        return `<c r="${cellRef}"${styleAttr}/>`;
+      }
+      return `<c r="${cellRef}"${styleAttr}${typeAttr}>${fTag}${valTag}</c>`;
     });
   }
 
@@ -626,7 +658,7 @@ async function getWorkbookSheetMap(zip: JSZip): Promise<{ sheetsByName: Map<stri
 
 function ensureRemarksStyles(stylesXml: string): { stylesXml: string; style10Id: string; style12Id: string } {
   let updatedStyles = stylesXml;
-  const style12Id = '557';
+  const style12Id = '234';
 
   let font10Index = -1;
   const fontsMatch = updatedStyles.match(/<fonts\s+count="(\d+)"([^>]*)>([\s\S]*?)<\/fonts>/);
@@ -655,7 +687,7 @@ function ensureRemarksStyles(stylesXml: string): { stylesXml: string; style10Id:
     }
   }
 
-  let style10Id = '557';
+  let style10Id = style12Id;
   const cellXfsMatch = updatedStyles.match(/<cellXfs\s+count="(\d+)"([^>]*)>([\s\S]*?)<\/cellXfs>/);
   if (cellXfsMatch && font10Index !== -1) {
     let xfCount = parseInt(cellXfsMatch[1], 10);
@@ -675,7 +707,7 @@ function ensureRemarksStyles(stylesXml: string): { stylesXml: string; style10Id:
       }
     }
 
-    if (style10Id === '557') {
+    if (style10Id === style12Id) {
       style10Id = String(xfItems.length);
       const newXf = `<xf numFmtId="3" fontId="${font10Index}" fillId="0" borderId="97" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>`;
       xfCount++;
@@ -845,8 +877,8 @@ export async function populateGrade11AcademicTemplateBuffer(
     zip.file('[Content_Types].xml', ctXml);
   }
 
-  let academicStyle10Id = '557';
-  let academicStyle12Id = '557';
+  let academicStyle10Id = '234';
+  let academicStyle12Id = '234';
   const stylesFile = zip.file('xl/styles.xml');
   if (stylesFile) {
     const stylesXml = await stylesFile.async('text');
@@ -1521,7 +1553,6 @@ export async function populateGrade11AcademicTemplateBuffer(
     sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I18', "IF('INPUT DATA'!F27=\"\",\"\",'INPUT DATA'!F27)", 11);
     sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K18', "IF('INPUT DATA'!F29=\"\",\"\",'INPUT DATA'!F29)", cleanSection);
     sf9Xml = updateFormulaCellExplicit(sf9Xml, 'E19', "IF('INPUT DATA'!F28=\"\",\"\",'INPUT DATA'!F28)", cleanTrack);
-    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'A27', '', '');
     sf9Xml = updateCellInSheetXml(sf9Xml, 'A27', '');
     sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B27', "IF('INPUT DATA'!F19=\"\",\"\",'INPUT DATA'!F19)", cleanPrincipal);
     sf9Xml = updateFormulaCellExplicit(sf9Xml, 'H27', "IF('INPUT DATA'!F26=\"\",\"\",'INPUT DATA'!F26)", cleanAdviser);
@@ -1634,7 +1665,7 @@ export async function populateGrade11AcademicTemplateBuffer(
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K37', 'IF(J37="", "", IF(J37>=75, "Passed", "Failed"))', getRemarks(sciFinal));
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K38', 'IF(J38="", "", IF(J38>=75, "Passed", "Failed"))', getRemarks(lcsFinal));
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K39', 'IF(J39="", "", IF(J39>=75, "Passed", "Failed"))', getRemarks(pklpFinal));
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K41', 'IF(J41="", "", IF(J41>=75, "Passed", "Failed"))', getRemarks(ae1Final), '569');
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K41', 'IF(J41="", "", IF(J41>=75, "Passed", "Failed"))', getRemarks(ae1Final));
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K42', 'IF(J42="", "", IF(J42>=75, "Passed", "Failed"))', getRemarks(ae2Final));
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K43', 'IF(J43="", "", IF(J43>=75, "Passed", "Failed"))', getRemarks(ae3Final));
 
@@ -1793,8 +1824,7 @@ export async function populateGrade11AcademicTemplateBuffer(
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J37', 'IF(I37="","",IF(I37>=75,"Passed","Failed"))', getRemarks(sciFinal));
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J38', 'IF(I38="","",IF(I38>=75,"Passed","Failed"))', getRemarks(lcsFinal));
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J39', 'IF(I39="","",IF(I39>=75,"Passed","Failed"))', getRemarks(pklpFinal));
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J41', 'IF(I41="","",IF(I41>=75,"Passed","Failed"))', getRemarks(ae1Final), '569');
-      sf9Xml = sf9Xml.replace(/(<c\s+r="K41"[^>]*?\s+s=")(\d+)(")/, '$1569$3');
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J41', 'IF(I41="","",IF(I41>=75,"Passed","Failed"))', getRemarks(ae1Final));
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J42', 'IF(I42="","",IF(I42>=75,"Passed","Failed"))', getRemarks(ae2Final));
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J43', 'IF(I43="","",IF(I43>=75,"Passed","Failed"))', getRemarks(ae3Final));
 

@@ -2032,6 +2032,21 @@ export const SSHS_FULL_CATALOG: SSHSCatalogItem[] = [
   {
     category: "SSHS - TECH-PRO",
     cluster: "ICT SUPPORT AND COMPUTER PROGRAMMING TECHNOLOGIES",
+    subject: "Computer Programming (Java) ( NC III )",
+    gradeLvl: "11, 12",
+    g11Terms: 3,
+    g12Terms: 1,
+    terms: 3,
+    ww: 15,
+    pt: 65,
+    ex: 20,
+    st1: 30,
+    st2: 30,
+    te: 40
+  },
+  {
+    category: "SSHS - TECH-PRO",
+    cluster: "ICT SUPPORT AND COMPUTER PROGRAMMING TECHNOLOGIES",
     subject: "Computer Programming (Java)",
     gradeLvl: "11, 12",
     g11Terms: 3,

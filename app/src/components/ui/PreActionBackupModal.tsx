@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldAlert, Download, CheckCircle2, X, Database, Lock } from 'lucide-react';
-import { db } from '../../services/database';
 import { AutoBackupManager } from '../../services/AutoBackupManager';
+import { exportFullDatabaseBackup, downloadComprehensiveBackup } from '../../utils/backup-restore';
 
 interface PreActionBackupModalProps {
     open: boolean;
@@ -33,18 +33,8 @@ export function PreActionBackupModal({
     const handleDownloadBackup = async () => {
         setIsExporting(true);
         try {
-            const data = await db.exportAllData();
-            const timestamp = new Date().toISOString().split('T')[0];
-            const backupJson = JSON.stringify(data, null, 2);
-            const blob = new Blob([backupJson], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `FormEase_Backup_Full_${timestamp}.json`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+            const comprehensive = await exportFullDatabaseBackup('Pre-Action Comprehensive Backup');
+            downloadComprehensiveBackup(comprehensive);
             setDownloaded(true);
         } catch (error) {
             console.error('Export error:', error);

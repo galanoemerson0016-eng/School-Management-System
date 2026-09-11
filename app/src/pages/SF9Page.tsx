@@ -3188,6 +3188,7 @@ export function SF9Page() {
             };
 
             const studentTrack = selectedStudent.track || selectedStudent.strand || selectedSectionObj?.track || selectedSectionObj?.strand;
+            const studentProgram = selectedSectionObj?.program || (selectedStudent as any).program || (selectedStudent as any).curriculum;
 
             const exportOpts: SF9ExcelExportOptions = {
                 student: selectedStudent,
@@ -3195,6 +3196,7 @@ export function SF9Page() {
                 schoolYear: activeSchoolYear,
                 section: resolvedSectionName,
                 track: studentTrack,
+                program: studentProgram,
                 adviser: adviserName,
                 principal: schoolProfile.head_name || '',
                 principalTitle: schoolProfile.head_position || 'School Head',
@@ -3278,6 +3280,7 @@ export function SF9Page() {
                 const resolvedSection = sections.find(s => s.id === student.student_section || s.section_name === student.student_section);
                 const sectionName = resolvedSection?.section_name || selectedSectionObj.section_name;
                 const sectionTrack = student.track || student.strand || selectedSectionObj.track || selectedSectionObj.strand;
+                const sectionProgram = selectedSectionObj.program || (student as any).program || (student as any).curriculum;
                 const getQComment = (q: number) => observedValues.find(v => v.student_lrn === student.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
                 const studentComments = [getQComment(1), getQComment(2), getQComment(3)];
 
@@ -3287,6 +3290,7 @@ export function SF9Page() {
                     schoolYear: activeSchoolYear,
                     section: sectionName,
                     track: sectionTrack,
+                    program: sectionProgram,
                     adviser: adviserName,
                     principal: schoolProfile.head_name || '',
                     principalTitle: schoolProfile.head_position || 'School Head',

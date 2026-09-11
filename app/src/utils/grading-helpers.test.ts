@@ -875,6 +875,21 @@ describe('Grading Helpers', () => {
     });
   });
 
+  describe('isMatchingSubject — Computer Programming (Java) ( NC III ) and Specializations', () => {
+    it('seamlessly matches Computer Programming (Java) ( NC III ) across all naming flavors', () => {
+      expect(isMatchingSubject('Computer Programming (Java) ( NC III )', undefined, 'Computer Programming (Java)')).toBe(true);
+      expect(isMatchingSubject('Computer Programming (Java)', undefined, 'Computer Programming (Java) ( NC III )')).toBe(true);
+      expect(isMatchingSubject('Specialized  Computer Programming (Java) ( NC III )', undefined, 'Computer Programming (Java) ( NC III )')).toBe(true);
+      expect(isMatchingSubject('Specialized Computer Programming (Java) (NC III)', undefined, 'Computer Programming (Java)')).toBe(true);
+      expect(isMatchingSubject('TVL: Computer Programming (Java) ( NC III )', undefined, 'Computer Programming (Java) ( NC III )')).toBe(true);
+    });
+
+    it('does NOT cross-match different programming tracks', () => {
+      expect(isMatchingSubject('Computer Programming (Java) ( NC III )', undefined, 'Computer Programming (.Net Technology)')).toBe(false);
+      expect(isMatchingSubject('Computer Programming (Java)', undefined, 'Computer Programming (Oracle Database)')).toBe(false);
+    });
+  });
+
   describe('normalizeGrade12PESubjectName', () => {
     it('normalizes Old K-12 PE variations to official Health Optimizing Physical Education and Health 1-4', () => {
       expect(normalizeGrade12PESubjectName('Physical Education and Health 3')).toBe('Health Optimizing Physical Education and Health 3');

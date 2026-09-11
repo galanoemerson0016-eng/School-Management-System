@@ -100,6 +100,7 @@ export interface ComprehensiveBackup {
         localStorageData?: Record<string, string>;
         activityLog?: unknown[];
     };
+    _checksum?: string;
 }
 
 export function collectBackupLocalStorage(): Record<string, string> {
@@ -279,6 +280,124 @@ export async function createComprehensiveBackup(
 
     backup.metadata.payloadHash = await hashPayload(backup.payload);
     return backup;
+}
+
+/**
+ * Gathers all records directly from the database and returns a complete ComprehensiveBackup (Full Database Export).
+ */
+export async function exportFullDatabaseBackup(exportedBy: string = 'local-user'): Promise<ComprehensiveBackup> {
+    const [
+        dbProfiles,
+        dbStudents,
+        dbSections,
+        dbSubjects,
+        dbClassRecords,
+        dbEnrollments,
+        dbAnnouncements,
+        dbAttendance,
+        dbSf2,
+        dbHps,
+        dbGradingSheet,
+        dbObserved,
+    ] = await Promise.all([
+        db.getAllRecords<SchoolProfile>('schoolProfile').catch(() => []),
+        db.getAllRecords<Student>('students').catch(() => []),
+        db.getAllRecords<Section>('sections').catch(() => []),
+        db.getAllRecords<Subject>('subjects').catch(() => []),
+        db.getAllRecords<ClassRecord>('classRecords').catch(() => []),
+        db.getAllRecords<Enrollment>('enrollments').catch(() => []),
+        db.getAllRecords<Announcement>('announcements').catch(() => []),
+        db.getAllRecords<AttendanceRecord>('attendanceRecords').catch(() => []),
+        db.getAllRecords<SF2Sheet>('sf2Sheets').catch(() => []),
+        db.getAllRecords<HPSRecord>('hpsRecords').catch(() => []),
+        db.getAllRecords<ClassRecord>('gradingSheetRecords').catch(() => []),
+        db.getAllRecords<ObservedValues>('observedValues').catch(() => []),
+    ]);
+
+    let schoolYears: SchoolYear[] = [];
+    try {
+        if (typeof localStorage !== 'undefined') {
+            const storedYears = localStorage.getItem('formease_school_years') || localStorage.getItem('schoolYears');
+            if (storedYears) {
+                schoolYears = JSON.parse(storedYears);
+            }
+        }
+    } catch {
+        schoolYears = [];
+    }
+
+    const activeSchoolYear = (typeof localStorage !== 'undefined' && (localStorage.getItem('formease_active_school_year') || localStorage.getItem('activeSchoolYear'))) ||
+                             '2026-2027';
+
+    let schoolProfile = dbProfiles[0];
+    if (!schoolProfile && typeof window !== 'undefined') {
+        try {
+            const { useAppStore } = await import('../stores/app-store');
+            const stateProfile = useAppStore.getState()?.schoolProfile;
+            if (stateProfile && stateProfile.name) {
+                schoolProfile = stateProfile;
+            }
+        } catch {
+            // fallback
+        }
+    }
+
+    if (!schoolProfile) {
+        schoolProfile = {
+            school_id: '',
+            name: 'School Name',
+            region: '',
+            division: '',
+            district: '',
+            head_name: '',
+            head_position: '',
+            grade_levels_offered: '',
+        };
+    }
+
+    const backup = await createComprehensiveBackup(
+        schoolProfile,
+        schoolYears,
+        activeSchoolYear,
+        dbEnrollments,
+        dbStudents,
+        dbStudents,
+        dbSections,
+        dbSubjects,
+        dbClassRecords,
+        dbGradingSheet,
+        dbObserved,
+        dbHps,
+        dbSf2,
+        dbAnnouncements,
+        dbAttendance,
+        exportedBy
+    );
+
+    try {
+        const { embedChecksum } = await import('./backup-integrity');
+        const withChecksum = await embedChecksum(backup as unknown as Record<string, unknown>);
+        return withChecksum as unknown as ComprehensiveBackup;
+    } catch {
+        return backup;
+    }
+}
+
+/**
+ * Triggers a browser download of the ComprehensiveBackup as formatted JSON.
+ */
+export function downloadComprehensiveBackup(backup: ComprehensiveBackup, filename?: string): void {
+    const json = JSON.stringify(backup, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const timestamp = new Date().toISOString().split('T')[0];
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename || `SMS_Backup_Comprehensive_${timestamp}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 }
 
 export function generateBackupReport(backup: ComprehensiveBackup): string {

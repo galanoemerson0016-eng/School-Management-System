@@ -1,7 +1,8 @@
 import { useAppStore, useAuthStore } from '../../stores';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
-import { db } from '../../services/database';
+import { exportFullDatabaseBackup } from '../../utils/backup-restore';
+import { embedChecksum } from '../../utils/backup-integrity';
 import {
     LayoutDashboard,
     Users,
@@ -37,12 +38,13 @@ export function Sidebar() {
     const handleLogout = async () => {
         setIsLoggingOut(true);
         try {
-            // Perform silent backup before signing out
+            // Perform silent comprehensive backup before signing out
             if (window.electronAPI && window.electronAPI.saveAutoBackup) {
-                const data = await db.exportAllData();
+                const comprehensive = await exportFullDatabaseBackup('Logout Backup');
+                const data = await embedChecksum(comprehensive as unknown as Record<string, unknown>);
                 const now = new Date();
                 const timestamp = now.toISOString().replace(/[:.]/g, '-');
-                const filename = `logoutbackup_${timestamp}.json`;
+                const filename = `SMS_Backup_Comprehensive_logout_${timestamp}.json`;
                 await window.electronAPI.saveAutoBackup(data, filename);
             }
         } catch (error) {

@@ -1,75 +1,70 @@
 /**
  * Backup & Restore Service
- * Handles automatic daily backups and manual restore/rollback functionality
+ * Handles automatic daily comprehensive backups and manual restore/rollback functionality
  */
 
 import { db, type BackupMetadata } from './database';
-import type {
-  SchoolProfile,
-  Student,
-  Section,
-  Subject,
-  ClassRecord,
-  Enrollment,
-  Announcement,
-  AttendanceRecord,
-  ObservedValues,
-  SF2Sheet,
-  HPSRecord,
-} from '../types';
+import {
+  exportFullDatabaseBackup,
+  type ComprehensiveBackup
+} from '../utils/backup-restore';
+import { embedChecksum } from '../utils/backup-integrity';
 
-interface BackupFile {
+export interface LegacyBackupFile {
   version: 1;
   timestamp: number;
   label: string;
-  data: {
-    schoolProfile: SchoolProfile[];
-    students: Student[];
-    sections: Section[];
-    subjects: Subject[];
-    classRecords: ClassRecord[];
-    enrollments: Enrollment[];
-    announcements: Announcement[];
-    attendanceRecords: AttendanceRecord[];
-    sf2Sheets: SF2Sheet[];
-    hpsRecords: HPSRecord[];
-    gradingSheetRecords?: ClassRecord[];
-    observedValues?: ObservedValues[];
-  };
+  data: Record<string, unknown>;
 }
 
+export type AnyBackupPayload = ComprehensiveBackup | LegacyBackupFile | Record<string, unknown>;
+
 /**
- * Create a backup of all current data
- * Returns the backup ID
+ * Create a full database comprehensive backup of all current data
+ * Saves metadata, downloads the comprehensive JSON file, and returns the backup ID
  */
 export async function createBackup(label?: string): Promise<string> {
   try {
-    const data = await db.exportAllData();
+    const backupLabel = label || `Full Database Export - ${new Date().toLocaleString()}`;
+    const comprehensive = await exportFullDatabaseBackup(backupLabel);
+    const backupWithChecksum = (await embedChecksum(comprehensive as unknown as Record<string, unknown>)) as unknown as ComprehensiveBackup;
+
     const backupId = `backup_${Date.now()}`;
     const timestamp = Date.now();
-    const backupLabel = label || `Auto-backup ${new Date().toLocaleString()}`;
 
     // Save backup metadata
     const metadata = {
       id: backupId,
       timestamp,
       label: backupLabel,
-      fileSize: JSON.stringify(data).length,
+      fileSize: JSON.stringify(backupWithChecksum).length,
       recordCounts: {
-        students: data.students.length,
-        sections: data.sections.length,
-        subjects: data.subjects.length,
-        classRecords: data.classRecords.length,
-        enrollments: data.enrollments.length,
-        announcements: data.announcements.length,
-        attendanceRecords: data.attendanceRecords.length,
-        gradingSheetRecords: data.gradingSheetRecords?.length || 0,
-        observedValues: data.observedValues?.length || 0,
+        students: backupWithChecksum.summary.students,
+        sections: backupWithChecksum.summary.sections,
+        subjects: backupWithChecksum.summary.subjects,
+        classRecords: backupWithChecksum.summary.grades,
+        enrollments: backupWithChecksum.summary.enrollments,
+        announcements: backupWithChecksum.summary.announcements,
+        attendanceRecords: backupWithChecksum.summary.attendanceRecords ?? 0,
+        gradingSheetRecords: backupWithChecksum.summary.gradingSheetRecords ?? 0,
+        observedValues: backupWithChecksum.summary.observedValues ?? 0,
       },
     };
 
     await db.saveBackupMetadata(metadata as BackupMetadata);
-    await downloadBackupFile(data, backupLabel);
+
+    // Trigger user browser download of the comprehensive backup file
+    await downloadBackupFile(backupWithChecksum, backupLabel);
+
+    // If running in Electron, also save silent filesystem snapshot
+    if (typeof window !== 'undefined' && window.electronAPI?.saveAutoBackup) {
+      try {
+        const timestampStr = new Date(timestamp).toISOString().replace(/[:.]/g, '-');
+        await window.electronAPI.saveAutoBackup(backupWithChecksum, `SMS_Backup_Comprehensive_${timestampStr}.json`);
+      } catch (err) {
+        console.warn('Silent fs auto-backup failed:', err);
+      }
+    }
 
     return backupId;
   } catch (error) {
@@ -79,27 +74,37 @@ export async function createBackup(label?: string): Promise<string> {
 }
 
 /**
- * Download backup as JSON file to user's Downloads folder
+ * Download Comprehensive Backup as JSON file to user's Downloads folder
  */
 export async function downloadBackupFile(
-  data: Awaited<ReturnType<typeof db.exportAllData>>,
-  label: string
+  data: ComprehensiveBackup | unknown,
+  label?: string
 ): Promise<void> {
   try {
-    const backup: BackupFile = {
-      version: 1,
-      timestamp: Date.now(),
-      label,
-      data,
-    };
+    let backupToSave: unknown = data;
 
-    const json = JSON.stringify(backup, null, 2);
+    // Check if input is already a ComprehensiveBackup structure
+    const isComprehensive =
+      data &&
+      typeof data === 'object' &&
+      'metadata' in (data as Record<string, unknown>) &&
+      'payload' in (data as Record<string, unknown>);
+
+    if (!isComprehensive) {
+      const comprehensive = await exportFullDatabaseBackup(label || 'Full Database Export');
+      backupToSave = await embedChecksum(comprehensive as unknown as Record<string, unknown>);
+    }
+
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `SMS_Backup_Comprehensive_${timestamp}.json`;
+
+    const json = JSON.stringify(backupToSave, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
 
     const link = document.createElement('a');
     link.href = url;
-    link.download = `FormEase_Backup_${new Date().toISOString().split('T')[0]}.json`;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -111,7 +116,7 @@ export async function downloadBackupFile(
 }
 
 /**
- * Restore data from a backup file (user uploads)
+ * Restore data from a backup file (supports ComprehensiveBackup, legacy version 1, and raw dumps)
  */
 export async function restoreFromBackupFile(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -119,36 +124,40 @@ export async function restoreFromBackupFile(file: File): Promise<string> {
 
     reader.onload = async (event) => {
       try {
-        const backup = JSON.parse(event.target?.result as string) as BackupFile;
+        const raw = JSON.parse(event.target?.result as string) as Record<string, unknown>;
 
-        if (backup.version !== 1) {
-          throw new Error('Invalid backup file version');
-        }
+        // Restore data using db.importFromBackup (which supports comprehensive payload, legacy data, and raw objects)
+        await db.importFromBackup(raw);
 
-        // Restore data
-        await db.importFromBackup(backup.data);
+        const metadataObj = raw.metadata as { note?: string } | undefined;
+        const summaryObj = raw.summary as Record<string, number> | undefined;
+        const dataObj = raw.data as Record<string, unknown[]> | undefined;
+        const rootArrays = raw as Record<string, unknown[]>;
 
-        // Save restore metadata
+        // Derive label and record counts for metadata
+        const label = metadataObj?.note || (raw.label as string | undefined) || file.name.replace(/\.json$/i, '');
+        const recordCounts = {
+          students: summaryObj?.students ?? dataObj?.students?.length ?? rootArrays.students?.length ?? 0,
+          sections: summaryObj?.sections ?? dataObj?.sections?.length ?? rootArrays.sections?.length ?? 0,
+          subjects: summaryObj?.subjects ?? dataObj?.subjects?.length ?? rootArrays.subjects?.length ?? 0,
+          classRecords: summaryObj?.grades ?? dataObj?.classRecords?.length ?? rootArrays.classRecords?.length ?? 0,
+          enrollments: summaryObj?.enrollments ?? dataObj?.enrollments?.length ?? rootArrays.enrollments?.length ?? 0,
+          announcements: summaryObj?.announcements ?? dataObj?.announcements?.length ?? rootArrays.announcements?.length ?? 0,
+          attendanceRecords: summaryObj?.attendanceRecords ?? dataObj?.attendanceRecords?.length ?? rootArrays.attendanceRecords?.length ?? 0,
+          gradingSheetRecords: summaryObj?.gradingSheetRecords ?? dataObj?.gradingSheetRecords?.length ?? rootArrays.gradingSheetRecords?.length ?? 0,
+          observedValues: summaryObj?.observedValues ?? dataObj?.observedValues?.length ?? rootArrays.observedValues?.length ?? 0,
+        };
+
         const metadata = {
           id: `backup_${Date.now()}`,
           timestamp: Date.now(),
-          label: `Restored: ${backup.label}`,
+          label: `Restored: ${label}`,
           fileSize: file.size,
-          recordCounts: {
-            students: backup.data.students.length,
-            sections: backup.data.sections.length,
-            subjects: backup.data.subjects.length,
-            classRecords: backup.data.classRecords.length,
-            enrollments: backup.data.enrollments.length,
-            announcements: backup.data.announcements.length,
-            attendanceRecords: backup.data.attendanceRecords.length,
-            gradingSheetRecords: backup.data.gradingSheetRecords?.length || 0,
-            observedValues: backup.data.observedValues?.length || 0,
-          },
+          recordCounts,
         };
 
         await db.saveBackupMetadata(metadata as BackupMetadata);
-        resolve(`Restored from: ${backup.label}`);
+        resolve(`Restored from: ${label}`);
       } catch (error) {
         reject(error);
       }
@@ -164,9 +173,6 @@ export async function restoreFromBackupFile(file: File): Promise<string> {
  */
 export async function restoreFromBackup(backupId: string): Promise<void> {
   try {
-    // Get backup metadata to find the original data
-    // Note: This assumes backup data is stored as JSON file, not in IndexedDB
-    // For now, user would need to upload the backup file manually
     console.log(`Restoring from backup: ${backupId}`);
     throw new Error('Manual restore: Please upload the backup JSON file');
   } catch (error) {
@@ -176,7 +182,8 @@ export async function restoreFromBackup(backupId: string): Promise<void> {
 }
 
 /**
- * Auto-backup trigger (call on app exit or daily)
+ * Auto-backup trigger (called on app startup and daily)
+ * Checks if a backup has been executed today; if not, generates the full comprehensive backup
  */
 export async function checkAndCreateDailyBackup(): Promise<void> {
   try {
@@ -187,9 +194,9 @@ export async function checkAndCreateDailyBackup(): Promise<void> {
     const todayBackup = backups.find((b) => new Date(b.timestamp).toDateString() === today);
 
     if (!todayBackup) {
-      // Create backup
-      await createBackup(`Daily backup - ${today}`);
-      console.log('✅ Daily backup created');
+      // Create full database comprehensive backup and trigger download
+      await createBackup(`Daily Full Database Export - ${today}`);
+      console.log('✅ Daily comprehensive backup created');
     }
   } catch (error) {
     console.error('Error checking daily backup:', error);

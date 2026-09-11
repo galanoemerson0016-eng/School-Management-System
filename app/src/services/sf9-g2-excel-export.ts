@@ -162,9 +162,11 @@ function updateCellInSheetXml(
 function updateFormulaValueInSheetXml(
   sheetXml: string,
   cellRef: string,
-  value: string | number
+  value: string | number | undefined | null
 ): string {
-  const formattedVal = escapeXml(value);
+  if (value === undefined || value === null) return sheetXml;
+  const hasValue = value !== '';
+  const isNum = typeof value === 'number' && !isNaN(value);
 
   // 1. Self-closing cell: cannot have formula, but if updated with value:
   const selfClosingRegex = new RegExp(`<c\\s+r="${cellRef}"([^>]*?)\\/>`);
@@ -172,9 +174,13 @@ function updateFormulaValueInSheetXml(
     return sheetXml.replace(selfClosingRegex, (_match, attrs) => {
       const styleMatch = attrs.match(/\s+s="(\d+)"/);
       const styleAttr = styleMatch ? ` s="${styleMatch[1]}"` : '';
-      const isNum = typeof value === 'number' && !isNaN(value);
-      const typeAttr = isNum ? '' : ' t="str"';
-      return `<c r="${cellRef}"${styleAttr}${typeAttr}><v>${formattedVal}</v></c>`;
+      if (!hasValue) {
+        return `<c r="${cellRef}"${styleAttr}/>`;
+      }
+      if (isNum) {
+        return `<c r="${cellRef}"${styleAttr}><v>${value}</v></c>`;
+      }
+      return `<c r="${cellRef}"${styleAttr} t="inlineStr"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`;
     });
   }
 
@@ -186,10 +192,16 @@ function updateFormulaValueInSheetXml(
       const styleAttr = styleMatch ? ` s="${styleMatch[1]}"` : '';
       const formulaMatch = content ? content.match(/<f[^>]*?>[\s\S]*?<\/f>/) : null;
       const fTag = formulaMatch ? formulaMatch[0] : '';
-      const isNum = typeof value === 'number' && !isNaN(value);
-      const typeAttr = isNum ? '' : ' t="str"';
-      const vTag = `<v>${formattedVal}</v>`;
-      return `<c r="${cellRef}"${styleAttr}${typeAttr}>${fTag}${vTag}</c>`;
+      if (!hasValue) {
+        if (fTag) {
+          return `<c r="${cellRef}"${styleAttr}>${fTag}</c>`;
+        }
+        return `<c r="${cellRef}"${styleAttr}/>`;
+      }
+      if (isNum) {
+        return `<c r="${cellRef}"${styleAttr}>${fTag}<v>${value}</v></c>`;
+      }
+      return `<c r="${cellRef}"${styleAttr} t="str">${fTag}<v>${escapeXml(value)}</v></c>`;
     });
   }
 
@@ -211,21 +223,35 @@ function updateFormulaCellExplicit(
   sheetXml: string,
   cellRef: string,
   formula: string,
-  value: string | number
+  value: string | number | undefined | null,
+  forceStyle?: string
 ): string {
-  const formattedVal = escapeXml(value);
+  const hasValue = value !== undefined && value !== null && value !== '';
   const isNum = typeof value === 'number' && !isNaN(value);
-  const typeAttr = isNum ? '' : ' t="str"';
   const fTag = formula ? `<f>${escapeFormula(formula)}</f>` : '';
-  const vTag = `<v>${formattedVal}</v>`;
+
+  let typeAttr = '';
+  let valTag = '';
+  if (hasValue) {
+    if (isNum) {
+      valTag = `<v>${value}</v>`;
+    } else {
+      typeAttr = ' t="str"';
+      valTag = `<v>${escapeXml(value)}</v>`;
+    }
+  }
 
   // 1. Self closing
   const selfClosingRegex = new RegExp(`<c\\s+r="${cellRef}"([^>]*?)\\/>`);
   if (selfClosingRegex.test(sheetXml)) {
     return sheetXml.replace(selfClosingRegex, (_match, attrs) => {
       const styleMatch = attrs.match(/\s+s="(\d+)"/);
-      const styleAttr = styleMatch ? ` s="${styleMatch[1]}"` : '';
-      return `<c r="${cellRef}"${styleAttr}${typeAttr}>${fTag}${vTag}</c>`;
+      const styleId = forceStyle || (styleMatch ? styleMatch[1] : '');
+      const styleAttr = styleId ? ` s="${styleId}"` : '';
+      if (!fTag && !valTag) {
+        return `<c r="${cellRef}"${styleAttr}/>`;
+      }
+      return `<c r="${cellRef}"${styleAttr}${typeAttr}>${fTag}${valTag}</c>`;
     });
   }
 
@@ -234,8 +260,12 @@ function updateFormulaCellExplicit(
   if (fullCellRegex.test(sheetXml)) {
     return sheetXml.replace(fullCellRegex, (_match, attrs) => {
       const styleMatch = attrs.match(/\s+s="(\d+)"/);
-      const styleAttr = styleMatch ? ` s="${styleMatch[1]}"` : '';
-      return `<c r="${cellRef}"${styleAttr}${typeAttr}>${fTag}${vTag}</c>`;
+      const styleId = forceStyle || (styleMatch ? styleMatch[1] : '');
+      const styleAttr = styleId ? ` s="${styleId}"` : '';
+      if (!fTag && !valTag) {
+        return `<c r="${cellRef}"${styleAttr}/>`;
+      }
+      return `<c r="${cellRef}"${styleAttr}${typeAttr}>${fTag}${valTag}</c>`;
     });
   }
 

@@ -254,7 +254,7 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     expect(sheet6Xml).toContain('Promoted with Academic Excellence Award'); // General Average Academic Excellence Remarks formula
     expect(sheet6Xml).toContain('>Promoted with Academic Excellence Award<'); // General Average cached remarks
     expect(sheet6Xml).toContain('>Passed<'); // Core Subject cached remarks
-    expect(sheet6Xml).toContain('r="K41" s="569"'); // Elective 1 Remarks formatted with non-bold style 569
+    expect(sheet6Xml).toContain('r="K41" s="86"'); // Elective 1 Remarks formatted with valid template style 86
 
     // Weighted Points formulas in Column L
     expect(sheet6Xml).toContain('SUM(L33:L43)'); // Total Weighted Points formula in Row 44

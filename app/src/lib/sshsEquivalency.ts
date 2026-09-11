@@ -526,8 +526,16 @@ export const SSHS_EQUIVALENCY_MATRIX: EquivalencyRule[] = [
         remarks: 'CREDITED'
     },
     {
-        k12Subjects: ['Computer Programming (Java) NC III'],
-        sshsElectives: ['Computer Programming (Java)'],
+        k12Subjects: [
+            'Computer Programming (Java) ( NC III )',
+            'Computer Programming (Java) (NC III)',
+            'Computer Programming (Java) NC III',
+            'Computer Programming (Java)'
+        ],
+        sshsElectives: [
+            'Computer Programming (Java) ( NC III )',
+            'Computer Programming (Java)'
+        ],
         cluster: 'ICT Support and Computer Programming Technologies',
         remarks: 'CREDITED'
     },
