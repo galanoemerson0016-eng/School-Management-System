@@ -3697,12 +3697,28 @@ export function SettingsPage() {
                             </div>
 
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 3.4.1 */}
+                                {/* Version 3.5.0 */}
                                 <div className="relative pl-6">
                                     <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.4.1</span>
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.0</span>
                                         <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 11, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>📖 <strong>Double-Sided SF9 Booklet (Template 2)</strong>: High-fidelity 2-up front-and-back printable booklet with automatic cut guides, page-flipping duplex symmetry, and strict 2-page pagination on A4 and Letter.</li>
+                                        <li>🎨 <strong>SF10 Customization & Dynamic Layout Engine</strong>: Added Subject Customization and Layout management modal allowing educators to reorder subjects, define custom learning areas, and edit historical grade entries.</li>
+                                        <li>🎓 <strong>Senior High School Grade 12 Cross-Curricular SF9</strong>: Integrated official DepEd SF9 templates and export pipelines for Grade 12 Academic and TechPro tracks with Cross-School subject support.</li>
+                                        <li>📋 <strong>Teaching Load Matrix & Live Advisory Sync</strong>: Added dedicated Teaching Load Matrix management modal for advisory sections, enabling live multi-subject assignment, STE curriculum filtering, and automated two-way synchronization with ECR.</li>
+                                        <li>💾 <strong>Master Excel Automated Database Backup</strong>: One-click comprehensive multi-sheet Excel workbook generator encapsulating all student profiles, class records, and section rosters for offline auditing and emergency recovery.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 3.4.1 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.4.1</span>
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 8, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">

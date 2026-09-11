@@ -1,5 +1,32 @@
 # Version History
 
+## v3.5.0 (2026-09-11)
+
+### 🚀 New Features & Enhancements
+
+- **Double-Sided SF9 Booklet (Template 2)**: High-fidelity 2-up front-and-back printable booklet with automatic cut guides, page-flipping duplex symmetry, and strict 2-page pagination on standard A4 and Letter portrait formats.
+- **SF10 Customization & Dynamic Layout Engine**: Added intuitive Subject Customization and Layout management modal allowing educators to reorder subjects, define custom learning areas, and edit historical grade entries across JHS, SHS, and Special Curricula.
+- **Senior High School Grade 12 Cross-Curricular SF9**: Integrated official DepEd School Form 9 templates and export pipelines for Grade 12 Academic and TechPro tracks with Cross-School subject support.
+- **Teaching Load Matrix & Live Advisory Sync**: Added dedicated Teaching Load Matrix management modal for advisory sections, enabling live multi-subject assignment, STE curriculum filtering, and automated two-way synchronization between E-Class Records and teaching loads.
+- **Master Excel Automated Database Backup**: One-click and automated master backup utility generating comprehensive, multi-sheet Excel workbooks encapsulating all student profiles, class records, and section rosters for offline auditing and emergency recovery.
+
+### ⚡ Client Data Protection & Safety Improvements
+
+- **Pre-Update Safety Vault Engine**: Automated pre-action backup snapshots and zero data loss safety pipeline before system migrations or critical batch updates.
+- **Quarter Lock & Column Visibility Controls**: Dynamic quarter locking mechanism preventing accidental grade edits in closed grading periods, paired with customizable column visibility toggles.
+- **Self-Healing Grade Reconciliation Engine**: Automated startup scanning that detects and reconnects orphaned grades or HPS records and guarantees subject visibility across all curriculum levels.
+- **Enhanced Emergency Master Recovery**: Hardened emergency master access with secure SHA-256 hashed storage migration, protecting teacher data from lockouts while maintaining offline confidentiality.
+
+### 🐞 Bug Fixes
+
+- Fixed advisory subject synchronization edge cases where teaching load adjustments occasionally reverted custom section subjects.
+- Resolved table layout boundary alignment in SF9 PDF rendering ensuring exact two-page output without trailing blank overflow pages.
+- Corrected Grade 12 cross-curricular subject mapping in SF9 exports ensuring imported cross-school subjects appear in designated report card rows.
+
+### 📝 Notes
+
+- 100% backward-compatible update with zero risk to student records, grades, and section enrollments.
+
 ## v3.4.1 (2026-09-08)
 
 ### ⚡ Improvements & Styling Refinements

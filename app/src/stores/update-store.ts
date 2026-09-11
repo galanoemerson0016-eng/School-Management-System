@@ -365,7 +365,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.4.1';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.0';
       const api = window.electronAPI;
 
       try {
@@ -423,12 +423,12 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "✨ UI & Tailwind v4 Optimization: Refined modern gradient styles, streamlined border themes, and optimized check indicators.",
-              "🛡️ Self-Healing Grade Reconciliation: automatically recovered and unhid all client records, subjects, and PE & Health components with zero data loss.",
-              "🎓 Senior High School (SHS) Grade 12 3-Term ECR: Integrated official DepEd template with relocated ST1/ST2 as WW6/WW7 and single Term Exam.",
-              "🔬 SSHS Pilot E-Class Record: Complete 8-subject sheets (Core, Applied, Specialized, Apprenticeship/Immersion) with automated 3-term summary.",
-              "🎨 Complete Special Curricular Programs (SCP) Suite: Official ECR support for SPFL, SPJ, SPA, SPS, SPTVE, and SSES/SPSTEM.",
-              "📑 SF9 Multi-Level Report Cards: High-fidelity DepEd School Form 9 exports across Key Stage 1 (PACE Form & SF9), Grades 2–10, and Senior High School.",
+              "📖 Double-Sided SF9 Booklet (Template 2): High-fidelity 2-up front-and-back printable booklet with automatic cut guides and strict 2-page pagination on A4 and Letter.",
+              "🎨 SF10 Customization & Dynamic Layout Engine: Flexible subject ordering, custom learning areas, historical record management, and specialized renderers for JHS, SHS, and Special Curricula.",
+              "🎓 Senior High School Grade 12 Cross-Curricular SF9: Official Academic & TechPro with Cross School Form 9 templates and export pipelines.",
+              "📋 Teaching Load Matrix & Advisory Synchronization: Live multi-subject assignment matrix, STE curriculum tailoring, and seamless real-time teaching load sync.",
+              "💾 Master Excel Full Database Backup & Safety Vault: Automated comprehensive workbook backup generation with pre-update safety snapshots and zero data loss guarantee.",
+              "🛡️ Self-Healing Grade Reconciliation: Automatic startup scanning that detects and unhides all client records, subjects, and PE & Health components.",
               "🔒 100% backward-compatible update with zero risk to student records, grades, and section enrollments."
             ],
             timestamp: Date.now(),
