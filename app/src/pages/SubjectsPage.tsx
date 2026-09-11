@@ -282,7 +282,7 @@ export function SubjectsPage() {
         } else if (type === 'program_ste' || type === 'program_spstem') {
             const gradeDefaults = SPSTEM_SUBJECTS[selectedGrade] || [];
             const otherJhsElectives = JHS_STE_ELECTIVES.filter(e => 
-                !gradeDefaults.some(g => normalizeSubjectLabel(g.name) === normalizeSubjectLabel(e.name))
+                !gradeDefaults.some(g => normalizeSubjectName(g.name) === normalizeSubjectName(e.name))
             );
             templates = [...gradeDefaults, ...otherJhsElectives];
         } else if (type === 'program_spa') {
@@ -316,15 +316,15 @@ export function SubjectsPage() {
             if (selectedSectionId) return subject.section_id === selectedSectionId;
             return subject.grade_level === selectedGrade && !subject.section_id;
         });
-        const existingNames = new Set(existingSectionSubjects.map((subject) => normalizeSubjectLabel(subject.subject_name)));
+        const existingNames = new Set(existingSectionSubjects.map((subject) => normalizeSubjectName(subject.subject_name)));
 
         // Pre-select ONLY the subjects that are NOT yet added!
         const initialSelected = new Set<string>();
         const gradeDefaults = (type === 'program_ste' || type === 'program_spstem') ? (SPSTEM_SUBJECTS[selectedGrade] || []) : templates;
         templates.forEach(s => {
-            if (!existingNames.has(normalizeSubjectLabel(s.name))) {
+            if (!existingNames.has(normalizeSubjectName(s.name))) {
                 if (type === 'program_ste' || type === 'program_spstem') {
-                    if (gradeDefaults.some(g => normalizeSubjectLabel(g.name) === normalizeSubjectLabel(s.name))) {
+                    if (gradeDefaults.some(g => normalizeSubjectName(g.name) === normalizeSubjectName(s.name))) {
                         initialSelected.add(s.name);
                     }
                 } else {
@@ -493,9 +493,9 @@ export function SubjectsPage() {
                 if (sectionId) return subject.section_id === sectionId;
                 return subject.grade_level === gradeLevel && !subject.section_id;
             });
-            const existingNames = new Set(existingSectionSubjects.map((subject) => normalizeSubjectLabel(subject.subject_name)));
+            const existingNames = new Set(existingSectionSubjects.map((subject) => normalizeSubjectName(subject.subject_name)));
             
-            const missingTemplates = templatesToLoad.filter((template) => !existingNames.has(normalizeSubjectLabel(template.name)));
+            const missingTemplates = templatesToLoad.filter((template) => !existingNames.has(normalizeSubjectName(template.name)));
 
             if (missingTemplates.length === 0) {
                 if (targetSection) {
@@ -615,7 +615,7 @@ export function SubjectsPage() {
             if (selectedSectionId) return s.section_id === selectedSectionId;
             return s.grade_level === selectedGrade && !s.section_id;
         });
-        return new Set(list.map((s) => normalizeSubjectLabel(s.subject_name)));
+        return new Set(list.map((s) => normalizeSubjectName(s.subject_name)));
     }, [subjects, selectedSectionId, selectedGrade]);
 
     const templateMeta = useMemo(() => {
@@ -1010,7 +1010,7 @@ export function SubjectsPage() {
         const seenNames = new Set<string>();
         let count = 0;
         for (const s of rawList) {
-            const key = normalizeSubjectLabel(s.subject_name);
+            const key = normalizeSubjectName(s.subject_name);
             if (key && seenNames.has(key)) continue;
             if (key) {
                 seenNames.add(key);
@@ -1036,7 +1036,7 @@ export function SubjectsPage() {
 
         const seenNames = new Set<string>();
         for (const s of rawList) {
-            const key = normalizeSubjectLabel(s.subject_name);
+            const key = normalizeSubjectName(s.subject_name);
             if (key && seenNames.has(key)) continue;
             if (key) seenNames.add(key);
             counts.all++;
@@ -1058,7 +1058,7 @@ export function SubjectsPage() {
         const seenNames = new Set<string>();
         const uniqueList: Subject[] = [];
         for (const s of rawList) {
-            const key = normalizeSubjectLabel(s.subject_name);
+            const key = normalizeSubjectName(s.subject_name);
             if (key && seenNames.has(key)) continue;
             if (key) seenNames.add(key);
             uniqueList.push(s);
@@ -1607,7 +1607,7 @@ export function SubjectsPage() {
             if (s.subject_name !== s.subject_name.trim()) {
                 untrimmedSubjects.push(s);
             }
-            const key = `${s.grade_level || 'all'}::${s.section_id || 'all'}::${normalizeSubjectLabel(s.subject_name)}`;
+            const key = `${s.grade_level || 'all'}::${s.section_id || 'all'}::${normalizeSubjectName(s.subject_name)}`;
             if (!gradeGroups[key]) gradeGroups[key] = [];
             gradeGroups[key].push(s);
         });
@@ -1786,9 +1786,9 @@ export function SubjectsPage() {
                 if (!templates) continue;
 
                 const existingGradeSubjects = subjects.filter(s => s.grade_level === grade && !s.section_id && !s.is_teaching_load);
-                const existingNames = new Set(existingGradeSubjects.map(s => normalizeSubjectLabel(s.subject_name)));
+                const existingNames = new Set(existingGradeSubjects.map(s => normalizeSubjectName(s.subject_name)));
                 
-                const templatesToCreate = templates.filter(t => !existingNames.has(normalizeSubjectLabel(t.name)));
+                const templatesToCreate = templates.filter(t => !existingNames.has(normalizeSubjectName(t.name)));
                 
                 for (let i = 0; i < templatesToCreate.length; i++) {
                     const template = templatesToCreate[i];
@@ -3002,7 +3002,7 @@ export function SubjectsPage() {
                                                         <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-3.5">
                                                             {list.map((subject) => {
                                                                 const isChecked = selectedWizardSubjects.has(subject.name);
-                                                                const isAlreadySaved = existingSectionSubjectNames.has(normalizeSubjectLabel(subject.name));
+                                                                const isAlreadySaved = existingSectionSubjectNames.has(normalizeSubjectName(subject.name));
                                                                 
                                                                 // Category based tag
                                                                 const isSHS = selectedGrade?.includes('11') || selectedGrade?.includes('12');
