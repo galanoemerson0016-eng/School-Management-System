@@ -61,6 +61,32 @@ export function isGrade11Academic(gradeLevel: string | undefined | null, track?:
   return true;
 }
 
+export function parseBirthDateParts(birthday?: string): { year: number; month: number; day: number } | null {
+  if (!birthday) return null;
+  const trimmed = String(birthday).trim();
+  const ymdMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (ymdMatch) {
+    return { year: parseInt(ymdMatch[1], 10), month: parseInt(ymdMatch[2], 10), day: parseInt(ymdMatch[3], 10) };
+  }
+  const mdyMatch = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (mdyMatch) {
+    return { year: parseInt(mdyMatch[3], 10), month: parseInt(mdyMatch[1], 10), day: parseInt(mdyMatch[2], 10) };
+  }
+  const d = new Date(trimmed);
+  if (!isNaN(d.getTime())) {
+    return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
+  }
+  return null;
+}
+
+export function birthDateToExcelSerial(birthday?: string): number | null {
+  const parts = parseBirthDateParts(birthday);
+  if (!parts) return null;
+  const epoch = new Date(Date.UTC(1899, 11, 30));
+  const utcDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  return Math.round((utcDate.getTime() - epoch.getTime()) / (24 * 60 * 60 * 1000));
+}
+
 export function formatDateToMMDDYYYY(dateVal: string | Date | undefined | null): string {
   if (!dateVal) return '';
   const d = new Date(dateVal);
@@ -141,18 +167,21 @@ function getGradeFromEntry(entry: unknown, termIdx: number): number | '' {
   return '';
 }
 
-function parseAge(val: unknown, birthday?: string): number | '' {
+export function parseAge(val: unknown, birthday?: string): number | '' {
   if (val !== undefined && val !== null && (val as unknown) !== '') {
-    const num = Number(val);
-    if (!isNaN(num) && num > 0) return num;
+    const s = String(val).trim();
+    if (!s.includes('#')) {
+      const num = Number(s);
+      if (!isNaN(num) && num > 0) return num;
+    }
   }
   if (birthday) {
-    const birthDate = new Date(birthday);
-    if (!isNaN(birthDate.getTime())) {
+    const parts = parseBirthDateParts(birthday);
+    if (parts) {
       const today = new Date();
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const m = today.getMonth() - birthDate.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      let age = today.getFullYear() - parts.year;
+      const m = today.getMonth() + 1 - parts.month;
+      if (m < 0 || (m === 0 && today.getDate() < parts.day)) {
         age--;
       }
       return age > 0 ? age : '';
@@ -292,10 +321,8 @@ export function extractGrade11AcademicSubjectGrades(
     return (
       normName === 'academicelective1' ||
       normName === 'ae1' ||
-      normName.includes('elective1') ||
-      normName.includes('chemistry1') ||
-      normName.includes('genchem1') ||
-      normName.includes('precalculus')
+      normName.includes('academicelective1') ||
+      normName.includes('elective1')
     );
   });
 
@@ -303,10 +330,8 @@ export function extractGrade11AcademicSubjectGrades(
     return (
       normName === 'academicelective2' ||
       normName === 'ae2' ||
-      normName.includes('elective2') ||
-      normName.includes('chemistry2') ||
-      normName.includes('genchem2') ||
-      normName.includes('basiccalculus')
+      normName.includes('academicelective2') ||
+      normName.includes('elective2')
     );
   });
 
@@ -314,10 +339,8 @@ export function extractGrade11AcademicSubjectGrades(
     return (
       normName === 'academicelective3' ||
       normName === 'ae3' ||
-      normName.includes('elective3') ||
-      normName.includes('chemistry3') ||
-      normName.includes('genchem3') ||
-      normName.includes('generalphysics')
+      normName.includes('academicelective3') ||
+      normName.includes('elective3')
     );
   });
 
@@ -337,6 +360,10 @@ export function extractGrade11AcademicSubjectGrades(
   const candidateElectiveKeys: string[] = [];
   for (const key of Object.keys(gradesRecord)) {
     const normKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const subObj = subjectsList.find(s => s.id === key || (s.subject_name || (s as unknown as { name?: string }).name || '').toLowerCase() === key.toLowerCase());
+    const isHdr = (subObj as unknown as { isHeader?: boolean; isReserved?: boolean })?.isHeader || (subObj as unknown as { isHeader?: boolean; isReserved?: boolean })?.isReserved;
+    const isCategoryHeader = ['coresubjects', 'electivesubjects', 'appliedsubjects', 'specializedsubjects', 'core', 'applied', 'specialized'].includes(normKey);
+    if (isHdr || isCategoryHeader) continue;
     if (
       !coreNormSet.has(normKey) &&
       !normKey.includes('effective') &&
@@ -351,8 +378,8 @@ export function extractGrade11AcademicSubjectGrades(
   }
 
   const getDisplayName = (key: string) => {
-    const sub = subjectsList.find(s => s.id === key || (s.subject_name || '').toLowerCase() === key.toLowerCase());
-    return sub ? (sub.subject_name || key) : key;
+    const sub = subjectsList.find(s => s.id === key || (s.subject_name || (s as unknown as { name?: string }).name || '').toLowerCase() === key.toLowerCase());
+    return sub ? (sub.subject_name || (sub as unknown as { name?: string }).name || key) : key;
   };
 
   if (candidateElectiveKeys.length > 0) {
@@ -379,7 +406,12 @@ export function extractGrade11AcademicSubjectGrades(
 
   // Also check non-core subjects from subjectsList if any elective name is still generic
   const nonCoreSubjects = subjectsList.filter(s => {
-    const sName = (s.subject_name || (s as unknown as { name?: string }).name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const isHdr = (s as unknown as { isHeader?: boolean; isReserved?: boolean })?.isHeader || (s as unknown as { isHeader?: boolean; isReserved?: boolean })?.isReserved;
+    if (isHdr) return false;
+    const rawName = s.subject_name || (s as unknown as { name?: string }).name || '';
+    const sName = rawName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const isCategoryHeader = ['coresubjects', 'electivesubjects', 'appliedsubjects', 'specializedsubjects', 'core', 'applied', 'specialized'].includes(sName);
+    if (isCategoryHeader) return false;
     return (
       !coreNormSet.has(sName) &&
       !sName.includes('effective') &&
@@ -1068,6 +1100,7 @@ export async function populateGrade11AcademicTemplateBuffer(
     };
 
     const inputStyles: Record<string, string> = {};
+    const birthdateFormulas: { cellRef: string; formula: string; serial: number; style: string }[] = [];
 
     // Males (1-50): Name in L11:L60, LRN in M11:M60, Birthdate in N11:N60
     for (let idx = 0; idx < 50; idx++) {
@@ -1075,29 +1108,74 @@ export async function populateGrade11AcademicTemplateBuffer(
       const m = males[idx];
       inputDataCells[`L${r}`] = m ? formatLearnerName(m) : '';
       inputDataCells[`M${r}`] = m ? (m.lrn || '') : '';
-      inputDataCells[`N${r}`] = m ? formatDateToMMDDYYYY(m.birthday) : '';
       inputStyles[`L${r}`] = '25';
       inputStyles[`M${r}`] = '26';
       inputStyles[`N${r}`] = '27';
+      if (m && m.birthday) {
+        const parts = parseBirthDateParts(m.birthday);
+        const serial = birthDateToExcelSerial(m.birthday);
+        if (parts && serial !== null) {
+          birthdateFormulas.push({
+            cellRef: `N${r}`,
+            formula: `DATE(${parts.year},${parts.month},${parts.day})`,
+            serial,
+            style: '27'
+          });
+        } else {
+          inputDataCells[`N${r}`] = formatDateToMMDDYYYY(m.birthday);
+        }
+      } else {
+        inputDataCells[`N${r}`] = '';
+      }
     }
 
-    // Females (1-50): Name in Q11:Q60, LRN in R11:R60, Birthdate in S11:S60
+    // Females (1-50): Name in Q11:Q60, LRN in R11:R60 & T11:T60, Birthdate in S11:S60
     for (let idx = 0; idx < 50; idx++) {
       const r = 11 + idx;
       const f = females[idx];
       inputDataCells[`Q${r}`] = f ? formatLearnerName(f) : '';
       inputDataCells[`R${r}`] = f ? (f.lrn || '') : '';
-      inputDataCells[`S${r}`] = f ? formatDateToMMDDYYYY(f.birthday) : '';
+      inputDataCells[`T${r}`] = f ? (f.lrn || '') : '';
       inputStyles[`Q${r}`] = '25';
       inputStyles[`R${r}`] = '26';
+      inputStyles[`T${r}`] = '26';
       inputStyles[`S${r}`] = '27';
+      if (f && f.birthday) {
+        const parts = parseBirthDateParts(f.birthday);
+        const serial = birthDateToExcelSerial(f.birthday);
+        if (parts && serial !== null) {
+          birthdateFormulas.push({
+            cellRef: `S${r}`,
+            formula: `DATE(${parts.year},${parts.month},${parts.day})`,
+            serial,
+            style: '27'
+          });
+        } else {
+          inputDataCells[`S${r}`] = formatDateToMMDDYYYY(f.birthday);
+        }
+      } else {
+        inputDataCells[`S${r}`] = '';
+      }
     }
 
     sheet2Xml = updateCellsBatch(sheet2Xml, inputDataCells, inputStyles);
+    for (const bf of birthdateFormulas) {
+      sheet2Xml = updateFormulaCellExplicit(sheet2Xml, bf.cellRef, bf.formula, bf.serial, bf.style);
+    }
     zip.file(inputSheetPath, sheet2Xml);
   }
 
-  // Precompute term averages and rank for all students across terms 1, 2, 3
+  const calcFinal = (t1: number | '', t2: number | '', t3: number | '') => {
+    const arr = [t1, t2, t3].filter((n): n is number => typeof n === 'number' && n > 0);
+    return arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : '';
+  };
+
+  const calcCombined = (g1: number | '', g2: number | '') => {
+    const arr = [g1, g2].filter((n): n is number => typeof n === 'number' && n > 0);
+    return arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : '';
+  };
+
+  // Precompute term averages across the 6 learning areas (Combined Comm, Math, Sci, LCS, PKLP, AE)
   const termAveragesMap = new Map<number, { males: (number | '')[]; females: (number | '')[] }>();
 
   for (let termIdx = 0; termIdx < 3; termIdx++) {
@@ -1111,14 +1189,15 @@ export async function populateGrade11AcademicTemplateBuffer(
       }
       const ec = g.effectiveComm[termIdx];
       const mk = g.mabisangKom[termIdx];
+      const comm = calcCombined(ec, mk);
       const math = g.genMath[termIdx];
       const sci = g.genSci[termIdx];
       const lcs = g.lifeCareer[termIdx];
       const pklpVal = g.pklp[termIdx];
       const aeVal = termIdx === 0 ? g.academicElective1 : termIdx === 1 ? g.academicElective2 : g.academicElective3;
-      const scores = [ec, mk, math, sci, lcs, pklpVal, aeVal].filter((v): v is number => typeof v === 'number' && v > 0);
-      if (scores.length === 7) {
-        maleAverages.push(Math.round(scores.reduce((a, b) => a + b, 0) / 7));
+      const scores = [comm, math, sci, lcs, pklpVal, aeVal].filter((v): v is number => typeof v === 'number' && v > 0);
+      if (scores.length === 6) {
+        maleAverages.push(Math.round(scores.reduce((a, b) => a + b, 0) / 6));
       } else if (scores.length > 0) {
         maleAverages.push(Math.round(scores.reduce((a, b) => a + b, 0) / scores.length));
       } else {
@@ -1136,14 +1215,15 @@ export async function populateGrade11AcademicTemplateBuffer(
       }
       const ec = g.effectiveComm[termIdx];
       const mk = g.mabisangKom[termIdx];
+      const comm = calcCombined(ec, mk);
       const math = g.genMath[termIdx];
       const sci = g.genSci[termIdx];
       const lcs = g.lifeCareer[termIdx];
       const pklpVal = g.pklp[termIdx];
       const aeVal = termIdx === 0 ? g.academicElective1 : termIdx === 1 ? g.academicElective2 : g.academicElective3;
-      const scores = [ec, mk, math, sci, lcs, pklpVal, aeVal].filter((v): v is number => typeof v === 'number' && v > 0);
-      if (scores.length === 7) {
-        femaleAverages.push(Math.round(scores.reduce((a, b) => a + b, 0) / 7));
+      const scores = [comm, math, sci, lcs, pklpVal, aeVal].filter((v): v is number => typeof v === 'number' && v > 0);
+      if (scores.length === 6) {
+        femaleAverages.push(Math.round(scores.reduce((a, b) => a + b, 0) / 6));
       } else if (scores.length > 0) {
         femaleAverages.push(Math.round(scores.reduce((a, b) => a + b, 0) / scores.length));
       } else {
@@ -1172,29 +1252,6 @@ export async function populateGrade11AcademicTemplateBuffer(
     // Expand template shared formulas before replacing cells within their ranges.
     sXml = expandSharedFormulas(sXml);
 
-    // Ensure summary formula dynamically averages only graded subjects (averages non-blank cells instead of hardcoded division by 7)
-    sXml = sXml.replace(
-      /ROUND\(\([A-Z0-9+]+?\)\/7,0\)/g,
-      (match) => {
-        const rowMatch = match.match(/[A-Z](\d+)/);
-        if (rowMatch) {
-          const r = rowMatch[1];
-          return `ROUND(AVERAGE(K${r}:Q${r}),0)`;
-        }
-        return match;
-      }
-    );
-
-    // Adjust column 17 width and row 13 height so Q13 ("AE 1") fits and wraps nicely
-    sXml = sXml.replace(
-      /<col min="16" max="17" width="9.44140625" style="232" customWidth="1"\/>/g,
-      '<col min="16" max="16" width="9.44140625" style="232" customWidth="1"/><col min="17" max="17" width="13.5" style="232" customWidth="1"/>'
-    );
-    sXml = sXml.replace(
-      /(<row\s+r="13"[^>]*?\s+ht=")[^"]*(")/,
-      '$128.5$2'
-    );
-
     const formulaResults: Record<string, string | number> = {
       'E5': cleanRegion,
       'J5': cleanDivision,
@@ -1210,32 +1267,17 @@ export async function populateGrade11AcademicTemplateBuffer(
       'M10': cleanAdviser,
     };
 
-    const termCells: Record<string, string | number> = {
-      'Q13': 'AE 1',
-    };
-    const termAvgs = termAveragesMap.get(termIndex)!;
+    const termCells: Record<string, string | number> = {};
 
-    // Collect all valid scores to calculate ranking across both males and females
-    const allNumericScores: number[] = [
-      ...termAvgs.males.filter((v): v is number => typeof v === 'number' && v > 0),
-      ...termAvgs.females.filter((v): v is number => typeof v === 'number' && v > 0)
-    ].sort((a, b) => b - a);
-
-    const getRank = (avg: number | '') => {
-      if (typeof avg !== 'number' || avg <= 0) return '';
-      const matching = allNumericScores.filter(s => s === avg);
-      const higherCount = allNumericScores.filter(s => s > avg).length;
-      return higherCount + 1 + (matching.length - 1) / 2;
-    };
-
-    // Males (Rows 15 to 64)
+    // Males (Rows 16 to 65: Row 15 is section header "MALE")
     for (let idx = 0; idx < 50; idx++) {
-      const r = 15 + idx;
+      const r = 16 + idx;
       const m = males[idx];
       const mName = m ? formatLearnerName(m) : '';
+      const mSerial = m?.birthday ? birthDateToExcelSerial(m.birthday) : null;
       formulaResults[`C${r}`] = mName;
       formulaResults[`F${r}`] = m ? (m.lrn || '') : '';
-      formulaResults[`H${r}`] = m ? formatDateToMMDDYYYY(m.birthday) : '';
+      formulaResults[`H${r}`] = mSerial !== null ? mSerial : (m ? formatDateToMMDDYYYY(m.birthday) : '');
       formulaResults[`I${r}`] = m ? parseAge(m.age, m.birthday) : '';
       termCells[`J${r}`] = m ? 'M' : '';
 
@@ -1249,7 +1291,8 @@ export async function populateGrade11AcademicTemplateBuffer(
         sXml,
         `H${r}`,
         `IF('INPUT DATA'!N${11 + idx}="","",'INPUT DATA'!N${11 + idx})`,
-        m ? formatDateToMMDDYYYY(m.birthday) : ''
+        mSerial !== null ? mSerial : (m ? formatDateToMMDDYYYY(m.birthday) : ''),
+        '27'
       );
       sXml = updateFormulaCellExplicit(
         sXml,
@@ -1268,42 +1311,42 @@ export async function populateGrade11AcademicTemplateBuffer(
       const aeVal = g
         ? (termIndex === 0 ? g.academicElective1 : termIndex === 1 ? g.academicElective2 : g.academicElective3)
         : '';
+      const commCombined = calcCombined(ec, mk);
 
-      termCells[`K${r}`] = typeof ec === 'number' && ec > 0 ? ec : '';
-      termCells[`L${r}`] = typeof mk === 'number' && mk > 0 ? mk : '';
-      termCells[`M${r}`] = typeof math === 'number' && math > 0 ? math : '';
-      termCells[`N${r}`] = typeof sci === 'number' && sci > 0 ? sci : '';
-      termCells[`O${r}`] = typeof lcs === 'number' && lcs > 0 ? lcs : '';
-      termCells[`P${r}`] = typeof pklpVal === 'number' && pklpVal > 0 ? pklpVal : '';
-      termCells[`Q${r}`] = typeof aeVal === 'number' && aeVal > 0 ? aeVal : '';
-
-      const studentAvg = termAvgs.males[idx];
-      formulaResults[`R${r}`] = studentAvg !== '' ? studentAvg : '';
-      formulaResults[`S${r}`] = studentAvg !== '' ? getRank(studentAvg) : '';
+      termCells[`K${r}`] = typeof commCombined === 'number' && commCombined > 0 ? commCombined : '';
+      termCells[`L${r}`] = typeof ec === 'number' && ec > 0 ? ec : '';
+      termCells[`M${r}`] = typeof mk === 'number' && mk > 0 ? mk : '';
+      termCells[`N${r}`] = typeof math === 'number' && math > 0 ? math : '';
+      termCells[`O${r}`] = typeof sci === 'number' && sci > 0 ? sci : '';
+      termCells[`P${r}`] = typeof lcs === 'number' && lcs > 0 ? lcs : '';
+      termCells[`Q${r}`] = typeof pklpVal === 'number' && pklpVal > 0 ? pklpVal : '';
+      termCells[`R${r}`] = typeof aeVal === 'number' && aeVal > 0 ? aeVal : '';
     }
 
-    // Females (Rows 66 to 115)
+    // Females (Rows 67 to 116: Row 66 is section header "FEMALE")
     for (let idx = 0; idx < 50; idx++) {
-      const r = 66 + idx;
+      const r = 67 + idx;
       const f = females[idx];
       const fName = f ? formatLearnerName(f) : '';
+      const fSerial = f?.birthday ? birthDateToExcelSerial(f.birthday) : null;
       formulaResults[`C${r}`] = fName;
       formulaResults[`F${r}`] = f ? (f.lrn || '') : '';
-      formulaResults[`H${r}`] = f ? formatDateToMMDDYYYY(f.birthday) : '';
+      formulaResults[`H${r}`] = fSerial !== null ? fSerial : (f ? formatDateToMMDDYYYY(f.birthday) : '');
       formulaResults[`I${r}`] = f ? parseAge(f.age, f.birthday) : '';
       termCells[`J${r}`] = f ? 'F' : '';
 
       sXml = updateFormulaCellExplicit(
         sXml,
         `F${r}`,
-        `IF('INPUT DATA'!R${11 + idx}="","",'INPUT DATA'!R${11 + idx})`,
+        `IF('INPUT DATA'!T${11 + idx}="","",'INPUT DATA'!T${11 + idx})`,
         f ? (f.lrn || '') : ''
       );
       sXml = updateFormulaCellExplicit(
         sXml,
         `H${r}`,
         `IF('INPUT DATA'!S${11 + idx}="","",'INPUT DATA'!S${11 + idx})`,
-        f ? formatDateToMMDDYYYY(f.birthday) : ''
+        fSerial !== null ? fSerial : (f ? formatDateToMMDDYYYY(f.birthday) : ''),
+        '27'
       );
       sXml = updateFormulaCellExplicit(
         sXml,
@@ -1322,18 +1365,16 @@ export async function populateGrade11AcademicTemplateBuffer(
       const aeVal = g
         ? (termIndex === 0 ? g.academicElective1 : termIndex === 1 ? g.academicElective2 : g.academicElective3)
         : '';
+      const commCombined = calcCombined(ec, mk);
 
-      termCells[`K${r}`] = typeof ec === 'number' && ec > 0 ? ec : '';
-      termCells[`L${r}`] = typeof mk === 'number' && mk > 0 ? mk : '';
-      termCells[`M${r}`] = typeof math === 'number' && math > 0 ? math : '';
-      termCells[`N${r}`] = typeof sci === 'number' && sci > 0 ? sci : '';
-      termCells[`O${r}`] = typeof lcs === 'number' && lcs > 0 ? lcs : '';
-      termCells[`P${r}`] = typeof pklpVal === 'number' && pklpVal > 0 ? pklpVal : '';
-      termCells[`Q${r}`] = typeof aeVal === 'number' && aeVal > 0 ? aeVal : '';
-
-      const studentAvg = termAvgs.females[idx];
-      formulaResults[`R${r}`] = studentAvg !== '' ? studentAvg : '';
-      formulaResults[`S${r}`] = studentAvg !== '' ? getRank(studentAvg) : '';
+      termCells[`K${r}`] = typeof commCombined === 'number' && commCombined > 0 ? commCombined : '';
+      termCells[`L${r}`] = typeof ec === 'number' && ec > 0 ? ec : '';
+      termCells[`M${r}`] = typeof mk === 'number' && mk > 0 ? mk : '';
+      termCells[`N${r}`] = typeof math === 'number' && math > 0 ? math : '';
+      termCells[`O${r}`] = typeof sci === 'number' && sci > 0 ? sci : '';
+      termCells[`P${r}`] = typeof lcs === 'number' && lcs > 0 ? lcs : '';
+      termCells[`Q${r}`] = typeof pklpVal === 'number' && pklpVal > 0 ? pklpVal : '';
+      termCells[`R${r}`] = typeof aeVal === 'number' && aeVal > 0 ? aeVal : '';
     }
 
     sXml = updateFormulaValuesBatch(sXml, formulaResults);
@@ -1526,13 +1567,16 @@ export async function populateGrade11AcademicTemplateBuffer(
     const attCells: Record<string, string | number> = {};
     const monthCols = ['F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P']; // Jun to Apr (11 months)
 
-    // Populate Row 13: School Days in Sheet 7
-    if (attendance?.schoolDays && attendance.schoolDays.length > 0) {
-      attendance.schoolDays.forEach((sd, idx) => {
-        if (idx < monthCols.length && sd !== undefined && sd !== null && sd > 0) {
-          attCells[`${monthCols[idx]}13`] = Number(sd);
+    // Populate Row 117: Total Number of School Days in Sheet 7 (Row 13 is section header "MALE")
+    const cleanAttSchoolDays = (attendance?.schoolDays || []).slice(0, 11);
+    if (cleanAttSchoolDays.length > 0) {
+      cleanAttSchoolDays.forEach((sd, idx) => {
+        if (idx < monthCols.length && sd !== undefined && sd !== null && Number(sd) > 0) {
+          attCells[`${monthCols[idx]}117`] = Number(sd);
         }
       });
+      const totalSchoolDays = cleanAttSchoolDays.reduce((a, b) => a + (Number(b) || 0), 0);
+      attFormulaResults['E117'] = totalSchoolDays > 0 ? totalSchoolDays : '';
     }
 
     // Clear template placeholder numbers and set names
@@ -1556,9 +1600,10 @@ export async function populateGrade11AcademicTemplateBuffer(
       if (idx < 50) {
         const r = 14 + idx;
         const studentAtt = (m as unknown as StudentWithAtt).attendance;
-        const dpList = (m.lrn === student.lrn && attendance?.daysPresent && attendance.daysPresent.length > 0)
+        const rawDp = (m.lrn === student.lrn && attendance?.daysPresent && attendance.daysPresent.length > 0)
           ? attendance.daysPresent
           : (studentAtt?.daysPresent || []);
+        const dpList = rawDp.slice(0, 11);
         dpList.forEach((dp, mIdx) => {
           if (mIdx < monthCols.length && dp !== undefined && dp !== null && dp !== ('' as unknown as number)) {
             attCells[`${monthCols[mIdx]}${r}`] = Number(dp);
@@ -1572,9 +1617,10 @@ export async function populateGrade11AcademicTemplateBuffer(
       if (idx < 50) {
         const r = 65 + idx;
         const studentAtt = (f as unknown as StudentWithAtt).attendance;
-        const dpList = (f.lrn === student.lrn && attendance?.daysPresent && attendance.daysPresent.length > 0)
+        const rawDp = (f.lrn === student.lrn && attendance?.daysPresent && attendance.daysPresent.length > 0)
           ? attendance.daysPresent
           : (studentAtt?.daysPresent || []);
+        const dpList = rawDp.slice(0, 11);
         dpList.forEach((dp, mIdx) => {
           if (mIdx < monthCols.length && dp !== undefined && dp !== null && dp !== ('' as unknown as number)) {
             attCells[`${monthCols[mIdx]}${r}`] = Number(dp);
@@ -1599,7 +1645,13 @@ export async function populateGrade11AcademicTemplateBuffer(
 
     // Replace school profile cells with valid values / formulas
     sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B7', "'INPUT DATA'!F10", cleanRegion);
-    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B8', "'INPUT DATA'!F11", cleanDivision);
+    const divisionDisplay = cleanDivision ? `SCHOOLS DIVISION OF ${cleanDivision}` : 'SCHOOLS DIVISION OF _____';
+    sf9Xml = updateFormulaCellExplicit(
+      sf9Xml, 
+      'B8', 
+      "IF('INPUT DATA'!F11=\"\",\"SCHOOLS DIVISION OF _____\",\"SCHOOLS DIVISION OF \" & 'INPUT DATA'!F11)", 
+      divisionDisplay
+    );
     sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B9', "'INPUT DATA'!F13", cleanDistrict);
     sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B10', "'INPUT DATA'!F15", cleanSchoolId);
     sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B12', "'INPUT DATA'!F16", cleanSchoolName);
@@ -1655,6 +1707,8 @@ export async function populateGrade11AcademicTemplateBuffer(
     sf9Xml = updateCellInSheetXml(sf9Xml, 'B41', currentGrades.ae1Name || 'Academic Elective 1');
     sf9Xml = updateCellInSheetXml(sf9Xml, 'B42', currentGrades.ae2Name || 'Academic Elective 2');
     sf9Xml = updateCellInSheetXml(sf9Xml, 'B43', currentGrades.ae3Name || 'Academic Elective 3');
+    // Fix typo in cell B39: Kasaysayan instead of Kasanayan
+    sf9Xml = updateCellInSheetXml(sf9Xml, 'B39', 'Pag-aaral ng Kasaysayan at Lipunang Pilipino');
 
     const getGenAvgRemarks = (avg: number | '' | string, learningAreas: (number | string)[]) => {
       if (typeof avg !== 'number' || avg <= 0) return '';
@@ -1677,18 +1731,18 @@ export async function populateGrade11AcademicTemplateBuffer(
       // - Column K: Remarks ("Passed" / "Failed" / "Promoted with Academic Excellence Award")
       // - Column L: Weighted Points (J * I guarded against #VALUE!)
 
-      // Pre-evaluate term grades in Columns F, G, H
-      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'F33', commT1);
-      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'G33', commT2);
-      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'H33', commT3);
+      // Term Grades in Columns F, G, H with accurate VLOOKUPs to TERM 1, 2, 3 SUMMARY
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'F33', "IF('TERM 1 SUMMARY'!K16=\"\",\"\",VLOOKUP(C17,'TERM 1 SUMMARY'!C16:R116,9,0))", commT1);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'G33', "IF('TERM 2 SUMMARY'!K16=\"\",\"\",VLOOKUP(C17,'TERM 2 SUMMARY'!C16:R116,9,0))", commT2);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'H33', "IF('TERM 3 SUMMARY'!K16=\"\",\"\",VLOOKUP(C17,'TERM 3 SUMMARY'!C16:R116,9,0))", commT3);
 
-      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'F34', numOrEmpty(currentGrades.effectiveComm[0]));
-      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'G34', numOrEmpty(currentGrades.effectiveComm[1]));
-      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'H34', numOrEmpty(currentGrades.effectiveComm[2]));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'F34', "IF('TERM 1 SUMMARY'!K16=\"\",\"\",VLOOKUP(C17,'TERM 1 SUMMARY'!C16:R116,10,0))", numOrEmpty(currentGrades.effectiveComm[0]));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'G34', "IF('TERM 2 SUMMARY'!K16=\"\",\"\",VLOOKUP(C17,'TERM 2 SUMMARY'!C16:R116,10,0))", numOrEmpty(currentGrades.effectiveComm[1]));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'H34', "IF('TERM 3 SUMMARY'!K16=\"\",\"\",VLOOKUP(C17,'TERM 3 SUMMARY'!C16:R116,10,0))", numOrEmpty(currentGrades.effectiveComm[2]));
 
-      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'F35', numOrEmpty(currentGrades.mabisangKom[0]));
-      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'G35', numOrEmpty(currentGrades.mabisangKom[1]));
-      sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'H35', numOrEmpty(currentGrades.mabisangKom[2]));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'F35', "IF('TERM 1 SUMMARY'!K16=\"\",\"\",VLOOKUP(C17,'TERM 1 SUMMARY'!C16:R116,11,0))", numOrEmpty(currentGrades.mabisangKom[0]));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'G35', "IF('TERM 2 SUMMARY'!K16=\"\",\"\",VLOOKUP(C17,'TERM 2 SUMMARY'!C16:R116,11,0))", numOrEmpty(currentGrades.mabisangKom[1]));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'H35', "IF('TERM 3 SUMMARY'!K16=\"\",\"\",VLOOKUP(C17,'TERM 3 SUMMARY'!C16:R116,11,0))", numOrEmpty(currentGrades.mabisangKom[2]));
 
       sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'F36', numOrEmpty(currentGrades.genMath[0]));
       sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'G36', numOrEmpty(currentGrades.genMath[1]));
@@ -1774,13 +1828,23 @@ export async function populateGrade11AcademicTemplateBuffer(
 
       // Attendance in SF9
       const sf9MonthCols = ['R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA', 'AB']; // Jun to Apr (11 columns)
-      if (attendance?.schoolDays && attendance.schoolDays.length > 0) {
-        attendance.schoolDays.forEach((sd, idx) => {
-          if (idx < sf9MonthCols.length && sd !== undefined && sd !== null && sd > 0) {
-            sf9Xml = updateCellInSheetXml(sf9Xml, `${sf9MonthCols[idx]}5`, Number(sd));
-          }
+      const attMonthCols = ['F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P']; // Jun to Apr in ATTENDANCE RECORD SUMMARY
+      const cleanSchoolDays = (attendance?.schoolDays || []).slice(0, 11);
+      const cleanDaysPresent = (attendance?.daysPresent || []).slice(0, 11);
+      const cleanDaysAbsent = (attendance?.daysAbsent || []).slice(0, 11);
+
+      if (cleanSchoolDays.length > 0) {
+        sf9MonthCols.forEach((col, idx) => {
+          const sd = cleanSchoolDays[idx];
+          const val = (sd !== undefined && sd !== null && Number(sd) > 0) ? Number(sd) : '';
+          sf9Xml = updateFormulaCellExplicit(
+            sf9Xml,
+            `${col}5`,
+            `'ATTENDANCE RECORD SUMMARY'!${attMonthCols[idx]}117`,
+            val
+          );
         });
-        const totalClassDays = attendance.schoolDays.reduce((a, b) => a + (Number(b) || 0), 0);
+        const totalClassDays = cleanSchoolDays.reduce((a, b) => a + (Number(b) || 0), 0);
         sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC5', 'SUM(R5:AB6)', totalClassDays > 0 ? totalClassDays : '');
       } else {
         sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC5', 'SUM(R5:AB6)', '');
@@ -1789,31 +1853,31 @@ export async function populateGrade11AcademicTemplateBuffer(
       sf9MonthCols.forEach((col, idx) => {
         const vlookupCol = 4 + idx;
         const formula = `IF('ATTENDANCE RECORD SUMMARY'!F14="","",IFERROR(VLOOKUP(C17,'ATTENDANCE RECORD SUMMARY'!$C$14:$P$114,${vlookupCol},0),""))`;
-        const cachedVal = (attendance?.daysPresent && attendance.daysPresent[idx] !== undefined && attendance.daysPresent[idx] !== null && attendance.daysPresent[idx] !== ('' as unknown as number))
-          ? Number(attendance.daysPresent[idx])
+        const cachedVal = (cleanDaysPresent[idx] !== undefined && cleanDaysPresent[idx] !== null && cleanDaysPresent[idx] !== ('' as unknown as number))
+          ? Number(cleanDaysPresent[idx])
           : '';
         sf9Xml = updateFormulaCellExplicit(sf9Xml, `${col}7`, formula, cachedVal);
       });
-      const totalPresent = (attendance?.daysPresent && attendance.daysPresent.length > 0)
-        ? attendance.daysPresent.reduce((a, b) => a + (Number(b) || 0), 0)
+      const totalPresent = cleanDaysPresent.length > 0
+        ? cleanDaysPresent.reduce((a, b) => a + (Number(b) || 0), 0)
         : '';
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC7', 'SUM(R7:AB8)', (totalPresent !== '' && totalPresent > 0) ? totalPresent : (totalPresent === 0 ? 0 : ''));
 
       sf9MonthCols.forEach((col, idx) => {
-        const classDays = (attendance?.schoolDays && attendance.schoolDays[idx]) ? Number(attendance.schoolDays[idx]) : 0;
-        const dpVal = (attendance?.daysPresent && attendance.daysPresent[idx] !== undefined && attendance.daysPresent[idx] !== null && attendance.daysPresent[idx] !== ('' as unknown as number))
-          ? Number(attendance.daysPresent[idx])
+        const classDays = cleanSchoolDays[idx] ? Number(cleanSchoolDays[idx]) : 0;
+        const dpVal = (cleanDaysPresent[idx] !== undefined && cleanDaysPresent[idx] !== null && cleanDaysPresent[idx] !== ('' as unknown as number))
+          ? Number(cleanDaysPresent[idx])
           : null;
         const cachedAbsent = (dpVal !== null && classDays > 0)
           ? Math.max(0, classDays - dpVal)
           : '';
         sf9Xml = updateFormulaCellExplicit(sf9Xml, `${col}9`, `IF(${col}7="","",ABS(${col}5-${col}7))`, cachedAbsent);
       });
-      const totalSchoolDaysNum = (attendance?.schoolDays && attendance.schoolDays.length > 0)
-        ? attendance.schoolDays.reduce((a, b) => a + (Number(b) || 0), 0)
+      const totalSchoolDaysNum = cleanSchoolDays.length > 0
+        ? cleanSchoolDays.reduce((a, b) => a + (Number(b) || 0), 0)
         : 0;
-      const totalAbsent = attendance?.daysAbsent
-        ? attendance.daysAbsent.reduce((a, b) => a + (Number(b) || 0), 0)
+      const totalAbsent = cleanDaysAbsent.length > 0
+        ? cleanDaysAbsent.reduce((a, b) => a + (Number(b) || 0), 0)
         : (totalSchoolDaysNum > 0 && typeof totalPresent === 'number' ? Math.max(0, totalSchoolDaysNum - totalPresent) : '');
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC9', 'ABS(AC5-AC7)', totalAbsent !== '' ? totalAbsent : '');
     } else {
@@ -1908,13 +1972,18 @@ export async function populateGrade11AcademicTemplateBuffer(
 
       // Attendance on legacy Sheet 8
       const sf9MonthCols = ['R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA', 'AB'];
-      if (attendance?.schoolDays && attendance.schoolDays.length > 0) {
-        attendance.schoolDays.forEach((sd, idx) => {
-          if (idx < sf9MonthCols.length && sd !== undefined && sd !== null && sd > 0) {
-            sf9Xml = updateCellInSheetXml(sf9Xml, `${sf9MonthCols[idx]}5`, Number(sd));
+      const cleanSchoolDays = (attendance?.schoolDays || []).slice(0, 11);
+      const cleanDaysPresent = (attendance?.daysPresent || []).slice(0, 11);
+      const cleanDaysAbsent = (attendance?.daysAbsent || []).slice(0, 11);
+
+      if (cleanSchoolDays.length > 0) {
+        sf9MonthCols.forEach((col, idx) => {
+          const sd = cleanSchoolDays[idx];
+          if (sd !== undefined && sd !== null && Number(sd) > 0) {
+            sf9Xml = updateCellInSheetXml(sf9Xml, `${col}5`, Number(sd));
           }
         });
-        const totalClassDays = attendance.schoolDays.reduce((a, b) => a + (Number(b) || 0), 0);
+        const totalClassDays = cleanSchoolDays.reduce((a, b) => a + (Number(b) || 0), 0);
         sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC5', 'SUM(R5:AB5)', totalClassDays > 0 ? totalClassDays : '');
       } else {
         sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC5', 'SUM(R5:AB5)', '');
@@ -1923,32 +1992,32 @@ export async function populateGrade11AcademicTemplateBuffer(
       sf9MonthCols.forEach((col, idx) => {
         const vlookupCol = 4 + idx;
         const formula = `IF('ATTENDANCE RECORD SUMMARY'!F14="","",IFERROR(VLOOKUP(C17,'ATTENDANCE RECORD SUMMARY'!$C$14:$P$114,${vlookupCol},0),""))`;
-        const cachedVal = (attendance?.daysPresent && attendance.daysPresent[idx] !== undefined && attendance.daysPresent[idx] !== null && attendance.daysPresent[idx] !== ('' as unknown as number))
-          ? Number(attendance.daysPresent[idx])
+        const cachedVal = (cleanDaysPresent[idx] !== undefined && cleanDaysPresent[idx] !== null && cleanDaysPresent[idx] !== ('' as unknown as number))
+          ? Number(cleanDaysPresent[idx])
           : '';
         sf9Xml = updateFormulaCellExplicit(sf9Xml, `${col}7`, formula, cachedVal);
       });
-      const totalPresent = (attendance?.daysPresent && attendance.daysPresent.length > 0)
-        ? attendance.daysPresent.reduce((a, b) => a + (Number(b) || 0), 0)
+      const totalPresent = cleanDaysPresent.length > 0
+        ? cleanDaysPresent.reduce((a, b) => a + (Number(b) || 0), 0)
         : '';
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC7', 'SUM(R7:AB7)', (totalPresent !== '' && totalPresent > 0) ? totalPresent : (totalPresent === 0 ? 0 : ''));
 
       sf9MonthCols.forEach((col, idx) => {
         const formula = `IF(OR(${col}5="",${col}7=""),"",IF(${col}5>=${col}7,${col}5-${col}7,0))`;
-        const classDays = (attendance?.schoolDays && attendance.schoolDays[idx]) ? Number(attendance.schoolDays[idx]) : 0;
-        const dpVal = (attendance?.daysPresent && attendance.daysPresent[idx] !== undefined && attendance.daysPresent[idx] !== null && attendance.daysPresent[idx] !== ('' as unknown as number))
-          ? Number(attendance.daysPresent[idx])
+        const classDays = cleanSchoolDays[idx] ? Number(cleanSchoolDays[idx]) : 0;
+        const dpVal = (cleanDaysPresent[idx] !== undefined && cleanDaysPresent[idx] !== null && cleanDaysPresent[idx] !== ('' as unknown as number))
+          ? Number(cleanDaysPresent[idx])
           : null;
         const cachedAbsent = (dpVal !== null && classDays > 0)
           ? Math.max(0, classDays - dpVal)
           : '';
         sf9Xml = updateFormulaCellExplicit(sf9Xml, `${col}9`, formula, cachedAbsent);
       });
-      const totalSchoolDaysNum = (attendance?.schoolDays && attendance.schoolDays.length > 0)
-        ? attendance.schoolDays.reduce((a, b) => a + (Number(b) || 0), 0)
+      const totalSchoolDaysNum = cleanSchoolDays.length > 0
+        ? cleanSchoolDays.reduce((a, b) => a + (Number(b) || 0), 0)
         : 0;
-      const totalAbsent = attendance?.daysAbsent
-        ? attendance.daysAbsent.reduce((a, b) => a + (Number(b) || 0), 0)
+      const totalAbsent = cleanDaysAbsent.length > 0
+        ? cleanDaysAbsent.reduce((a, b) => a + (Number(b) || 0), 0)
         : (totalSchoolDaysNum > 0 && typeof totalPresent === 'number' ? Math.max(0, totalSchoolDaysNum - totalPresent) : '');
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'AC9', 'SUM(R9:AB9)', totalAbsent !== '' ? totalAbsent : '');
 

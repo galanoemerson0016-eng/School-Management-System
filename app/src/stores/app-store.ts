@@ -10,8 +10,8 @@ import type { SchoolProfile, Student, Section, Subject, Announcement, ClassRecor
 import { db, onDatabaseWriteChange } from '../services/database';
 import { backup } from '../services/backup';
 import { normalizeSubjectName } from '../lib/subjectConfig';
-import { STANDARD_SUBJECTS, getDefaultTermForSubject, isGrade11CoreSubject, SSHS_ACADEMIC_CLUSTERS, SSHS_TECHPRO_CLUSTERS } from '../lib/curriculum';
-import { normalizeGrade12PESubjectName, isMatchingSubject } from '../utils/grading-helpers';
+import { STANDARD_SUBJECTS, getDefaultTermForSubject, isGrade11CoreSubject } from '../lib/curriculum';
+import { normalizeGrade12PESubjectName } from '../utils/grading-helpers';
 import { reconcileOrphanedGradesAndSubjects, generateDeterministicSubjectId } from '../utils/grade-reconciliation';
 import {
   buildAttendanceRecordsFromSf2Sheet,
@@ -1806,42 +1806,6 @@ export async function initializeAppStore() {
       }
     }
 
-    // Sanitize Grade 11 advisory sections: Remove leaked/auto-appended electives that have 0 student grades
-    let anyG11SectionSanitized = false;
-    finalSections = finalSections.map(sec => {
-      if (!sec.is_advisory || !sec.section_grade_level?.includes('11')) return sec;
-      const taught = sec.taught_subjects || [];
-      if (taught.length === 0) return sec;
-
-      const clusterKey = sec.cluster || sec.strand || '';
-      const allowedClusterSubs = clusterKey && ((SSHS_ACADEMIC_CLUSTERS as Record<string, string[]>)[clusterKey] || (SSHS_TECHPRO_CLUSTERS as Record<string, string[]>)[clusterKey])
-        ? ((SSHS_ACADEMIC_CLUSTERS as Record<string, string[]>)[clusterKey] || (SSHS_TECHPRO_CLUSTERS as Record<string, string[]>)[clusterKey])
-        : [];
-
-      const sanitizedTaught = taught.filter(subName => {
-        // Universal Core subjects are always kept
-        if (isGrade11CoreSubject(subName)) return true;
-        // Check if any student has grades in this subject in this section
-        const hasGrades = (gradingSheetRecords || []).some(r => r.section_id === sec.id && isMatchingSubject(subName, r.subject_id, r.subject_name) && Number(r.final_grade) > 0) ||
-                          (classRecords || []).some(r => (r as any).section_id === sec.id && isMatchingSubject(subName, r.subject_id, r.subject_name) && Number((r as any).final_grade) > 0);
-        if (hasGrades) return true;
-        // If section has an official cluster, only keep electives belonging to that cluster
-        if (allowedClusterSubs.length > 0) {
-          return allowedClusterSubs.some(cSub => isMatchingSubject(cSub, '', subName) || normalizeSubjectName(cSub) === normalizeSubjectName(subName));
-        }
-        // If no cluster is configured, electives with 0 grades must not pollute the section
-        return false;
-      });
-
-      if (sanitizedTaught.length !== taught.length) {
-        anyG11SectionSanitized = true;
-        return { ...sec, taught_subjects: sanitizedTaught };
-      }
-      return sec;
-    });
-    if (anyG11SectionSanitized) {
-      void db.putRecordsBulk('sections', finalSections).catch(e => console.error('Failed to persist sanitized Grade 11 sections:', e));
-    }
 
     // Client Safety Isolation: Only recover Calibungan High School data on Emerson's installation
     const isEmersonEnvironment = !!(

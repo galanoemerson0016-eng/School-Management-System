@@ -74,11 +74,14 @@ describe('Grade 1 Master ECR, PACE, and SF9 Export - PACE Form Print Setup', () 
     // Dimension must end at row 311
     expect(paceXml).toContain('<dimension ref="A1:T311"/>');
 
-    // sheetPr must contain fitToPage="1" for "Fit All Columns on One Page"
-    expect(paceXml).toContain('fitToPage="1"');
+    // sheetPr must contain fitToPage="0" so Excel scales explicitly at 53%
+    expect(paceXml).toContain('fitToPage="0"');
 
-    // pageSetup must use paperSize="9" (A4), fitToWidth="1", fitToHeight="0"
-    expect(paceXml).toContain('<pageSetup paperSize="9" fitToWidth="1" fitToHeight="0" orientation="portrait"');
+    // pageMargins must reserve bottom="0.55" for Epson hardware margins
+    expect(paceXml).toContain('bottom="0.55"');
+
+    // pageSetup must use paperSize="9" (A4), scale="53"
+    expect(paceXml).toContain('<pageSetup paperSize="9" scale="53" orientation="portrait"');
 
     // rowBreaks must contain exact manual breaks after rows 86, 163, and 245
     expect(paceXml).toContain('<rowBreaks count="3" manualBreakCount="3">');

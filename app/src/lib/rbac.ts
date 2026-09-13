@@ -1,6 +1,6 @@
 import type { Section, Subject, User, UserRole } from '../types';
 import { isMatchingSubject } from '../utils/grading-helpers';
-import { isSubjectAllowedForProgram } from './curriculum';
+import { isSubjectAllowedForProgram, getDefaultTermForSubject } from './curriculum';
 
 export type AppView =
     | 'dashboard'
@@ -271,6 +271,28 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
             unique.push(s);
         }
     }
+
+    // Fallback: If section has taught_subjects, ensure any missing explicitly taught subject is included
+    if (section.taught_subjects && section.taught_subjects.length > 0) {
+        for (const tName of section.taught_subjects) {
+            const key = tName.trim().toLowerCase();
+            if (!seen.has(key)) {
+                seen.add(key);
+                const subjectTermsMeta = (section?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, 1 | 2 | 3 | 'all' | 'none'> | undefined;
+                const defTerm = getDefaultTermForSubject(tName, section.section_grade_level);
+                const effTerm = subjectTermsMeta?.[tName] ?? (defTerm === 'none' ? 1 : defTerm);
+                unique.push({
+                    id: `virtual_${section.id}_${key.replace(/[^a-z0-9]/g, '_')}`,
+                    subject_name: tName,
+                    grade_level: section.section_grade_level,
+                    section_id: section.id,
+                    term: effTerm,
+                    counts_in_general_average: true
+                });
+            }
+        }
+    }
+
     return unique;
 }
 

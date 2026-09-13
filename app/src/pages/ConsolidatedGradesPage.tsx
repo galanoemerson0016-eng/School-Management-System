@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
 import { getSubjectsForGrade, normalizeSubjectName, sortSubjects, getCanonicalSubjectKey, getSubjectCategory, getStandardSubjectPriority } from '../lib/subjectConfig';
-import { getDefaultTermForSubject, getShsSubjectUnitInfo, getCurriculumTemplatesForSection, SPECIAL_SUBJECTS, isGrade11CoreSubject, SSHS_ACADEMIC_CLUSTERS, SSHS_TECHPRO_CLUSTERS, resolveSubjectOfferedTerms } from '../lib/curriculum';
+import { getDefaultTermForSubject, getShsSubjectUnitInfo, getCurriculumTemplatesForSection, SPECIAL_SUBJECTS, isGrade11CoreSubject, resolveSubjectOfferedTerms } from '../lib/curriculum';
 import { resolveStudentQuarterGrade, isMatchingSubject, isSameSubject, normalizeGrade12PESubjectName, cleanSubjectQuery, isQuarterMatch, isSubjectInTeachingLoad, extractSubjectSequence } from '../utils/grading-helpers';
 import { autoRepairSectionCurriculum } from '../services/curriculumSync';
 import type { Subject, ClassRecord, Section } from '../types';
@@ -1427,7 +1427,9 @@ const groupedSections = useMemo(() => {
                     return Number(s.term) as 1 | 2 | 3;
                 }
                 // If stored term was corrupted as 'all' or 'none', fallback to intelligent default
-                return getDefaultTermForSubject(s.subject_name, 11);
+                const def = getDefaultTermForSubject(s.subject_name, 11);
+                if (def === 1 || def === 2 || def === 3) return def;
+                return 1;
             }
             if (s.term !== undefined && s.term !== null && s.term !== 'none') {
                 if (s.term === 1 || s.term === 2 || s.term === 3) return s.term;
@@ -1438,26 +1440,7 @@ const groupedSections = useMemo(() => {
         };
 
         const sectionTrack = (sectionObj.track || '').toLowerCase();
-        let taughtRaw = (sectionObj.taught_subjects || []).filter(t => !isSubjectHidden(t));
-        if (sectionGradeNum === 11) {
-            // For Grade 11 SSHS: If an elective has NO student grades recorded in this section,
-            // and it does not match the section's assigned cluster (or section has no cluster),
-            // filter it out so leaked/auto-appended cross-cluster electives do not pollute the summary!
-            const clusterKey = sectionObj.cluster || sectionObj.strand || '';
-            const allowedClusterSubjects = clusterKey && ((SSHS_ACADEMIC_CLUSTERS as Record<string, string[]>)[clusterKey] || (SSHS_TECHPRO_CLUSTERS as Record<string, string[]>)[clusterKey])
-                ? ((SSHS_ACADEMIC_CLUSTERS as Record<string, string[]>)[clusterKey] || (SSHS_TECHPRO_CLUSTERS as Record<string, string[]>)[clusterKey])
-                : [];
-            taughtRaw = taughtRaw.filter(tName => {
-                if (isGrade11CoreSubject(tName)) return true;
-                const hasGrades = gradingSheetRecords.some(r => r.section_id === sectionObj.id && isMatchingSubject(tName, r.subject_id, r.subject_name) && Number(r.final_grade) > 0) ||
-                                  classRecords.some(r => (r as any).section_id === sectionObj.id && isMatchingSubject(tName, r.subject_id, r.subject_name) && Number((r as any).final_grade) > 0);
-                if (hasGrades) return true;
-                if (allowedClusterSubjects.length > 0) {
-                    return allowedClusterSubjects.some(cSub => isMatchingSubject(cSub, '', tName) || normalizeSubjectName(cSub) === normalizeSubjectName(tName));
-                }
-                return false;
-            });
-        }
+        const taughtRaw = (sectionObj.taught_subjects || []).filter(t => !isSubjectHidden(t));
 
         let candidates = subjects.filter(s => {
             // Never include standalone 'Specialization' subject (not part of official curriculum)

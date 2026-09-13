@@ -1,5 +1,30 @@
 # Version History
 
+## v3.5.2 (2026-09-14)
+
+### 🚀 New Features & Enhancements
+
+- **Grade 11 SSHS Academic SF9 Multi-Level Report Card Renderer**: Complete layout alignment with official DepEd Grade 11 Academic SF9 format, including 39-unit curriculum rules (6 units Core, 3 units Electives).
+- **Elective Term Shading & Grade Suppression**: Non-offered elective terms render with solid neutral gray (`#A6A6A6`) shading and zero grade text. Single-term electives compute Final Grade directly from the offered term score.
+- **Dynamic Schools Division Header**: Formatted as `SCHOOLS DIVISION OF ${cleanDivision}` (e.g., `SCHOOLS DIVISION OF TARLAC PROVINCE`) or `SCHOOLS DIVISION OF _____` when blank.
+- **Automated Age Calculation & `#VALUE!` / `#####` Defect Elimination**: Robust birthdate parsing and dynamic age derivation across both React-PDF renderer and Excel exports.
+
+### ⚡ Client Data Protection & Self-Healing
+
+- **Zero Data Loss Guarantee**: 100% preservation of all existing client records, raw scores, student profiles, and section assignments in IndexedDB.
+- **Strict 1-Page Landscape Fit**: Compacted layout budget ensuring zero vertical spillover to Page 2 across A4 and Letter landscape formats.
+- **Automatic Startup Reconciliation**: Scans local database on app launch, reconnects any orphaned grade records, and unhides missing subjects before UI rendering.
+
+### 🐞 Bug Fixes
+
+- Resolved issue where Grade 11 Academic SF9 overflowed onto Page 2.
+- Fixed TypeScript type narrowing comparison errors on term checks in `SF9Page.tsx`.
+- Corrected unit allocation logic for Grade 11 SSHS Academic subjects.
+
+### 📝 Notes
+
+- 100% backward-compatible update with automated database self-healing on first startup.
+
 ## v3.5.1 (2026-09-13)
 
 ### 🚀 New Features & Enhancements

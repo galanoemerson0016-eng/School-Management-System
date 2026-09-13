@@ -186,29 +186,39 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     expect(sheet2Xml).toContain('r="Q11" s="25"');
     expect(sheet2Xml).toContain('r="R11" s="26"');
     expect(sheet2Xml).toContain('r="S11" s="27"');
+    // Verify birthdate is written as native DATE formula and serial value (prevents Age ##### / DATEDIF #VALUE!)
+    expect(sheet2Xml).toMatch(/<c\s+r="N11"[^>]*><f>DATE\(\d+,\d+,\d+\)<\/f><v>\d+<\/v><\/c>/);
+    expect(sheet2Xml).toMatch(/<c\s+r="S11"[^>]*><f>DATE\(\d+,\d+,\d+\)<\/f><v>\d+<\/v><\/c>/);
 
     // Sheet 3: TERM 1 SUMMARY
     const sheet3Xml = await zip.file('xl/worksheets/sheet3.xml')!.async('text');
     expect(sheet3Xml).not.toContain('t="shared"');
-    expect(sheet3Xml).toContain('r="D15"'); // Male 1 LRN
-    expect(sheet3Xml).toContain('r="G15"'); // Male 1 Birthday
-    expect(sheet3Xml).toContain('r="J15"'); // Male 1 Sex ('M')
-    expect(sheet3Xml).toContain('r="K15"'); // Male 1 Effective Communication
-    expect(sheet3Xml).toContain('r="Q15"'); // Male 1 Academic Elective 1
-    expect(sheet3Xml).toContain('r="D66"'); // Female 1 LRN
-    expect(sheet3Xml).toContain('r="J66"'); // Female 1 Sex ('F')
+    expect(sheet3Xml).toContain('r="F16"'); // Male 1 LRN
+    expect(sheet3Xml).toContain('r="H16"'); // Male 1 Birthday
+    expect(sheet3Xml).toContain('r="J16"'); // Male 1 Sex ('M')
+    expect(sheet3Xml).toContain('r="K16"'); // Male 1 Term Grade (Combined Effective Comm & Mabisang Kom)
+    expect(sheet3Xml).toContain('r="L16"'); // Male 1 Effective Communication
+    expect(sheet3Xml).toContain('r="M16"'); // Male 1 Mabisang Komunikasyon
+    expect(sheet3Xml).toContain('r="N16"'); // Male 1 General Mathematics
+    expect(sheet3Xml).toContain('r="O16"'); // Male 1 General Science
+    expect(sheet3Xml).toContain('r="P16"'); // Male 1 Life and Career Skills
+    expect(sheet3Xml).toContain('r="Q16"'); // Male 1 PKLP
+    expect(sheet3Xml).toContain('r="R16"'); // Male 1 Academic Elective 1
+    expect(sheet3Xml).toContain('r="F67"'); // Female 1 LRN
+    expect(sheet3Xml).toContain('r="J67"'); // Female 1 Sex ('F')
+    expect(sheet3Xml).toContain('r="R67"'); // Female 1 Academic Elective 1
 
     // Sheet 4: TERM 2 SUMMARY
     const sheet4Xml = await zip.file('xl/worksheets/sheet4.xml')!.async('text');
     expect(sheet4Xml).not.toContain('t="shared"');
-    expect(sheet4Xml).toContain('r="K15"');
-    expect(sheet4Xml).toContain('r="Q15"'); // Male 1 Academic Elective 2
+    expect(sheet4Xml).toContain('r="K16"');
+    expect(sheet4Xml).toContain('r="R16"'); // Male 1 Academic Elective 2
 
     // Sheet 5: TERM 3 SUMMARY
     const sheet5Xml = await zip.file('xl/worksheets/sheet5.xml')!.async('text');
     expect(sheet5Xml).not.toContain('t="shared"');
-    expect(sheet5Xml).toContain('r="K15"');
-    expect(sheet5Xml).toContain('r="Q15"'); // Male 1 Academic Elective 3
+    expect(sheet5Xml).toContain('r="K16"');
+    expect(sheet5Xml).toContain('r="R16"'); // Male 1 Academic Elective 3
 
     // Workbook active tab is set to SF9 (index 5)
     const wbXml = await zip.file('xl/workbook.xml')!.async('text');
@@ -225,6 +235,8 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     expect(sheet6Xml).toContain('DELA CRUZ');
     expect(sheet6Xml).toContain('JUAN');
     expect(sheet6Xml).toContain('100000000001');
+    expect(sheet6Xml).toMatch(/<c\s+r="I17"[^>]*><f>[^<]+<\/f><v>\d+<\/v><\/c>/);
+    expect(sheet6Xml).not.toContain('#####');
 
     // School Profile
     expect(sheet6Xml).toContain('BACARRA NATIONAL COMPREHENSIVE HIGH SCHOOL');
@@ -234,6 +246,7 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     expect(sheet6Xml).toMatch(/<c\s+r="A12"[^>]*\/>/); // A12 is empty
     expect(sheet6Xml).toMatch(/<c\s+r="A15"[^>]*\/>/); // A15 is empty
     expect(sheet6Xml).toContain('r="E19"'); // Track in E19
+    expect(sheet6Xml).toContain('Pag-aaral ng Kasaysayan at Lipunang Pilipino'); // Fixed typo in B39
 
     // Learning area grades populated in formula results
     expect(sheet6Xml).toContain('r="F34"'); // T1 Effective Communication
@@ -275,8 +288,8 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     const sheet7Xml = await zip.file('xl/worksheets/sheet7.xml')!.async('text');
     expect(sheet7Xml).toContain('DELA CRUZ');
     expect(sheet7Xml).toContain('CLARA, MARIA');
-    expect(sheet7Xml).toContain('r="F13"'); // June school days row 13
-    expect(sheet7Xml).toContain('r="P13"'); // April school days row 13
+    expect(sheet7Xml).toContain('r="F117"'); // June school days row 117
+    expect(sheet7Xml).toContain('r="P117"'); // April school days row 117
     expect(sheet7Xml).toContain('r="F14"'); // Male 1 June attendance
     expect(sheet7Xml).toContain('r="P14"'); // Male 1 April attendance
     expect(sheet7Xml).toContain('r="F65"'); // Female 1 June attendance

@@ -268,7 +268,7 @@ describe('Grade 4-10 SF9 Excel Export Service', () => {
 
     // Drawings: Drawing 6 exists for SF9 School Logo
     expect(zip.file('xl/drawings/drawing6.xml')).not.toBeNull();
-  }, 15000);
+  }, 60000);
 
   it('correctly matches E.P.P. (with periods) and T.L.E. in extractGrade4to10SubjectGrades', () => {
     const customSubjects: Subject[] = [

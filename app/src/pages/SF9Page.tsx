@@ -2,8 +2,15 @@ import React, { useState, useMemo, useEffect, useTransition, useCallback, useRef
 import { Document, Page, Text, View, StyleSheet, PDFViewer, PDFDownloadLink, Image, Font } from '@react-pdf/renderer';
 Font.registerHyphenationCallback(word => [word]);
 
-const base = import.meta.env.BASE_URL || '/';
-const fontPath = `${base.endsWith('/') ? base : base + '/'}fonts`;
+const isNodeEnv = typeof process !== 'undefined' && Boolean(process.versions?.node);
+const rawBase = import.meta.env.BASE_URL || '/';
+const assetBase = isNodeEnv 
+    ? `${process.cwd()}/public/` 
+    : (rawBase.endsWith('/') ? rawBase : `${rawBase}/`);
+
+const fontPath = isNodeEnv
+    ? `${process.cwd()}/public/fonts`
+    : `${assetBase}fonts`;
 
 try {
     Font.register({ family: 'BookmanOldStyle', src: `${fontPath}/BOOKOS.TTF` });
@@ -23,6 +30,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3, FileSpreadsheet, Bug, RefreshCcw } from 'lucide-react';
 import { exportSF9ToExcel, exportSF9BatchToExcel } from '../services/sf9-excel-export';
 import { isGrade1 } from '../services/sf9-g1-excel-export';
+import { isGrade11Academic } from '../services/sf9-g11-academic-excel-export';
 import type { SF9ExcelExportOptions } from '../services/sf9-excel-export';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
@@ -546,7 +554,7 @@ const CORE_VALUES = [
 
 
 
-interface SF9SubjectItem {
+export interface SF9SubjectItem {
     name: string;
     id?: string;
     isHeader?: boolean;
@@ -1466,6 +1474,7 @@ function SF9Pages({
     // Determine SF9 Label and Alignment
     const gradeNum = parseInt(student.grade_level?.replace(/\D/g, '') || '0');
     const isSHS = gradeNum === 11 || gradeNum === 12;
+    const isG11Academic = isGrade11Academic(student.grade_level, student.track);
 
     // Determine which term columns to show values for
     const showTermValue = (termIndex: number): boolean => {
@@ -1743,19 +1752,21 @@ function SF9Pages({
         }
 
         return (
-            <Page size={pageSize} orientation="landscape" style={styles.singlePage}>
-                <View style={[styles.singleBorderWrapper, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
+            <Page size={pageSize} orientation="landscape" style={[styles.singlePage, isG11Academic ? { paddingTop: 6, paddingBottom: 6, paddingHorizontal: 12 } : {}]}>
+                <View style={[styles.singleBorderWrapper, isG11Academic ? { paddingTop: 2, paddingBottom: 2, paddingHorizontal: 8 } : {}, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
                     <View style={styles.singleContainer}>
                         <View style={styles.singleLeftColumn}>
                             <View style={[styles.singleHeaderContainer, isValuesOnly ? { opacity: 0 } : {}]}>
-                                <Image src={`${import.meta.env.BASE_URL}deped_logo_left.png`} style={styles.singleLogo} />
+                                <Image src={`${assetBase}deped_logo_left.png`} style={styles.singleLogo} />
                                 <View style={styles.singleHeaderCenter}>
-                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle' }]}>Republic of the Philippines</Text>
-                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle' }]}>Department of Education</Text>
-                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle' }]}>{region || 'Region'}</Text>
-                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle-Bold' }]}>{cleanDivision || '_________________'}</Text>
-                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle' }]}>{district || 'District'}</Text>
-                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle' }]}>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: isG11Academic ? 7 : 8.5 }]}>Republic of the Philippines</Text>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: isG11Academic ? 7 : 8.5 }]}>Department of Education</Text>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: isG11Academic ? 7 : 8.5 }]}>{region || 'Region'}</Text>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle-Bold', fontSize: isG11Academic ? 7.5 : 8.5 }]}>
+                                        {cleanDivision ? `SCHOOLS DIVISION OF ${cleanDivision}` : 'SCHOOLS DIVISION OF _____'}
+                                    </Text>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: isG11Academic ? 7 : 8.5 }]}>{district || 'District'}</Text>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: isG11Academic ? 7 : 8.5 }]}>
                                         {(() => {
                                             const muniCity = schoolProfile?.municipality || schoolProfile?.city || '';
                                             const prov = schoolProfile?.province || '';
@@ -1765,13 +1776,13 @@ function SF9Pages({
                                             return muniCity || prov || 'Municipality/City, Province';
                                         })()}
                                     </Text>
-                                    <Text style={[styles.singleHeaderText, { marginTop: 4, fontFamily: 'BookmanOldStyle-Bold' }]}>{schoolName}</Text>
+                                    <Text style={[styles.singleHeaderText, { marginTop: isG11Academic ? 2 : 4, fontFamily: 'BookmanOldStyle-Bold', fontSize: isG11Academic ? 8 : 8.5 }]}>{schoolName}</Text>
                                 </View>
-                                <Image src={logoUrl || `${import.meta.env.BASE_URL}school-logo.png`} style={styles.singleLogo} />
+                                <Image src={logoUrl || `${assetBase}school-logo.png`} style={styles.singleLogo} />
                             </View>
-                            <Text style={{ textAlign: 'center', marginBottom: 6, marginTop: -15 }}>
-                                <Text style={[styles.singleReportTitle, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 14 }]}>{"LEARNER'S PERFORMANCE REPORT\n"}</Text>
-                                <Text style={[styles.singleSchoolYear, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle', fontSize: 9 }]}>{"School Year " + schoolYear}</Text>
+                            <Text style={{ textAlign: 'center', marginBottom: isG11Academic ? 3 : 6, marginTop: isG11Academic ? 0 : -15 }}>
+                                <Text style={[styles.singleReportTitle, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: isG11Academic ? 10 : 14 }]}>{"LEARNER'S PERFORMANCE REPORT\n"}</Text>
+                                <Text style={[styles.singleSchoolYear, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle', fontSize: isG11Academic ? 7.5 : 9 }]}>{"School Year " + schoolYear}</Text>
                             </Text>
                             
                             {(() => {
@@ -1859,26 +1870,89 @@ function SF9Pages({
                                 );
                             })()}
 
-                            <Text style={[styles.singleMessageText, isValuesOnly ? { color: transparentBorder } : {}, { marginTop: -20 }]}>
-                                <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 9 }}>{"Dear Parents,\n"}</Text>
-                                <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8.5 }}>{"\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0This Performance Report shows the ability and progress your child has made in the different learning areas as well as his/her core values.\n\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0The school welcomes you should you desire to know more about your child's progress."}</Text>
+                            <Text style={[styles.singleMessageText, isValuesOnly ? { color: transparentBorder } : {}, { marginTop: isG11Academic ? 0 : -20, marginBottom: isG11Academic ? 1 : 3 }]}>
+                                <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: isG11Academic ? 8 : 9 }}>{"Dear Parents,\n"}</Text>
+                                <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: isG11Academic ? 7.5 : 8.5 }}>
+                                    {isG11Academic
+                                        ? "        This Performance Report presents your child's progress and achievement in the different learning areas.\n        The school welcomes you to reach out should you wish to know more about your child's learning and performance."
+                                        : "        This Performance Report shows the ability and progress your child has made in the different learning areas as well as his/her core values.\n        The school welcomes you should you desire to know more about your child's progress."
+                                    }
+                                </Text>
                             </Text>
 
+                            {isG11Academic && (
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2, marginBottom: 4, paddingHorizontal: 20 }}>
+                                    <View style={{ width: '42%', alignItems: 'center', position: 'relative' }}>
+                                        {showHeadSig && schoolProfile?.head_signature_url && (
+                                            <View style={{ position: 'absolute', bottom: headSigOffset, left: 0, right: 0, alignItems: 'center' }}>
+                                                <Image 
+                                                    src={schoolProfile.head_signature_url} 
+                                                    style={{ height: headSigHeight, width: headSigWidth, objectFit: 'contain' }} 
+                                                />
+                                            </View>
+                                        )}
+                                        <Text style={[{ fontSize: 7.5, fontFamily: 'BookmanOldStyle-Bold', textAlign: 'center', minHeight: 8 }, isValuesOnly ? { color: transparentBorder } : {}]}>
+                                            {!hideHeadName ? (principal || '') : ' '}
+                                        </Text>
+                                        <View style={{ borderBottomWidth: 1, borderBottomColor: borderColor, width: '100%', marginTop: 1 }} />
+                                        <Text style={[{ fontSize: 6.5, fontFamily: 'BookmanOldStyle', marginTop: 1, textAlign: 'center' }, isValuesOnly ? { color: transparentBorder } : {}]}>
+                                            School Head
+                                        </Text>
+                                    </View>
+                                    <View style={{ width: '42%', alignItems: 'center', position: 'relative' }}>
+                                        {showAdviserSig && schoolProfile?.adviser_signature_url && (
+                                            <View style={{ position: 'absolute', bottom: adviserSigOffset, left: 0, right: 0, alignItems: 'center' }}>
+                                                <Image 
+                                                    src={schoolProfile.adviser_signature_url} 
+                                                    style={{ height: adviserSigHeight, width: adviserSigWidth, objectFit: 'contain' }} 
+                                                />
+                                            </View>
+                                        )}
+                                        <Text style={[{ fontSize: 7.5, fontFamily: 'BookmanOldStyle-Bold', textAlign: 'center', minHeight: 8 }, isValuesOnly ? { color: transparentBorder } : {}]}>
+                                            {!hideAdviserName ? (adviser || '') : ' '}
+                                        </Text>
+                                        <View style={{ borderBottomWidth: 1, borderBottomColor: borderColor, width: '100%', marginTop: 1 }} />
+                                        <Text style={[{ fontSize: 6.5, fontFamily: 'BookmanOldStyle', marginTop: 1, textAlign: 'center' }, isValuesOnly ? { color: transparentBorder } : {}]}>
+                                            Adviser
+                                        </Text>
+                                    </View>
+                                </View>
+                            )}
+
                             <View style={{ flexDirection: 'column' }}>
-                                <Text style={[{ fontSize: 11, fontWeight: 'bold', textAlign: 'center', marginBottom: 10, marginTop: -15 }, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold' }]}>LEARNING PROGRESS AND ACHIEVEMENT</Text>
+                                <Text style={[{ fontSize: isG11Academic ? 9.5 : 11, fontWeight: 'bold', textAlign: 'center', marginBottom: isG11Academic ? 2 : 10, marginTop: isG11Academic ? 0 : -15 }, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold' }]}>LEARNING PROGRESS AND ACHIEVEMENT</Text>
                                 <View style={[styles.singleLpTable, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
-                                    <View style={[styles.singleLpHeaderRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
-                                        <View style={[styles.singleLpHeaderCell, { width: '42%', borderBottomWidth: 0, alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>Learning Areas</Text></View>
+                                    <View style={[styles.singleLpHeaderRow, isG11Academic ? { minHeight: 15 } : {}, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                        <View style={[styles.singleLpHeaderCell, { width: isG11Academic ? '38%' : '42%', borderBottomWidth: 0, alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                            <Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>Learning Areas</Text>
+                                        </View>
                                         <View style={[styles.singleLpHeaderCell, { width: '24%', padding: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
-                                            <View style={{ borderBottomWidth: 1, borderColor: borderColor, padding: 1, alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>TERM</Text></View>
+                                            <View style={{ borderBottomWidth: 1, borderColor: borderColor, padding: 1, alignItems: 'center' }}>
+                                                <Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>TERM</Text>
+                                            </View>
                                             <View style={{ flexDirection: 'row', flex: 1 }}>
-                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>1</Text></View>
-                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>2</Text></View>
-                                                <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>3</Text></View>
+                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}>
+                                                    <Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>{isG11Academic ? 'T1' : '1'}</Text>
+                                                </View>
+                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}>
+                                                    <Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>{isG11Academic ? 'T2' : '2'}</Text>
+                                                </View>
+                                                <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}>
+                                                    <Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>{isG11Academic ? 'T3' : '3'}</Text>
+                                                </View>
                                             </View>
                                         </View>
-                                        <View style={[styles.singleLpHeaderCell, { width: '14%', borderBottomWidth: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>Final Grade</Text></View>
-                                        <View style={[styles.singleLpHeaderCell, { width: '20%', borderBottomWidth: 0, borderRightWidth: 0 }]}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>Remarks</Text></View>
+                                        {isG11Academic && (
+                                            <View style={[styles.singleLpHeaderCell, { width: '10%', borderBottomWidth: 0, justifyContent: 'center', alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                                <Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>Units</Text>
+                                            </View>
+                                        )}
+                                        <View style={[styles.singleLpHeaderCell, { width: isG11Academic ? '13%' : '14%', borderBottomWidth: 0, justifyContent: 'center', alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                            <Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>Final Grade</Text>
+                                        </View>
+                                        <View style={[styles.singleLpHeaderCell, { width: isG11Academic ? '15%' : '20%', borderBottomWidth: 0, borderRightWidth: 0, justifyContent: 'center', alignItems: 'center' }]}>
+                                            <Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>Remarks</Text>
+                                        </View>
                                     </View>
                                     {currentSubjects.filter(subj => {
                                         if (subj.isReserved) return false;
@@ -1896,7 +1970,6 @@ function SF9Pages({
                                             ? dbSubjects.find(s => s.id === subj.id) 
                                             : dbSubjects.find(s => s.subject_name.toLowerCase().trim() === subj.name.toLowerCase().trim());
                                         const term = dbSubj?.term;
-                                        const finalGrade = calculateFinalGrade(gradeRow, term, subj.name);
                                         const isReserved = subj.isReserved;
                                         const isHeader = subj.isHeader;
                                         const isCategoryHeader = isHeader && (
@@ -1906,28 +1979,18 @@ function SF9Pages({
                                             subj.name === 'Applied Subjects' ||
                                             subj.name === 'Specialized Subjects'
                                         );
+                                        const isComponent = Boolean(subj.isComponent);
+
+                                        const rawFinalGrade = calculateFinalGrade(gradeRow, term, subj.name);
+                                        const finalGrade = (isG11Academic && isComponent) ? 0 : rawFinalGrade;
                                         
                                         const isOfferedInTerm = (tNum: number) => {
                                             if (isCategoryHeader || isReserved) return false;
                                             if (!isSHS) return true;
-                                            
-                                            // Handle special Grade 11 electives offered terms
-                                            const normName = normalizeSubjectName(subj.name);
-                                            if (normName === 'academicelective1') {
-                                                return tNum === 1 || tNum === 3;
-                                            }
-                                            if (normName === 'academicelective2') {
-                                                return tNum === 2 || tNum === 3;
-                                            }
-                                            if (normName === 'academicelective3') {
-                                                return tNum === 3;
-                                            }
-                                            if (normName === 'techproelective1') {
-                                                return true;
-                                            }
 
-                                            // SSHS Grade 11 Core subjects span all 3 terms
+                                            // SSHS Grade 11 Core subjects span all 3 terms, Electives span single terms
                                             if (gradeNum === 11) {
+                                                const normName = normalizeSubjectName(subj.name);
                                                 const cores = [
                                                     'effectivecommunication',
                                                     'mabisangkomunikasyon',
@@ -1938,10 +2001,42 @@ function SF9Pages({
                                                     'kasaysayanatlipunangpilipino'
                                                 ];
                                                 if (cores.some(c => normName.includes(c))) return true;
+
+                                                // Specific academic elective slots:
+                                                if (normName === 'academicelective1') return tNum === 1;
+                                                if (normName === 'academicelective2') return tNum === 2;
+                                                if (normName === 'academicelective3') return tNum === 3;
+                                                if (normName === 'techproelective1') return true;
+
+                                                // Explicit term property on subject
+                                                if (Number(term) === 1) return tNum === 1;
+                                                if (Number(term) === 2) return tNum === 2;
+                                                if (Number(term) === 3) return tNum === 3;
+
+                                                // Default term for subject (e.g. Biology 1 -> 1, Biology 2 -> 2, Biology 3 -> 3)
+                                                const defTerm = getDefaultTermForSubject(subj.name, student.grade_level || 'Grade 11');
+                                                if (defTerm === 1) return tNum === 1;
+                                                if (defTerm === 2) return tNum === 2;
+                                                if (defTerm === 3) return tNum === 3;
+
+                                                // Fallback to elective order index in list
+                                                const electiveSubjs = currentSubjects.filter(s => 
+                                                    !s.isHeader && 
+                                                    !s.isReserved && 
+                                                    !cores.some(c => normalizeSubjectName(s.name).includes(c))
+                                                );
+                                                const elIdx = electiveSubjs.findIndex(s => s.name === subj.name);
+                                                if (elIdx === 0) return tNum === 1;
+                                                if (elIdx === 1) return tNum === 2;
+                                                if (elIdx === 2) return tNum === 3;
+
+                                                if (defTerm === 'all') return true;
+                                                return false;
                                             }
 
+                                            if (gradeRow[tNum - 1] > 0) return true;
                                             const effTerm = term || getDefaultTermForSubject(subj.name, student.grade_level);
-                                            if (effTerm === 'all' && gradeNum === 11) return true;
+                                            if (effTerm === 'all') return true;
                                             const numTerm = Number(effTerm);
                                             if (numTerm === 1 || numTerm === 2 || numTerm === 3) {
                                                 return numTerm === tNum;
@@ -1949,67 +2044,133 @@ function SF9Pages({
                                             return false;
                                         };
 
+                                        const unitsVal = (() => {
+                                            if (!isG11Academic || isCategoryHeader || isReserved || isComponent) return '';
+                                            const normName = normalizeSubjectName(subj.name);
+                                            if (normName === 'effectivecommunicationmabisangkomunikasyon' || normName.includes('effectivecommunication')) {
+                                                return '6';
+                                            }
+                                            const unitInfo = getShsSubjectUnitInfo(subj.name, student.grade_level || 'Grade 11');
+                                            return String(unitInfo.yearUnits || (unitInfo.category === 'core' ? 6 : 3));
+                                        })();
+
+                                        const isParentComm = normalizeSubjectName(subj.name) === 'effectivecommunicationmabisangkomunikasyon';
+
+                                        if (isG11Academic && isCategoryHeader) {
+                                            return (
+                                                <View key={idx} style={[styles.singleLpRow, { minHeight: 12 }, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                                    <View style={[styles.singleLpCellLast, { width: '100%', paddingLeft: 4, justifyContent: 'center' }]}>
+                                                        <Text style={{ fontFamily: 'BookmanOldStyle-BoldItalic', fontSize: 7.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>
+                                                            {subj.name}
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                            );
+                                        }
+
                                         return (
-                                            <View key={idx} style={[styles.singleLpRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}, isCategoryHeader ? { backgroundColor: '#E5E7EB' } : {}]}>
-                                                <View style={[styles.singleLpCell, { width: '42%', paddingLeft: subj.isComponent ? 15 : 4 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}> 
-                                                    <Text style={{ fontFamily: subj.isComponent ? 'BookmanOldStyle-Italic' : 'BookmanOldStyle-Bold', fontSize: (subj.name && subj.name.length > 35) ? 6.5 : 7.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>
-                                                        {isReserved ? '' : isCategoryHeader ? subj.name.toUpperCase() : subj.name}
+                                            <View key={idx} style={[styles.singleLpRow, isG11Academic ? { minHeight: 12.5 } : {}, isValuesOnly ? { borderBottomColor: transparentBorder } : {}, (isCategoryHeader && !isG11Academic) ? { backgroundColor: '#E5E7EB' } : {}]}>
+                                                <View style={[styles.singleLpCell, { width: isG11Academic ? '38%' : '42%', paddingLeft: isComponent ? 16 : 4 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}> 
+                                                    <Text style={{ 
+                                                        fontFamily: isComponent 
+                                                            ? 'BookmanOldStyle-Italic' 
+                                                            : (isG11Academic && isCategoryHeader 
+                                                                ? 'BookmanOldStyle-BoldItalic' 
+                                                                : (isG11Academic ? 'BookmanOldStyle' : 'BookmanOldStyle-Bold')), 
+                                                        fontSize: (subj.name && subj.name.length > 35) ? 6.5 : 7.5, 
+                                                        ...(isValuesOnly ? { color: transparentBorder } : {}) 
+                                                    }}>
+                                                        {isReserved ? '' : (isG11Academic && isCategoryHeader ? subj.name : (isCategoryHeader ? subj.name.toUpperCase() : (isParentComm ? 'Effective Communication\n/Mabisang Komunikasyon' : subj.name)))}
                                                     </Text>
                                                 </View>
                                                 <View style={[styles.singleLpCell, { width: '24%', padding: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
                                                     <View style={{ flexDirection: 'row', flex: 1 }}>
-                                                        <View style={[{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }, (!isCategoryHeader && !isReserved && !isOfferedInTerm(1)) ? { backgroundColor: '#E5E7EB' } : {}]}>
-                                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
+                                                        <View style={[{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }, (!isCategoryHeader && !isReserved && !isOfferedInTerm(1)) ? { backgroundColor: isValuesOnly ? transparentBorder : '#A6A6A6' } : {}]}>
+                                                            <Text style={{ fontFamily: isComponent ? 'BookmanOldStyle' : 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
                                                                 {!hideGrades && !isCategoryHeader && isOfferedInTerm(1) && showTermValue(0) && gradeRow[0] ? formatGradeForDisplay(gradeRow[0], student.grade_level) : ''}
                                                             </Text>
                                                         </View>
-                                                        <View style={[{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }, (!isCategoryHeader && !isReserved && !isOfferedInTerm(2)) ? { backgroundColor: '#E5E7EB' } : {}]}>
-                                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
+                                                        <View style={[{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }, (!isCategoryHeader && !isReserved && !isOfferedInTerm(2)) ? { backgroundColor: isValuesOnly ? transparentBorder : '#A6A6A6' } : {}]}>
+                                                            <Text style={{ fontFamily: isComponent ? 'BookmanOldStyle' : 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
                                                                 {!hideGrades && !isCategoryHeader && isOfferedInTerm(2) && showTermValue(1) && gradeRow[1] ? formatGradeForDisplay(gradeRow[1], student.grade_level) : ''}
                                                             </Text>
                                                         </View>
-                                                        <View style={[{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }, (!isCategoryHeader && !isReserved && !isOfferedInTerm(3)) ? { backgroundColor: '#E5E7EB' } : {}]}>
-                                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
+                                                        <View style={[{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }, (!isCategoryHeader && !isReserved && !isOfferedInTerm(3)) ? { backgroundColor: isValuesOnly ? transparentBorder : '#A6A6A6' } : {}]}>
+                                                            <Text style={{ fontFamily: isComponent ? 'BookmanOldStyle' : 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
                                                                 {!hideGrades && !isCategoryHeader && isOfferedInTerm(3) && showTermValue(2) && gradeRow[2] ? formatGradeForDisplay(gradeRow[2], student.grade_level) : ''}
                                                             </Text>
                                                         </View>
                                                     </View>
                                                 </View>
-                                                <View style={[styles.singleLpCell, { width: '14%', textAlign: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                                {isG11Academic && (
+                                                    <View style={[styles.singleLpCell, { width: '10%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                                        <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
+                                                            {!hideGrades && !isCategoryHeader && showFinalAndRemarks ? unitsVal : ''}
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                                <View style={[styles.singleLpCell, { width: isG11Academic ? '13%' : '14%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
                                                     <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
-                                                        {!hideGrades && !isCategoryHeader && showFinalAndRemarks && finalGrade ? formatGradeForDisplay(finalGrade, student.grade_level) : ''}
+                                                        {!hideGrades && !isCategoryHeader && !isComponent && showFinalAndRemarks && finalGrade ? formatGradeForDisplay(finalGrade, student.grade_level) : ''}
                                                     </Text>
                                                 </View>
-                                                <View style={[styles.singleLpCellLast, { width: '20%', textAlign: 'center' }]}>
+                                                <View style={[styles.singleLpCellLast, { width: isG11Academic ? '15%' : '20%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }]}>
                                                     <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.5 }}>
-                                                        {!hideGrades && !isCategoryHeader && showFinalAndRemarks && finalGrade ? getRemarks(finalGrade) : ''}
+                                                        {!hideGrades && !isCategoryHeader && !isComponent && showFinalAndRemarks && finalGrade ? getRemarks(finalGrade) : ''}
                                                     </Text>
                                                 </View>
                                             </View>
                                         );
                                     })}
-                                    <View style={[styles.singleLpRow, { borderBottomWidth: 0 }, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
-                                        <View style={[styles.singleLpCell, { width: '66%', alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>General Average</Text></View>
-                                        <View style={[styles.singleLpCell, { width: '14%', textAlign: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
-                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
-                                                {!hideGrades && showFinalAndRemarks && generalAverage > 0 ? formatGradeForDisplay(generalAverage, student.grade_level) : ''}
-                                            </Text>
+                                    {isG11Academic ? (
+                                        <View style={[styles.singleLpRow, { borderBottomWidth: 0, minHeight: 12.5 }, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                            <View style={[styles.singleLpCell, { width: '62%', alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                                <Text style={{ fontFamily: 'BookmanOldStyle-BoldItalic', fontSize: 8, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>
+                                                    General Average
+                                                </Text>
+                                            </View>
+                                            <View style={[styles.singleLpCell, { width: '10%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                                <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }}>
+                                                    {!hideGrades && showFinalAndRemarks && generalAverage > 0 ? '39' : ''}
+                                                </Text>
+                                            </View>
+                                            <View style={[styles.singleLpCell, { width: '13%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                                <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }}>
+                                                    {!hideGrades && showFinalAndRemarks && generalAverage > 0 ? formatGradeForDisplay(generalAverage, student.grade_level) : ''}
+                                                </Text>
+                                            </View>
+                                            <View style={[styles.singleLpCellLast, { width: '15%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }]}>
+                                                {!hideGrades && showFinalAndRemarks && generalAverage > 0 ? (
+                                                    getGeneralAverageRemarks(generalAverage, grades, currentSubjects, student.lrn, schoolYear).map((line, i) => (
+                                                        <Text key={i} style={{ fontSize: 7, lineHeight: 1.1, fontFamily: 'BookmanOldStyle-Bold' }}>{line}</Text>
+                                                    ))
+                                                ) : <Text></Text>}
+                                            </View>
                                         </View>
-                                        <View style={[styles.singleLpCellLast, { width: '20%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }]}>
-                                            {!hideGrades && showFinalAndRemarks && generalAverage > 0 ? getGeneralAverageRemarks(generalAverage, grades, currentSubjects, student.lrn, schoolYear).map((line, i) => (
-                                                <Text key={i} style={{ fontSize: 6.5, lineHeight: 1.1, fontFamily: 'BookmanOldStyle-Bold' }}>{line}</Text>
-                                            )) : <Text></Text>}
+                                    ) : (
+                                        <View style={[styles.singleLpRow, { borderBottomWidth: 0 }, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                            <View style={[styles.singleLpCell, { width: '66%', alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>General Average</Text></View>
+                                            <View style={[styles.singleLpCell, { width: '14%', textAlign: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                                <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
+                                                    {!hideGrades && showFinalAndRemarks && generalAverage > 0 ? formatGradeForDisplay(generalAverage, student.grade_level) : ''}
+                                                </Text>
+                                            </View>
+                                            <View style={[styles.singleLpCellLast, { width: '20%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }]}>
+                                                {!hideGrades && showFinalAndRemarks && generalAverage > 0 ? getGeneralAverageRemarks(generalAverage, grades, currentSubjects, student.lrn, schoolYear).map((line, i) => (
+                                                    <Text key={i} style={{ fontSize: 6.5, lineHeight: 1.1, fontFamily: 'BookmanOldStyle-Bold' }}>{line}</Text>
+                                                )) : <Text></Text>}
+                                            </View>
                                         </View>
-                                    </View>
+                                    )}
                                 </View>
                             </View>
 
                             <View style={styles.singleLegendContainer}>
-                                <Text style={[styles.singleLegendTitle, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold' }]}>PERFORMANCE DESCRIPTORS</Text>
-                                <View style={{ flexDirection: 'row', marginBottom: 2 }}>
-                                    <View style={{ width: '30%', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>Grading Scale</Text></View>
-                                    <View style={{ width: '45%', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>Description</Text></View>
-                                    <View style={{ width: '25%', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>Remarks</Text></View>
+                                <Text style={[styles.singleLegendTitle, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: isG11Academic ? 7.5 : 8.5, marginBottom: isG11Academic ? 1 : 2 }]}>PERFORMANCE DESCRIPTORS</Text>
+                                <View style={{ flexDirection: 'row', marginBottom: isG11Academic ? 1 : 2 }}>
+                                    <View style={{ width: '30%', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: isG11Academic ? 7 : 7.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>Grading Scale</Text></View>
+                                    <View style={{ width: '45%', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: isG11Academic ? 7 : 7.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>Descriptors</Text></View>
+                                    <View style={{ width: '25%', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: isG11Academic ? 7 : 7.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>Remarks</Text></View>
                                 </View>
                                 {[
                                     { scale: '90-100', desc: 'Advancing', rem: 'Passed' },
@@ -2018,10 +2179,10 @@ function SF9Pages({
                                     { scale: '65-74', desc: 'Developing', rem: 'Failed' },
                                     { scale: '0-64', desc: 'Emerging', rem: 'Failed' },
                                 ].map((item, idx) => (
-                                    <View key={idx} style={{ flexDirection: 'row', marginBottom: 1 }}>
-                                        <View style={{ width: '30%', alignItems: 'center' }}><Text style={[isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle', fontSize: 7 }]}>{item.scale}</Text></View>
-                                        <View style={{ width: '45%', alignItems: 'center' }}><Text style={[isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle', fontSize: 7 }]}>{item.desc}</Text></View>
-                                        <View style={{ width: '25%', alignItems: 'center' }}><Text style={[isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle', fontSize: 7 }]}>{item.rem}</Text></View>
+                                    <View key={idx} style={{ flexDirection: 'row', marginBottom: isG11Academic ? 0.5 : 1 }}>
+                                        <View style={{ width: '30%', alignItems: 'center' }}><Text style={[isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle', fontSize: isG11Academic ? 6.5 : 7 }]}>{item.scale}</Text></View>
+                                        <View style={{ width: '45%', alignItems: 'center' }}><Text style={[isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle', fontSize: isG11Academic ? 6.5 : 7 }]}>{item.desc}</Text></View>
+                                        <View style={{ width: '25%', alignItems: 'center' }}><Text style={[isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle', fontSize: isG11Academic ? 6.5 : 7 }]}>{item.rem}</Text></View>
                                     </View>
                                 ))}
                             </View>

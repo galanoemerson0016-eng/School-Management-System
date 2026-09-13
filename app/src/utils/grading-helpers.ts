@@ -103,9 +103,18 @@ export function isMatchingSubject(
     if (canonicalTarget && ((canonicalName && canonicalName === canonicalTarget) || (canonicalId && canonicalId === canonicalTarget))) return true;
 
     // 3. Specific Learning Area Aliases (Avoid false cross-contamination between components)
-    // 3.1 Filipino
-    const isFilipino = (s: string) => s.includes('filipino') || s.includes('wikangfilipino') || s === 'fil' || s.includes('panitikan');
+    // 3.1 Filipino (Standard JHS/Elem Filipino)
+    const isFilipino = (s: string) => (s.includes('filipino') || s.includes('wikangfilipino') || s === 'fil' || s.includes('panitikan')) &&
+        !s.includes('filipino1') && !s.includes('filipino2') && !s.includes('akademiko');
     if (isFilipino(normTarget) && (isFilipino(normName) || isFilipino(cleanedId))) return true;
+
+    // 3.1.1 Filipino 1 (Academic Elective: Wika at Komunikasyon sa Akademikong Filipino)
+    const isFilipino1 = (s: string) => s.includes('filipino1') || (s.includes('filipino') && (s.includes('akademiko') || s.includes('akademik')));
+    if (isFilipino1(normTarget) && (isFilipino1(normName) || isFilipino1(cleanedId))) return true;
+
+    // 3.1.2 Filipino 2 (Academic Elective variants)
+    const isFilipino2 = (s: string) => s.includes('filipino2');
+    if (isFilipino2(normTarget) && (isFilipino2(normName) || isFilipino2(cleanedId))) return true;
 
     // 3.2 English / Language / Reading & Literacy
     const isEnglish = (s: string) => s.includes('english') || s === 'eng' || s.includes('readingandliteracy') || s.includes('readingliteracy') || s === 'language';

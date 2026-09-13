@@ -174,7 +174,7 @@ export function parseBirthDateParts(birthday?: string): { year: number; month: n
 /**
  * Helper to compute age in years and months (defaulting to BoSY: June 8, 2026)
  */
-function calculateAge(birthday?: string, asOfDate: Date = BOSY_DATE_2026): { years: number; months: number } {
+export function calculateAge(birthday?: string, asOfDate: Date = BOSY_DATE_2026): { years: number; months: number } {
   const parts = parseBirthDateParts(birthday);
   if (!parts) return { years: 0, months: 0 };
 
@@ -195,6 +195,49 @@ function calculateAge(birthday?: string, asOfDate: Date = BOSY_DATE_2026): { yea
   }
 
   return { years: Math.max(0, years), months: Math.max(0, months) };
+}
+
+export interface StudentBoSyEoSyAge {
+  boSy: { years: number | string; months: number | string };
+  eoSy: { years: number | string; months: number | string };
+}
+
+/**
+ * Calculates Beginning of SY (BoSY) and End of SY (EoSY) child age
+ * Defaulting to June 8 (BoSY) and April 8 (EoSY) of the active school year.
+ */
+export function getStudentBoSyEoSyAge(
+  birthday?: string,
+  schoolYear: string = '2026-2027',
+  fallbackAge?: number | string
+): StudentBoSyEoSyAge {
+  const syParts = (schoolYear || '2026-2027').split('-');
+  const startYear = parseInt(syParts[0], 10) || 2026;
+  const endYear = parseInt(syParts[1], 10) || startYear + 1;
+  const bosyDate = new Date(startYear, 5, 8); // June 8 of start year
+  const eosyDate = new Date(endYear, 3, 8);   // April 8 of end year
+
+  if (birthday && parseBirthDateParts(birthday)) {
+    const boSy = calculateAge(birthday, bosyDate);
+    const eoSy = calculateAge(birthday, eosyDate);
+    return {
+      boSy: { years: boSy.years, months: boSy.months },
+      eoSy: { years: eoSy.years, months: eoSy.months }
+    };
+  }
+
+  if (fallbackAge !== undefined && fallbackAge !== null && fallbackAge !== '' && !isNaN(Number(fallbackAge))) {
+    const numAge = Number(fallbackAge);
+    return {
+      boSy: { years: numAge, months: 0 },
+      eoSy: { years: numAge + 1, months: 0 }
+    };
+  }
+
+  return {
+    boSy: { years: '', months: '' },
+    eoSy: { years: '', months: '' }
+  };
 }
 
 export function birthDateToExcelSerial(birthday?: string): number | null {
@@ -1507,25 +1550,24 @@ async function populateUpdatedAllInOneGrade1Workbook(
 
       paceXml = paceXml.replace(/<dimension\s+ref="[^"]*"\/>/, '<dimension ref="A1:T311"/>');
 
-      // 3. Set pageSetUpPr fitToPage="1" so Excel executes "Fit All Columns on One Page" without extra whitespace
-      if (!paceXml.includes('fitToPage="1"')) {
-        if (paceXml.includes('<pageSetUpPr')) {
-          paceXml = paceXml.replace(/<pageSetUpPr[^>]*\/>/, '<pageSetUpPr fitToPage="1"/>');
-        } else if (paceXml.includes('</sheetPr>')) {
-          paceXml = paceXml.replace('</sheetPr>', '<pageSetUpPr fitToPage="1"/></sheetPr>');
-        } else {
-          paceXml = paceXml.replace('<worksheet', '<worksheet><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>');
-        }
+      // 3. Set pageSetUpPr fitToPage="0" so Excel scales explicitly at 53% without auto-pagination overriding manual breaks
+      if (paceXml.includes('<pageSetUpPr')) {
+        paceXml = paceXml.replace(/<pageSetUpPr[^>]*\/>/, '<pageSetUpPr fitToPage="0"/>');
+      } else if (paceXml.includes('</sheetPr>')) {
+        paceXml = paceXml.replace('</sheetPr>', '<pageSetUpPr fitToPage="0"/></sheetPr>');
+      } else if (paceXml.includes('<worksheet')) {
+        paceXml = paceXml.replace('<worksheet', '<worksheet><sheetPr><pageSetUpPr fitToPage="0"/></sheetPr>');
       }
+      paceXml = paceXml.replace(/fitToPage="1"/g, 'fitToPage="0"');
 
-      // 4. Margins: 0.2 inch top/bottom/left/right, 0 header/footer
+      // 4. Margins: 0.2 inch top/left/right, 0.55 inch bottom (accommodates 14.3mm Epson L121/L3210 hardware margin)
       paceXml = paceXml.replace(
         /<pageMargins[^>]*\/>/,
-        '<pageMargins left="0.2" right="0.2" top="0.2" bottom="0.2" header="0" footer="0"/>'
+        '<pageMargins left="0.2" right="0.2" top="0.2" bottom="0.55" header="0" footer="0"/>'
       );
 
-      // 5. PageSetup: paperSize="9" (A4), fitToWidth="1" fitToHeight="0" ("Fit All Columns on One Page")
-      const newPageSetup = '<pageSetup paperSize="9" fitToWidth="1" fitToHeight="0" orientation="portrait" r:id="rId1"/>';
+      // 5. PageSetup: paperSize="9" (A4), scale="53" (fits all 19 columns and ensures each section strictly fits within printable height across all printer brands)
+      const newPageSetup = '<pageSetup paperSize="9" scale="53" orientation="portrait" r:id="rId1"/>';
       if (paceXml.includes('<pageSetup')) {
         paceXml = paceXml.replace(/<pageSetup[^>]*\/>/, newPageSetup);
       } else {
@@ -2241,16 +2283,21 @@ export async function populateGrade1TemplateBuffer(
       // Ensure P173 header cell uses matching dark blue header style
       xml = xml.replace(/<c\s+r="P173"\s+s="192"/, '<c r="P173" s="99"');
 
-      if (!xml.includes('fitToPage="1"')) {
-        if (xml.includes('<pageSetUpPr')) {
-          xml = xml.replace(/<pageSetUpPr[^>]*\/>/, '<pageSetUpPr fitToPage="1"/>');
-        } else if (xml.includes('</sheetPr>')) {
-          xml = xml.replace('</sheetPr>', '<pageSetUpPr fitToPage="1"/></sheetPr>');
-        }
+      if (xml.includes('<pageSetUpPr')) {
+        xml = xml.replace(/<pageSetUpPr[^>]*\/>/, '<pageSetUpPr fitToPage="0"/>');
+      } else if (xml.includes('</sheetPr>')) {
+        xml = xml.replace('</sheetPr>', '<pageSetUpPr fitToPage="0"/></sheetPr>');
       }
+      xml = xml.replace(/fitToPage="1"/g, 'fitToPage="0"');
+
+      xml = xml.replace(
+        /<pageMargins[^>]*\/>/,
+        '<pageMargins left="0.2" right="0.2" top="0.2" bottom="0.55" header="0" footer="0"/>'
+      );
+
       xml = xml.replace(
         /<pageSetup[^>]*\/>/,
-        '<pageSetup paperSize="9" fitToWidth="1" fitToHeight="0" orientation="portrait" r:id="rId1"/>'
+        '<pageSetup paperSize="9" scale="53" orientation="portrait" r:id="rId1"/>'
       );
     }
 

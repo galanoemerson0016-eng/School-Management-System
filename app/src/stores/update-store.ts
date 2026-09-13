@@ -331,7 +331,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
           observedValues: await db.getStoreCount('observedValues')
         };
 
-        const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.1';
+        const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.2';
         const stateData = {
           fromVersion: currentVersion,
           toVersion: get().updateInfo?.version || 'Unknown',
@@ -366,7 +366,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.1';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.2';
       const api = window.electronAPI;
 
       try {

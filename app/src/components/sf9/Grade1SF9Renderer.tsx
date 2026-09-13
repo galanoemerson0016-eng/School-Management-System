@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { Student, SchoolProfile } from '../../types';
 import type { Grade1SF9Remarks, Grade1SF9Attendance } from './Grade1SF9PDFDocument';
 import { formatLearnerName } from '../../utils/student-name';
+import { getStudentBoSyEoSyAge, formatDateToMMDDYYYY } from '../../services/sf9-g1-excel-export';
 import { Sparkles, Edit3, Check, Printer, Download, BookOpen } from 'lucide-react';
 
 interface Grade1SF9RendererProps {
@@ -63,6 +64,9 @@ export const Grade1SF9Renderer: React.FC<Grade1SF9RendererProps> = ({
   const muniCity = schoolProfile?.municipality || schoolProfile?.city || '';
   const prov = schoolProfile?.province || '';
   const muniCityProvince = (muniCity && prov) ? `${muniCity}, ${prov}` : (muniCity || prov || 'Municipality/City, Province');
+
+  const childAge = getStudentBoSyEoSyAge(student.birthday, schoolYear, student.age);
+  const formattedBirthday = student.birthday ? formatDateToMMDDYYYY(student.birthday) : '';
 
   const handleRemarkChange = (field: keyof Grade1SF9Remarks, val: string) => {
     onUpdateRemarks({
@@ -195,8 +199,21 @@ export const Grade1SF9Renderer: React.FC<Grade1SF9RendererProps> = ({
               <p className="text-[11px]">Republic of the Philippines</p>
               <p className="text-[11px]">Department of Education</p>
               <p className="text-[11px]">{schoolProfile.region || 'Region VIII'}</p>
-              <p className="text-[12px] font-bold tracking-wide">{cleanDivision || 'LEYTE'}</p>
-              <p className="text-[11px]">{schoolProfile.district || 'District'}</p>
+              <p className="text-[12px] font-bold tracking-wide">
+                {(() => {
+                  const raw = (cleanDivision || 'LEYTE').trim().toUpperCase();
+                  if (raw.startsWith('SCHOOLS DIVISION OFFICE OF')) return raw;
+                  if (raw.startsWith('DIVISION OF')) return `SCHOOLS DIVISION OFFICE OF ${raw.slice(11).trim()}`;
+                  return `SCHOOLS DIVISION OFFICE OF ${raw}`;
+                })()}
+              </p>
+              <p className="text-[11px]">
+                {(() => {
+                  const raw = (schoolProfile.district || '').trim();
+                  if (!raw) return 'District';
+                  return raw.toLowerCase().includes('district') ? raw : `${raw} District`;
+                })()}
+              </p>
               <p className="text-[11px]">{muniCityProvince}</p>
               <p className="text-[13px] font-bold mt-1 tracking-wide uppercase">
                 {schoolProfile.name || 'ELEMENTARY SCHOOL'}
@@ -211,60 +228,82 @@ export const Grade1SF9Renderer: React.FC<Grade1SF9RendererProps> = ({
 
           {/* Report Title */}
           <div className="text-center mb-3">
-            <h2 className="text-[16px] font-bold tracking-tight">LEARNER'S PROGRESS REPORT</h2>
+            <h2 className="text-[16px] font-bold tracking-tight">LEARNER'S PROGRESS REPORT CARD</h2>
             <p className="text-[11px]">School Year: {schoolYear}</p>
           </div>
 
-          {/* Learner Info Bar */}
-          <div className="border-b border-black pb-2 mb-3 text-[11px] leading-relaxed">
-            <div className="grid grid-cols-12 gap-2 mb-1">
-              <div className="col-span-3 flex items-center gap-1">
-                <span className="font-semibold">LRN:</span>
-                <span className="flex-1 border-b border-black font-bold text-center">{student.lrn || '—'}</span>
-              </div>
-              <div className="col-span-7 flex items-center gap-1">
-                <span className="font-semibold">Name:</span>
-                <span className="flex-1 border-b border-black font-bold text-center uppercase tracking-wide">
+          {/* Learner Info Bar (Full width, 3-Row Official DepEd MATATAG Format) */}
+          <div className="mb-3 text-[11px] leading-relaxed">
+            {/* Row 1: Name, LRN */}
+            <div className="flex items-center gap-4 mb-1.5">
+              <div className="flex-1 flex items-center gap-1.5">
+                <span className="font-semibold shrink-0">Name:</span>
+                <span className="flex-1 border-b border-black font-bold uppercase tracking-wide px-2">
                   {formatLearnerName(student)}
                 </span>
               </div>
-              <div className="col-span-2 flex items-center gap-1">
-                <span className="font-semibold">Sex:</span>
-                <span className="flex-1 border-b border-black font-bold text-center uppercase">{student.gender || '—'}</span>
+              <div className="w-1/4 flex items-center gap-1.5">
+                <span className="font-semibold shrink-0">LRN:</span>
+                <span className="flex-1 border-b border-black font-bold text-center">{student.lrn || '—'}</span>
               </div>
             </div>
 
-            <div className="grid grid-cols-12 gap-2">
-              <div className="col-span-3 flex items-center gap-1">
-                <span className="font-semibold">Grade & Sec:</span>
-                <span className="flex-1 border-b border-black font-bold text-center">{`1 - ${section}`}</span>
+            {/* Row 2: Section, Teacher, Birthdate */}
+            <div className="grid grid-cols-12 gap-3 mb-1.5">
+              <div className="col-span-4 flex items-center gap-1.5">
+                <span className="font-semibold shrink-0">Section:</span>
+                <span className="flex-1 border-b border-black font-bold text-center">{section || '—'}</span>
               </div>
-              <div className="col-span-7 flex items-center gap-1">
-                <span className="font-semibold">Adviser:</span>
+              <div className="col-span-5 flex items-center gap-1.5">
+                <span className="font-semibold shrink-0">Teacher:</span>
                 <span className="flex-1 border-b border-black font-bold text-center uppercase">{adviser || '—'}</span>
               </div>
-              <div className="col-span-2 flex items-center gap-1">
-                <span className="font-semibold">Age:</span>
-                <span className="flex-1 border-b border-black font-bold text-center">{student.age || '—'}</span>
+              <div className="col-span-3 flex items-center gap-1.5">
+                <span className="font-semibold shrink-0">Birthdate:</span>
+                <span className="flex-1 border-b border-black font-bold text-center">{formattedBirthday || '—'}</span>
               </div>
             </div>
+
+            {/* Row 3: Age of the Child (Beginning of SY): Years: [ ] Months: [ ] & Age of the Child (End of SY): Years: [ ] Months: [ ] */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[10px]">
+              <div className="flex items-center gap-1">
+                <span className="font-semibold shrink-0">Age of the Child (Beginning of SY): Years:</span>
+                <span className="w-8 border-b border-black font-bold text-center">
+                  {childAge.boSy.years !== '' ? childAge.boSy.years : '—'}
+                </span>
+                <span className="shrink-0 ml-1 font-semibold">Months:</span>
+                <span className="w-8 border-b border-black font-bold text-center">
+                  {childAge.boSy.months !== '' ? childAge.boSy.months : '—'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 md:justify-end">
+                <span className="font-semibold shrink-0">Age of the Child (End of SY): Years:</span>
+                <span className="w-8 border-b border-black font-bold text-center">
+                  {childAge.eoSy.years !== '' ? childAge.eoSy.years : '—'}
+                </span>
+                <span className="shrink-0 ml-1 font-semibold">Months:</span>
+                <span className="w-8 border-b border-black font-bold text-center">
+                  {childAge.eoSy.months !== '' ? childAge.eoSy.months : '—'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Descriptive Note Spanning Full Width (Rows 19-20 of Official DepEd Template) */}
+          <div className="mb-3 text-[10px] leading-relaxed text-justify space-y-1">
+            <p>
+              This report provides a descriptive account of your child’s learning progress for each term. It highlights what your child can already do, what they are currently developing, and how they can be further supported.
+            </p>
+            <p>
+              This report is based on varied evidence of learning, including classroom activities, observations, learner outputs, and assessments. It is designed to give a clearer and more meaningful understanding of your child’s development rather than relying on numerical or letter grades.
+            </p>
           </div>
 
           {/* Main 2-Column Split */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 text-[10.5px]">
             
             {/* Left Column: Descriptive Learning Progress */}
-            <div className="border-r border-black pr-5 flex flex-col justify-between space-y-4">
-              <div className="text-[10px] leading-snug text-justify text-slate-800">
-                <p className="font-bold mb-1">Dear Parents/Guardians,</p>
-                <p>
-                  This report provides a descriptive account of your child's learning progress for each term. It highlights what your child can already do, what they are currently developing, and how they can be further supported.
-                </p>
-                <p className="mt-1">
-                  This report is based on varied evidence of learning including classroom activities, observations, learner outputs, and assessments. It is designed to give a clearer development rather than relying on numerical or letter grades.
-                </p>
-              </div>
-
+            <div className="pr-5 flex flex-col justify-between space-y-3">
               {/* Term 1 */}
               <div className="border border-black p-2 rounded-none space-y-2 bg-slate-50/40">
                 <div className="flex items-center justify-between">
@@ -314,7 +353,7 @@ export const Grade1SF9Renderer: React.FC<Grade1SF9RendererProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2 pt-1 text-[9.5px]">
-                  <span>Parent's/Guardian Signature:</span>
+                  <span>Parent's/Guardian's Signature:</span>
                   <div className="flex-1 border-b border-black" />
                 </div>
               </div>
@@ -368,7 +407,7 @@ export const Grade1SF9Renderer: React.FC<Grade1SF9RendererProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2 pt-1 text-[9.5px]">
-                  <span>Parent's/Guardian Signature:</span>
+                  <span>Parent's/Guardian's Signature:</span>
                   <div className="flex-1 border-b border-black" />
                 </div>
               </div>
@@ -422,14 +461,14 @@ export const Grade1SF9Renderer: React.FC<Grade1SF9RendererProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2 pt-1 text-[9.5px]">
-                  <span>Parent's/Guardian Signature:</span>
+                  <span>Parent's/Guardian's Signature:</span>
                   <div className="flex-1 border-b border-black" />
                 </div>
               </div>
             </div>
 
             {/* Right Column: Attendance, Descriptors, Certificate */}
-            <div className="flex flex-col justify-between space-y-4">
+            <div className="flex flex-col space-y-3">
               
               {/* Attendance Record */}
               <div>
@@ -438,9 +477,9 @@ export const Grade1SF9Renderer: React.FC<Grade1SF9RendererProps> = ({
                   <div className="grid grid-cols-12 bg-slate-100 font-bold border-b border-black text-center py-1">
                     <div className="col-span-2 border-r border-black">Term</div>
                     <div className="col-span-3 border-r border-black">Month</div>
-                    <div className="col-span-2 border-r border-black">School Days</div>
-                    <div className="col-span-2 border-r border-black">Present</div>
-                    <div className="col-span-3">Absent</div>
+                    <div className="col-span-2 border-r border-black">No. of Class Days</div>
+                    <div className="col-span-2 border-r border-black">No. Days Present</div>
+                    <div className="col-span-3">No. of Times Absent</div>
                   </div>
 
                   {/* Term 1 */}
@@ -520,14 +559,14 @@ export const Grade1SF9Renderer: React.FC<Grade1SF9RendererProps> = ({
               </div>
 
               {/* Note to Parents & Descriptors */}
-              <div>
-                <h4 className="font-bold text-[10.5px] text-center mb-1 uppercase tracking-wide">
+              <div className="pt-2.5">
+                <h4 className="font-bold text-[10.5px] text-center mb-1.5 uppercase tracking-wide">
                   IMPORTANT NOTE TO PARENTS/GUARDIANS
                 </h4>
-                <p className="text-[9.5px] leading-snug mb-2 text-slate-700">
+                <p className="text-[9.5px] leading-relaxed my-0.5 text-slate-700">
                   A detailed record of your child's progress across specific learning competencies is attached in the succeeding pages. This includes the monitoring of skills in Reading and Literacy, Language, Mathematics, Good Manners and Right Conduct, and Makabansa.
                 </p>
-                <p className="text-[9.5px] font-bold mb-1">Performance levels used in monitoring:</p>
+                <p className="text-[9.5px] font-bold mt-1 mb-1">Performance levels used in monitoring:</p>
                 
                 <div className="border border-black text-[9.5px]">
                   <div className="grid grid-cols-12 bg-slate-100 font-bold border-b border-black py-0.5 text-center">
@@ -536,55 +575,58 @@ export const Grade1SF9Renderer: React.FC<Grade1SF9RendererProps> = ({
                     <div className="col-span-6">Description</div>
                   </div>
                   {[
-                    { grade: 'A', desc: 'Advancing (Namumukod-tangi)', detail: 'Consistently demonstrates skills and understanding beyond expectations; applies learning independently.' },
+                    { grade: 'A', desc: 'Advancing (Namumukod-tangi)', detail: 'Consistently demonstrates skills and understanding beyond expectations; applies learning independently and confidently.' },
                     { grade: 'B', desc: 'Benchmarking (Naipamamalas)', detail: 'Meets expected learning standards; demonstrates skills and understanding with consistency.' },
                     { grade: 'C', desc: 'Connecting (Natutungo)', detail: 'Shows developing understanding and skills; requires minimal guidance to meet expectations.' },
-                    { grade: 'D', desc: 'Developing (Napauunlad)', detail: 'Demonstrates emerging skills and understanding; requires regular guidance and support.' },
+                    { grade: 'D', desc: 'Developing (Nagpapaunlad)', detail: 'Demonstrates emerging skills and understanding; requires regular guidance and support.' },
                     { grade: 'E', desc: 'Emerging (Nagsisimula)', detail: 'Beginning to demonstrate basic skills; requires close supervision and targeted intervention.' },
                   ].map((r, idx) => (
-                    <div key={idx} className="grid grid-cols-12 border-b last:border-b-0 border-black py-1">
+                    <div key={idx} className="grid grid-cols-12 border-b last:border-b-0 border-black py-3">
                       <div className="col-span-2 border-r border-black font-bold text-center flex items-center justify-center">{r.grade}</div>
-                      <div className="col-span-4 border-r border-black px-1 font-semibold flex items-center">{r.desc}</div>
-                      <div className="col-span-6 px-1.5 text-[9px] leading-tight flex items-center">{r.detail}</div>
+                      <div className="col-span-4 border-r border-black px-1 font-semibold flex items-center leading-normal">{r.desc}</div>
+                      <div className="col-span-6 px-1.5 text-[8.5px] leading-relaxed flex items-center">{r.detail}</div>
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* Certificate of Transfer */}
-              <div className="text-[9.5px] space-y-1.5 pt-1">
-                <h4 className="font-bold text-[10.5px] text-center uppercase tracking-wide">
+              <div className="text-[9.5px] space-y-3.5 pt-6">
+                <h4 className="font-bold text-[10px] text-center uppercase tracking-wide">
                   CERTIFICATE OF TRANSFER
                 </h4>
-                <p className="leading-snug">
-                  This is to certify that the above-named learner has satisfactory completed the requirements for the grade level indicated.
+                <p className="leading-relaxed text-[9px]">
+                  This is to certify that the above-named learner has satisfactorily completed the requirements for the grade level indicated.
                 </p>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 text-[9px]">
                   <span>Admitted to Grade:</span>
                   <div className="flex-1 border-b border-black" />
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 text-[9px]">
                   <span>Eligible for Admission to Grade:</span>
                   <div className="flex-1 border-b border-black" />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 pt-3 text-center">
-                  <div className="flex flex-col items-center">
-                    <span className="w-full border-b border-black font-bold uppercase tracking-wider pb-0.5">
-                      {adviser || ' '}
-                    </span>
-                    <span className="text-[9px] italic mt-0.5">Adviser</span>
-                  </div>
-                  <div className="flex flex-col items-center">
-                    <span className="w-full border-b border-black font-bold uppercase tracking-wider pb-0.5">
-                      {principal || ' '}
-                    </span>
-                    <span className="text-[9px] italic mt-0.5">School Head</span>
+                <div className="pt-4">
+                  <p className="text-[9px] mb-2 font-semibold">Approved:</p>
+                  <div className="grid grid-cols-2 gap-6 pt-2 text-center">
+                    <div className="flex flex-col items-center">
+                      <span className="w-full border-b border-black font-bold uppercase tracking-wider pb-0.5 text-[9.5px]">
+                        {adviser || ' '}
+                      </span>
+                      <span className="text-[8.5px] italic mt-0.5">Adviser</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <span className="w-full border-b border-black font-bold uppercase tracking-wider pb-0.5 text-[9.5px]">
+                        {principal || ' '}
+                      </span>
+                      <span className="text-[8.5px] italic mt-0.5">School Head</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="pt-2 text-[9px] space-y-1">
-                  <p className="font-bold text-center uppercase">Cancellation of Eligibility to Transfer</p>
+                <div className="pt-4 text-[9px] space-y-3.5">
+                  <p className="font-bold text-center uppercase text-[9.5px]">Cancellation of Eligibility to Transfer</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex items-center gap-1">
                       <span>Admitted in:</span>
@@ -594,6 +636,12 @@ export const Grade1SF9Renderer: React.FC<Grade1SF9RendererProps> = ({
                       <span>Date:</span>
                       <div className="flex-1 border-b border-black" />
                     </div>
+                  </div>
+                  <div className="flex flex-col items-center max-w-50 mx-auto pt-1">
+                    <span className="w-full border-b border-black font-bold uppercase tracking-wider pb-0.5 text-[9.5px] text-center">
+                      {principal || ' '}
+                    </span>
+                    <span className="text-[8.5px] italic mt-0.5">School Head</span>
                   </div>
                 </div>
               </div>
