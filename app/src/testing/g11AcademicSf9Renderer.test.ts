@@ -248,8 +248,10 @@ describe('Grade 11 SSHS Academic SF9 Renderer & Layout Specifications', () => {
       const loadedPdf = await PDFDocument.load(arrayBuffer);
       expect(loadedPdf.getPageCount()).toBe(1);
 
-      const targetPdfPath = path.resolve('C:/Users/Emerson/.gemini/antigravity-ide/brain/d52a8bdf-7963-4da8-8d23-af35cfd550fa/scratch_final_g11_sf9.pdf');
-      fs.writeFileSync(targetPdfPath, Buffer.from(arrayBuffer));
+      const targetPdfDir = path.resolve('C:/Users/Emerson/.gemini/antigravity-ide/brain/d52a8bdf-7963-4da8-8d23-af35cfd550fa');
+      if (fs.existsSync(targetPdfDir)) {
+        fs.writeFileSync(path.join(targetPdfDir, 'scratch_final_g11_sf9.pdf'), Buffer.from(arrayBuffer));
+      }
     }, 90000);
   });
 });
