@@ -189,6 +189,7 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
 
     // Sheet 3: TERM 1 SUMMARY
     const sheet3Xml = await zip.file('xl/worksheets/sheet3.xml')!.async('text');
+    expect(sheet3Xml).not.toContain('t="shared"');
     expect(sheet3Xml).toContain('r="D15"'); // Male 1 LRN
     expect(sheet3Xml).toContain('r="G15"'); // Male 1 Birthday
     expect(sheet3Xml).toContain('r="J15"'); // Male 1 Sex ('M')
@@ -199,11 +200,13 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
 
     // Sheet 4: TERM 2 SUMMARY
     const sheet4Xml = await zip.file('xl/worksheets/sheet4.xml')!.async('text');
+    expect(sheet4Xml).not.toContain('t="shared"');
     expect(sheet4Xml).toContain('r="K15"');
     expect(sheet4Xml).toContain('r="Q15"'); // Male 1 Academic Elective 2
 
     // Sheet 5: TERM 3 SUMMARY
     const sheet5Xml = await zip.file('xl/worksheets/sheet5.xml')!.async('text');
+    expect(sheet5Xml).not.toContain('t="shared"');
     expect(sheet5Xml).toContain('r="K15"');
     expect(sheet5Xml).toContain('r="Q15"'); // Male 1 Academic Elective 3
 

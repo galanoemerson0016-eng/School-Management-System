@@ -1157,15 +1157,15 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                         <div className="pl-5 space-y-1 text-[9px] font-bold text-slate-600">
                                             <label className="flex items-center gap-1.5 cursor-pointer">
                                                 <input type="checkbox" checked={!!student.req_1st_term} readOnly className="w-3 h-3 accent-slate-900" />
-                                                <span>1st Term</span>
+                                                <span>TERM 1</span>
                                             </label>
                                             <label className="flex items-center gap-1.5 cursor-pointer">
                                                 <input type="checkbox" checked={!!student.req_2nd_term} readOnly className="w-3 h-3 accent-slate-900" />
-                                                <span>2nd Term</span>
+                                                <span>TERM 2</span>
                                             </label>
                                             <label className="flex items-center gap-1.5 cursor-pointer">
                                                 <input type="checkbox" checked={!!student.req_3rd_term} readOnly className="w-3 h-3 accent-slate-900" />
-                                                <span>3rd Term</span>
+                                                <span>TERM 3</span>
                                             </label>
                                         </div>
                                     </div>

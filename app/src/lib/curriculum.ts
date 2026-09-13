@@ -3,6 +3,374 @@
  * Includes Matatag (G1-3) and Standard DepEd (G4-12)
  */
 
+/**
+ * Official DepEd Order No. 017, s. 2026 (Strengthened Senior High School - SSHS)
+ * Grade 12 Academic Track Electives
+ */
+export const SSHS_G12_ACADEMIC_SUBJECTS = [
+    // Cluster: ARTS, SOCIAL SCIENCES, AND HUMANITIES
+    { name: 'Art Criticism and Creative Markets', code: '' },
+    { name: 'Citizenship and Civic Engagement', code: '' },
+    { name: 'Contemporary Literature 1', code: '' },
+    { name: 'Contemporary Literature 2', code: '' },
+    { name: 'Creative Composition 1', code: '' },
+    { name: 'Creative Composition 2', code: '' },
+    { name: 'Creative Industries - Applied and Traditional Arts', code: '' },
+    { name: 'Creative Industries - Dance', code: '' },
+    { name: 'Creative Industries - Literary Arts', code: '' },
+    { name: 'Creative Industries - Media Arts', code: '' },
+    { name: 'Creative Industries - Music', code: '' },
+    { name: 'Creative Industries - Theater Arts', code: '' },
+    { name: 'Creative Industries - Visual Arts', code: '' },
+    { name: 'Filipino 1 (Wika at Komunikasyon sa Akademikong Filipino)', code: '' },
+    { name: 'Filipino 2 (Filipino sa Isports)', code: '' },
+    { name: 'Filipino 2 (Filipino sa Larang Teknikal-Propesyonal)', code: '' },
+    { name: 'Filipino 2 (Filipino sa Sining at Disenyo)', code: '' },
+    { name: 'Filipino Identity Through the Arts', code: '' },
+    { name: 'Introduction to the Philosophy of the Human Person', code: '' },
+    { name: 'Leadership and Management in the Arts', code: '' },
+    { name: 'Malikhaing Pagsulat', code: '' },
+    { name: 'Performance Criticism and Creative Markets', code: '' },
+    { name: 'Philippine Governance (Philippine Politics and Governance)', code: '' },
+    { name: 'Social Sciences (Theory and Practice)', code: '' },
+    { name: 'Creative Production and Presentation', code: '' },
+    // Cluster: BUSINESS AND ENTREPRENEURSHIP
+    { name: 'Business 1 (Basic Accounting)', code: '' },
+    { name: 'Business 2 (Business Finance and Income Taxation)', code: '' },
+    { name: 'Contemporary Marketing', code: '' },
+    { name: 'Entrepreneurship', code: '' },
+    { name: 'Introduction to Organization and Management', code: '' },
+    { name: 'Business 3 (Business Economics)', code: '' },
+    // Cluster: FIELD EXPERIENCE
+    { name: 'Design and Innovation', code: '' },
+    { name: 'Research 1', code: '' },
+    { name: 'Research 2', code: '' },
+    { name: 'Arts Apprenticeship – Dance', code: '' },
+    { name: 'Arts Apprenticeship - Literary Arts', code: '' },
+    { name: 'Arts Apprenticeship - Media Arts', code: '' },
+    { name: 'Arts Apprenticeship – Music', code: '' },
+    { name: 'Arts Apprenticeship – Theater Arts', code: '' },
+    { name: 'Arts Apprenticeship – Traditional Cultural Expressions', code: '' },
+    { name: 'Arts Apprenticeship – Visual Arts', code: '' },
+    { name: 'Field Exposure (Off Campus)', code: '' },
+    { name: 'In-Campus Field Exposure for Sports', code: '' },
+    { name: 'Work Immersion for Academic Track', code: '' },
+    // Cluster: SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS
+    { name: 'Advanced Mathematics', code: '' },
+    { name: 'Basic Calculus', code: '' },
+    { name: 'Biology 1', code: '' },
+    { name: 'Biology 2', code: '' },
+    { name: 'Biology 3', code: '' },
+    { name: 'Biology 4', code: '' },
+    { name: 'Chemistry 1', code: '' },
+    { name: 'Chemistry 2', code: '' },
+    { name: 'Chemistry 3', code: '' },
+    { name: 'Chemistry 4', code: '' },
+    { name: 'Conceptual Biology and Earth and Space Science', code: '' },
+    { name: 'Conceptual Physics and Chemistry in Daily Life', code: '' },
+    { name: 'Database Management', code: '' },
+    { name: 'Earth and Space Science 1', code: '' },
+    { name: 'Earth and Space Science 2', code: '' },
+    { name: 'Earth and Space Science 3', code: '' },
+    { name: 'Earth and Space Science 4', code: '' },
+    { name: 'Empowerment Technologies', code: '' },
+    { name: 'Finite Mathematics 1', code: '' },
+    { name: 'Finite Mathematics 2', code: '' },
+    { name: 'Fundamentals of Data Analytics', code: '' },
+    { name: 'Physics 1', code: '' },
+    { name: 'Physics 2', code: '' },
+    { name: 'Physics 3', code: '' },
+    { name: 'Physics 4', code: '' },
+    { name: 'Pre-Calculus', code: '' },
+    // Cluster: SPORTS, HEALTH, AND WELLNESS
+    { name: 'Exercise and Sports Programming', code: '' },
+    { name: 'First Aid', code: '' },
+    { name: 'Fundamentals of Basic Life Support', code: '' },
+    { name: 'Human Movement 1 (Basic Anatomy in Sports and Exercise)', code: '' },
+    { name: 'Human Movement 2 (Motor Skills Development)', code: '' },
+    { name: 'Physical Education 1 (Fitness and Recreation)', code: '' },
+    { name: 'Physical Education 2 (Sports and Dance)', code: '' },
+    { name: 'Sports Activity Management', code: '' },
+    { name: 'Sports Coaching', code: '' },
+    { name: 'Sports Officiating', code: '' }
+];
+
+/**
+ * Official DepEd Order No. 017, s. 2026 (Strengthened Senior High School - SSHS)
+ * Grade 12 Technical-Professional (TechPro) Track Electives
+ */
+export const SSHS_G12_TECHPRO_SUBJECTS = [
+    // Cluster: AESTHETIC, WELLNESS, AND HUMAN CARE
+    { name: 'Aesthetic Services (Beauty Care)', code: '' },
+    { name: 'Caregiving (Adult Care)', code: '' },
+    { name: 'Caregiving (Child Care)', code: '' },
+    { name: 'Hairdressing Services', code: '' },
+    // Cluster: AGRI-FISHERY BUSINESS AND FOOD INNOVATION
+    { name: 'Agricultural Crops Production', code: '' },
+    { name: 'Agro-entrepreneurship', code: '' },
+    { name: 'Aquaculture', code: '' },
+    { name: 'Fish Capture Operation', code: '' },
+    { name: 'Food Processing', code: '' },
+    { name: 'Organic Agriculture Production', code: '' },
+    { name: 'Poultry Production (Chicken)', code: '' },
+    { name: 'Ruminants Production', code: '' },
+    { name: 'Swine Production', code: '' },
+    // Cluster: ARTISANRY AND CREATIVE ENTERPRISE
+    { name: 'Garments Artisanry', code: '' },
+    { name: 'Handicrafts: Weaving', code: '' },
+    // Cluster: AUTOMOTIVE AND SMALL ENGINE TECHNOLOGIES
+    { name: 'Driving and Automotive Servicing', code: '' },
+    { name: 'Motorcycle and Small Engine Servicing', code: '' },
+    { name: 'Automotive Servicing (Electrical Repair)', code: '' },
+    { name: 'Automotive Servicing (Engine and Chassis Repairs)', code: '' },
+    // Cluster: CONSTRUCTION AND BUILDING TECHNOLOGIES
+    { name: 'Carpentry', code: '' },
+    { name: 'Construction Operation', code: '' },
+    { name: 'Manual Metal Arc Welding', code: '' },
+    { name: 'Technical Drafting', code: '' },
+    // Cluster: CREATIVE ARTS AND DESIGN TECHNOLOGIES
+    { name: 'Animation', code: '' },
+    { name: 'Illustration', code: '' },
+    { name: 'Visual Graphic Design', code: '' },
+    // Cluster: HOSPITALITY AND TOURISM
+    { name: 'Bakery Operations', code: '' },
+    { name: 'Events Management Services', code: '' },
+    { name: 'Food and Beverage Operation', code: '' },
+    { name: 'Hotel Operations (Front Office Services)', code: '' },
+    { name: 'Hotel Operations (Housekeeping Services)', code: '' },
+    { name: 'Kitchen Operations', code: '' },
+    { name: 'Tourism Services', code: '' },
+    // Cluster: ICT SUPPORT AND COMPUTER PROGRAMMING TECHNOLOGIES
+    { name: 'Broadband Installation', code: '' },
+    { name: 'Computer Programming (.Net Technology)', code: '' },
+    { name: 'Computer Programming (Java) ( NC III )', code: '' },
+    { name: 'Computer Programming (Oracle Database)', code: '' },
+    { name: 'Computer Systems Servicing', code: '' },
+    { name: 'Contact Center Services', code: '' },
+    // Cluster: INDUSTRIAL TECHNOLOGIES
+    { name: 'Domestic Refrigeration and Air-Conditioning Servicing', code: '' },
+    { name: 'Electrical Installation and Maintenance', code: '' },
+    { name: 'Electronic Products Assembly and Servicing', code: '' },
+    { name: 'Photovoltaic Systems Installation', code: '' },
+    { name: 'Commercial Air-Conditioning Installation and Servicing', code: '' },
+    { name: 'Mechatronics', code: '' },
+    // Cluster: MARITIME
+    { name: 'Marine Engineering at the Support Level', code: '' },
+    { name: 'Marine Transportation at the Support Level', code: '' },
+    { name: 'Ships Catering Services', code: '' },
+    // Cluster: WORK IMMERSION
+    { name: 'Work Immersion for Tech-Pro Track (320 hours)', code: '' },
+    { name: 'Work Immersion for Tech-Pro Track (540 hours) - 1 Term', code: '' },
+    { name: 'Work Immersion for Tech-Pro Track (640 hours) - 1 Term', code: '' },
+    { name: 'Work Immersion for Tech-Pro Track (540 hours) - 2 Terms', code: '' },
+    { name: 'Work Immersion for Tech-Pro Track (640 hours) - 2 Terms', code: '' }
+];
+
+/**
+ * Traditional DepEd K to 12 Senior High School (SHS) - Official Core Subjects
+ */
+export const SHS_G12_CORE_SUBJECTS = [
+    { name: '21st Century Literature from the Philippines and the World', code: '' },
+    { name: 'Contemporary Philippine Arts from the Regions', code: '' },
+    { name: 'Disaster Readiness and Risk Reduction', code: '' },
+    { name: 'Earth and Life Science', code: '' },
+    { name: 'Earth Science', code: '' },
+    { name: 'General Mathematics', code: '' },
+    { name: 'Health Optimizing Physical Education and Health 1', code: 'HOPE 1' },
+    { name: 'Health Optimizing Physical Education and Health 2', code: 'HOPE 2' },
+    { name: 'Health Optimizing Physical Education and Health 3', code: 'HOPE 3' },
+    { name: 'Health Optimizing Physical Education and Health 4', code: 'HOPE 4' },
+    { name: 'Introduction to Philosophy of the Human Person', code: '' },
+    { name: 'Komunikasyon at Pananaliksik sa Wika at Kulturang Pilipino', code: '' },
+    { name: 'Media and Information Literacy', code: '' },
+    { name: 'Oral Communication in Context', code: '' },
+    { name: 'Pagbasa at Pagsusuri ng Iba\'t Ibang Teksto Tungo sa Pananaliksik', code: '' },
+    { name: 'Personal Development', code: '' },
+    { name: 'Physical Science', code: '' },
+    { name: 'Reading and Writing Skills', code: '' },
+    { name: 'Statistics and Probability', code: '' },
+    { name: 'Understanding Culture, Society and Politics', code: '' }
+];
+
+/**
+ * Traditional DepEd K to 12 Senior High School (SHS) - Contextualized / Applied Subjects
+ */
+export const SHS_G12_APPLIED_SUBJECTS = [
+    { name: 'Empowerment Technologies', code: '' },
+    { name: 'English for Academic and Professional Purposes', code: 'EAPP' },
+    { name: 'Entrepreneurship', code: '' },
+    { name: 'Filipino sa Piling Larang (Akademik)', code: '' },
+    { name: 'Filipino sa Piling Larang (Isports)', code: '' },
+    { name: 'Filipino sa Piling Larang (Sining at Disenyo)', code: '' },
+    { name: 'Filipino sa Piling Larang (Teknikal-Bokasyunal)', code: '' },
+    { name: 'Inquiries, Investigations and Immersion', code: '3Is' },
+    { name: 'Practical Research 1', code: '' },
+    { name: 'Practical Research 2', code: '' },
+    { name: 'Work Immersion', code: '' },
+    { name: 'Work Immersion / Culminating Activity', code: '' }
+];
+
+/**
+ * Traditional DepEd K to 12 Senior High School (SHS) - Specialized Subjects by Track & Strand
+ */
+export const SHS_OLD_STRAND_SUBJECTS: Record<string, { name: string; code: string }[]> = {
+    STEM: [
+        { name: 'Pre-Calculus', code: '' },
+        { name: 'Basic Calculus', code: '' },
+        { name: 'General Biology 1', code: '' },
+        { name: 'General Biology 2', code: '' },
+        { name: 'General Chemistry 1', code: '' },
+        { name: 'General Chemistry 2', code: '' },
+        { name: 'General Physics 1', code: '' },
+        { name: 'General Physics 2', code: '' },
+        { name: 'Research / Capstone Project', code: '' }
+    ],
+    ABM: [
+        { name: 'Applied Economics', code: '' },
+        { name: 'Business Ethics and Social Responsibility', code: '' },
+        { name: 'Business Finance', code: '' },
+        { name: 'Business Math', code: '' },
+        { name: 'Fundamentals of Accountancy, Business, and Management 1', code: 'FABM 1' },
+        { name: 'Fundamentals of Accountancy, Business, and Management 2', code: 'FABM 2' },
+        { name: 'Organization and Management', code: '' },
+        { name: 'Principles of Marketing', code: '' },
+        { name: 'Business Enterprise Simulation', code: '' }
+    ],
+    HUMSS: [
+        { name: 'Creative Nonfiction', code: '' },
+        { name: 'Creative Writing', code: '' },
+        { name: 'Culminating Activity', code: '' },
+        { name: 'Disciplines and Ideas in the Applied Social Sciences', code: 'DIASS' },
+        { name: 'Disciplines and Ideas in the Social Sciences', code: 'DISS' },
+        { name: 'Introduction to World Religions and Belief Systems', code: '' },
+        { name: 'Philippine Politics and Governance', code: '' },
+        { name: 'Community Engagement, Solidarity and Citizenship', code: '' },
+        { name: 'Trends, Networks, and Critical Thinking in the 21st Century', code: '' }
+    ],
+    GAS: [
+        { name: 'Humanities 1', code: '' },
+        { name: 'Humanities 2', code: '' },
+        { name: 'Social Science 1', code: '' },
+        { name: 'Social Science 2', code: '' },
+        { name: 'Applied Economics', code: '' },
+        { name: 'Organization and Management', code: '' },
+        { name: 'Disaster Readiness and Risk Reduction', code: '' },
+        { name: 'GAS Elective 1', code: '' },
+        { name: 'GAS Elective 2', code: '' },
+        { name: 'Work Immersion', code: '' }
+    ],
+    TVL: [
+        // Home Economics
+        { name: 'Bread and Pastry Production', code: '' },
+        { name: 'Cookery', code: '' },
+        { name: 'Food and Beverage Services', code: '' },
+        { name: 'Front Office Services', code: '' },
+        { name: 'Housekeeping', code: '' },
+        { name: 'Tourism Promotion Services', code: '' },
+        { name: 'Caregiving', code: '' },
+        { name: 'Hairdressing Services', code: '' },
+        { name: 'Beauty Care (Nail Care)', code: '' },
+        { name: 'Wellness Massage', code: '' },
+        { name: 'Dressmaking', code: '' },
+        { name: 'Tailoring', code: '' },
+        { name: 'Garments Artisanry', code: '' },
+        // ICT
+        { name: 'Computer Systems Servicing', code: 'CSS' },
+        { name: 'Computer Programming (.Net Technology)', code: '' },
+        { name: 'Computer Programming (Java) ( NC III )', code: '' },
+        { name: 'Computer Programming (Oracle Database)', code: '' },
+        { name: 'Broadband Installation', code: '' },
+        { name: 'Contact Center Services', code: '' },
+        { name: 'Animation', code: '' },
+        { name: 'Illustration', code: '' },
+        { name: 'Technical Drafting', code: '' },
+        { name: 'Visual Graphic Design', code: '' },
+        { name: 'Medical Transcription', code: '' },
+        { name: 'Cybersecurity', code: '' },
+        // Industrial Arts
+        { name: 'Shielded Metal Arc Welding (SMAW)', code: 'SMAW' },
+        { name: 'Electrical Installation and Maintenance (EIM)', code: 'EIM' },
+        { name: 'Automotive Servicing', code: '' },
+        { name: 'Carpentry', code: '' },
+        { name: 'Domestic Refrigeration and Air-Conditioning Servicing', code: 'RAC' },
+        { name: 'Commercial Air-Conditioning Installation and Servicing', code: '' },
+        { name: 'Electronic Products Assembly and Servicing', code: 'EPAS' },
+        { name: 'Mechatronics', code: '' },
+        { name: 'Photovoltaic Systems Installation', code: '' },
+        { name: 'Machining', code: '' },
+        { name: 'Plumbing', code: '' },
+        // Agri-Fishery Arts
+        { name: 'Agricultural Crops Production', code: '' },
+        { name: 'Animal Production', code: '' },
+        { name: 'Organic Agriculture Production', code: '' },
+        { name: 'Aquaculture', code: '' },
+        { name: 'Fish Capture Operation', code: '' },
+        { name: 'Food Processing', code: '' },
+        { name: 'Agro-entrepreneurship', code: '' },
+        // Maritime
+        { name: 'Marine Engineering at the Support Level', code: '' },
+        { name: 'Marine Transportation at the Support Level', code: '' },
+        { name: 'Ships Catering Services', code: '' },
+        // Immersion
+        { name: 'Work Immersion (TVL)', code: '' }
+    ],
+    'Arts and Design': [
+        { name: 'Developing Filipino Identity in the Arts', code: '' },
+        { name: 'Leadership and Management in the Arts', code: '' },
+        { name: 'Leadership and Management in Different Arts and Fields', code: '' },
+        { name: 'Integrating Elements and Principles of Organization in the Arts', code: '' },
+        { name: 'Apprenticeship and Exploration in the Arts', code: '' },
+        { name: 'Apprenticeship and Exploration in Performing Arts', code: '' },
+        { name: 'Apprenticeship and Exploration in Applied Arts', code: '' },
+        { name: 'Apprenticeship and Exploration in Visual Arts', code: '' },
+        { name: 'Performing Arts', code: '' },
+        { name: 'Production in the Performing Arts', code: '' },
+        { name: 'Visual and Graphic Design', code: '' },
+        { name: 'Exhibit for Arts Production', code: '' }
+    ],
+    Sports: [
+        { name: 'Safety and First Aid', code: '' },
+        { name: 'Fitness Testing and Basic Exercise Programming', code: '' },
+        { name: 'Sports Officiating and Activity Management', code: '' },
+        { name: 'Fitness, Sports, and Recreation Leadership', code: '' },
+        { name: 'Human Movement', code: '' },
+        { name: 'Fundamentals of Coaching', code: '' },
+        { name: 'Biomechanical Analysis of Human Movement', code: '' },
+        { name: 'Psychosocial Aspects of Sports and Exercise', code: '' },
+        { name: 'Practicum in Sports (In-Campus)', code: '' },
+        { name: 'Apprenticeship in Sports (Off-Campus)', code: '' }
+    ]
+};
+
+/**
+ * All traditional SHS subjects combined (Core + Applied + Specialized)
+ */
+export const SHS_G12_ALL_OLD_SUBJECTS = [
+    ...SHS_G12_CORE_SUBJECTS,
+    ...SHS_G12_APPLIED_SUBJECTS,
+    ...SHS_OLD_STRAND_SUBJECTS.STEM,
+    ...SHS_OLD_STRAND_SUBJECTS.ABM,
+    ...SHS_OLD_STRAND_SUBJECTS.HUMSS,
+    ...SHS_OLD_STRAND_SUBJECTS.GAS,
+    ...SHS_OLD_STRAND_SUBJECTS.TVL,
+    ...SHS_OLD_STRAND_SUBJECTS['Arts and Design'],
+    ...SHS_OLD_STRAND_SUBJECTS.Sports
+];
+
+export const SSHS_G11_CORE_SUBJECTS = [
+    { name: 'Effective Communication', code: '' },
+    { name: 'General Mathematics', code: '' },
+    { name: 'General Science', code: '' },
+    { name: 'Life and Career Skills', code: '' },
+    { name: 'Mabisang Komunikasyon', code: '' },
+    { name: 'Pag-aaral ng Kasaysayan at Lipunang Pilipino', code: '' }
+];
+
+export const SSHS_G11_ACADEMIC_SUBJECTS = [
+    ...SSHS_G11_CORE_SUBJECTS,
+    ...SSHS_G12_ACADEMIC_SUBJECTS
+];
+
 export const STANDARD_SUBJECTS = {
     'Grade 1': [
         { name: 'Language', code: '' },
@@ -110,365 +478,8 @@ export const STANDARD_SUBJECTS = {
         { name: 'Music and Arts', code: 'MAPEH' },
         { name: 'Physical Education and Health', code: 'MAPEH' }
     ],
-        'Grade 11': [
-        // --- CORE SUBJECTS (SSHS - CORE) ---
-        // Cluster: CORE
-        { name: 'Effective Communication', code: '' },
-        { name: 'General Mathematics', code: '' },
-        { name: 'General Science', code: '' },
-        { name: 'Life and Career Skills', code: '' },
-        { name: 'Mabisang Komunikasyon', code: '' },
-        { name: 'Pag-aaral ng Kasaysayan at Lipunang Pilipino', code: '' },
-
-        // --- ACADEMIC TRACK ELECTIVES (SSHS - ACADEMIC) ---
-        // Cluster: ARTS, SOCIAL SCIENCES, AND HUMANITIES
-        { name: 'Art Criticism and Creative Markets', code: '' },
-        { name: 'Citizenship and Civic Engagement', code: '' },
-        { name: 'Contemporary Literature 1', code: '' },
-        { name: 'Contemporary Literature 2', code: '' },
-        { name: 'Creative Composition 1', code: '' },
-        { name: 'Creative Composition 2', code: '' },
-        { name: 'Creative Industries - Applied and Traditional Arts', code: '' },
-        { name: 'Creative Industries - Dance', code: '' },
-        { name: 'Creative Industries - Literary Arts', code: '' },
-        { name: 'Creative Industries - Media Arts', code: '' },
-        { name: 'Creative Industries - Music', code: '' },
-        { name: 'Creative Industries - Theater Arts', code: '' },
-        { name: 'Creative Industries - Visual Arts', code: '' },
-        { name: 'Filipino 1 (Wika at Komunikasyon sa Akademikong Filipino)', code: '' },
-        { name: 'Filipino 2 (Filipino sa Isports)', code: '' },
-        { name: 'Filipino 2 (Filipino sa Larang Teknikal-Propesyonal)', code: '' },
-        { name: 'Filipino 2 (Filipino sa Sining at Disenyo)', code: '' },
-        { name: 'Filipino Identity Through the Arts', code: '' },
-        { name: 'Introduction to the Philosophy of the Human Person', code: '' },
-        { name: 'Leadership and Management in the Arts', code: '' },
-        { name: 'Malikhaing Pagsulat', code: '' },
-        { name: 'Performance Criticism and Creative Markets', code: '' },
-        { name: 'Philippine Governance (Philippine Politics and Governance)', code: '' },
-        { name: 'Social Sciences (Theory and Practice)', code: '' },
-        // Cluster: BUSINESS AND ENTREPRENEURSHIP
-        { name: 'Business 1 (Basic Accounting)', code: '' },
-        { name: 'Business 2 (Business Finance and Income Taxation)', code: '' },
-        { name: 'Contemporary Marketing', code: '' },
-        { name: 'Entrepreneurship', code: '' },
-        { name: 'Introduction to Organization and Management', code: '' },
-        // Cluster: FIELD EXPERIENCE
-        { name: 'Design and Innovation', code: '' },
-        { name: 'Research 1', code: '' },
-        { name: 'Research 2', code: '' },
-        // Cluster: SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS
-        { name: 'Advanced Mathematics', code: '' },
-        { name: 'Basic Calculus', code: '' },
-        { name: 'Biology 1', code: '' },
-        { name: 'Biology 2', code: '' },
-        { name: 'Biology 3', code: '' },
-        { name: 'Chemistry 1', code: '' },
-        { name: 'Chemistry 2', code: '' },
-        { name: 'Chemistry 3', code: '' },
-        { name: 'Earth and Space Science 1', code: '' },
-        { name: 'Earth and Space Science 2', code: '' },
-        { name: 'Earth and Space Science 3', code: '' },
-        { name: 'Empowerment Technologies', code: '' },
-        { name: 'Finite Mathematics 1', code: '' },
-        { name: 'Finite Mathematics 2', code: '' },
-        { name: 'Physics 1', code: '' },
-        { name: 'Physics 2', code: '' },
-        { name: 'Physics 3', code: '' },
-        { name: 'Pre-Calculus', code: '' },
-        // Cluster: SPORTS, HEALTH, AND WELLNESS
-        { name: 'Exercise and Sports Programming', code: '' },
-        { name: 'First Aid', code: '' },
-        { name: 'Fundamentals of Basic Life Support', code: '' },
-        { name: 'Human Movement 1 (Basic Anatomy in Sports and Exercise)', code: '' },
-        { name: 'Human Movement 2 (Motor Skills Development)', code: '' },
-        { name: 'Physical Education 1 (Fitness and Recreation)', code: '' },
-        { name: 'Physical Education 2 (Sports and Dance)', code: '' },
-        { name: 'Sports Activity Management', code: '' },
-        { name: 'Sports Coaching', code: '' },
-        { name: 'Sports Officiating', code: '' },
-
-        // --- TECHNICAL-PROFESSIONAL ELECTIVES (SSHS - TECH-PRO) ---
-        // Cluster: AESTHETIC, WELLNESS, AND HUMAN CARE
-        { name: 'Aesthetic Services (Beauty Care)', code: '' },
-        { name: 'Caregiving (Adult Care)', code: '' },
-        { name: 'Caregiving (Child Care)', code: '' },
-        { name: 'Hairdressing Services', code: '' },
-        // Cluster: AGRI-FISHERY BUSINESS AND FOOD INNOVATION
-        { name: 'Agricultural Crops Production', code: '' },
-        { name: 'Agro-entrepreneurship', code: '' },
-        { name: 'Aquaculture', code: '' },
-        { name: 'Fish Capture Operation', code: '' },
-        { name: 'Food Processing', code: '' },
-        { name: 'Organic Agriculture Production', code: '' },
-        { name: 'Poultry Production (Chicken)', code: '' },
-        { name: 'Ruminants Production', code: '' },
-        { name: 'Swine Production', code: '' },
-        // Cluster: ARTISANRY AND CREATIVE ENTERPRISE
-        { name: 'Garments Artisanry', code: '' },
-        { name: 'Handicrafts: Weaving', code: '' },
-        // Cluster: AUTOMOTIVE AND SMALL ENGINE TECHNOLOGIES
-        { name: 'Driving and Automotive Servicing', code: '' },
-        { name: 'Motorcycle and Small Engine Servicing', code: '' },
-        { name: 'Automotive Servicing (Electrical Repair)', code: '' },
-        { name: 'Automotive Servicing (Engine and Chassis Repairs)', code: '' },
-        // Cluster: CONSTRUCTION AND BUILDING TECHNOLOGIES
-        { name: 'Carpentry', code: '' },
-        { name: 'Construction Operation', code: '' },
-        { name: 'Manual Metal Arc Welding', code: '' },
-        { name: 'Technical Drafting', code: '' },
-        // Cluster: CREATIVE ARTS AND DESIGN TECHNOLOGIES
-        { name: 'Animation', code: '' },
-        { name: 'Illustration', code: '' },
-        { name: 'Visual Graphic Design', code: '' },
-        // Cluster: HOSPITALITY AND TOURISM
-        { name: 'Bakery Operations', code: '' },
-        { name: 'Events Management Services', code: '' },
-        { name: 'Food and Beverage Operation', code: '' },
-        { name: 'Hotel Operations (Front Office Services)', code: '' },
-        { name: 'Hotel Operations (Housekeeping Services)', code: '' },
-        { name: 'Kitchen Operations', code: '' },
-        { name: 'Tourism Services', code: '' },
-        // Cluster: ICT SUPPORT AND COMPUTER PROGRAMMING TECHNOLOGIES
-        { name: 'Broadband Installation', code: '' },
-        { name: 'Computer Programming (.Net Technology)', code: '' },
-        { name: 'Computer Programming (Java) ( NC III )', code: '' },
-        { name: 'Computer Programming (Oracle Database)', code: '' },
-        { name: 'Computer Systems Servicing', code: '' },
-        { name: 'Contact Center Services', code: '' },
-        // Cluster: INDUSTRIAL TECHNOLOGIES
-        { name: 'Domestic Refrigeration and Air-Conditioning Servicing', code: '' },
-        { name: 'Electrical Installation and Maintenance', code: '' },
-        { name: 'Electronic Products Assembly and Servicing', code: '' },
-        { name: 'Photovoltaic Systems Installation', code: '' },
-        { name: 'Commercial Air-Conditioning Installation and Servicing', code: '' },
-        { name: 'Mechatronics', code: '' },
-        // Cluster: MARITIME
-        { name: 'Marine Engineering at the Support Level', code: '' },
-        { name: 'Marine Transportation at the Support Level', code: '' },
-        { name: 'Ships Catering Services', code: '' },
-    ],
-        'Grade 12': [
-        // --- SSHS GRADE 12 ELECTIVES & WORK IMMERSION (3 TERMS) ---
-
-        // --- ACADEMIC TRACK ELECTIVES (SSHS - ACADEMIC) ---
-        // Cluster: ARTS, SOCIAL SCIENCES, AND HUMANITIES
-        { name: 'Art Criticism and Creative Markets', code: '' },
-        { name: 'Citizenship and Civic Engagement', code: '' },
-        { name: 'Contemporary Literature 1', code: '' },
-        { name: 'Contemporary Literature 2', code: '' },
-        { name: 'Creative Composition 1', code: '' },
-        { name: 'Creative Composition 2', code: '' },
-        { name: 'Creative Industries - Applied and Traditional Arts', code: '' },
-        { name: 'Creative Industries - Dance', code: '' },
-        { name: 'Creative Industries - Literary Arts', code: '' },
-        { name: 'Creative Industries - Media Arts', code: '' },
-        { name: 'Creative Industries - Music', code: '' },
-        { name: 'Creative Industries - Theater Arts', code: '' },
-        { name: 'Creative Industries - Visual Arts', code: '' },
-        { name: 'Filipino 1 (Wika at Komunikasyon sa Akademikong Filipino)', code: '' },
-        { name: 'Filipino 2 (Filipino sa Isports)', code: '' },
-        { name: 'Filipino 2 (Filipino sa Larang Teknikal-Propesyonal)', code: '' },
-        { name: 'Filipino 2 (Filipino sa Sining at Disenyo)', code: '' },
-        { name: 'Filipino Identity Through the Arts', code: '' },
-        { name: 'Introduction to the Philosophy of the Human Person', code: '' },
-        { name: 'Leadership and Management in the Arts', code: '' },
-        { name: 'Malikhaing Pagsulat', code: '' },
-        { name: 'Performance Criticism and Creative Markets', code: '' },
-        { name: 'Philippine Governance (Philippine Politics and Governance)', code: '' },
-        { name: 'Social Sciences (Theory and Practice)', code: '' },
-        { name: 'Creative Production and Presentation', code: '' },
-        // Cluster: BUSINESS AND ENTREPRENEURSHIP
-        { name: 'Business 1 (Basic Accounting)', code: '' },
-        { name: 'Business 2 (Business Finance and Income Taxation)', code: '' },
-        { name: 'Contemporary Marketing', code: '' },
-        { name: 'Entrepreneurship', code: '' },
-        { name: 'Introduction to Organization and Management', code: '' },
-        { name: 'Business 3 (Business Economics)', code: '' },
-        // Cluster: FIELD EXPERIENCE
-        { name: 'Design and Innovation', code: '' },
-        { name: 'Research 1', code: '' },
-        { name: 'Research 2', code: '' },
-        { name: 'Arts Apprenticeship – Dance', code: '' },
-        { name: 'Arts Apprenticeship - Literary Arts', code: '' },
-        { name: 'Arts Apprenticeship - Media Arts', code: '' },
-        { name: 'Arts Apprenticeship – Music', code: '' },
-        { name: 'Arts Apprenticeship – Theater Arts', code: '' },
-        { name: 'Arts Apprenticeship – Traditional Cultural Expressions', code: '' },
-        { name: 'Arts Apprenticeship – Visual Arts', code: '' },
-        { name: 'Field Exposure (Off Campus)', code: '' },
-        { name: 'In-Campus Field Exposure for Sports', code: '' },
-        { name: 'Work Immersion for Academic Track', code: '' },
-        // Cluster: SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS
-        { name: 'Advanced Mathematics', code: '' },
-        { name: 'Basic Calculus', code: '' },
-        { name: 'Biology 1', code: '' },
-        { name: 'Biology 2', code: '' },
-        { name: 'Biology 3', code: '' },
-        { name: 'Chemistry 1', code: '' },
-        { name: 'Chemistry 2', code: '' },
-        { name: 'Chemistry 3', code: '' },
-        { name: 'Earth and Space Science 1', code: '' },
-        { name: 'Earth and Space Science 2', code: '' },
-        { name: 'Earth and Space Science 3', code: '' },
-        { name: 'Empowerment Technologies', code: '' },
-        { name: 'Finite Mathematics 1', code: '' },
-        { name: 'Finite Mathematics 2', code: '' },
-        { name: 'Physics 1', code: '' },
-        { name: 'Physics 2', code: '' },
-        { name: 'Physics 3', code: '' },
-        { name: 'Pre-Calculus', code: '' },
-        { name: 'Biology 4', code: '' },
-        { name: 'Chemistry 4', code: '' },
-        { name: 'Conceptual Biology and Earth and Space Science', code: '' },
-        { name: 'Conceptual Physics and Chemistry in Daily Life', code: '' },
-        { name: 'Database Management', code: '' },
-        { name: 'Earth and Space Science 4', code: '' },
-        { name: 'Fundamentals of Data Analytics', code: '' },
-        { name: 'Physics 4', code: '' },
-        // Cluster: SPORTS, HEALTH, AND WELLNESS
-        { name: 'Exercise and Sports Programming', code: '' },
-        { name: 'First Aid', code: '' },
-        { name: 'Fundamentals of Basic Life Support', code: '' },
-        { name: 'Human Movement 1 (Basic Anatomy in Sports and Exercise)', code: '' },
-        { name: 'Human Movement 2 (Motor Skills Development)', code: '' },
-        { name: 'Physical Education 1 (Fitness and Recreation)', code: '' },
-        { name: 'Physical Education 2 (Sports and Dance)', code: '' },
-        { name: 'Sports Activity Management', code: '' },
-        { name: 'Sports Coaching', code: '' },
-        { name: 'Sports Officiating', code: '' },
-
-        // --- TECHNICAL-PROFESSIONAL ELECTIVES (SSHS - TECH-PRO) ---
-        // Cluster: AESTHETIC, WELLNESS, AND HUMAN CARE
-        { name: 'Aesthetic Services (Beauty Care)', code: '' },
-        { name: 'Caregiving (Adult Care)', code: '' },
-        { name: 'Caregiving (Child Care)', code: '' },
-        { name: 'Hairdressing Services', code: '' },
-        // Cluster: AGRI-FISHERY BUSINESS AND FOOD INNOVATION
-        { name: 'Agricultural Crops Production', code: '' },
-        { name: 'Agro-entrepreneurship', code: '' },
-        { name: 'Aquaculture', code: '' },
-        { name: 'Fish Capture Operation', code: '' },
-        { name: 'Food Processing', code: '' },
-        { name: 'Organic Agriculture Production', code: '' },
-        { name: 'Poultry Production (Chicken)', code: '' },
-        { name: 'Ruminants Production', code: '' },
-        { name: 'Swine Production', code: '' },
-        // Cluster: ARTISANRY AND CREATIVE ENTERPRISE
-        { name: 'Garments Artisanry', code: '' },
-        { name: 'Handicrafts: Weaving', code: '' },
-        // Cluster: AUTOMOTIVE AND SMALL ENGINE TECHNOLOGIES
-        { name: 'Driving and Automotive Servicing', code: '' },
-        { name: 'Motorcycle and Small Engine Servicing', code: '' },
-        { name: 'Automotive Servicing (Electrical Repair)', code: '' },
-        { name: 'Automotive Servicing (Engine and Chassis Repairs)', code: '' },
-        // Cluster: CONSTRUCTION AND BUILDING TECHNOLOGIES
-        { name: 'Carpentry', code: '' },
-        { name: 'Construction Operation', code: '' },
-        { name: 'Manual Metal Arc Welding', code: '' },
-        { name: 'Technical Drafting', code: '' },
-        // Cluster: CREATIVE ARTS AND DESIGN TECHNOLOGIES
-        { name: 'Animation', code: '' },
-        { name: 'Illustration', code: '' },
-        { name: 'Visual Graphic Design', code: '' },
-        // Cluster: HOSPITALITY AND TOURISM
-        { name: 'Bakery Operations', code: '' },
-        { name: 'Events Management Services', code: '' },
-        { name: 'Food and Beverage Operation', code: '' },
-        { name: 'Hotel Operations (Front Office Services)', code: '' },
-        { name: 'Hotel Operations (Housekeeping Services)', code: '' },
-        { name: 'Kitchen Operations', code: '' },
-        { name: 'Tourism Services', code: '' },
-        // Cluster: ICT SUPPORT AND COMPUTER PROGRAMMING TECHNOLOGIES
-        { name: 'Broadband Installation', code: '' },
-        { name: 'Computer Programming (.Net Technology)', code: '' },
-        { name: 'Computer Programming (Java) ( NC III )', code: '' },
-        { name: 'Computer Programming (Oracle Database)', code: '' },
-        { name: 'Computer Systems Servicing', code: '' },
-        { name: 'Contact Center Services', code: '' },
-        // Cluster: INDUSTRIAL TECHNOLOGIES
-        { name: 'Domestic Refrigeration and Air-Conditioning Servicing', code: '' },
-        { name: 'Electrical Installation and Maintenance', code: '' },
-        { name: 'Electronic Products Assembly and Servicing', code: '' },
-        { name: 'Photovoltaic Systems Installation', code: '' },
-        { name: 'Commercial Air-Conditioning Installation and Servicing', code: '' },
-        { name: 'Mechatronics', code: '' },
-        // Cluster: MARITIME
-        { name: 'Marine Engineering at the Support Level', code: '' },
-        { name: 'Marine Transportation at the Support Level', code: '' },
-        { name: 'Ships Catering Services', code: '' },
-        // Cluster: WORK IMMERSION
-        { name: 'Work Immersion for Tech-Pro Track (320 hours)', code: '' },
-        { name: 'Work Immersion for Tech-Pro Track (540 hours) - 1 Term', code: '' },
-        { name: 'Work Immersion for Tech-Pro Track (640 hours) - 1 Term', code: '' },
-        { name: 'Work Immersion for Tech-Pro Track (540 hours) - 2 Terms', code: '' },
-        { name: 'Work Immersion for Tech-Pro Track (640 hours) - 2 Terms', code: '' },
-        // Core Subjects
-        { name: '21st Century Literature from the Philippines and the World', code: '' },
-        { name: 'Contemporary Philippine Arts from the Regions', code: '' },
-        { name: 'Disaster Readiness and Risk Reduction', code: '' },
-        { name: 'Earth and Life Science', code: '' },
-        { name: 'Earth Science', code: '' },
-        { name: 'General Mathematics', code: '' },
-        { name: 'Health Optimizing Physical Education and Health 1', code: '' },
-        { name: 'Health Optimizing Physical Education and Health 2', code: '' },
-        { name: 'Health Optimizing Physical Education and Health 3', code: '' },
-        { name: 'Health Optimizing Physical Education and Health 4', code: '' },
-        { name: 'Introduction to Philosophy of the Human Person', code: '' },
-        { name: 'Komunikasyon at Pananaliksik sa Wika at Kulturang Pilipino', code: '' },
-        { name: 'Media and Information Literacy', code: '' },
-        { name: 'Oral Communication in Context', code: '' },
-        { name: 'Pagbasa at Pagsusuri ng Iba\'t Ibang Teksto Tungo sa Pananaliksik', code: '' },
-        { name: 'Personal Development', code: '' },
-        { name: 'Physical Education 1', code: '' },
-        { name: 'Physical Education 2', code: '' },
-        { name: 'Physical Education 3', code: '' },
-        { name: 'Physical Education 4', code: '' },
-        { name: 'Physical Science', code: '' },
-        { name: 'Reading and Writing Skills', code: '' },
-        { name: 'Statistics and Probability', code: '' },
-        { name: 'Understanding Culture, Society and Politics', code: '' },
-
-        // Applied Subjects
-        { name: 'Empowerment Technologies', code: '' },
-        { name: 'English for Academic and Professional Purposes', code: '' },
-        { name: 'Entrepreneurship', code: '' },
-        { name: 'Filipino sa Piling Larang (Akademik)', code: '' },
-        { name: 'Filipino sa Piling Larang (Isports)', code: '' },
-        { name: 'Filipino sa Piling Larang (Sining at Disenyo)', code: '' },
-        { name: 'Filipino sa Piling Larang (Teknikal-Bokasyunal)', code: '' },
-        { name: 'Inquiries, Investigations and Immersion', code: '' },
-        { name: 'Practical Research 1', code: '' },
-        { name: 'Practical Research 2', code: '' },
-
-        // Specialized Subjects
-        { name: 'Applied Economics', code: '' },
-        { name: 'Business Ethics and Social Responsibility', code: '' },
-        { name: 'Business Finance', code: '' },
-        { name: 'Business Math', code: '' },
-        { name: 'Fundamentals of Accountancy, Business, and Management 1', code: '' },
-        { name: 'Fundamentals of Accountancy, Business, and Management 2', code: '' },
-        { name: 'Organization and Management', code: '' },
-        { name: 'Principles of Marketing', code: '' },
-        { name: 'Business Enterprise Simulation', code: '' },
-        { name: 'Community Engagement, Solidarity and Citizenship', code: '' },
-        { name: 'Creative Nonfiction', code: '' },
-        { name: 'Creative Writing', code: '' },
-        { name: 'Culminating Activity', code: '' },
-        { name: 'Disciplines and Ideas in the Applied Social Sciences', code: '' },
-        { name: 'Disciplines and Ideas in the Social Sciences', code: '' },
-        { name: 'Introduction to World Religions and Belief Systems', code: '' },
-        { name: 'Philippine Politics and Governance', code: '' },
-        { name: 'Trends, Networks, and Critical Thinking in the 21st Century', code: '' },
-        { name: 'Basic Calculus', code: '' },
-        { name: 'General Biology 1', code: '' },
-        { name: 'General Biology 2', code: '' },
-        { name: 'General Chemistry 1', code: '' },
-        { name: 'General Chemistry 2', code: '' },
-        { name: 'General Physics 1', code: '' },
-        { name: 'General Physics 2', code: '' },
-        { name: 'Pre-Calculus', code: '' },
-        { name: 'Research / Capstone Project', code: '' }
-    ]
+    'Grade 11': SSHS_G11_CORE_SUBJECTS,
+    'Grade 12': SSHS_G12_ACADEMIC_SUBJECTS
 };
 
 export interface SpecialSubjectItem {
@@ -759,27 +770,48 @@ export const SPTVE_SPECIALIZATIONS: SpecialSubjectItem[] = [
 export function getCurriculumTemplatesForSection(
     gradeLevel: string,
     program?: string,
-    spaMajors?: string[]
+    spaMajors?: string[],
+    track?: string,
+    strand?: string
 ): SpecialSubjectItem[] {
     const standard = STANDARD_SUBJECTS[gradeLevel as keyof typeof STANDARD_SUBJECTS] || [];
     const result: SpecialSubjectItem[] = [...standard];
 
-    if (!program || program === 'Regular') {
-        return result;
-    }
-
     const pushSpecial = (item: SpecialSubjectItem) => {
         if (!result.some(s => s.name.toLowerCase() === item.name.toLowerCase())) {
             const countsAvg = item.counts_in_general_average ?? item.countsInGeneralAverage ?? true;
+            const isSpec = item.is_special_program ?? item.isSpecialProgram ?? (Boolean(program) && program !== 'Regular');
             result.push({
                 ...item,
-                is_special_program: true,
-                isSpecialProgram: true,
+                is_special_program: isSpec,
+                isSpecialProgram: isSpec,
                 counts_in_general_average: countsAvg,
                 countsInGeneralAverage: countsAvg
             });
         }
     };
+
+    // For Grade 12 SHS: Auto-fill Core, Applied, and Strand Specialized subjects
+    if (gradeLevel === 'Grade 12' || (gradeLevel || '').includes('12')) {
+        SHS_G12_CORE_SUBJECTS.forEach(pushSpecial);
+        SHS_G12_APPLIED_SUBJECTS.forEach(pushSpecial);
+        if (strand && SHS_OLD_STRAND_SUBJECTS[strand]) {
+            SHS_OLD_STRAND_SUBJECTS[strand].forEach(pushSpecial);
+        }
+    }
+
+    // For Grade 11 SSHS: If cluster/strand is provided
+    if (gradeLevel === 'Grade 11' || (gradeLevel || '').includes('11')) {
+        if (strand && SSHS_ACADEMIC_CLUSTERS[strand]) {
+            SSHS_ACADEMIC_CLUSTERS[strand].forEach(name => pushSpecial({ name, code: '' }));
+        } else if (strand && SSHS_TECHPRO_CLUSTERS[strand]) {
+            SSHS_TECHPRO_CLUSTERS[strand].forEach(name => pushSpecial({ name, code: '' }));
+        }
+    }
+
+    if (!program || program === 'Regular') {
+        return result;
+    }
 
     if (program === 'STE' || program === 'SPSTEM') {
         const ste = SPSTEM_SUBJECTS[gradeLevel] || [];
@@ -963,13 +995,14 @@ export const SPECIAL_SUBJECTS: Record<string, SpecialSubjectItem[]> = {
         { name: 'Marine Engineering at the Support Level', code: '' },
         { name: 'Marine Transportation at the Support Level', code: '' },
         { name: 'Ships Catering Services', code: '' }
-    ]
+    ],
+    'Grade 12': SSHS_G12_TECHPRO_SUBJECTS
 };
 
 export type GradeLevel = keyof typeof STANDARD_SUBJECTS;
 
-export function getDefaultTermForSubject(subjectName: string, gradeLevel: string): 1 | 2 | 3 | 'all' | 'none' {
-    const gl = (gradeLevel || '').toLowerCase().trim();
+export function getDefaultTermForSubject(subjectName: string, gradeLevel: string | number): 1 | 2 | 3 | 'all' | 'none' {
+    const gl = String(gradeLevel || '').toLowerCase().trim();
     const gNum = parseInt(gl.replace(/\D/g, '')) || 0;
     
     // Elementary (Kinder, Grades 1-6) and Junior High School (Grades 7-10)
@@ -984,23 +1017,91 @@ export function getDefaultTermForSubject(subjectName: string, gradeLevel: string
         return 'none';
     }
     
-    // For Grade 11, Core subjects are offered in all terms; electives are per term (default none)
-    const normalized = (subjectName || '').trim().toLowerCase();
-    const g11Cores = [
-        'effective communication',
-        'mabisang komunikasyon',
-        'general mathematics',
-        'general science',
-        'life and career skills',
-        'pag-aaral ng kasaysayan at lipunang pilipino',
-        'kasaysayan at lipunang pilipino'
-    ];
-    
-    if (g11Cores.some(c => normalized.includes(c))) {
+    // For Grade 11, Core subjects are offered in all terms
+    if (isGrade11CoreSubject(subjectName)) {
         return 'all';
     }
     
+    // For Grade 11 electives: intelligently infer term 1, 2, or 3 based on sequence / progression
+    const clean = (subjectName || '').trim().toLowerCase()
+        .replace(/\bgrade\s*\d+\b/gi, '')
+        .replace(/\bgr\.?\s*\d+\b/gi, '')
+        .replace(/\bg\d+\b/gi, '')
+        .replace(/\b(?:nc|coc)\s*(?:i{1,3}|iv|\d+)\b/gi, '')
+        .replace(/\b21st\b/gi, '')
+        .trim();
+
+    if (clean.includes('pre-calculus') || clean.includes('precalculus')) return 1;
+    if (clean.includes('basic calculus') || clean.includes('basiccalculus')) return 2;
+
+    if (/\b(iii|3)\b/i.test(clean) || /(?:^|\D)3$/i.test(clean)) return 3;
+    if (/\b(ii|2)\b/i.test(clean) || /(?:^|\D)2$/i.test(clean)) return 2;
+    if (/\b(i|1)\b/i.test(clean) || /(?:^|\D)1$/i.test(clean)) return 1;
+
     return 'none';
+}
+
+/**
+ * Resolves the offered terms for a subject in a section.
+ * In Senior High School (Grades 11 & 12), some electives are modular single-term subjects (e.g. Term 1, 2, or 3),
+ * while Core subjects run across all terms.
+ * For Elementary and Junior High School, all subjects run across all terms [1, 2, 3].
+ */
+export function resolveSubjectOfferedTerms(
+    sub: { subject_name: string; term?: string | number | null; id?: string },
+    sectionObj?: { id?: string; section_grade_level?: string; section_metadata?: Record<string, any> } | null,
+    hasGradesInTerm?: (termNum: number) => boolean
+): number[] {
+    const gradeLevel = sectionObj?.section_grade_level || '';
+    const gradeNum = parseInt(gradeLevel.replace(/\D/g, '')) || 0;
+    const isSHS = gradeNum === 11 || gradeNum === 12 || gradeLevel.toLowerCase().includes('11') || gradeLevel.toLowerCase().includes('12');
+
+    // Elementary and JHS run all year
+    if (!isSHS) {
+        return [1, 2, 3];
+    }
+
+    // 1. Check section metadata subjectTerms override (explicitly configured by teacher)
+    const subjectTermsMeta = (sectionObj?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, unknown> | undefined;
+    if (subjectTermsMeta) {
+        const override = subjectTermsMeta[sub.subject_name];
+        if (override !== undefined) {
+            if (override === 'all') return [1, 2, 3];
+            const num = Number(override);
+            if (num === 1) return [1];
+            if (num === 2) return [2];
+            if (num === 3) return [3];
+        }
+    }
+
+    // 2. Check subject.term stored on subject record
+    const sTerm = sub.term;
+    if (sTerm === 'all') return [1, 2, 3];
+    if (sTerm === 1 || sTerm === '1') return [1];
+    if (sTerm === 2 || sTerm === '2') return [2];
+    if (sTerm === 3 || sTerm === '3') return [3];
+
+    // 3. For Grade 11 Core subjects: DO 017 s. 2026 mandates all 3 terms
+    if (gradeNum === 11 && isGrade11CoreSubject(sub.subject_name)) {
+        return [1, 2, 3];
+    }
+
+    // 4. Default curriculum term based on sequence / catalog
+    const defTerm = getDefaultTermForSubject(sub.subject_name, gradeLevel);
+    if (defTerm === 1) return [1];
+    if (defTerm === 2) return [2];
+    if (defTerm === 3) return [3];
+    if (defTerm === 'all') return [1, 2, 3];
+
+    // 5. Smart check: If hasGradesInTerm callback is provided, check which quarters actually have non-zero grades
+    if (hasGradesInTerm) {
+        const activeTerms = [1, 2, 3].filter(t => hasGradesInTerm(t));
+        if (activeTerms.length > 0 && activeTerms.length < 3) {
+            return activeTerms;
+        }
+    }
+
+    return [1, 2, 3];
 }
 
 /**
@@ -1206,6 +1307,163 @@ export function getClustersForGrade11Track(track: string | undefined): string[] 
     return [];
 }
 
+/**
+ * Official DepEd Order No. 017, s. 2026 Category Lookup
+ * Maps a course title to SSHS - CORE, SSHS - ACADEMIC, or SSHS - TECH-PRO
+ * matching ECR_3Term - SSHS - SY2026-2027 (1).xlsx
+ */
+export function getSshsCategoryForSubject(subjectName: string): 'SSHS - CORE' | 'SSHS - ACADEMIC' | 'SSHS - TECH-PRO' {
+    const norm = (subjectName || '').trim().toLowerCase();
+    const cores = [
+        'effective communication',
+        'mabisang komunikasyon',
+        'general mathematics',
+        'general science',
+        'life and career skills',
+        'pag-aaral ng kasaysayan at lipunang pilipino',
+        'kasaysayan at lipunang pilipino'
+    ];
+    if (cores.some(c => norm.includes(c))) {
+        return 'SSHS - CORE';
+    }
+
+    const techProMatch = Object.values(SSHS_TECHPRO_CLUSTERS).some(list =>
+        list.some(s => s.toLowerCase() === norm || norm.includes(s.toLowerCase()) || s.toLowerCase().includes(norm))
+    );
+    if (techProMatch || norm.includes('immersion') || norm.includes('servicing') || norm.includes('welding') || norm.includes('carpentry')) {
+        return 'SSHS - TECH-PRO';
+    }
+
+    return 'SSHS - ACADEMIC';
+}
+
+/**
+ * Official DepEd Order No. 017, s. 2026 Cluster Lookup
+ * Maps an SSHS course title to its specific Cluster
+ */
+export function getSshsClusterForSubject(subjectName: string): string {
+    const norm = (subjectName || '').trim().toLowerCase();
+    const cores = [
+        'effective communication',
+        'mabisang komunikasyon',
+        'general mathematics',
+        'general science',
+        'life and career skills',
+        'pag-aaral ng kasaysayan at lipunang pilipino',
+        'kasaysayan at lipunang pilipino'
+    ];
+    if (cores.some(c => norm.includes(c))) {
+        return 'CORE';
+    }
+
+    for (const [cluster, subjects] of Object.entries(SSHS_ACADEMIC_CLUSTERS)) {
+        if (subjects.some(s => s.toLowerCase() === norm || norm.includes(s.toLowerCase()) || s.toLowerCase().includes(norm))) {
+            return cluster;
+        }
+    }
+
+    for (const [cluster, subjects] of Object.entries(SSHS_TECHPRO_CLUSTERS)) {
+        if (subjects.some(s => s.toLowerCase() === norm || norm.includes(s.toLowerCase()) || s.toLowerCase().includes(norm))) {
+            return cluster;
+        }
+    }
+
+    if (norm.includes('immersion')) {
+        return 'Work Immersion';
+    }
+
+    // Keyword fallbacks for common aliases and specialized offerings
+    if (norm.includes('creative writing') || norm.includes('literature') || norm.includes('humanities') || norm.includes('politics') || norm.includes('governance')) {
+        return 'Arts, Social Sciences, and Humanities';
+    }
+    if (norm.includes('calculus') || norm.includes('physics') || norm.includes('chemistry') || norm.includes('biology') || norm.includes('analytics')) {
+        return 'Science, Technology, Engineering, and Mathematics';
+    }
+    if (norm.includes('accounting') || norm.includes('accountancy') || norm.includes('business') || norm.includes('finance') || norm.includes('marketing')) {
+        return 'Business and Entrepreneurship';
+    }
+    if (norm.includes('sports') || norm.includes('movement') || norm.includes('exercise')) {
+        return 'Sports, Health, and Wellness';
+    }
+    if (norm.includes('computer') || norm.includes('programming') || norm.includes('broadband') || norm.includes('ict')) {
+        return 'ICT Support and Computer Programming Technologies';
+    }
+    if (norm.includes('automotive') || norm.includes('motorcycle') || norm.includes('driving')) {
+        return 'Automotive and Small Engine Technologies';
+    }
+    if (norm.includes('welding') || norm.includes('carpentry') || norm.includes('drafting') || norm.includes('construction')) {
+        return 'Construction and Building Technologies';
+    }
+    if (norm.includes('aesthetic') || norm.includes('beauty') || norm.includes('caregiving') || norm.includes('hairdressing')) {
+        return 'Aesthetic, Wellness, and Human Care';
+    }
+    if (norm.includes('agri') || norm.includes('aquaculture') || norm.includes('crop') || norm.includes('food processing')) {
+        return 'Agri-Fishery Business and Food Innovation';
+    }
+    if (norm.includes('hospitality') || norm.includes('tourism') || norm.includes('hotel') || norm.includes('kitchen') || norm.includes('bakery')) {
+        return 'Hospitality and Tourism';
+    }
+
+    return 'General Academic Elective';
+}
+
+/**
+ * Traditional SHS Grade 12 Track Lookup
+ * Maps a course title to the 4 official tracks from ECR_3Term - SHS G12 - SY2026-2027 - Updated_3.xlsx
+ */
+export function getTraditionalShsTrackForSubject(subjectName: string): string {
+    const norm = (subjectName || '').trim().toLowerCase();
+
+    // 1. Immersion / Culminating Activity
+    if (norm.includes('immersion') || norm.includes('culminating activity') || norm.includes('research output') || norm.includes('capstone')) {
+        return 'WORK IMMERSION/ CULMINATING ACTIVITY (FOR ACADEMIC TRACK)';
+    }
+
+    // 2. Core Subjects (All Tracks)
+    const cores = [
+        "21st century literature", "contemporary philippine arts", "disaster readiness and risk reduction",
+        "earth and life science", "earth science", "general mathematics", "introduction to philosophy of the human person",
+        "philosophy", "komunikasyon at pananaliksik", "media and information literacy", "oral communication in context",
+        "pagbasa at pagsusuri", "personal development", "physical education and health", "health optimizing physical education",
+        "hope 1", "hope 2", "hope 3", "hope 4", "pe and health", "physical science", "reading and writing skills",
+        "statistics and probability", "understanding culture, society and politics", "understanding culture society and politics"
+    ];
+    if (cores.some(c => norm.includes(c))) {
+        return 'CORE SUBJECT (ALL TRACKS)';
+    }
+
+    // 3. TVL / Sports / Arts & Design
+    const tvlSportsArts = [
+        'automotive', 'carpentry', 'welding', 'drafting', 'electrical installation', 'electronics', 'animation',
+        'illustration', 'bread and pastry', 'cookery', 'food and beverage', 'front office', 'housekeeping', 'tourism',
+        'computer systems servicing', 'programming', 'agri-crop', 'organic agriculture', 'sports', 'dance', 'music',
+        'theater arts', 'visual arts', 'applied arts'
+    ];
+    if (tvlSportsArts.some(t => norm.includes(t)) && !norm.includes('humanities') && !norm.includes('creative writing')) {
+        return 'TVL/ SPORTS/ ARTS AND DESIGN TRACK';
+    }
+
+    // 4. Academic Track (Except Immersion)
+    return 'ACADEMIC TRACK (EXCEPT IMMERSION)';
+}
+
+/**
+ * Traditional SHS Grade 12 Strand / Sub-classification
+ */
+export function getTraditionalShsStrandForSubject(subjectName: string): string {
+    const norm = (subjectName || '').trim().toLowerCase();
+    const applied = [
+        "empowerment technologies", "english for academic and professional purposes", "eapp", "entrepreneurship",
+        "filipino sa piling larang", "inquiries investigations and immersion", "inquiries, investigations and immersion",
+        "practical research 1", "practical research 2"
+    ];
+    if (applied.some(a => norm.includes(a))) return 'Applied Subjects';
+    if (norm.includes('calculus') || norm.includes('biology') || norm.includes('physics') || norm.includes('chemistry')) return 'STEM Specialized Strand';
+    if (norm.includes('accountancy') || norm.includes('business') || norm.includes('marketing') || norm.includes('fabm') || norm.includes('economics')) return 'ABM Specialized Strand';
+    if (norm.includes('creative writing') || norm.includes('creative nonfiction') || norm.includes('politics') || norm.includes('community engagement') || norm.includes('trends')) return 'HUMSS Specialized Strand';
+    if (norm.includes('immersion') || norm.includes('culminating')) return 'Work Immersion / Culminating Activity';
+    return 'Specialized Track Subject';
+}
 
 /**
  * Computes the units per term and total year units for an SHS subject based on DepEd Order No. 017, s. 2026 Annex E (Table 19).
@@ -1331,12 +1589,85 @@ export function isGrade11CoreSubject(subjectName: string): boolean {
  */
 export const getShsCategoryForSubject = (subjectName: string, gradeLevel: string): string => {
     const normalized = (subjectName || '').trim().toLowerCase();
+    const norm = normalized.replace(/[^a-z0-9]/g, '');
     const isG11 = gradeLevel.includes('11');
     const isG12 = gradeLevel.includes('12');
 
+    // 1. Traditional K-12 Core Subjects (Grades 11 & 12)
+    const traditionalCores = [
+        "21st century literature from the philippines and the world",
+        "contemporary philippine arts from the regions",
+        "disaster readiness and risk reduction",
+        "earth and life science",
+        "earth science",
+        "general mathematics",
+        "introduction to philosophy of the human person",
+        "komunikasyon at pananaliksik sa wika at kulturang pilipino",
+        "media and information literacy",
+        "oral communication in context",
+        "pagbasa at pagsusuri ng ibat ibang teksto tungo sa pananaliksik",
+        "pagbasa at pagsusuri ng iba't ibang teksto tungo sa pananaliksik",
+        "personal development",
+        "physical education and health 1",
+        "physical education and health 2",
+        "physical education and health 3",
+        "physical education and health 4",
+        "health optimizing physical education and health 1",
+        "health optimizing physical education and health 2",
+        "health optimizing physical education and health 3",
+        "health optimizing physical education and health 4",
+        "health optimizing physical education 1",
+        "health optimizing physical education 2",
+        "health optimizing physical education 3",
+        "health optimizing physical education 4",
+        "hope 1",
+        "hope 2",
+        "hope 3",
+        "hope 4",
+        "physical science",
+        "reading and writing skills",
+        "statistics and probability",
+        "understanding culture society and politics",
+        "understanding culture, society and politics",
+        "21st century literature",
+        "contemporary philippine arts",
+        "pe and health 1",
+        "pe and health 2",
+        "pe and health 3",
+        "pe and health 4",
+        "physical education 1",
+        "physical education 2",
+        "physical education 3",
+        "physical education 4",
+        "pe 1",
+        "pe 2",
+        "pe 3",
+        "pe 4"
+    ];
+
+    // 2. Traditional K-12 Applied Subjects (Grades 11 & 12)
+    const traditionalApplied = [
+        "empowerment technologies",
+        "english for academic and professional purposes",
+        "entrepreneurship",
+        "filipino sa piling larang akademik",
+        "filipino sa piling larang akademiko",
+        "filipino sa piling larang isports",
+        "filipino sa piling larang sining at disenyo",
+        "filipino sa piling larang teknikal bokasyunal",
+        "filipino sa piling larang teknikal-bokasyunal",
+        "filipino sa piling larang",
+        "inquiries investigations and immersion",
+        "inquiries, investigations and immersion",
+        "practical research 1",
+        "practical research 2",
+        "work immersion",
+        "culminating activity"
+    ];
+
     if (isG11) {
-        // Core Subject (All Tracks)
-        const cores = [
+        // SSHS Pilot (DepEd Order No. 017, s. 2026) distinct Core Subjects
+        const sshsCores = [
             'effective communication',
             'mabisang komunikasyon',
             'general mathematics',
@@ -1345,13 +1676,29 @@ export const getShsCategoryForSubject = (subjectName: string, gradeLevel: string
             'pag-aaral ng kasaysayan at lipunang pilipino',
             'kasaysayan at lipunang pilipino'
         ];
-        if (cores.some(c => normalized.includes(c))) {
+        if (sshsCores.some(c => normalized.includes(c))) {
             return 'Core Subject (All Tracks)';
         }
 
-        // Academic Elective (Field Experience/ Exposure, and Sports and Arts)
+        // SSHS Field Experience / Exposure / Arts Apprenticeship
         if (normalized.startsWith('field exposure') || normalized.startsWith('field experience') || normalized.includes('apprenticeship')) {
             return 'Academic Elective (Field Experience/ Exposure, and Sports and Arts)';
+        }
+
+        // Traditional K-12 Core match (e.g. Oral Comm, Reading & Writing, 21st Century Lit, Earth & Life Sci, etc.)
+        if (traditionalCores.some(c => {
+            const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return norm === cNorm || norm.includes(cNorm) || cNorm.includes(norm);
+        })) {
+            return 'Core Subjects';
+        }
+
+        // Traditional K-12 Applied match (e.g. Practical Research 1, EAPP, etc.)
+        if (traditionalApplied.some(a => {
+            const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return norm === aNorm || norm.includes(aNorm) || aNorm.includes(norm);
+        })) {
+            return 'Applied Subjects';
         }
 
         // TechPro Elective (All Other Elective)
@@ -1377,91 +1724,68 @@ export const getShsCategoryForSubject = (subjectName: string, gradeLevel: string
     }
 
     if (isG12) {
-        const norm = normalized.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-        
         // 1. Core Subjects
-        const cores = [
-            "21st century literature from the philippines and the world",
-            "contemporary philippine arts from the regions",
-            "disaster readiness and risk reduction",
-            "earth and life science",
-            "earth science",
-            "general mathematics",
-            "introduction to philosophy of the human person",
-            "komunikasyon at pananaliksik sa wika at kulturang pilipino",
-            "media and information literacy",
-            "oral communication in context",
-            "pagbasa at pagsusuri ng ibat ibang teksto tungo sa pananaliksik",
-            "pagbasa at pagsusuri ng iba't ibang teksto tungo sa pananaliksik",
-            "personal development",
-            "physical education and health 1",
-            "physical education and health 2",
-            "physical education and health 3",
-            "physical education and health 4",
-            "health optimizing physical education and health 1",
-            "health optimizing physical education and health 2",
-            "health optimizing physical education and health 3",
-            "health optimizing physical education and health 4",
-            "health optimizing physical education 1",
-            "health optimizing physical education 2",
-            "health optimizing physical education 3",
-            "health optimizing physical education 4",
-            "hope 1",
-            "hope 2",
-            "hope 3",
-            "hope 4",
-            "physical science",
-            "reading and writing skills",
-            "statistics and probability",
-            "understanding culture society and politics",
-            "understanding culture, society and politics",
-            "21st century literature",
-            "contemporary philippine arts",
-            "pe and health 1",
-            "pe and health 2",
-            "pe and health 3",
-            "pe and health 4",
-            "physical education 1",
-            "physical education 2",
-            "physical education 3",
-            "physical education 4",
-            "pe 1",
-            "pe 2",
-            "pe 3",
-            "pe 4"
-        ];
-        if (cores.some(c => {
+        if (traditionalCores.some(c => {
             const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
             return norm === cNorm || norm.includes(cNorm) || cNorm.includes(norm);
         })) {
             return 'Core Subjects';
         }
 
-        // 2. Applied Subjects
-        const applied = [
-            "empowerment technologies",
-            "english for academic and professional purposes",
-            "entrepreneurship",
-            "filipino sa piling larang akademik",
-            "filipino sa piling larang akademiko",
-            "filipino sa piling larang isports",
-            "filipino sa piling larang sining at disenyo",
-            "filipino sa piling larang teknikal bokasyunal",
-            "filipino sa piling larang teknikal-bokasyunal",
-            "filipino sa piling larang",
-            "inquiries investigations and immersion",
-            "inquiries, investigations and immersion",
-            "practical research 1",
-            "practical research 2"
-        ];
-        if (applied.some(a => {
+        // 2. TechPro Track Electives / Work Immersion (SSHS)
+        if (
+            norm.includes('workimmersionfortechpro') ||
+            norm.includes('techpro') ||
+            norm.includes('aestheticservices') ||
+            norm.includes('hairdressingservices') ||
+            norm.includes('caregiving') ||
+            norm.includes('bakeryoperations') ||
+            norm.includes('hoteloperations') ||
+            norm.includes('broadbandinstallation') ||
+            norm.includes('contactcenterservices') ||
+            norm.includes('photovoltaicsystems') ||
+            norm.includes('mechatronics') ||
+            norm.includes('shipscatering')
+        ) {
+            return 'TechPro Track Electives';
+        }
+
+        // 3. Academic Track Electives / Field Experience (SSHS distinct)
+        if (
+            norm.includes('workimmersionforacademic') ||
+            norm.includes('artsapprenticeship') ||
+            norm.includes('fieldexposure') ||
+            norm.includes('citizenshipandcivic') ||
+            norm.includes('contemporaryliterature') ||
+            norm.includes('creativecomposition') ||
+            norm.includes('creativeindustries') ||
+            norm.includes('artcriticism') ||
+            norm.includes('performancecriticism') ||
+            norm.includes('leadershipandmanagementinthearts') ||
+            norm.includes('filipinoidentitythroughthearts') ||
+            norm.includes('socialsciencestheoryandpractice') ||
+            norm.includes('business1') ||
+            norm.includes('business2') ||
+            norm.includes('business3') ||
+            norm.includes('designandinnovation') ||
+            norm.includes('finitemathematics') ||
+            norm.includes('fundamentalsofdataanalytics') ||
+            norm.includes('databasemanagement') ||
+            norm.includes('humanmovement') ||
+            norm.includes('sportsactivitymanagement')
+        ) {
+            return 'Academic Track Electives';
+        }
+
+        // 4. Applied Subjects
+        if (traditionalApplied.some(a => {
             const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
             return norm === aNorm || norm.includes(aNorm) || aNorm.includes(norm);
         })) {
             return 'Applied Subjects';
         }
 
-        // 3. Specialized Subjects
+        // 5. Default: Specialized Subjects (Traditional K-12 SHS Strands: STEM, ABM, HUMSS, GAS, TVL)
         return 'Specialized Subjects';
     }
 
@@ -1842,6 +2166,100 @@ export function getDepEdStandardWeights(subjectName: string): { written_weight: 
 
     // 3. Languages, AP, EsP, Values, GMRC, Makabansa, Reading: 30 / 50 / 20
     return { written_weight: 0.30, performance_weight: 0.50, exam_weight: 0.20 };
+}
+
+/**
+ * Resolves the standard DepEd Senior High School semester (1 or 2) for a subject.
+ * Used for strict isolation in 2-Semester SF9 and SF10 permanent records.
+ */
+export function getStandardShsSemester(subjectName: string, _gradeLevelNum?: number): 1 | 2 {
+    const norm = (subjectName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // Explicit HOPE / PE Semester numbering:
+    if (norm.includes('hope1') || norm.includes('pe1') || norm.includes('peandhealth1') || norm.includes('physicaleducation1')) return 1;
+    if (norm.includes('hope2') || norm.includes('pe2') || norm.includes('peandhealth2') || norm.includes('physicaleducation2')) return 2;
+    if (norm.includes('hope3') || norm.includes('pe3') || norm.includes('peandhealth3') || norm.includes('physicaleducation3')) return 1;
+    if (norm.includes('hope4') || norm.includes('pe4') || norm.includes('peandhealth4') || norm.includes('physicaleducation4')) return 2;
+
+    // Standard Semester 2 Subjects:
+    const sem2Identifiers = [
+        'readingandwritingskills',
+        'readingandwriting',
+        'pagbasaatpagsusuri',
+        'statisticsandprobability',
+        'contemporaryphilippinearts',
+        'contemporaryarts',
+        'understandingculturesociety',
+        'understandingculture',
+        'practicalresearch1',
+        'inquiriesinvestigationsandimmersion',
+        'inquiriesinvestigations',
+        'entrepreneurship',
+        'workimmersion',
+        'culminatingactivity',
+        'basiccalculus',
+        'calculus2',
+        'generalbiology2',
+        'generalphysics2',
+        'generalchemistry2',
+        'fundamentalsofaccountancybusinessandmanagement2',
+        'fabm2',
+        'principlesofmarketing',
+        'businessenterprisesimulation',
+        'creativenonfiction',
+        'communityengagement',
+        'trendsnetworks',
+        'physicalscience',
+        'disasterreadiness',
+        'drrr'
+    ];
+
+    if (sem2Identifiers.some(id => norm.includes(id))) {
+        return 2;
+    }
+
+    // Standard Semester 1 Subjects:
+    const sem1Identifiers = [
+        'oralcommunication',
+        'oralcomm',
+        'komunikasyonatpananaliksik',
+        'komunikasyon',
+        'generalmathematics',
+        'genmath',
+        'earthandlifescience',
+        'earthscience',
+        'personaldevelopment',
+        'perdev',
+        '21stcenturyliterature',
+        '21stcentury',
+        'introductiontophilosophy',
+        'philosophy',
+        'mediaandinformationliteracy',
+        'mil',
+        'practicalresearch2',
+        'filipinosapilinglarang',
+        'empowermenttechnologies',
+        'eapp',
+        'englishforacademic',
+        'precalculus',
+        'generalbiology1',
+        'generalphysics1',
+        'generalchemistry1',
+        'fundamentalsofaccountancybusinessandmanagement1',
+        'fabm1',
+        'businessmath',
+        'organizationandmanagement',
+        'appliedeconomics',
+        'creativewriting',
+        'philippinepolitics',
+        'disciplinesandideas'
+    ];
+
+    if (sem1Identifiers.some(id => norm.includes(id))) {
+        return 1;
+    }
+
+    return 1;
 }
 
 

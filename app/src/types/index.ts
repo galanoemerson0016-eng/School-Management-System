@@ -127,6 +127,8 @@ export interface Student {
     track?: string;
     strand?: string;
     cluster?: string; // SSHS DO 017 Curriculum Cluster (Grade 11)
+    program?: string;
+    curriculum?: string;
     weight?: number | string;
     height?: number | string;
     heightSquared?: number | string;
@@ -316,6 +318,7 @@ export interface Section {
         hiddenConsolidatedSubjects?: string[];
         lockedQuarters?: ('q1' | 'q2' | 'q3' | 'q4')[];
         customColumnWidths?: Record<string, number>;
+        subjectTerms?: Record<string, 1 | 2 | 3 | 'all'>;
     };
 }
 
@@ -329,6 +332,7 @@ export interface Subject {
     order?: number; // Display order for reordering
     is_teaching_load?: boolean; // Flag for separate E-Class subjects
     term?: 1 | 2 | 3 | 'all' | 'none'; // The term this subject is offered in
+    semester?: 1 | 2 | 'all' | 'none'; // The semester this subject is offered in (for 2-Semester SHS layout)
     written_weight?: number;
     performance_weight?: number;
     exam_weight?: number;

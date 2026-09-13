@@ -1,5 +1,31 @@
 # Version History
 
+## v3.5.1 (2026-09-13)
+
+### 🚀 New Features & Enhancements
+
+- **Summary of Grades Term Shading & Gray-Out (SHS Grade 11)**: Automated visual graying out of unoffered terms for sequential and modular academic electives in Grade 11 (e.g., Biology 1 in T1, Biology 2 in T2, Biology 3 in T3). Subheaders and student grade cells for non-offered terms render with clean em-dash (`—`) indicators and non-interactive tooltips.
+- **Grade 1 PACE Form Master Excel Print Setup & Single-Subject Isolation**: Complete 17-sheet master workbook generation with strict 4-page print layout for PACE - Grade 1 and dedicated single-subject PACE form isolation.
+- **Ghost & Duplicate Subject Prevention Engine**: 3-tier deduplication engine eliminating ghost or duplicate subjects while accurately preserving TVL/SHS parenthetical specializations.
+- **SF9 Booklet (Template 2) Subject & Grade Sync**: Live grade and subject synchronization for Grade 1 MATATAG and Senior High School Grade 11 in double-sided 2-page duplex booklets.
+- **Comprehensive Uncompressed Master Backups & G11 SF9 OpenXML Repair**: High-fidelity OpenXML repair ensuring smooth Excel export without formula calculation errors or corruption.
+
+### ⚡ Client Data Protection & Self-Healing
+
+- **Zero Data Loss Guarantee**: 100% preservation of all existing client records, raw scores, student profiles, and section assignments in IndexedDB.
+- **Missing Grades Filter Optimization**: Unoffered terms for academic electives are excluded from missing grade tallies, completely eliminating false incomplete grade warnings in both all-terms and single-term views.
+- **Automatic Startup Reconciliation**: Scans local database on app launch, reconnects any orphaned grade records, and unhides missing subjects before UI rendering.
+
+### 🐞 Bug Fixes
+
+- Resolved issue where sequential academic electives without configured terms caused false missing grade alerts.
+- Fixed subheader alignment and column widths in Consolidated Grade sheets when switching between single term and all-terms views.
+- Corrected TVL/SHS subject deduplication to avoid false positive matches on parenthetical learning areas.
+
+### 📝 Notes
+
+- 100% backward-compatible update with automated database self-healing on first startup.
+
 ## v3.5.0 (2026-09-11)
 
 ### 🚀 New Features & Enhancements

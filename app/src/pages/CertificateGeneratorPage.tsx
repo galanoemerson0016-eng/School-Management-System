@@ -11,9 +11,9 @@ import { isDescriptiveGrading } from '../lib/grading';
 
 const TEMPLATE_CONFIG: Record<CertificateType, { excellenceAward: string, dateMonth: string }> = {
     'EOSY': { excellenceAward: 'Akademikong Kahusayan (Academic Excellence Award)', dateMonth: 'March' },
-    'T1': { excellenceAward: 'Akademikong Kahusayan para sa Unang Termino (Academic Excellence Award for the First Term)', dateMonth: 'November' },
-    'T2': { excellenceAward: 'Akademikong Kahusayan para sa Ikalawang Termino (Academic Excellence Award for the Second Term)', dateMonth: 'January' },
-    'T3': { excellenceAward: 'Akademikong Kahusayan para sa Ikatlong Termino (Academic Excellence Award for the Third Term)', dateMonth: 'March' },
+    'T1': { excellenceAward: 'Akademikong Kahusayan para sa Term 1 (Academic Excellence Award for TERM 1)', dateMonth: 'November' },
+    'T2': { excellenceAward: 'Akademikong Kahusayan para sa Term 2 (Academic Excellence Award for TERM 2)', dateMonth: 'January' },
+    'T3': { excellenceAward: 'Akademikong Kahusayan para sa Term 3 (Academic Excellence Award for TERM 3)', dateMonth: 'March' },
 };
 
 export interface CertificateData {

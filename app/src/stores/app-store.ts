@@ -10,8 +10,8 @@ import type { SchoolProfile, Student, Section, Subject, Announcement, ClassRecor
 import { db, onDatabaseWriteChange } from '../services/database';
 import { backup } from '../services/backup';
 import { normalizeSubjectName } from '../lib/subjectConfig';
-import { STANDARD_SUBJECTS, getDefaultTermForSubject } from '../lib/curriculum';
-import { normalizeGrade12PESubjectName } from '../utils/grading-helpers';
+import { STANDARD_SUBJECTS, getDefaultTermForSubject, isGrade11CoreSubject, SSHS_ACADEMIC_CLUSTERS, SSHS_TECHPRO_CLUSTERS } from '../lib/curriculum';
+import { normalizeGrade12PESubjectName, isMatchingSubject } from '../utils/grading-helpers';
 import { reconcileOrphanedGradesAndSubjects, generateDeterministicSubjectId } from '../utils/grade-reconciliation';
 import {
   buildAttendanceRecordsFromSf2Sheet,
@@ -22,6 +22,7 @@ import {
 import { createGradingSlice, type GradingSlice } from './slices/grading-slice';
 import { createAttendanceSlice, type AttendanceSlice } from './slices/attendance-slice';
 import { createAnnouncementsSlice, type AnnouncementsSlice } from './slices/announcements-slice';
+import { EINSTEIN_SECTION, RECOVERED_EINSTEIN_STUDENTS } from '../data/recovered-students';
 
 export interface ProfileDiffItem {
   fieldName: string;
@@ -901,9 +902,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       let sectionToSave = section;
       // If advisory and taught_subjects is empty or missing, auto-populate from existing DB subjects
       if (section.is_advisory && (!section.taught_subjects || section.taught_subjects.length === 0)) {
-        const gradeSubjects = get().subjects
+        let gradeSubjects = get().subjects
           .filter(s => s.grade_level === section.section_grade_level && !s.is_teaching_load && (!s.section_id || s.section_id === section.id))
           .map(s => s.subject_name);
+        const gNum = parseInt(section.section_grade_level?.replace(/\D/g, '') || '0');
+        if (gNum === 11) {
+          // For Grade 11: ONLY universal Core subjects default when taught_subjects is empty
+          gradeSubjects = gradeSubjects.filter(name => isGrade11CoreSubject(name));
+        } else if (gNum === 12) {
+          gradeSubjects = [];
+        }
         if (gradeSubjects.length > 0) {
           sectionToSave = { ...section, taught_subjects: gradeSubjects };
         }
@@ -986,15 +994,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     const targetSection = previousSections.find((s) => s.id === id);
     if (!targetSection) return;
 
-    // Verify if there are students still assigned to this section
+    // If students are assigned to this section, unassign them so deletion can proceed
     const activeStudents = get().students.filter(
       (student) => student.student_section === targetSection.id || student.student_section === targetSection.section_name
     );
 
     if (activeStudents.length > 0) {
-      const errMsg = `Cannot delete section "${targetSection.section_name}" because ${activeStudents.length} student(s) are still assigned to it. Please reassign or unenroll them first.`;
-      get().showNotification(errMsg, 'error');
-      throw new Error(errMsg);
+      const updatedStudents = get().students.map((student) => {
+        if (student.student_section === targetSection.id || student.student_section === targetSection.section_name) {
+          return { ...student, student_section: '' };
+        }
+        return student;
+      });
+      set({ students: updatedStudents, studentProfiles: updatedStudents });
+      void db.putRecordsBulk('students', updatedStudents).catch(e => console.error('Failed to unassign students on section delete:', e));
     }
 
     try {
@@ -1048,16 +1061,24 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Auto-sync: append to taught_subjects of matching advisory sections
       // Only for grade-level subjects (not section-specific ones already handled by the wizard)
       const currentSections = get().sections;
-      const sectionsToUpdate = currentSections.filter(sec =>
-        sec.is_advisory &&
-        sec.section_grade_level === sanitizedSubject.grade_level &&
-        !(sec.taught_subjects || []).some(t =>
+      const sectionsToUpdate = currentSections.filter((sec: Section) => {
+        if (!sec.is_advisory || sec.section_grade_level !== sanitizedSubject.grade_level) return false;
+        const gNum = parseInt(sec.section_grade_level?.replace(/\D/g, '') || '0');
+        if (gNum === 11) {
+          // For Grade 11: ONLY universal Core subjects can be auto-synced to all advisory sections.
+          // Cluster electives must be explicitly selected per section!
+          if (!isGrade11CoreSubject(sanitizedSubject.subject_name)) return false;
+        } else if (gNum === 12) {
+          // For Grade 12: Never auto-sync specialized electives to all sections.
+          return false;
+        }
+        return !(sec.taught_subjects || []).some((t: string) =>
           normalizeSubjectName(t) === normalizeSubjectName(sanitizedSubject.subject_name)
-        )
-      );
+        );
+      });
       if (sectionsToUpdate.length > 0) {
-        const updateIds = new Set(sectionsToUpdate.map(s => s.id));
-        const updatedSections = currentSections.map(sec => {
+        const updateIds = new Set(sectionsToUpdate.map((s: Section) => s.id));
+        const updatedSections = currentSections.map((sec: Section) => {
           if (!updateIds.has(sec.id)) return sec;
           return {
             ...sec,
@@ -1606,8 +1627,17 @@ export async function initializeAppStore() {
         const newSubjects: Subject[] = [];
 
         for (const grade of grades) {
-          const templates = STANDARD_SUBJECTS[grade as keyof typeof STANDARD_SUBJECTS];
+          let templates = STANDARD_SUBJECTS[grade as keyof typeof STANDARD_SUBJECTS];
           if (!templates) continue;
+
+          // For Senior High School, default auto-load should ONLY seed universal Core subjects,
+          // avoiding dumping 70+ unused electives into a new user's database.
+          // Electives remain fully available in the catalog and wizard for teachers to add as needed.
+          if (grade === 'Grade 11') {
+            templates = templates.filter(t => isGrade11CoreSubject(t.name));
+          } else if (grade === 'Grade 12') {
+            templates = [];
+          }
 
           for (let i = 0; i < templates.length; i++) {
             const template = templates[i];
@@ -1663,9 +1693,6 @@ export async function initializeAppStore() {
     const hasPersistedSection = !!persistedSelectedSection && sections.some(
       s => s.id === persistedSelectedSection || s.section_name === persistedSelectedSection
     );
-    const resolvedSelectedSection = hasPersistedSection
-      ? persistedSelectedSection
-      : (advisorySection ? advisorySection.section_name : null);
     
     // Transparent Migration: 
     // 1. Ensure Grade 12 Old K-12 PE subjects and sections use the official title
@@ -1741,24 +1768,36 @@ export async function initializeAppStore() {
       void db.putRecordsBulk('subjects', finalSubjectsWithMigration).catch(e => console.error('Failed to persist migrated subjects:', e));
     }
 
-    // Transparent Self-Healing: Sync advisory sections with mock adviser names ('Maria L. Santos', etc.) to actual schoolProfile adviser
+    // Exact DepEd test-fixture mock adviser names that should never be shown in real deployments
+    const FIXTURE_MOCK_ADVISER_NAMES = new Set([
+      'Manuel T. Torres',
+      'Nelson P. Pascual',
+      'Kevin O. Ocampo',
+      'Laura M. Mendoza',
+      'Joy V. Villanueva',
+      'Maria L. Santos',
+      'Bella C. Cruz',
+      'Carlos D. Dizon',
+      'Diana M. Lopez',
+      'Eduardo G. Gomez',
+      'Fatima R. Reyes',
+      'Gabriel S. Santos',
+      'Hannah P. Perez',
+      'Ian B. Bautista'
+    ]);
+
+    // Transparent Self-Healing: Sync sections with test-fixture mock adviser names to actual schoolProfile adviser
     const activeProfileAdviser = (schoolProfile?.adviser_name || '').trim();
     if (activeProfileAdviser && activeProfileAdviser.toLowerCase() !== 'admin') {
       let anyAdviserMigrated = false;
       finalSections = finalSections.map(sec => {
-        if (sec.is_advisory) {
-          const cName = (sec.adviser_name || '').trim();
-          const isMock = !cName ||
-                         cName.toLowerCase().includes('maria') ||
-                         cName.toLowerCase().includes('santos') ||
-                         cName.toLowerCase().includes('juan') ||
-                         cName.toLowerCase().includes('recovered') ||
-                         cName.toLowerCase() === 'tba' ||
-                         (sec.adviser_id && sec.adviser_id.startsWith('adv-'));
-          if (isMock && cName !== activeProfileAdviser) {
-            anyAdviserMigrated = true;
-            return { ...sec, adviser_name: activeProfileAdviser };
-          }
+        const cName = (sec.adviser_name || '').trim();
+        const isFixtureMock = FIXTURE_MOCK_ADVISER_NAMES.has(cName) ||
+                              (sec.adviser_id && sec.adviser_id.startsWith('adv-')) ||
+                              cName.toLowerCase() === 'tba';
+        if (isFixtureMock && cName !== activeProfileAdviser) {
+          anyAdviserMigrated = true;
+          return { ...sec, adviser_name: activeProfileAdviser };
         }
         return sec;
       });
@@ -1767,12 +1806,105 @@ export async function initializeAppStore() {
       }
     }
 
+    // Sanitize Grade 11 advisory sections: Remove leaked/auto-appended electives that have 0 student grades
+    let anyG11SectionSanitized = false;
+    finalSections = finalSections.map(sec => {
+      if (!sec.is_advisory || !sec.section_grade_level?.includes('11')) return sec;
+      const taught = sec.taught_subjects || [];
+      if (taught.length === 0) return sec;
+
+      const clusterKey = sec.cluster || sec.strand || '';
+      const allowedClusterSubs = clusterKey && ((SSHS_ACADEMIC_CLUSTERS as Record<string, string[]>)[clusterKey] || (SSHS_TECHPRO_CLUSTERS as Record<string, string[]>)[clusterKey])
+        ? ((SSHS_ACADEMIC_CLUSTERS as Record<string, string[]>)[clusterKey] || (SSHS_TECHPRO_CLUSTERS as Record<string, string[]>)[clusterKey])
+        : [];
+
+      const sanitizedTaught = taught.filter(subName => {
+        // Universal Core subjects are always kept
+        if (isGrade11CoreSubject(subName)) return true;
+        // Check if any student has grades in this subject in this section
+        const hasGrades = (gradingSheetRecords || []).some(r => r.section_id === sec.id && isMatchingSubject(subName, r.subject_id, r.subject_name) && Number(r.final_grade) > 0) ||
+                          (classRecords || []).some(r => (r as any).section_id === sec.id && isMatchingSubject(subName, r.subject_id, r.subject_name) && Number((r as any).final_grade) > 0);
+        if (hasGrades) return true;
+        // If section has an official cluster, only keep electives belonging to that cluster
+        if (allowedClusterSubs.length > 0) {
+          return allowedClusterSubs.some(cSub => isMatchingSubject(cSub, '', subName) || normalizeSubjectName(cSub) === normalizeSubjectName(subName));
+        }
+        // If no cluster is configured, electives with 0 grades must not pollute the section
+        return false;
+      });
+
+      if (sanitizedTaught.length !== taught.length) {
+        anyG11SectionSanitized = true;
+        return { ...sec, taught_subjects: sanitizedTaught };
+      }
+      return sec;
+    });
+    if (anyG11SectionSanitized) {
+      void db.putRecordsBulk('sections', finalSections).catch(e => console.error('Failed to persist sanitized Grade 11 sections:', e));
+    }
+
+    // Client Safety Isolation: Only recover Calibungan High School data on Emerson's installation
+    const isEmersonEnvironment = !!(
+      schoolProfile?.school_id === '307014' ||
+      (schoolProfile?.adviser_name || '').toLowerCase().includes('emerson') ||
+      (schoolProfile?.name || '').toLowerCase().includes('calibungan')
+    );
+
+    const alreadyRestored = localStorage.getItem('formease-einstein-restored-v1') === 'true';
+    const hardResetExecuted = localStorage.getItem('formease-hard-reset-executed') === 'true';
+
+    // If Einstein students already exist in the DB, mark the one-time restoration flag
+    if (isEmersonEnvironment && students.some(s => s.lrn === '104528180011')) {
+      localStorage.setItem('formease-einstein-restored-v1', 'true');
+    }
+
+    let finalStudents = students;
+    if (isEmersonEnvironment && !alreadyRestored && !hardResetExecuted) {
+      // Ensure primary advisory section (Einstein) exists on Emerson's deployment
+      const targetSectionName = (schoolProfile?.section || 'Einstein').trim();
+      const hasTargetSection = finalSections.some(
+        s => s.id === 'section_1777547467815' || s.section_name.toLowerCase() === targetSectionName.toLowerCase()
+      );
+      if (!hasTargetSection) {
+        console.log(`[FormEase Pro] Restoring primary advisory section ${targetSectionName}...`);
+        const primarySec: Section = {
+          ...EINSTEIN_SECTION,
+          section_name: targetSectionName,
+          section_grade_level: schoolProfile?.grade_level || 'Grade 7',
+          adviser_name: activeProfileAdviser || 'Emerson M. Galano'
+        };
+        finalSections = [primarySec, ...finalSections];
+        void db.putRecord('sections', primarySec).catch(e => console.error('Failed to persist primary section:', e));
+      }
+
+      // Ensure user's real class students are restored if missing on Emerson's deployment
+      const hasEinsteinStudents = students.some(
+        s => s.lrn === '104528180011' || s.student_section === 'Einstein' || s.student_section === 'section_1777547467815'
+      );
+      if (!hasEinsteinStudents && RECOVERED_EINSTEIN_STUDENTS.length > 0) {
+        console.log(`[FormEase Pro] Restoring ${RECOVERED_EINSTEIN_STUDENTS.length} learners for section Einstein...`);
+        finalStudents = [...RECOVERED_EINSTEIN_STUDENTS, ...students];
+        void db.putRecordsBulk('students', RECOVERED_EINSTEIN_STUDENTS).catch(e => console.error('Failed to persist recovered students:', e));
+      }
+
+      localStorage.setItem('formease-einstein-restored-v1', 'true');
+    }
+
+    // Re-resolve selectedSection ensuring configured section or advisory class has priority
+    const configuredSectionName = (schoolProfile?.section || '').trim();
+    const primarySectionObj = configuredSectionName
+      ? finalSections.find(s => s.section_name.toLowerCase() === configuredSectionName.toLowerCase())
+      : null;
+    const resolvedActiveSection = hasPersistedSection
+      ? persistedSelectedSection
+      : (primarySectionObj ? primarySectionObj.section_name : (advisorySection ? advisorySection.section_name : null));
+
     // Transparent Self-Healing: Reconnect any orphaned class records, HPS, and grading sheet records
     // caused by deleted, edited, or re-templated subjects, and resurrect missing/unhidden subjects
     const reconciliation = reconcileOrphanedGradesAndSubjects({
       subjects: finalSubjectsWithMigration,
       sections: finalSections,
-      students,
+      students: finalStudents,
       classRecords,
       hpsRecords,
       gradingSheetRecords
@@ -1798,8 +1930,8 @@ export async function initializeAppStore() {
     }
 
     useAppStore.setState({
-      students,
-      studentProfiles: students,
+      students: finalStudents,
+      studentProfiles: finalStudents,
       sections: finalSections,
       subjects: reconciliation.subjects,
       classRecords: reconciliation.classRecords,
@@ -1812,7 +1944,7 @@ export async function initializeAppStore() {
       observedValues,
       schoolProfile: schoolProfile ? { ...schoolProfile, division: (schoolProfile.division || '').replace(/schools division office of/i, '').replace(/schools division of/i, '').replace(/division of/i, '').trim() } : defaultSchoolProfile,
       isSyncReady: true,
-      selectedSection: resolvedSelectedSection
+      selectedSection: resolvedActiveSection
     });
 
     console.log('✅ App store data loaded from IndexedDB');

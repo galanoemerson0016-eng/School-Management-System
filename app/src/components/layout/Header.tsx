@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppStore, useAuthStore } from '../../stores';
-import { Bell, X, Database, HelpCircle, Cloud, CloudUpload, Loader2, ChevronDown, HardDriveDownload, Bug } from 'lucide-react';
+import { Bell, X, Database, HelpCircle, Cloud, CloudUpload, Loader2, ChevronDown, HardDriveDownload, Bug, Shield } from 'lucide-react';
 import { UpdateStatus } from '../ui/UpdateStatus';
 import { CloudSyncService } from '../../services/cloud-sync';
 import { createComprehensiveBackup, validateBackup } from '../../utils/backup-restore';
@@ -25,7 +25,7 @@ const viewTitles: Record<string, string> = {
     calendar: 'Calendar & Announcements',
     announcements: 'Calendar & Announcements',
     reports: 'Reports & Analytics',
-    'consolidated-grades': 'Consolidated Grades',
+    'consolidated-grades': 'Grade Management',
     users: 'User Management',
     settings: 'Settings',
     'name-tags': 'Name Tag Generator',
@@ -40,8 +40,25 @@ export function Header() {
     const announcements = useAppStore(state => state.announcements);
     const dbWritePendingCount = useAppStore(state => state.dbWritePendingCount || 0);
     const showNotification = useAppStore(state => state.showNotification);
+    const sections = useAppStore(state => state.sections);
+    const selectedSection = useAppStore(state => state.selectedSection);
+    const setSelectedSection = useAppStore(state => state.setSelectedSection);
     const { user } = useAuthStore();
     const [showNotifications, setShowNotifications] = useState(false);
+
+    const advisorySections = useMemo(() => {
+        return (sections || []).filter(s => s.is_advisory).sort((a, b) => {
+            const getNum = (g: string) => parseInt(g.match(/\d+/)?.[0] || '999');
+            const gA = getNum(a.section_grade_level);
+            const gB = getNum(b.section_grade_level);
+            return gA !== gB ? gA - gB : a.section_name.localeCompare(b.section_name);
+        });
+    }, [sections]);
+
+    const activeAdvisory = useMemo(() => {
+        if (!advisorySections || advisorySections.length === 0) return null;
+        return advisorySections.find(s => s.id === selectedSection || s.section_name === selectedSection) || advisorySections[0];
+    }, [advisorySections, selectedSection]);
 
     // Google Drive cloud backup state
     const [isCloudSyncing, setIsCloudSyncing] = useState(false);
@@ -188,12 +205,35 @@ export function Header() {
                     </div>
                 </div>
 
-                {/* Center Area: S.Y. — shown only on xl screens to avoid overlap
-                    on mid-sized laptops when the sidebar is expanded */}
-                <div className="hidden xl:flex shrink-0 mx-2">
+                {/* Center Area: Advisory Class Switcher & S.Y. */}
+                <div className="hidden md:flex items-center gap-2 shrink-0 mx-2">
+                    {advisorySections.length > 0 && (
+                        <div className="flex items-center gap-1.5 h-7.5 px-2.5 bg-indigo-50/80 dark:bg-indigo-950/50 border border-indigo-200/80 dark:border-indigo-800/60 rounded-md shadow-2xs">
+                            <Shield className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                            <span className="text-[10px] font-bold text-indigo-600/90 dark:text-indigo-400/90 uppercase tracking-wider hidden lg:inline">Advisory:</span>
+                            <select
+                                value={activeAdvisory ? activeAdvisory.id : ''}
+                                onChange={(e) => {
+                                    const sec = advisorySections.find(s => s.id === e.target.value);
+                                    if (sec) {
+                                        setSelectedSection(sec.section_name);
+                                        showNotification(`Active Advisory switched to ${sec.section_grade_level} - ${sec.section_name}`, 'info');
+                                    }
+                                }}
+                                className="bg-transparent text-indigo-950 dark:text-indigo-100 font-bold text-xs outline-none cursor-pointer pr-1"
+                                title="Switch Active Advisory Class (Controls Grade Management, SF9, SF10, & Grade Slips)"
+                            >
+                                {advisorySections.map(s => (
+                                    <option key={s.id} value={s.id} className="bg-white dark:bg-[#0d1322] text-slate-800 dark:text-slate-100">
+                                        {s.section_grade_level} - {s.section_name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                     <div 
                         data-tour="school-year"
-                        className="flex items-center gap-2 px-3 py-1 bg-slate-50 dark:bg-slate-800/80 rounded-md border border-slate-200 dark:border-slate-700 shadow-2xs cursor-default select-none"
+                        className="hidden xl:flex items-center gap-2 px-3 py-1 bg-slate-50 dark:bg-slate-800/80 rounded-md border border-slate-200 dark:border-slate-700 shadow-2xs cursor-default select-none"
                         title="Current Active School Year"
                     >
                         <span className="w-1.5 h-1.5 rounded-full bg-deped-blue dark:bg-blue-400" />

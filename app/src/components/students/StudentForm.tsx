@@ -4,7 +4,7 @@ import type { Student } from '../../types';
 import { db } from '../../services/database';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { PhotoUploadCrop } from '../id-card/PhotoUploadCrop';
-import { getClustersForGrade11Track } from '../../lib/curriculum';
+import { SSHS_ACADEMIC_CLUSTERS_LIST, SSHS_TECHPRO_CLUSTERS_LIST } from '../../lib/curriculum';
 
 interface StudentFormProps {
     student: Student | null;
@@ -69,11 +69,6 @@ const STRANDS: Record<string, string[]> = {
         'Industrial Technologies'
     ],
     TechPro: [
-        'Home Economics (HE)',
-        'Information and Communications Technology (ICT)',
-        'Industrial Arts (IA)',
-        'Agri-Fishery Arts (AFA)',
-        'Maritime',
         'Aesthetic, Wellness, and Human Care',
         'Agri-Fishery Business and Food Innovation',
         'Artisanry and Creative Enterprise',
@@ -82,37 +77,41 @@ const STRANDS: Record<string, string[]> = {
         'Creative Arts and Design Technologies',
         'Hospitality and Tourism',
         'ICT Support and Computer Programming Technologies',
-        'Industrial Technologies'
+        'Industrial Technologies',
+        'Maritime'
     ],
     Sports: ['Sports Track'],
     'Arts and Design': ['Arts and Design Track'],
 };
 
-const getStrandsForTrack = (trackName: string | undefined, gradeLevel: string | undefined): string[] => {
-    if (!trackName || !gradeLevel) return [];
+const getStrandsForTrack = (trackName: string | undefined, gradeLevel?: string | undefined): string[] => {
+    if (!trackName) return [];
     const normalizedTrack = trackName.trim().toLowerCase();
-    const isG11 = gradeLevel.includes('11');
+    const isGrade11 = gradeLevel?.includes('Grade 11') || gradeLevel === '11';
 
-    if (isG11) {
+    // Grade 11 SSHS (DepEd Order No. 017, s. 2026):
+    // Uses official Academic Clusters and TechPro Clusters (no strands)
+    if (isGrade11) {
         if (normalizedTrack === 'academic') {
-            return ['SSHS'];
+            return [...SSHS_ACADEMIC_CLUSTERS_LIST];
         }
         if (normalizedTrack === 'techpro' || normalizedTrack === 'tvl') {
-            return STRANDS.TVL;
+            return [...SSHS_TECHPRO_CLUSTERS_LIST];
         }
-    } else {
-        if (normalizedTrack === 'academic') {
-            return STRANDS.Academic;
-        }
-        if (normalizedTrack === 'tvl' || normalizedTrack === 'techpro') {
-            return STRANDS.TVL;
-        }
-        if (normalizedTrack === 'sports') {
-            return STRANDS.Sports;
-        }
-        if (normalizedTrack === 'arts and design' || normalizedTrack.includes('arts')) {
-            return STRANDS['Arts and Design'];
-        }
+        return [];
+    }
+
+    if (normalizedTrack === 'academic') {
+        return STRANDS.Academic;
+    }
+    if (normalizedTrack === 'tvl' || normalizedTrack === 'techpro') {
+        return STRANDS.TVL;
+    }
+    if (normalizedTrack === 'sports') {
+        return STRANDS.Sports;
+    }
+    if (normalizedTrack === 'arts and design' || normalizedTrack.includes('arts')) {
+        return STRANDS['Arts and Design'];
     }
     return [];
 };
@@ -218,7 +217,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
         is_als: false,
         als_center_address: '',
         first_day_attendance: '2026-06-08',
-        first_day_attendance_sem: '1st Term',
+        first_day_attendance_sem: 'TERM 1',
         req_birth_cert: false,
         req_report_card: false,
         req_sf10: false,
@@ -275,7 +274,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                 is_als: student.is_als ?? false,
                 als_center_address: student.als_center_address ?? '',
                 first_day_attendance: student.first_day_attendance || '2026-06-08',
-                first_day_attendance_sem: student.first_day_attendance_sem ?? '1st Term',
+                first_day_attendance_sem: student.first_day_attendance_sem ?? 'TERM 1',
                 req_birth_cert: student.req_birth_cert ?? false,
                 req_report_card: student.req_report_card ?? false,
                 req_sf10: student.req_sf10 ?? false,
@@ -556,7 +555,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
             is_als: !!formData.is_als,
             als_center_address: formData.is_als ? formData.als_center_address || '' : '',
             first_day_attendance: formData.first_day_attendance || '2026-06-08',
-            first_day_attendance_sem: formData.first_day_attendance_sem || '1st Term',
+            first_day_attendance_sem: formData.first_day_attendance_sem || 'TERM 1',
             req_birth_cert: !!formData.req_birth_cert,
             req_report_card: !!formData.req_report_card,
             req_sf10: !!formData.req_sf10,
@@ -613,8 +612,6 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
     const gradeInt = parseInt(formData.grade_level?.match(/\d+/)?.[0] || '0');
     const isElementary = gradeInt >= 1 && gradeInt <= 6;
     const isSHS = gradeInt >= 11 && gradeInt <= 12;
-    const isGrade11 = gradeInt === 11;
-    const isGrade12 = gradeInt === 12;
 
     const selectedSectionObj = formData.student_section
         ? sections.find(s => s.section_name === formData.student_section || s.id === formData.student_section)
@@ -916,8 +913,10 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
 
                                     {isSHS && (
                                         <>
-                                            <div className={isGrade11 ? "md:col-span-2" : ""}>
-                                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Track *</label>
+                                            <div>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">
+                                                    {formData.grade_level?.includes('11') ? 'SSHS Track *' : 'Track *'}
+                                                </label>
                                                 <select 
                                                     name="track" 
                                                     value={formData.track || ''} 
@@ -927,44 +926,34 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                     className={`form-input ${isTrackLocked ? 'bg-gray-100 dark:bg-white/10 dark:text-slate-200 cursor-not-allowed' : 'bg-white dark:bg-white/5 dark:text-white'}`}
                                                 >
                                                     <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select Track</option>
-                                                    {(isGrade11 ? ['Academic', 'TechPro'] : TRACKS).map((t) => (
+                                                    {(formData.grade_level?.includes('11') ? ['Academic', 'TechPro'] : TRACKS).map((t) => (
                                                         <option key={t} value={t} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">{t}</option>
                                                     ))}
                                                 </select>
                                             </div>
-                                            {isGrade11 && formData.track && (
+                                            {formData.track && (
                                                 <div>
-                                                    <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">SSHS Curriculum Cluster *</label>
+                                                    <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">
+                                                        {formData.grade_level?.includes('11')
+                                                            ? (formData.track === 'Academic' ? 'Academic Cluster *' : 'TechPro Cluster *')
+                                                            : (formData.track === 'TechPro' ? 'TechPro Cluster *' : 'Strand *')}
+                                                    </label>
                                                     <select 
-                                                        name="cluster" 
-                                                        value={formData.cluster || formData.strand || ''} 
+                                                        name="strand" 
+                                                        value={formData.strand || formData.cluster || ''} 
                                                         onChange={(e) => {
                                                             const val = e.target.value;
-                                                            setFormData(prev => ({ ...prev, cluster: val, strand: val }));
+                                                            setFormData(prev => ({ ...prev, strand: val, cluster: val }));
                                                         }} 
                                                         required 
                                                         disabled={isStrandLocked}
                                                         className={`form-input ${isStrandLocked ? 'bg-gray-100 dark:bg-white/10 dark:text-slate-200 cursor-not-allowed' : 'bg-white dark:bg-white/5 dark:text-white'}`}
                                                     >
-                                                        <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select Curriculum Cluster</option>
-                                                        {getClustersForGrade11Track(formData.track).map((cluster) => (
-                                                            <option key={cluster} value={cluster} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">{cluster}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            )}
-                                            {isGrade12 && (
-                                                <div>
-                                                    <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Strand *</label>
-                                                    <select 
-                                                        name="strand" 
-                                                        value={formData.strand || ''} 
-                                                        onChange={handleChange} 
-                                                        required 
-                                                        disabled={isStrandLocked}
-                                                        className={`form-input ${isStrandLocked ? 'bg-gray-100 dark:bg-white/10 dark:text-slate-200 cursor-not-allowed' : 'bg-white dark:bg-white/5 dark:text-white'}`}
-                                                    >
-                                                        <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select Strand</option>
+                                                        <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">
+                                                            {formData.grade_level?.includes('11')
+                                                                ? (formData.track === 'Academic' ? 'Select Academic Cluster' : 'Select TechPro Cluster')
+                                                                : (formData.track === 'TechPro' ? 'Select TechPro Cluster' : 'Select Strand')}
+                                                        </option>
                                                         {getStrandsForTrack(formData.track, formData.grade_level).map((s) => (
                                                             <option key={s} value={s} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">{s}</option>
                                                         ))}
@@ -1563,7 +1552,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                             onChange={(e) => setFormData(prev => ({ ...prev, req_1st_term: e.target.checked }))}
                                                             className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
                                                         />
-                                                        <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">1st Term</span>
+                                                        <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">TERM 1</span>
                                                     </label>
                                                     <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 dark:hover:bg-white/10 transition-colors">
                                                         <input 
@@ -1573,7 +1562,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                             onChange={(e) => setFormData(prev => ({ ...prev, req_2nd_term: e.target.checked }))}
                                                             className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
                                                         />
-                                                        <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">2nd Term</span>
+                                                        <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">TERM 2</span>
                                                     </label>
                                                     <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 dark:hover:bg-white/10 transition-colors">
                                                         <input 
@@ -1583,7 +1572,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                             onChange={(e) => setFormData(prev => ({ ...prev, req_3rd_term: e.target.checked }))}
                                                             className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
                                                         />
-                                                        <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">3rd Term</span>
+                                                        <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">TERM 3</span>
                                                     </label>
                                                 </div>
                                             </div>

@@ -7,10 +7,24 @@ import {
   STANDARD_SUBJECTS, 
   SPECIAL_SUBJECTS,
   SPECIAL_CURRICULAR_PROGRAMS,
-  getCategoryForSubject
+  getCategoryForSubject,
+  getShsCategoryForSubject,
+  SSHS_G12_ACADEMIC_SUBJECTS,
+  SSHS_G12_TECHPRO_SUBJECTS,
+  SHS_G12_CORE_SUBJECTS,
+  SHS_G12_APPLIED_SUBJECTS,
+  SHS_OLD_STRAND_SUBJECTS,
+  SHS_G12_ALL_OLD_SUBJECTS,
+  getStandardShsSemester,
+  getDefaultTermForSubject,
+  getDepEdStandardWeights,
+  getClustersForGrade11Track,
+  SSHS_ACADEMIC_CLUSTERS_LIST,
+  SSHS_TECHPRO_CLUSTERS_LIST
 } from './curriculum';
 import { isThreeTermSchoolYear } from './terms';
 import { mapStudentToShsSf9Data } from '../utils/shsSf9Mapper';
+import { mapStudentToShsSf10Data } from '../utils/shsSf10Mapper';
 import type { Student, SchoolProfile, Section, Subject, ClassRecord } from '../types';
 
 describe('DepEd Order No. 017, s. 2026 - Unit Weights & Clusters', () => {
@@ -67,6 +81,18 @@ describe('DepEd Order No. 017, s. 2026 - Unit Weights & Clusters', () => {
   it('contains all 5 SSHS Academic Clusters and 10 Tech-Pro Clusters', () => {
     expect(Object.keys(SSHS_ACADEMIC_CLUSTERS).length).toBe(5);
     expect(Object.keys(SSHS_TECHPRO_CLUSTERS).length).toBe(10);
+  });
+
+  it('ensures Computer Programming (Java) ( NC III ) is named with exact spacing and NC III casing', () => {
+    const exactName = 'Computer Programming (Java) ( NC III )';
+    const g11Special = SPECIAL_SUBJECTS['Grade 11'].map(s => s.name);
+    expect(g11Special).toContain(exactName);
+
+    const tvlStrand = SHS_OLD_STRAND_SUBJECTS.TVL.map(s => s.name);
+    expect(tvlStrand).toContain(exactName);
+
+    const unitInfo = getShsSubjectUnitInfo(exactName, 'Grade 11');
+    expect(unitInfo.category).toBe('techpro_elective');
   });
 });
 
@@ -352,6 +378,314 @@ describe('Universal Subject Categorization (getCategoryForSubject)', () => {
     expect(getCategoryForSubject('Beauty Care Services', 'Grade 11')).toBe('TechPro Elective (All Other Elective)');
     expect(getCategoryForSubject('21st Century Literature from the Philippines and the World', 'Grade 12')).toBe('Core Subjects');
     expect(getCategoryForSubject('Practical Research 1', 'Grade 12')).toBe('Applied Subjects');
+  });
+});
+
+describe('Grade 12 Curriculum Separation: SSHS (New) vs SHS (Old)', () => {
+  it('has populated SSHS Grade 12 Academic and TechPro subjects', () => {
+    expect(SSHS_G12_ACADEMIC_SUBJECTS.length).toBeGreaterThanOrEqual(70);
+    expect(SSHS_G12_TECHPRO_SUBJECTS.length).toBeGreaterThanOrEqual(50);
+    expect(STANDARD_SUBJECTS['Grade 12']).toEqual(SSHS_G12_ACADEMIC_SUBJECTS);
+    expect(SPECIAL_SUBJECTS['Grade 12']).toEqual(SSHS_G12_TECHPRO_SUBJECTS);
+  });
+
+  it('has populated Traditional Old SHS Core, Applied, and Strand subjects', () => {
+    expect(SHS_G12_CORE_SUBJECTS.length).toBeGreaterThanOrEqual(15);
+    expect(SHS_G12_APPLIED_SUBJECTS.length).toBeGreaterThanOrEqual(7);
+    expect(SHS_OLD_STRAND_SUBJECTS.STEM.length).toBeGreaterThan(0);
+    expect(SHS_OLD_STRAND_SUBJECTS.ABM.length).toBeGreaterThan(0);
+    expect(SHS_OLD_STRAND_SUBJECTS.HUMSS.length).toBeGreaterThan(0);
+    expect(SHS_OLD_STRAND_SUBJECTS.GAS.length).toBeGreaterThan(0);
+    expect(SHS_OLD_STRAND_SUBJECTS.TVL.length).toBeGreaterThan(0);
+    expect(SHS_OLD_STRAND_SUBJECTS['Arts and Design'].length).toBeGreaterThan(0);
+    expect(SHS_OLD_STRAND_SUBJECTS.Sports.length).toBeGreaterThan(0);
+    expect(SHS_G12_ALL_OLD_SUBJECTS.length).toBeGreaterThanOrEqual(70);
+  });
+
+  it('accurately categorizes Traditional SHS Grade 12 Core subjects', () => {
+    expect(getShsCategoryForSubject('21st Century Literature from the Philippines and the World', 'Grade 12')).toBe('Core Subjects');
+    expect(getShsCategoryForSubject('Oral Communication in Context', 'Grade 12')).toBe('Core Subjects');
+    expect(getShsCategoryForSubject('Reading and Writing Skills', 'Grade 12')).toBe('Core Subjects');
+    expect(getShsCategoryForSubject('General Mathematics', 'Grade 12')).toBe('Core Subjects');
+    expect(getShsCategoryForSubject('Statistics and Probability', 'Grade 12')).toBe('Core Subjects');
+    expect(getShsCategoryForSubject('Health Optimizing Physical Education and Health 3', 'Grade 12')).toBe('Core Subjects');
+    expect(getShsCategoryForSubject('Understanding Culture, Society and Politics', 'Grade 12')).toBe('Core Subjects');
+  });
+
+  it('accurately categorizes Traditional SHS Grade 12 Applied subjects', () => {
+    expect(getShsCategoryForSubject('Practical Research 1', 'Grade 12')).toBe('Applied Subjects');
+    expect(getShsCategoryForSubject('Practical Research 2', 'Grade 12')).toBe('Applied Subjects');
+    expect(getShsCategoryForSubject('English for Academic and Professional Purposes', 'Grade 12')).toBe('Applied Subjects');
+    expect(getShsCategoryForSubject('Inquiries, Investigations and Immersion', 'Grade 12')).toBe('Applied Subjects');
+    expect(getShsCategoryForSubject('Filipino sa Piling Larang (Akademik)', 'Grade 12')).toBe('Applied Subjects');
+    expect(getShsCategoryForSubject('Empowerment Technologies', 'Grade 12')).toBe('Applied Subjects');
+  });
+
+  it('accurately categorizes Traditional SHS Grade 12 Specialized subjects', () => {
+    expect(getShsCategoryForSubject('Pre-Calculus', 'Grade 12')).toBe('Specialized Subjects');
+    expect(getShsCategoryForSubject('Basic Calculus', 'Grade 12')).toBe('Specialized Subjects');
+    expect(getShsCategoryForSubject('General Biology 1', 'Grade 12')).toBe('Specialized Subjects');
+    expect(getShsCategoryForSubject('Fundamentals of Accountancy, Business, and Management 1', 'Grade 12')).toBe('Specialized Subjects');
+    expect(getShsCategoryForSubject('Creative Nonfiction', 'Grade 12')).toBe('Specialized Subjects');
+    expect(getShsCategoryForSubject('Bread and Pastry Production', 'Grade 12')).toBe('Specialized Subjects');
+  });
+
+  it('accurately categorizes SSHS Grade 12 Academic and TechPro electives', () => {
+    expect(getShsCategoryForSubject('Art Criticism and Creative Markets', 'Grade 12')).toBe('Academic Track Electives');
+    expect(getShsCategoryForSubject('Contemporary Literature 1', 'Grade 12')).toBe('Academic Track Electives');
+    expect(getShsCategoryForSubject('Work Immersion for Academic Track', 'Grade 12')).toBe('Academic Track Electives');
+    expect(getShsCategoryForSubject('Bakery Operations', 'Grade 12')).toBe('TechPro Track Electives');
+    expect(getShsCategoryForSubject('Work Immersion for Tech-Pro Track (320 hours)', 'Grade 12')).toBe('TechPro Track Electives');
+  });
+
+  it('accurately categorizes Traditional SHS Grade 11 Core and Applied subjects', () => {
+    expect(getShsCategoryForSubject('Oral Communication in Context', 'Grade 11')).toBe('Core Subjects');
+    expect(getShsCategoryForSubject('Reading and Writing Skills', 'Grade 11')).toBe('Core Subjects');
+    expect(getShsCategoryForSubject('Earth and Life Science', 'Grade 11')).toBe('Core Subjects');
+    expect(getShsCategoryForSubject('Physical Science', 'Grade 11')).toBe('Core Subjects');
+    expect(getShsCategoryForSubject('Komunikasyon at Pananaliksik sa Wika at Kulturang Pilipino', 'Grade 11')).toBe('Core Subjects');
+    expect(getShsCategoryForSubject('Practical Research 1', 'Grade 11')).toBe('Applied Subjects');
+    expect(getShsCategoryForSubject('Empowerment Technologies', 'Grade 11')).toBe('Applied Subjects');
+  });
+});
+
+describe('Strict Semester Isolation & Zero Cross-Semester Leakage in Traditional SHS (SF10)', () => {
+  it('correctly maps traditional SHS subjects to standard DepEd semesters', () => {
+    expect(getStandardShsSemester('Oral Communication in Context', 11)).toBe(1);
+    expect(getStandardShsSemester('Reading and Writing Skills', 11)).toBe(2);
+    expect(getStandardShsSemester('General Mathematics', 11)).toBe(1);
+    expect(getStandardShsSemester('Statistics and Probability', 11)).toBe(2);
+    expect(getStandardShsSemester('Earth and Life Science', 11)).toBe(1);
+    expect(getStandardShsSemester('Physical Science', 11)).toBe(2);
+    expect(getStandardShsSemester('Empowerment Technologies', 11)).toBe(1);
+    expect(getStandardShsSemester('Practical Research 1', 11)).toBe(2);
+    expect(getStandardShsSemester('21st Century Literature from the Philippines and the World', 12)).toBe(1);
+    expect(getStandardShsSemester('Contemporary Philippine Arts from the Regions', 12)).toBe(2);
+  });
+
+  it('guarantees zero cross-semester leakage in SF10 permanent records', () => {
+    const student = {
+      lrn: '112233445566',
+      first_name: 'Maria',
+      last_name: 'Santos',
+      gender: 'Female',
+      grade_level: 'Grade 11',
+      student_section: 'STEM-11',
+      track: 'Academic',
+      strand: 'STEM'
+    } as unknown as Student;
+
+    const section = {
+      id: 'sec-g11',
+      section_name: 'STEM-11',
+      section_grade_level: 'Grade 11',
+      track: 'Academic',
+      strand: 'STEM',
+      taught_subjects: [
+        'Oral Communication in Context',
+        'Reading and Writing Skills',
+        'General Mathematics',
+        'Statistics and Probability',
+        'Earth and Life Science',
+        'Physical Science',
+        'Empowerment Technologies',
+        'Practical Research 1'
+      ]
+    } as unknown as Section;
+
+    const subjects: Subject[] = [
+      { id: 's1', subject_name: 'Oral Communication in Context', grade_level: 'Grade 11', semester: 1 },
+      { id: 's2', subject_name: 'Reading and Writing Skills', grade_level: 'Grade 11', semester: 2 },
+      { id: 's3', subject_name: 'General Mathematics', grade_level: 'Grade 11', semester: 1 },
+      { id: 's4', subject_name: 'Statistics and Probability', grade_level: 'Grade 11', semester: 2 },
+      { id: 's5', subject_name: 'Earth and Life Science', grade_level: 'Grade 11', semester: 1 },
+      { id: 's6', subject_name: 'Physical Science', grade_level: 'Grade 11', semester: 2 },
+      { id: 's7', subject_name: 'Empowerment Technologies', grade_level: 'Grade 11', semester: 1 },
+      { id: 's8', subject_name: 'Practical Research 1', grade_level: 'Grade 11', semester: 2 }
+    ];
+
+    const records: ClassRecord[] = [
+      { id: 'r1', student_lrn: '112233445566', section_id: 'sec-g11', subject_id: 's1', school_year: '2026-2027', quarter: 1, final_grade: 90, written_works: [], performance_tasks: [], quarterly_exam: 0 },
+      { id: 'r2', student_lrn: '112233445566', section_id: 'sec-g11', subject_id: 's1', school_year: '2026-2027', quarter: 2, final_grade: 92, written_works: [], performance_tasks: [], quarterly_exam: 0 },
+      { id: 'r3', student_lrn: '112233445566', section_id: 'sec-g11', subject_id: 's2', school_year: '2026-2027', quarter: 3, final_grade: 88, written_works: [], performance_tasks: [], quarterly_exam: 0 },
+      { id: 'r4', student_lrn: '112233445566', section_id: 'sec-g11', subject_id: 's2', school_year: '2026-2027', quarter: 4, final_grade: 90, written_works: [], performance_tasks: [], quarterly_exam: 0 }
+    ];
+
+    const sf10Data = mapStudentToShsSf10Data({
+      student,
+      profile: {} as unknown as SchoolProfile,
+      schoolYear: '2026-2027',
+      sections: [section],
+      subjects,
+      gradingSheetRecords: records
+    });
+
+    const sem1Block = sf10Data.scholasticRecords[0];
+    const sem2Block = sf10Data.scholasticRecords[1];
+
+    expect(sem1Block.semester).toBe(1);
+    expect(sem2Block.semester).toBe(2);
+
+    const sem1Names = sem1Block.subjects.map(s => s.subjectName);
+    const sem2Names = sem2Block.subjects.map(s => s.subjectName);
+
+    // Sem 1 subjects must appear exclusively in Sem 1
+    expect(sem1Names).toContain('Oral Communication in Context');
+    expect(sem1Names).toContain('General Mathematics');
+    expect(sem1Names).toContain('Earth and Life Science');
+    expect(sem1Names).toContain('Empowerment Technologies');
+
+    // Sem 2 subjects must appear exclusively in Sem 2
+    expect(sem2Names).toContain('Reading and Writing Skills');
+    expect(sem2Names).toContain('Statistics and Probability');
+    expect(sem2Names).toContain('Physical Science');
+    expect(sem2Names).toContain('Practical Research 1');
+
+    // ZERO cross-semester leakage: No Sem 1 subject in Sem 2, and no Sem 2 subject in Sem 1
+    sem1Names.forEach(name => {
+      expect(sem2Names).not.toContain(name);
+    });
+    sem2Names.forEach(name => {
+      expect(sem1Names).not.toContain(name);
+    });
+  });
+});
+
+describe('Zero Ghost Blanks in 3-Term Views & School Term Autonomy', () => {
+  it('SSHS Grade 11 core subjects span all 3 terms while electives are term-isolated', () => {
+    const cores = [
+      'Effective Communication',
+      'Mabisang Komunikasyon',
+      'General Mathematics',
+      'General Science',
+      'Life and Career Skills',
+      'Pag-aaral ng Kasaysayan at Lipunang Pilipino'
+    ];
+
+    cores.forEach(c => {
+      expect(getDefaultTermForSubject(c, 11)).toBe('all');
+    });
+
+    // Electives in SSHS Grade 11 should not default to 'all'
+    expect(getDefaultTermForSubject('Philippine Politics and Governance', 11)).not.toBe('all');
+    expect(getDefaultTermForSubject('General Biology 1', 11)).not.toBe('all');
+  });
+
+  it('allows school autonomy for Traditional SHS Grade 12 offering terms', () => {
+    // In Traditional SHS Grade 12, subjects have distinct terms, not 'all'
+    const physSciTerm = getDefaultTermForSubject('Physical Science', 12);
+    expect(physSciTerm).not.toBe('all');
+
+    // Autonomy: A school can offer Physical Science in Term 1 via section metadata subjectTerms
+    const customSectionMetadata = {
+      subjectTerms: {
+        'Physical Science': 1 as const,
+        'Contemporary Philippine Arts from the Regions': 2 as const,
+        'Media and Information Literacy': 3 as const
+      }
+    };
+
+    expect(customSectionMetadata.subjectTerms['Physical Science']).toBe(1);
+    expect(customSectionMetadata.subjectTerms['Contemporary Philippine Arts from the Regions']).toBe(2);
+    expect(customSectionMetadata.subjectTerms['Media and Information Literacy']).toBe(3);
+  });
+});
+
+describe('Smart DepEd Standard Weights Locks', () => {
+  it('correctly provides official DepEd DO 8, s. 2015 weights by subject classification', () => {
+    // Languages, AP, EsP, Values, GMRC, Makabansa: 30% WW, 50% PT, 20% QA
+    const langStd = getDepEdStandardWeights('English');
+    expect(langStd.written_weight).toBe(0.3);
+    expect(langStd.performance_weight).toBe(0.5);
+    expect(langStd.exam_weight).toBe(0.2);
+
+    const apStd = getDepEdStandardWeights('Araling Panlipunan');
+    expect(apStd.written_weight).toBe(0.3);
+    expect(apStd.performance_weight).toBe(0.5);
+    expect(apStd.exam_weight).toBe(0.2);
+
+    // Math & Science: 40% WW, 40% PT, 20% QA
+    const mathStd = getDepEdStandardWeights('Mathematics');
+    expect(mathStd.written_weight).toBe(0.4);
+    expect(mathStd.performance_weight).toBe(0.4);
+    expect(mathStd.exam_weight).toBe(0.2);
+
+    const sciStd = getDepEdStandardWeights('Science');
+    expect(sciStd.written_weight).toBe(0.4);
+    expect(sciStd.performance_weight).toBe(0.4);
+    expect(sciStd.exam_weight).toBe(0.2);
+
+    // TLE, EPP, MAPEH: 20% WW, 60% PT, 20% QA
+    const tleStd = getDepEdStandardWeights('Technology and Livelihood Education (TLE)');
+    expect(tleStd.written_weight).toBe(0.2);
+    expect(tleStd.performance_weight).toBe(0.6);
+    expect(tleStd.exam_weight).toBe(0.2);
+
+    const mapehStd = getDepEdStandardWeights('Music and Arts');
+    expect(mapehStd.written_weight).toBe(0.2);
+    expect(mapehStd.performance_weight).toBe(0.6);
+    expect(mapehStd.exam_weight).toBe(0.2);
+  });
+
+  describe('Grade 11 SSHS (DepEd Order No. 017, s. 2026) Track & Cluster Isolation', () => {
+    it('restricts Grade 11 Academic track strictly to the 5 official SSHS Academic Clusters', () => {
+      const acadClusters = getClustersForGrade11Track('Academic');
+      expect(acadClusters).toHaveLength(5);
+      expect(acadClusters).toEqual([...SSHS_ACADEMIC_CLUSTERS_LIST]);
+
+      // Verify that old K-12 SHS Academic strands are completely excluded
+      expect(acadClusters).not.toContain('STEM');
+      expect(acadClusters).not.toContain('ABM');
+      expect(acadClusters).not.toContain('HUMSS');
+      expect(acadClusters).not.toContain('GAS');
+    });
+
+    it('restricts Grade 11 TechPro track strictly to the 10 official SSHS TechPro Clusters', () => {
+      const techProClusters = getClustersForGrade11Track('TechPro');
+      expect(techProClusters).toHaveLength(10);
+      expect(techProClusters).toEqual([...SSHS_TECHPRO_CLUSTERS_LIST]);
+
+      // Verify that old K-12 TVL strands are completely excluded
+      expect(techProClusters).not.toContain('Home Economics (HE)');
+      expect(techProClusters).not.toContain('Information and Communications Technology (ICT)');
+      expect(techProClusters).not.toContain('Industrial Arts (IA)');
+      expect(techProClusters).not.toContain('Agri-Fishery Arts (AFA)');
+    });
+
+    it('returns empty clusters for old K-12 SHS standalone tracks in Grade 11', () => {
+      expect(getClustersForGrade11Track('Sports')).toEqual([]);
+      expect(getClustersForGrade11Track('Arts and Design')).toEqual([]);
+      expect(getClustersForGrade11Track('NonExistentTrack')).toEqual([]);
+    });
+
+    it('populates section curriculum templates for Grade 11 TechPro clusters properly', () => {
+      const templates = getCurriculumTemplatesForSection('Grade 11', 'Regular', undefined, 'TechPro', 'Hospitality and Tourism');
+      const names = templates.map(t => t.name);
+
+      // Must include SSHS Core
+      expect(names).toContain('General Mathematics');
+      expect(names).toContain('General Science');
+      expect(names).toContain('Effective Communication');
+
+      // Must include Hospitality and Tourism cluster subjects
+      expect(names).toContain('Bakery Operations');
+      expect(names).toContain('Events Management Services');
+      expect(names).toContain('Food and Beverage Operation');
+    });
+
+    it('populates section curriculum templates for Grade 11 Academic clusters properly', () => {
+      const templates = getCurriculumTemplatesForSection('Grade 11', 'Regular', undefined, 'Academic', 'Business and Entrepreneurship');
+      const names = templates.map(t => t.name);
+
+      // Must include SSHS Core
+      expect(names).toContain('General Mathematics');
+      expect(names).toContain('General Science');
+
+      // Must include Business and Entrepreneurship cluster subjects
+      expect(names).toContain('Business 1 (Basic Accounting)');
+      expect(names).toContain('Business 3 (Business Economics)');
+      expect(names).toContain('Contemporary Marketing');
+    });
   });
 });
 

@@ -7,10 +7,20 @@ export interface SF9Template2Attendance {
   daysAbsent: number[];
 }
 
+export interface SF9Template2SubjectItem {
+  id?: string;
+  name: string;
+  code?: string;
+  isComponent?: boolean;
+  isHeader?: boolean;
+  isReserved?: boolean;
+  subject_name?: string;
+}
+
 export interface SF9Template2LearnerData {
   student: Student;
   grades: Record<string, number[]>;
-  subjects?: Subject[];
+  subjects?: (SF9Template2SubjectItem | Subject)[];
   comments?: string[];
   attendance?: SF9Template2Attendance;
 }

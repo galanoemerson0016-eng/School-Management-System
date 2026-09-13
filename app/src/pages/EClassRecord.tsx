@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect, useCallback, memo } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, ArrowRight, Clock, FileSpreadsheet, ChevronDown, Bug, Shield, SlidersHorizontal } from 'lucide-react';
+import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, ArrowRight, FileSpreadsheet, ChevronDown, Bug, Shield, SlidersHorizontal } from 'lucide-react';
 import type { ClassRecord, HPSRecord, Subject } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
@@ -2280,7 +2280,7 @@ export function EClassRecord() {
                             value={selectedSubject}
                             onChange={(e) => onSubjectChange(e.target.value)}
                             className="form-input h-7.5 py-0.5 px-2 text-[10px] rounded-lg disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
-                            disabled={isGrade1Section || !selectedSection}
+                            disabled={!selectedSection}
                         >
                             <option value="">
                                 {selectedSection 
@@ -2318,7 +2318,6 @@ export function EClassRecord() {
                                 value={selectedMapehComponentId}
                                 onChange={(e) => setSelectedMapehComponentId(e.target.value)}
                                 className="form-input border-amber-400 bg-amber-50 h-7.5 py-0.5 px-1.5 text-[10px] rounded-lg disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
-                                disabled={isGrade1Section}
                             >
                                 {mapehComponents.map((c) => (
                                     <option key={c.id} value={c.id}>{c.subject_name}</option>
@@ -2331,7 +2330,6 @@ export function EClassRecord() {
                         <label className="block text-[9.5px] font-bold mb-0.5 text-deped-blue whitespace-nowrap">Term</label>
                         <select 
                             value={quarter} 
-                            disabled={isGrade1Section}
                             onChange={(e) => {
                                 const val = e.target.value;
                                 if (val.startsWith('summary')) {
@@ -2363,7 +2361,6 @@ export function EClassRecord() {
                         </label>
                         <select
                             value={paperSize}
-                            disabled={isGrade1Section}
                             onChange={(e) => setPaperSize(e.target.value as PaperSize)}
                             className="form-input h-7.5 py-0.5 px-1.5 text-[10px] rounded-lg disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
                         >
@@ -2373,11 +2370,22 @@ export function EClassRecord() {
                         </select>
                     </div>
                     <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
-                        <div className={`flex items-center gap-1 h-7.5 px-1 rounded-lg bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 ${isGrade1Section ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                        {/* PACE Form shortcut for Grade 1 */}
+                        {isGrade1Section && (
+                            <button
+                                type="button"
+                                onClick={() => setCurrentView('pace')}
+                                className="h-7.5 px-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-black text-[8.5px] uppercase tracking-wider flex items-center gap-1 shadow-xs active:scale-95 transition-all whitespace-nowrap cursor-pointer shrink-0"
+                                title="Open official DepEd MATATAG PACE Form for Grade 1"
+                            >
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                <span>PACE Form</span>
+                            </button>
+                        )}
+                        <div className="flex items-center gap-1 h-7.5 px-1 rounded-lg bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10">
                             <button
                                 onClick={() => setZoom(prev => Math.max(0.5, prev - 0.1))}
-                                disabled={isGrade1Section}
-                                className="w-5 h-5 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white dark:hover:bg-white/20 rounded transition-all disabled:pointer-events-none"
+                                className="w-5 h-5 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white dark:hover:bg-white/20 rounded transition-all"
                                 title="Zoom Out"
                             >
                                 <Minus className="w-2.5 h-2.5" />
@@ -2387,8 +2395,7 @@ export function EClassRecord() {
                             </span>
                             <button
                                 onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                                disabled={isGrade1Section}
-                                className="w-5 h-5 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white dark:hover:bg-white/20 rounded transition-all disabled:pointer-events-none"
+                                className="w-5 h-5 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white dark:hover:bg-white/20 rounded transition-all"
                                 title="Zoom In"
                             >
                                 <Plus className="w-2.5 h-2.5" />
@@ -2397,8 +2404,7 @@ export function EClassRecord() {
                         {selectedSubject && selectedSubject !== 'virtual_mapeh' && (
                             <button 
                                 onClick={() => setIsEnrollmentModalOpen(true)}
-                                disabled={isGrade1Section}
-                                className="h-7.5 px-2 bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 text-[8.5px] font-black uppercase tracking-wider rounded-lg border border-slate-200 dark:border-white/10 hover:scale-[1.02] transition-all flex items-center gap-1 whitespace-nowrap cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale disabled:scale-100"
+                                className="h-7.5 px-2 bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 text-[8.5px] font-black uppercase tracking-wider rounded-lg border border-slate-200 dark:border-white/10 hover:scale-[1.02] transition-all flex items-center gap-1 whitespace-nowrap cursor-pointer"
                                 title="Manage Enrolled Students"
                             >
                                 <Users className="w-3 h-3" />
@@ -2407,15 +2413,14 @@ export function EClassRecord() {
                         )}
                         <button 
                             onClick={handlePrint} 
-                            disabled={isGrade1Section}
-                            className="btn-primary flex items-center justify-center gap-1 h-7.5 px-2 text-[8.5px] font-black uppercase tracking-wider rounded-lg whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale cursor-pointer"
+                            className="btn-primary flex items-center justify-center gap-1 h-7.5 px-2 text-[8.5px] font-black uppercase tracking-wider rounded-lg whitespace-nowrap cursor-pointer"
                         >
                             <Printer className="w-3 h-3" />
                             <span>Print</span>
                         </button>
                         <button 
                             onClick={handleDownload}
-                            disabled={isGrade1Section || isDownloading || !selectedSubject || sectionStudents.length === 0}
+                            disabled={isDownloading || !selectedSubject || sectionStudents.length === 0}
                             className="h-7.5 px-2 bg-sky-600 text-white text-[8.5px] font-black uppercase tracking-wider rounded-lg shadow-xs hover:bg-sky-700 hover:scale-[1.02] transition-all flex items-center gap-1 group disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale whitespace-nowrap cursor-pointer"
                         >
                             {isDownloading ? (
@@ -2582,7 +2587,7 @@ export function EClassRecord() {
                                     showNotification("Failed to publish grades.", "error");
                                 }
                             }}
-                            disabled={isGrade1Section || !selectedSubject || sectionStudents.length === 0 || (typeof quarter === 'string' && quarter.startsWith('summary'))}
+                            disabled={!selectedSubject || sectionStudents.length === 0 || (typeof quarter === 'string' && quarter.startsWith('summary'))}
                             className="h-7.5 px-2 bg-emerald-600 text-white text-[8.5px] font-black uppercase tracking-wider rounded-lg shadow-xs hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-1 group disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed whitespace-nowrap cursor-pointer"
                             title={!selectedSubject ? "Please select a subject first to publish grades" : "Publish grades to Grade Management"}
                         >
@@ -2635,71 +2640,31 @@ export function EClassRecord() {
 
             <div className="bg-white dark:bg-[#0d1225] shadow-2xl rounded-[2.5rem] overflow-hidden border border-slate-200/60 dark:border-white/10 flex-1 min-h-0">
                 <div className="bg-slate-50/50 dark:bg-[#070a12] p-3 md:p-4 h-full min-h-0 overflow-auto custom-scrollbar">
+                    {/* Informative notification for Grade 1 with quick shortcut to PACE Form */}
+                    {isGrade1Section && (
+                        <div className="max-w-4xl mx-auto mb-3 px-4 py-2 bg-linear-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 rounded-xl flex items-center justify-between gap-3 text-amber-800 dark:text-amber-200 text-xs shadow-xs">
+                            <div className="flex items-center gap-2">
+                                <span className="text-base">📋</span>
+                                <div>
+                                    <span className="font-bold">Grade 1 DepEd Assessment:</span> Numerical E-Class Record is active for scoring and grading. For qualitative MATATAG competency assessment, you can also use the PACE Form.
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setCurrentView('pace')}
+                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer shadow-xs active:scale-95"
+                            >
+                                <span>Open PACE Form</span>
+                                <ArrowRight className="w-3 h-3" />
+                            </button>
+                        </div>
+                    )}
                     <div className="w-full min-h-full flex justify-center overflow-x-auto py-2">
                     <div
                         className="eclass-zoom-shell origin-top transition-all duration-300 m-auto"
                         style={{ transform: `scale(${zoom})` }}
                     >
-                    {isGrade1Section ? (
-                        <div className="w-full h-full min-h-100 flex items-center justify-center p-4 md:p-6">
-                            <div className="max-w-3xl w-full bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-[2.5rem] border border-blue-100/80 dark:border-slate-800 shadow-[0_20px_60px_rgba(37,99,235,0.08)] p-6 md:p-8 text-center relative overflow-hidden animate-fade-in flex flex-col md:flex-row items-center gap-6 md:gap-8">
-                                {/* Ambient Blue Soft Gradient Orbs */}
-                                <div className="absolute -top-28 -left-28 w-56 h-56 bg-blue-400/15 rounded-full blur-3xl pointer-events-none" />
-                                <div className="absolute -bottom-28 -right-28 w-56 h-56 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
-
-                                {/* Left/Top Column: Centered 3D Floating Icon Stack */}
-                                <div className="shrink-0 flex justify-center mx-auto md:mx-0">
-                                    <div className="w-28 h-28 md:w-36 md:h-36 bg-white dark:bg-slate-800 rounded-3xl shadow-[0_15px_35px_rgba(0,0,0,0.06)] dark:shadow-[0_15px_35px_rgba(0,0,0,0.3)] flex items-center justify-center relative border border-slate-100 dark:border-slate-700/60 transition-transform duration-500 hover:scale-105">
-                                        <FileText className="w-14 h-14 md:w-18 md:h-18 text-slate-300 dark:text-slate-600 stroke-[1.5]" />
-                                        
-                                        {/* Overlapping Badge */}
-                                        <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-linear-to-br from-blue-600 to-indigo-600 text-white font-black text-xs md:text-sm tracking-wider flex items-center justify-center shadow-lg shadow-blue-600/30 absolute -bottom-3 -right-3 border-2 border-white dark:border-slate-900">
-                                            PACE
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Right Column: Fully Center-Aligned Information & Actions */}
-                                <div className="flex-1 space-y-3.5 text-center flex flex-col items-center justify-center">
-                                    {/* Status Pill Header */}
-                                    <div className="flex justify-center w-full">
-                                        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/50 border border-blue-200/80 dark:border-blue-800/80 text-blue-600 dark:text-blue-400 text-[10.5px] font-black uppercase tracking-widest shadow-xs">
-                                            <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                                            <span>OFFICIAL DEPED MATATAG ASSESSMENT STANDARD</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Title & Main Explanation */}
-                                    <div className="space-y-2 text-center w-full">
-                                        <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white leading-tight text-center">
-                                            GRADE 1 PACE FORM MODULE ACTIVE
-                                        </h2>
-                                        <p className="text-xs md:text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-medium text-center max-w-xl mx-auto">
-                                            Under the DepEd MATATAG Curriculum, Grade 1 learners do not use traditional numerical percentages or numerical E-Class Records.
-                                        </p>
-                                        <p className="text-[11px] md:text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-normal text-center max-w-lg mx-auto">
-                                            All Grade 1 assessment logic and student competency evaluations are managed qualitatively via the official Performance & Competency Evaluation (PACE) Form module.
-                                        </p>
-                                    </div>
-
-                                    {/* Sub-label & Primary Action Pill Button */}
-                                    <div className="pt-1 flex flex-col items-center justify-center text-center w-full gap-2">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 block text-center">
-                                            MATATAG CURRICULUM ROUTE QUEUE
-                                        </span>
-                                        <button
-                                            onClick={() => setCurrentView('pace-form')}
-                                            className="inline-flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-full bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 text-white text-[11px] font-black uppercase tracking-wider transition-all shadow-md shadow-blue-600/30 hover:shadow-blue-600/40 cursor-pointer"
-                                        >
-                                            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                                            <span>OPEN GRADE 1 PACE FORM MODULE</span>
-                                            <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    ) : isAdvisoryWithoutTeachingLoad ? (
+                    {isAdvisoryWithoutTeachingLoad ? (
                         <div className="w-full h-full min-h-100 flex items-center justify-center p-4 md:p-8">
                             <div className="max-w-3xl w-full bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-[2.5rem] border border-indigo-100/80 dark:border-slate-800 shadow-[0_20px_60px_rgba(79,70,229,0.08)] p-6 md:p-8 text-center relative overflow-hidden animate-fade-in flex flex-col md:flex-row items-center gap-6 md:gap-8">
                                 {/* Ambient Soft Gradient Orbs */}

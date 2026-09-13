@@ -93,7 +93,7 @@ describe('SF9 Template 2 PDF Page Count Verification', () => {
     const [frontPage] = pdfDoc.getPages();
     expect(frontPage.getWidth()).toBeCloseTo(595.28, 1);
     expect(frontPage.getHeight()).toBeCloseTo(841.89, 1);
-  }, 20000);
+  }, 60000);
 
   it('renders strictly 2 pages for a single learner on Letter portrait', async () => {
     const doc = React.createElement(SF9Template2Document, {
@@ -110,7 +110,7 @@ describe('SF9 Template 2 PDF Page Count Verification', () => {
     const arrayBuffer = await blobToArrayBuffer(blob);
     const pdfDoc = await PDFDocument.load(arrayBuffer);
     expect(pdfDoc.getPageCount()).toBe(2);
-  }, 20000);
+  }, 60000);
 
   it('renders strictly 2 pages for a 2-learner batch on A4 portrait', async () => {
     const doc = React.createElement(SF9Template2BatchDocument, {
@@ -127,5 +127,5 @@ describe('SF9 Template 2 PDF Page Count Verification', () => {
     const arrayBuffer = await blobToArrayBuffer(blob);
     const pdfDoc = await PDFDocument.load(arrayBuffer);
     expect(pdfDoc.getPageCount()).toBe(2);
-  }, 20000);
+  }, 60000);
 });

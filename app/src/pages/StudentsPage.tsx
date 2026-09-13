@@ -100,15 +100,41 @@ export function StudentsPage() {
     const resolveAdviserName = useCallback((section?: Section | null) => {
         if (!section) return 'TBA';
         const fromSection = section.adviser_name || teachers.find((teacher) => teacher.uid === section.adviser_id)?.displayName;
+        const fromProfile = (schoolProfile?.adviser_name || '').trim();
+
+        // Exact DepEd fixture mock adviser names that should not be shown in real deployments
+        const isMockName = fromSection && (
+            [
+              'Manuel T. Torres',
+              'Nelson P. Pascual',
+              'Kevin O. Ocampo',
+              'Laura M. Mendoza',
+              'Joy V. Villanueva',
+              'Maria L. Santos',
+              'Bella C. Cruz',
+              'Carlos D. Dizon',
+              'Diana M. Lopez',
+              'Eduardo G. Gomez',
+              'Fatima R. Reyes',
+              'Gabriel S. Santos',
+              'Hannah P. Perez',
+              'Ian B. Bautista'
+            ].includes(fromSection.trim()) ||
+            (section.adviser_id && section.adviser_id.startsWith('adv-'))
+        );
+
+        if (isMockName && fromProfile && fromProfile.toLowerCase() !== 'admin') {
+            return fromProfile;
+        }
+
         if (fromSection && fromSection.trim() && fromSection.trim().toLowerCase() !== 'tba') return fromSection;
 
         const isAdvisory = section.is_advisory ?? !section.is_teaching_load;
         if (isAdvisory) {
-            const fromProfile = (schoolProfile?.adviser_name || '').trim();
             if (fromProfile) return fromProfile;
         }
 
-        return 'TBA';
+        return fromProfile || 'TBA';
     }, [teachers, schoolProfile]);
     const selectedSectionAdviser = resolveAdviserName(selectedSectionObj);
     const selectedSectionDisplayName = resolveSectionDisplayName(selectedSectionObj);
@@ -128,13 +154,16 @@ export function StudentsPage() {
 
     useEffect(() => {
         if (!selectedSectionId && officialSections.length > 0) {
-            const firstSection = officialSections[0];
-            setSelectedSectionId(firstSection.id);
+            const configuredSectionName = (schoolProfile?.section || '').trim().toLowerCase();
+            const preferredSection = configuredSectionName
+                ? officialSections.find(s => s.section_name.toLowerCase() === configuredSectionName || s.id === configuredSectionName)
+                : null;
+            setSelectedSectionId((preferredSection || officialSections[0]).id);
             if (officialSections.length === 1) {
                 setViewMode('section_detail');
             }
         }
-    }, [selectedSectionId, officialSections]);
+    }, [selectedSectionId, officialSections, schoolProfile]);
 
 
     const handleExportStudents = () => {

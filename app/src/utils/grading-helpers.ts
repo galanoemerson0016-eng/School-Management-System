@@ -39,6 +39,31 @@ export function cleanSubjectQuery(input: string): string {
     return str;
 }
 
+/**
+ * Extracts a sequence number (1, 2, 3, 4, I, II, III, IV) from a subject name or identifier.
+ * Strips grade indicators (Grade 11, G11, Gr. 11), NC certificates (NC III), and century terms (21st).
+ * Returns '1', '2', '3', '4', or null.
+ */
+export function extractSubjectSequence(s: string): string | null {
+    if (!s) return null;
+    const clean = s.trim().toLowerCase()
+        .replace(/\bgrade\s*\d+\b/gi, '')
+        .replace(/\bgr\.?\s*\d+\b/gi, '')
+        .replace(/\bg\d+\b/gi, '')
+        .replace(/\b(?:nc|coc)\s*(?:i{1,3}|iv|\d+)\b/gi, '')
+        .replace(/\b21st\b/gi, '')
+        .trim();
+
+    if (!clean) return null;
+
+    if (/\b(iv|4)\b/i.test(clean) || /(?:^|\D)4$/i.test(clean)) return '4';
+    if (/\b(iii|3)\b/i.test(clean) || /(?:^|\D)3$/i.test(clean)) return '3';
+    if (/\b(ii|2)\b/i.test(clean) || /(?:^|\D)2$/i.test(clean)) return '2';
+    if (/\b(i|1)\b/i.test(clean) || /(?:^|\D)1$/i.test(clean)) return '1';
+
+    return null;
+}
+
 export function isMatchingSubject(
     targetQuery: string,
     recordSubId?: string,
@@ -47,6 +72,15 @@ export function isMatchingSubject(
 ): boolean {
     if (!targetQuery) return false;
     if (recordSubId && recordSubId === targetQuery) return true;
+
+    // 0. Sequence Number Guard: Different sequential subjects (e.g. Chemistry 1 vs 2, PR 1 vs 2, PE 1 vs 2) must NEVER match
+    const seqTarget = extractSubjectSequence(targetQuery);
+    const seqOther = extractSubjectSequence(recordSubName || '') || 
+                     extractSubjectSequence(recordSubId || '') || 
+                     extractSubjectSequence(resolvedSubjectName || '');
+    if (seqTarget && seqOther && seqTarget !== seqOther) {
+        return false;
+    }
 
     const cleanedTarget = cleanSubjectQuery(targetQuery);
     const normTarget = cleanedTarget.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -78,12 +112,41 @@ export function isMatchingSubject(
     if (isEnglish(normTarget) && (isEnglish(normName) || isEnglish(cleanedId))) return true;
 
     // 3.3 Mathematics / Gen Math
-    const isMath = (s: string) => (s.includes('mathematics') || s.includes('math') || s.includes('genmath') || s.includes('generalmath')) && !s.includes('businessmath');
+    const isMath = (s: string) => (s.includes('mathematics') || s.includes('math') || s.includes('genmath') || s.includes('generalmath')) && 
+        !s.includes('businessmath') && !s.includes('finitemath') && !s.includes('advancedmath') && !s.includes('advmath') && !s.includes('calculus') && !s.includes('discretemath') && !s.includes('appliedmath');
     if (isMath(normTarget) && (isMath(normName) || isMath(cleanedId))) return true;
+
+    // 3.3.1 Finite Mathematics (Protected sequential elective)
+    const isFiniteMath = (s: string) => s.includes('finitemath');
+    if (isFiniteMath(normTarget) && (isFiniteMath(normName) || isFiniteMath(cleanedId))) return true;
+
+    // 3.3.2 Advanced Mathematics (Protected sequential elective)
+    const isAdvMath = (s: string) => s.includes('advancedmath') || s.includes('advmath');
+    if (isAdvMath(normTarget) && (isAdvMath(normName) || isAdvMath(cleanedId))) return true;
+
+    // 3.3.3 Discrete Mathematics
+    const isDiscreteMath = (s: string) => s.includes('discretemath');
+    if (isDiscreteMath(normTarget) && (isDiscreteMath(normName) || isDiscreteMath(cleanedId))) return true;
+
+    // 3.3.4 Applied Mathematics
+    const isAppliedMath = (s: string) => s.includes('appliedmath');
+    if (isAppliedMath(normTarget) && (isAppliedMath(normName) || isAppliedMath(cleanedId))) return true;
 
     // 3.4 Science / General Science (Standard JHS/Elem Science)
     const isScience = (s: string) => (s === 'science' || s.includes('gensci') || s.includes('generalscience') || s.startsWith('science')) && !s.includes('earthandlife') && !s.includes('physicalscience') && !s.includes('socialscience');
     if (isScience(normTarget) && (isScience(normName) || isScience(cleanedId))) return true;
+
+    // 3.4.1 Chemistry (General Chemistry vs Chemistry, guarded by sequence)
+    const isChem = (s: string) => s.includes('chemistry') && !s.includes('consumer') && !s.includes('advanced');
+    if (isChem(normTarget) && (isChem(normName) || isChem(cleanedId))) return true;
+
+    // 3.4.2 Biology (General Biology vs Biology, guarded by sequence)
+    const isBio = (s: string) => s.includes('biology') && !s.includes('marine') && !s.includes('molecular');
+    if (isBio(normTarget) && (isBio(normName) || isBio(cleanedId))) return true;
+
+    // 3.4.3 Physics (General Physics vs Physics, guarded by sequence)
+    const isPhys = (s: string) => (s.includes('physics') || s === 'phys') && !s.includes('physical') && !s.includes('conceptual') && !s.includes('advanced');
+    if (isPhys(normTarget) && (isPhys(normName) || isPhys(cleanedId))) return true;
 
     // 3.5 Araling Panlipunan (AP) / Makabansa / Kasaysayan / Social Studies
     const isAP = (s: string) => s === 'ap' || s.includes('aralingpanlipunan') || s.includes('kasaysayan') || s.includes('socialstudies');
@@ -140,7 +203,7 @@ export function isMatchingSubject(
     // 3.12 SHS Core / Applied
     const shsKeys = [
         'contemporaryphilippinearts', 'practicalresearch1', 'practicalresearch2', 'practicalresearch',
-        'oralcommunication', 'readingandwriting', 'komunikasyon', 'pagbasaatpagsusuri',
+        'oralcommunication', 'readingandwriting', 'komunikasyonatpananaliksik', 'pagbasaatpagsusuri',
         'personaldevelopment', 'understandingculture', 'empowermenttechnologies',
         'introductiontothephilosophy', 'disasterreadiness', 'generalbiology', 'generalchemistry',
         'generalphysics', 'basiccalculus', 'precalculus', 'appliedeconomics', 'businessethics',
@@ -149,6 +212,19 @@ export function isMatchingSubject(
     for (const k of shsKeys) {
         if (normTarget.includes(k) && (normName.includes(k) || cleanedId.includes(k))) return true;
     }
+
+    // 3.12.1 Komunikasyon at Pananaliksik sa Wika at Kulturang Pilipino
+    const isKomPan = (s: string) => (s.includes('komunikasyon') && s.includes('pananaliksik')) || s === 'komunikasyon';
+    if (isKomPan(normTarget) && (isKomPan(normName) || isKomPan(cleanedId))) return true;
+
+    // 3.12.2 Effective Communication & Mabisang Komunikasyon (SSHS G11 Core)
+    const isCompositeEcmk = (s: string) => s.includes('effectivecommunication') && s.includes('mabisangkomunikasyon');
+    const isOnlyEffComm = (s: string) => s.includes('effectivecommunication') && !s.includes('mabisang');
+    const isOnlyMabKom = (s: string) => s.includes('mabisangkomunikasyon') && !s.includes('effective');
+
+    if (isCompositeEcmk(normTarget) && (isCompositeEcmk(normName) || isCompositeEcmk(cleanedId))) return true;
+    if (isOnlyEffComm(normTarget) && (isOnlyEffComm(normName) || isOnlyEffComm(cleanedId))) return true;
+    if (isOnlyMabKom(normTarget) && (isOnlyMabKom(normName) || isOnlyMabKom(cleanedId))) return true;
 
     // 3.13 Computer Programming specializations (Java, .Net, Oracle)
     if (

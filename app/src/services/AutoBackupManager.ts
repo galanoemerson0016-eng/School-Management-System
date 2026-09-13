@@ -217,7 +217,7 @@ export const AutoBackupManager = {
       }
 
       // Restore data using existing importFromBackup
-      await db.importFromBackup(targetBackup.data);
+      await db.importFromBackup(targetBackup.data as any);
       console.log('✅ Successfully restored database from automated backup:', backupId);
     } catch (error) {
       console.error('Failed to restore from automated backup:', error);

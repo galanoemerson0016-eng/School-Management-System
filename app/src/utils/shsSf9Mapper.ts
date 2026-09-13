@@ -1,6 +1,6 @@
 import type { Student, SchoolProfile, Section, ClassRecord, Subject } from '../types';
 import { formatLearnerName } from './student-name';
-import { getShsSubjectUnitInfo } from '../lib/curriculum';
+import { getShsSubjectUnitInfo, getDefaultTermForSubject } from '../lib/curriculum';
 import { isMatchingSubject, normalizeGrade12PESubjectName } from './grading-helpers';
 
 interface ShsSf9MapperParams {
@@ -46,17 +46,20 @@ export function mapStudentToShsSf9Data({
   });
 
   if (taughtRaw.length > 0) {
+    const subjectTermsMeta = (sectionObj?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, 1 | 2 | 3 | 'all' | 'none'> | undefined;
+
     // If taught_subjects are explicitly defined on sectionObj, ensure every taught subject is present
     for (const tName of taughtRaw) {
       const alreadyHas = candidateSubjects.some(s => isMatchingSubject(tName, s.id, s.subject_name));
       if (!alreadyHas) {
+        const resolvedTerm = subjectTermsMeta?.[tName] || getDefaultTermForSubject(tName, sectionObj.section_grade_level);
         candidateSubjects.push({
           id: `virtual_${tName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
           subject_name: tName,
           subject_code: '',
           grade_level: sectionObj.section_grade_level,
           section_id: sectionObj.id,
-          term: 'all'
+          term: resolvedTerm
         });
       }
     }
@@ -66,7 +69,7 @@ export function mapStudentToShsSf9Data({
       return taughtRaw.some(t => isMatchingSubject(t, s.id, s.subject_name));
     });
 
-    // Use the exact subject name from taught_subjects, normalizing Old K-12 PE
+    // Use the exact subject name from taught_subjects, normalizing Old K-12 PE, and apply term overrides
     const isExplicitSSHS = (sectionObj?.track || '').toLowerCase().includes('sshs') || (sectionObj?.track || '').toLowerCase().includes('cluster');
     candidateSubjects = candidateSubjects.map(s => {
       const matchedTaught = taughtRaw.find(t => isMatchingSubject(t, s.id, s.subject_name));
@@ -74,10 +77,9 @@ export function mapStudentToShsSf9Data({
       if (gradeLevelNum === 12 && !isExplicitSSHS) {
         name = normalizeGrade12PESubjectName(name, false);
       }
-      if (name !== s.subject_name) {
-        return { ...s, subject_name: name };
-      }
-      return s;
+      const termOverride = subjectTermsMeta?.[name] || subjectTermsMeta?.[s.subject_name];
+      const effTerm = termOverride || s.term || getDefaultTermForSubject(name, sectionObj.section_grade_level);
+      return { ...s, subject_name: name, term: effTerm };
     });
   } else if (isSHS && sectionTrack) {
     candidateSubjects = candidateSubjects.filter(s => {

@@ -127,10 +127,10 @@ export function Sidebar() {
         {
             title: 'Academic Management',
             items: [
+                { id: 'subjects', label: 'Subjects', icon: GraduationCap },
+                { id: 'sections', label: 'Classes & Sections', icon: Layers },
                 { id: 'eclass', label: 'E-Class Record', icon: FileSpreadsheet },
                 { id: 'consolidated-grades', label: 'Grade Management', icon: BarChart3 },
-                { id: 'sections', label: 'Classes & Sections', icon: Layers },
-                { id: 'subjects', label: 'Subjects', icon: GraduationCap },
             ],
         },
         {

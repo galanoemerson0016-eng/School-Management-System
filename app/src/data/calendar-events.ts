@@ -25,7 +25,7 @@ export const OFFICIAL_CALENDAR_2026_2027: CalendarEvent[] = [
     { id: 'jun-8-bosy', title: "Start of Testing Window for BOSY", date: '2026-06-08', type: 'deadline', description: 'CRLA, RMA, Phil-IRI, etc.' },
     { id: 'jun-8-data', title: "Submission of Enrollment Data", date: '2026-06-08', type: 'deadline' },
     { id: 'jun-12', title: 'Independence Day', date: '2026-06-12', type: 'holiday' },
-    { id: 'jun-term1', title: 'Term 1 Duration', date: '2026-06-08', end_date: '2026-09-15', type: 'deadline', description: 'First Term Period' },
+    { id: 'jun-term1', title: 'Term 1 Duration', date: '2026-06-08', end_date: '2026-09-15', type: 'deadline', description: 'TERM 1 Period' },
     { id: 'jun-22', title: 'Phil ECD Checklist for BOSY', date: '2026-06-22', end_date: '2026-06-26', type: 'deadline' },
     { id: 'jun-23', title: "DepEd Anniversary Ceremony", date: '2026-06-23', type: 'event' },
     { id: 'jun-24', title: "DepEd Anniversary Proper", date: '2026-06-24', type: 'event' },

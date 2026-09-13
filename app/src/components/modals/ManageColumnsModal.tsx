@@ -6,13 +6,18 @@ import {
 } from 'lucide-react';
 import type { Section, Subject } from '../../types';
 import { sortSubjects, normalizeSubjectName } from '../../lib/subjectConfig';
+import { getDefaultTermForSubject } from '../../lib/curriculum';
 
 interface ManageColumnsModalProps {
     isOpen: boolean;
     onClose: () => void;
     section: Section;
     allSubjects: Subject[];
-    onSave: (updatedTaughtSubjects: string[], hiddenSubjects: string[]) => Promise<void>;
+    onSave: (
+        updatedTaughtSubjects: string[], 
+        hiddenSubjects: string[], 
+        subjectTerms?: Record<string, 1 | 2 | 3 | 'all'>
+    ) => Promise<void>;
 }
 
 export const ManageColumnsModal: React.FC<ManageColumnsModalProps> = ({
@@ -26,8 +31,15 @@ export const ManageColumnsModal: React.FC<ManageColumnsModalProps> = ({
     const [hidden, setHidden] = useState<Set<string>>(new Set());
     const [selectedToAdd, setSelectedToAdd] = useState<string>('');
     const [customSubjectName, setCustomSubjectName] = useState<string>('');
+    const [customSubjectTerm, setCustomSubjectTerm] = useState<1 | 2 | 3 | 'all'>(1);
+    const [subjectTerms, setSubjectTerms] = useState<Record<string, 1 | 2 | 3 | 'all'>>({});
     const [isSaving, setIsSaving] = useState(false);
     const [deleteConfirmSubject, setDeleteConfirmSubject] = useState<string | null>(null);
+
+    const isSHS = useMemo(() => {
+        const grade = section?.section_grade_level || '';
+        return grade.includes('11') || grade.includes('12');
+    }, [section?.section_grade_level]);
 
     // Initialize state from section when modal opens
     useEffect(() => {
@@ -37,8 +49,13 @@ export const ManageColumnsModal: React.FC<ManageColumnsModalProps> = ({
 
             const hiddenList = section.section_metadata?.hiddenConsolidatedSubjects || [];
             setHidden(new Set(hiddenList.map(h => normalizeSubjectName(h))));
+            
+            const existingTerms = section.section_metadata?.subjectTerms || {};
+            setSubjectTerms({ ...existingTerms });
+
             setSelectedToAdd('');
             setCustomSubjectName('');
+            setCustomSubjectTerm(1);
             setDeleteConfirmSubject(null);
         }
     }, [isOpen, section]);
@@ -123,6 +140,12 @@ export const ManageColumnsModal: React.FC<ManageColumnsModalProps> = ({
         if (normalizeSubjectName(selectedToAdd) === 'specialization') return;
         if (!items.includes(selectedToAdd)) {
             setItems(prev => [...prev, selectedToAdd]);
+            const gradeNum = parseInt((section.section_grade_level || '12').replace(/\D/g, '')) || 12;
+            const defTerm = getDefaultTermForSubject(selectedToAdd, gradeNum);
+            setSubjectTerms(prev => ({
+                ...prev,
+                [selectedToAdd]: isSHS ? (defTerm === 'none' ? 1 : (defTerm || 1)) : 'all'
+            }));
         }
         setSelectedToAdd('');
     };
@@ -134,6 +157,10 @@ export const ManageColumnsModal: React.FC<ManageColumnsModalProps> = ({
         if (norm === 'specialization') return;
         if (!items.some(s => normalizeSubjectName(s) === norm)) {
             setItems(prev => [...prev, trimmed]);
+            setSubjectTerms(prev => ({
+                ...prev,
+                [trimmed]: isSHS ? customSubjectTerm : 'all'
+            }));
         }
         setCustomSubjectName('');
     };
@@ -146,7 +173,11 @@ export const ManageColumnsModal: React.FC<ManageColumnsModalProps> = ({
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            await onSave(items.filter(s => normalizeSubjectName(s) !== 'specialization'), Array.from(hidden));
+            await onSave(
+                items.filter(s => normalizeSubjectName(s) !== 'specialization'), 
+                Array.from(hidden),
+                subjectTerms
+            );
             onClose();
         } catch (error) {
             console.error('Failed to save columns:', error);
@@ -273,7 +304,7 @@ export const ManageColumnsModal: React.FC<ManageColumnsModalProps> = ({
                                             </div>
 
                                             {/* Middle: Name and Badges */}
-                                            <div className="flex-1 min-w-0">
+                                            <div className="flex-1 min-w-0 space-y-1">
                                                 <div className="flex items-center gap-2">
                                                     <span className={`text-xs font-bold truncate ${isHidden ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-100'}`}>
                                                         {subjectName}
@@ -281,6 +312,40 @@ export const ManageColumnsModal: React.FC<ManageColumnsModalProps> = ({
                                                     {isHidden && (
                                                         <span className="px-2 py-0.5 rounded-md bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400 text-[9px] font-black uppercase tracking-wider shrink-0">
                                                             Hidden
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* Offering Term Badge / Switcher */}
+                                                <div className="flex items-center gap-1.5">
+                                                    {isSHS ? (
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Term:</span>
+                                                            {(['all', 1, 2, 3] as const).map(t => {
+                                                                const gradeNum = parseInt((section.section_grade_level || '12').replace(/\D/g, '')) || 12;
+                                                                const defTerm = getDefaultTermForSubject(subjectName, gradeNum);
+                                                                const eff = subjectTerms[subjectName] ?? (defTerm === 'none' ? 1 : (defTerm || 1));
+                                                                const isActive = eff === t;
+                                                                return (
+                                                                    <button
+                                                                        key={t}
+                                                                        type="button"
+                                                                        onClick={() => setSubjectTerms(prev => ({ ...prev, [subjectName]: t }))}
+                                                                        className={`px-1.5 py-0.5 rounded text-[8px] font-black transition-all cursor-pointer ${
+                                                                            isActive
+                                                                                ? 'bg-indigo-600 text-white shadow-xs'
+                                                                                : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/20'
+                                                                        }`}
+                                                                        title={`Offer in ${t === 'all' ? 'All Terms' : `Term ${t}`}`}
+                                                                    >
+                                                                        {t === 'all' ? 'All' : `T${t}`}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-[8px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-200/50 dark:border-indigo-800/40">
+                                                            All Terms (Full Year)
                                                         </span>
                                                     )}
                                                 </div>
@@ -385,6 +450,21 @@ export const ManageColumnsModal: React.FC<ManageColumnsModalProps> = ({
                                     }}
                                     className="flex-1 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 dark:text-white outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                 />
+                                {isSHS && (
+                                    <select
+                                        value={customSubjectTerm}
+                                        onChange={(e) => {
+                                            const val = e.target.value === 'all' ? 'all' : (Number(e.target.value) as 1 | 2 | 3);
+                                            setCustomSubjectTerm(val);
+                                        }}
+                                        className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 dark:text-white outline-none cursor-pointer"
+                                    >
+                                        <option value="1">Term 1</option>
+                                        <option value="2">Term 2</option>
+                                        <option value="3">Term 3</option>
+                                        <option value="all">All Terms</option>
+                                    </select>
+                                )}
                                 <button
                                     type="button"
                                     onClick={handleAddCustom}

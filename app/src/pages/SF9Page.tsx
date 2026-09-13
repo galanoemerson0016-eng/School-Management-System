@@ -984,6 +984,11 @@ function computeStudentGrades(
         } else {
             sortedBase = sortSubjects(uniqueBase, s => s.name);
         }
+
+        const hiddenSf9Norms = new Set((sectionObj?.section_metadata?.hiddenConsolidatedSubjects || []).map(h => normalizeSubjectName(h)));
+        if (hiddenSf9Norms.size > 0) {
+            sortedBase = sortedBase.filter(s => !hiddenSf9Norms.has(normalizeSubjectName(s.name)));
+        }
         
         // 2. Identify and group MAPEH
         const mapehComponents = sortedBase.filter(s => {
@@ -1904,6 +1909,7 @@ function SF9Pages({
                                         
                                         const isOfferedInTerm = (tNum: number) => {
                                             if (isCategoryHeader || isReserved) return false;
+                                            if (!isSHS) return true;
                                             
                                             // Handle special Grade 11 electives offered terms
                                             const normName = normalizeSubjectName(subj.name);
@@ -1920,8 +1926,27 @@ function SF9Pages({
                                                 return true;
                                             }
 
-                                            if (term === undefined || term === null || term === 'all') return true;
-                                            return Number(term) === tNum;
+                                            // SSHS Grade 11 Core subjects span all 3 terms
+                                            if (gradeNum === 11) {
+                                                const cores = [
+                                                    'effectivecommunication',
+                                                    'mabisangkomunikasyon',
+                                                    'generalmathematics',
+                                                    'generalscience',
+                                                    'lifeandcareerskills',
+                                                    'paagaaralngkasaysayanatlipunangpilipino',
+                                                    'kasaysayanatlipunangpilipino'
+                                                ];
+                                                if (cores.some(c => normName.includes(c))) return true;
+                                            }
+
+                                            const effTerm = term || getDefaultTermForSubject(subj.name, student.grade_level);
+                                            if (effTerm === 'all' && gradeNum === 11) return true;
+                                            const numTerm = Number(effTerm);
+                                            if (numTerm === 1 || numTerm === 2 || numTerm === 3) {
+                                                return numTerm === tNum;
+                                            }
+                                            return false;
                                         };
 
                                         return (
@@ -2312,6 +2337,8 @@ export function SF9Page() {
     const setCurrentView = useAppStore(state => state.setCurrentView);
     const teachers = useAppStore(state => state.teachers);
     const { user } = useAuthStore();
+    const globalSelectedSection = useAppStore(state => state.selectedSection);
+    const setGlobalSelectedSection = useAppStore(state => state.setSelectedSection);
     const [hydratedSf2Sheets, setHydratedSf2Sheets] = useState<SF2Sheet[]>([]);
     const [hydratedAttendanceRecords, setHydratedAttendanceRecords] = useState<AttendanceRecord[]>([]);
 
@@ -2319,10 +2346,11 @@ export function SF9Page() {
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [selectedStudentB, setSelectedStudentB] = useState<Student | null>(null);
     const [selectedTemplate, setSelectedTemplate] = useState<'template1' | 'template2'>(() => {
-        return (localStorage.getItem('formease-sf9-template') as 'template1' | 'template2') || 'template2';
+        return (localStorage.getItem('formease-sf9-template') as 'template1' | 'template2') || 'template1';
     });
     const [pageSize, setPageSize] = useState<'A4' | 'LETTER'>('A4');
     const [isValuesModalOpen, setIsValuesModalOpen] = useState(false);
+    const [modalViewMode, setModalViewMode] = useState<'remarks' | 'values'>('remarks');
     const [modalQuarter, setModalQuarter] = useState<1 | 2 | 3>(1);
     const teacherList: User[] = teachers;
     const [isBatchReady, setIsBatchReady] = useState(false);
@@ -2567,24 +2595,42 @@ export function SF9Page() {
         });
     }, [sections, user, isAdvisorySection]);
 
-    // Auto-select advisory section only
+    // Auto-select advisory section only or follow global advisory selection
     useEffect(() => {
-        if (!selectedSection && filteredSections.length > 0) {
-            // Defer update to avoid direct setState-in-effect lint violation.
+        if (filteredSections.length === 0) return;
+        if (globalSelectedSection) {
+            const match = filteredSections.find(s => s.id === globalSelectedSection || s.section_name === globalSelectedSection);
+            if (match && match.id !== selectedSection) {
+                setTimeout(() => setSelectedSection(match.id), 0);
+                return;
+            }
+        }
+        if (!selectedSection) {
             setTimeout(() => setSelectedSection(filteredSections[0].id), 0);
         }
-    }, [filteredSections, selectedSection]);
+    }, [filteredSections, selectedSection, globalSelectedSection]);
+    const isShsSection = useMemo(() => {
+        const gl = selectedSectionObj?.section_grade_level || selectedStudent?.grade_level || '';
+        const num = parseInt(gl.replace(/\D/g, '') || '0');
+        return num === 11 || num === 12;
+    }, [selectedSectionObj, selectedStudent]);
+
+    // Template 2 is ONLY available for Elementary and Junior High School (Grades 1 to 10).
+    // Template 1 (Standard SF9) is available for all levels (Elementary, JHS, and SHS).
+    const effectiveTemplate = isShsSection ? 'template1' : selectedTemplate;
+
+    useEffect(() => {
+        if (isShsSection && selectedTemplate === 'template2') {
+            setSelectedTemplate('template1');
+        }
+    }, [isShsSection, selectedTemplate]);
+
     const isShsSf9Section = useMemo(() => {
         return false;
     }, []);
 
 
 
-    const isGrade1to10 = useMemo(() => {
-        if (!selectedStudent) return false;
-        const gradeNum = parseInt(selectedStudent.grade_level?.replace(/\D/g, '') || '0');
-        return gradeNum >= 1 && gradeNum <= 10;
-    }, [selectedStudent]);
 
     useEffect(() => {
         if (isShsSf9Section) {
@@ -2739,11 +2785,11 @@ export function SF9Page() {
         const getQComment = (q: number) => observedValues.find(v => v.student_lrn === selectedStudent.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
         const studentComments = [getQComment(1), getQComment(2), getQComment(3)];
 
-        if (selectedTemplate === 'template2') {
+        if (effectiveTemplate === 'template2') {
             const learnerA: SF9Template2LearnerData = {
                 student: selectedStudent,
                 grades: studentGrades.grades || {},
-                subjects: subjects.filter(s => s.section_id === selectedSectionObj?.id),
+                subjects: (studentGrades.subjects || []).filter(s => !s.isReserved),
                 comments: studentComments,
                 attendance,
             };
@@ -2758,7 +2804,7 @@ export function SF9Page() {
                 learnerB = {
                     student: selectedStudentB,
                     grades: studentGradesB.grades || {},
-                    subjects: subjects.filter(s => s.section_id === selectedSectionObj?.id),
+                    subjects: (studentGradesB.subjects || []).filter(s => !s.isReserved),
                     comments: studentCommentsB,
                     attendance: attendanceB,
                 };
@@ -2818,7 +2864,7 @@ export function SF9Page() {
                 hideHeadName={hideHeadName}
             />
         );
-    }, [selectedStudent, selectedStudentB, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, g1RemarksState, observedValues, sf2Sheets, attendanceRecords, pageSize, sections, printMode, showAdviserSig, showHeadSig, adviserSigWidth, adviserSigHeight, adviserSigOffset, headSigWidth, headSigHeight, headSigOffset, hideLearnerInfo, hideAttendance, hideGrades, hideAdviserName, hideHeadName, selectedTemplate, subjects, currentSubjectSelections, gradingSheetRecords]);
+    }, [selectedStudent, selectedStudentB, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, g1RemarksState, observedValues, sf2Sheets, attendanceRecords, pageSize, sections, printMode, showAdviserSig, showHeadSig, adviserSigWidth, adviserSigHeight, adviserSigOffset, headSigWidth, headSigHeight, headSigOffset, hideLearnerInfo, hideAttendance, hideGrades, hideAdviserName, hideHeadName, effectiveTemplate, subjects, currentSubjectSelections, gradingSheetRecords]);
 
     const handleCloseLayoutModal = () => {
         if (selectedSectionObj) {
@@ -3002,15 +3048,15 @@ export function SF9Page() {
                 return;
             }
 
-            if (selectedTemplate === 'template2') {
+            if (effectiveTemplate === 'template2') {
                 const learnersData: SF9Template2LearnerData[] = sortedStudents.map((st) => {
-                    const { grades: stGrades } = computeStudentGrades(st, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
+                    const { subjects: compSubjects, grades: stGrades } = computeStudentGrades(st, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
                     const stAttendance = computeStudentAttendance(st, sf2Sheets, activeSchoolYear, selectedSectionObj, attendanceRecords);
                     const getQComment = (q: number) => observedValues.find(v => v.student_lrn === st.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
                     return {
                         student: st,
-                        grades: stGrades,
-                        subjects: subjects.filter(s => s.section_id === selectedSectionObj?.id),
+                        grades: stGrades || {},
+                        subjects: (compSubjects || []).filter(s => !s.isReserved),
                         comments: [getQComment(1), getQComment(2), getQComment(3)],
                         attendance: stAttendance,
                     };
@@ -3188,7 +3234,7 @@ export function SF9Page() {
             };
 
             const studentTrack = selectedStudent.track || selectedStudent.strand || selectedSectionObj?.track || selectedSectionObj?.strand;
-            const studentProgram = selectedSectionObj?.program || (selectedStudent as any).program || (selectedStudent as any).curriculum;
+            const studentProgram = selectedSectionObj?.program || selectedStudent.program || selectedStudent.curriculum;
 
             const exportOpts: SF9ExcelExportOptions = {
                 student: selectedStudent,
@@ -3280,7 +3326,7 @@ export function SF9Page() {
                 const resolvedSection = sections.find(s => s.id === student.student_section || s.section_name === student.student_section);
                 const sectionName = resolvedSection?.section_name || selectedSectionObj.section_name;
                 const sectionTrack = student.track || student.strand || selectedSectionObj.track || selectedSectionObj.strand;
-                const sectionProgram = selectedSectionObj.program || (student as any).program || (student as any).curriculum;
+                const sectionProgram = selectedSectionObj.program || student.program || student.curriculum;
                 const getQComment = (q: number) => observedValues.find(v => v.student_lrn === student.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
                 const studentComments = [getQComment(1), getQComment(2), getQComment(3)];
 
@@ -3452,9 +3498,14 @@ export function SF9Page() {
                                     className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-2 pr-5 text-[9px] font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500/30 focus:border-blue-500 cursor-pointer max-w-28 sm:max-w-34 lg:max-w-40 truncate"
                                     value={selectedSection}
                                     onChange={(e) => {
-                                        setSelectedSection(e.target.value);
+                                        const newId = e.target.value;
+                                        setSelectedSection(newId);
                                         setSelectedStudent(null);
                                         setSelectedStudentB(null);
+                                        const sec = filteredSections.find(s => s.id === newId);
+                                        if (sec) {
+                                            setGlobalSelectedSection(sec.section_name);
+                                        }
                                     }}
                                     title="Select Advisory Section"
                                 >
@@ -3472,17 +3523,18 @@ export function SF9Page() {
                         {/* Template Dropdown */}
                         <div className="relative group shrink-0">
                             <select
-                                className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-2 pr-5 text-[9px] font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500/30 focus:border-blue-500 cursor-pointer w-23 sm:w-25 truncate"
-                                value={selectedTemplate}
+                                className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-2 pr-5 text-[9px] font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500/30 focus:border-blue-500 cursor-pointer w-23 sm:w-25 truncate disabled:opacity-80"
+                                value={effectiveTemplate}
                                 onChange={(e) => {
                                     const val = e.target.value as 'template1' | 'template2';
                                     setSelectedTemplate(val);
                                     localStorage.setItem('formease-sf9-template', val);
                                 }}
-                                title="Choose SF9 Report Card Template"
+                                disabled={isShsSection}
+                                title={isShsSection ? "Template 2 is only available for Elementary and JHS. Senior High School uses Template 1 (Standard SF9)." : "Choose SF9 Report Card Template"}
                             >
-                                <option value="template1">Template</option>
-                                <option value="template2">Template 2</option>
+                                <option value="template1">Template 1</option>
+                                {!isShsSection && <option value="template2">Template 2</option>}
                             </select>
                             <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                         </div>
@@ -3495,9 +3547,9 @@ export function SF9Page() {
                                     value={selectedStudent?.lrn || ''}
                                     onChange={(e) => setSelectedStudent(students.find(s => s.lrn === e.target.value) || null)}
                                     disabled={!selectedSection || isShsSf9Section}
-                                    title={selectedTemplate === 'template2' ? "Select 1st Copy Learner (Left Side)" : "Select Learner"}
+                                    title={effectiveTemplate === 'template2' ? "Select 1st Copy Learner (Left Side)" : "Select Learner"}
                                 >
-                                    <option value="">{isShsSf9Section ? 'Template Locked' : (selectedTemplate === 'template2' ? 'Copy 1 (Left)' : 'Select Learner')}</option>
+                                    <option value="">{isShsSf9Section ? 'Template Locked' : (effectiveTemplate === 'template2' ? 'Copy 1 (Left)' : 'Select Learner')}</option>
                                     {males.length > 0 && (
                                         <optgroup label="MALE">
                                              {males.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
@@ -3514,7 +3566,7 @@ export function SF9Page() {
                         )}
 
                         {/* Learner 2 (Right Copy) Dropdown - Template 2 Only */}
-                        {selectedTemplate === 'template2' && !isBatchReady && (
+                        {effectiveTemplate === 'template2' && !isBatchReady && (
                             <div className="relative group shrink-0">
                                 <select 
                                     className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-2 pr-5 text-[9px] font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500/30 focus:border-blue-500 cursor-pointer max-w-28 sm:max-w-34 lg:max-w-40 truncate disabled:opacity-30"
@@ -3578,7 +3630,7 @@ export function SF9Page() {
                         </div>
 
                         {/* Portrait 2-Up Badge for Template 2 */}
-                        {selectedTemplate === 'template2' && (
+                        {effectiveTemplate === 'template2' && (
                             <div
                                 className="h-7.5 px-2 rounded-lg border text-[8px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0 bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800"
                                 title="Template 2 renders in 2-Up Portrait format (Page 1: 2 Fronts, Page 2: 2 Backs - Duplex Aligned)"
@@ -3620,12 +3672,12 @@ export function SF9Page() {
                     <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                         {selectedStudent && !isBatchReady && !isShsSf9Section && !isGrade1Level(selectedStudent.grade_level) && (
                             <button
-                                onClick={() => { setPendingChanges({}); setIsValuesModalOpen(true); }}
-                                className="h-7.5 px-2 rounded-lg bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 text-[8px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center gap-1 shadow-xs shrink-0 active:scale-95"
-                                title="Edit Core Values & General Average Remarks"
+                                onClick={() => { setPendingChanges({}); setModalViewMode('remarks'); setIsValuesModalOpen(true); }}
+                                className="h-7.5 px-2 rounded-lg bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 text-[8px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center gap-1 shadow-xs shrink-0 active:scale-95 cursor-pointer"
+                                title="Edit Teacher's Comments/Remarks & Observed Values"
                             >
                                 <Edit3 className="w-3 h-3 text-blue-500" />
-                                <span className="hidden sm:inline">{isGrade1to10 ? 'Remarks' : 'Values'}</span>
+                                <span className="hidden sm:inline">Remarks</span>
                             </button>
                         )}
 
@@ -3813,7 +3865,7 @@ export function SF9Page() {
                     ) : selectedStudent && singleDocument && !isBatchReady ? (
                         <div className="absolute inset-0 bg-white">
                             <PDFViewer 
-                                key={`${selectedStudent.lrn}_${selectedTemplate}_${selectedSectionObj?.id || ''}_${syncVersion}_${showAdviserSig}_${adviserSigWidth}_${adviserSigHeight}_${adviserSigOffset}_${showHeadSig}_${headSigWidth}_${headSigHeight}_${headSigOffset}_${hideLearnerInfo}_${hideAttendance}_${hideGrades}_${hideAdviserName}_${hideHeadName}_${printMode}_${pageSize}`}
+                                key={`${selectedStudent.lrn}_${effectiveTemplate}_${selectedSectionObj?.id || ''}_${syncVersion}_${showAdviserSig}_${adviserSigWidth}_${adviserSigHeight}_${adviserSigOffset}_${showHeadSig}_${headSigWidth}_${headSigHeight}_${headSigOffset}_${hideLearnerInfo}_${hideAttendance}_${hideGrades}_${hideAdviserName}_${hideHeadName}_${printMode}_${pageSize}`}
                                 width="100%" 
                                 height="100%" 
                                 showToolbar={false} 
@@ -3875,7 +3927,7 @@ export function SF9Page() {
                                         <div>
                                             <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Layout</div>
                                             <div className="text-2xl font-black text-slate-900 text-nowrap">
-                                                {pageSize === 'A4' ? 'A4' : 'Letter'} {selectedTemplate === 'template2' ? 'Portrait' : 'Landscape'}
+                                                {pageSize === 'A4' ? 'A4' : 'Letter'} {effectiveTemplate === 'template2' ? 'Portrait' : 'Landscape'}
                                             </div>
                                         </div>
                                     </div>
@@ -3996,9 +4048,30 @@ export function SF9Page() {
                                         <Edit3 className="w-7 h-7 text-white" />
                                     </div>
                                     <div className="flex flex-col">
-                                        <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">
-                                            {isGrade1to10 ? "Teacher's Comments/Remarks" : 'Evaluate Values'}
-                                        </h2>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setModalViewMode('remarks')}
+                                                className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                                    modalViewMode === 'remarks'
+                                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+                                                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                                }`}
+                                            >
+                                                Teacher's Comments/Remarks
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setModalViewMode('values')}
+                                                className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                                    modalViewMode === 'values'
+                                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+                                                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                                }`}
+                                            >
+                                                Core Values
+                                            </button>
+                                        </div>
                                         <div className="flex items-center gap-3 mt-2.5">
                                             <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 text-[9px] font-black rounded-lg uppercase tracking-widest border border-indigo-100">{selectedStudent.lrn}</span>
                                             <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{formatLearnerName(selectedStudent)}</span>
@@ -4028,9 +4101,9 @@ export function SF9Page() {
                             </div>
 
                             {/* Evaluation Grid or Remarks Textarea */}
-                            <div className={`flex-1 overflow-y-auto custom-scrollbar bg-slate-50/20 ${isGrade1to10 ? 'p-4 md:p-6' : 'p-12'}`}>
+                            <div className={`flex-1 overflow-y-auto custom-scrollbar bg-slate-50/20 ${modalViewMode === 'remarks' ? 'p-4 md:p-6' : 'p-12'}`}>
                                 <div className="max-w-5xl mx-auto">
-                                    {isGrade1to10 ? (() => {
+                                    {modalViewMode === 'remarks' ? (() => {
                                         const currentComment = pendingChanges[modalQuarter]?.['teacher_comment'] !== undefined
                                             ? pendingChanges[modalQuarter]['teacher_comment']
                                             : observedValues.find(v => v.student_lrn === selectedStudent.lrn && v.school_year === activeSchoolYear && v.quarter === modalQuarter)?.values?.['teacher_comment'] || '';

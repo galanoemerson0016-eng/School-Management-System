@@ -516,7 +516,7 @@ export async function exportDirectDatabaseToExcel(): Promise<{
             const qNum = Number(qStr) || 1;
             const secName = (secId ? sectionMap.get(secId) : '') || secId || 'Unassigned Section';
             const subjName = (subId ? subjectMap.get(subId) : '') || subId || 'General Subject';
-            const termLabel = qNum === 1 ? 'FIRST TERM' : qNum === 2 ? 'SECOND TERM' : qNum === 3 ? 'THIRD TERM' : `QUARTER ${qNum}`;
+            const termLabel = qNum === 1 ? 'TERM 1' : qNum === 2 ? 'TERM 2' : qNum === 3 ? 'TERM 3' : `QUARTER ${qNum}`;
 
             const cluster = getSubjectCluster(subjName);
             const weights = getWeights(cluster);

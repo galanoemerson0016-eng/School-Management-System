@@ -606,6 +606,64 @@ function updateCellsBatch(
   return xml;
 }
 
+function columnToNumber(column: string): number {
+  let result = 0;
+  for (const char of column) result = result * 26 + char.charCodeAt(0) - 64;
+  return result;
+}
+
+function numberToColumn(number: number): string {
+  let result = '';
+  for (let value = number; value > 0; value = Math.floor((value - 1) / 26)) {
+    result = String.fromCharCode(65 + ((value - 1) % 26)) + result;
+  }
+  return result;
+}
+
+function shiftFormulaReferences(formula: string, rowDelta: number, columnDelta: number): string {
+  return formula.replace(/(\$?)([A-Z]{1,3})(\$?)(\d+)/g, (_match, columnAbsolute, column, rowAbsolute, row) => {
+    const nextColumn = columnAbsolute ? column : numberToColumn(columnToNumber(column) + columnDelta);
+    const nextRow = rowAbsolute ? row : String(Number(row) + rowDelta);
+    return `${columnAbsolute}${nextColumn}${rowAbsolute}${nextRow}`;
+  });
+}
+
+function expandSharedFormulas(sheetXml: string): string {
+  const sharedMasters = new Map<string, { column: string; row: number; formula: string }>();
+  const cellRegex = /<c\s+r="([A-Z]+)(\d+)"([^>]*)>([\s\S]*?)<\/c>/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = cellRegex.exec(sheetXml)) !== null) {
+    const formulaMatch = match[4].match(/<f\s+([^>]*?\bsi="([^"]+)"[^>]*)>([\s\S]*?)<\/f>/);
+    if (formulaMatch && /\bref="/.test(formulaMatch[1])) {
+      sharedMasters.set(formulaMatch[2], {
+        column: match[1],
+        row: Number(match[2]),
+        formula: formulaMatch[3]
+      });
+    }
+  }
+
+  if (sharedMasters.size === 0) return sheetXml;
+
+  return sheetXml.replace(cellRegex, (cell, column, rowText, attrs, body) => {
+    const formulaMatch = body.match(/<f\s+([^>]*?\bsi="([^"]+)"[^>]*)>([\s\S]*?)<\/f>|<f\s+([^>]*?\bsi="([^"]+)"[^>]*)\/>/);
+    if (!formulaMatch) return cell;
+
+    const sharedId = formulaMatch[2] || formulaMatch[5];
+    const master = sharedMasters.get(sharedId);
+    if (!master) return cell;
+
+    const formula = formulaMatch[3] || master.formula;
+    const expandedFormula = shiftFormulaReferences(
+      formula,
+      Number(rowText) - master.row,
+      columnToNumber(column) - columnToNumber(master.column)
+    );
+    return `<c r="${column}${rowText}"${attrs}>${body.replace(formulaMatch[0], `<f>${expandedFormula}</f>`)}</c>`;
+  });
+}
+
 interface SheetInfo {
   name: string;
   sheetId: string;
@@ -1110,6 +1168,9 @@ export async function populateGrade11AcademicTemplateBuffer(
     if (!sFile) continue;
 
     let sXml = await sFile.async('text');
+
+    // Expand template shared formulas before replacing cells within their ranges.
+    sXml = expandSharedFormulas(sXml);
 
     // Ensure summary formula dynamically averages only graded subjects (averages non-blank cells instead of hardcoded division by 7)
     sXml = sXml.replace(

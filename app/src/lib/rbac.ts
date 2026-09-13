@@ -280,7 +280,9 @@ export function canAccessSF9Section(user: User | null | undefined, _section: Sec
 
 export function filterSF9Sections(user: User | null | undefined, sections: Section[]): Section[] {
     if (!user) return [];
-    return sections;
+    // Only advisory sections appear in official advisory documents and grade management
+    const advisory = sections.filter((s) => s.is_advisory);
+    return advisory.length > 0 ? advisory : sections;
 }
 
 export function canAccessAttendanceSection(user: User | null | undefined, _section: Section): boolean {
@@ -293,12 +295,14 @@ export function canEditAttendanceSection(user: User | null | undefined, _section
 
 export function filterAttendanceSections(user: User | null | undefined, sections: Section[]): Section[] {
     if (!user) return [];
-    return sections;
+    const advisory = sections.filter((s) => s.is_advisory);
+    return advisory.length > 0 ? advisory : sections;
 }
 
 export function filterOfficialSectionsForUser(user: User | null | undefined, sections: Section[]): Section[] {
     if (!user) return [];
-    return sections;
+    const advisory = sections.filter((s) => s.is_advisory);
+    return advisory.length > 0 ? advisory : sections;
 }
 
 export function filterOfficialRecords<T extends { is_teaching_load?: boolean; is_advisory?: boolean }>(records: T[]): T[] {

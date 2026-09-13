@@ -529,6 +529,13 @@ async function importFromBackup(rawBackupData: BackupImportPayload) {
   const backupData = (rawBackupData?.payload || rawBackupData?.data || rawBackupData) as BackupImportPayload;
   if (!backupData) return;
 
+  // Clear hard reset flag when restoring from a backup
+  try {
+    localStorage.removeItem('formease-hard-reset-executed');
+  } catch (_e) {
+    // Ignore in non-browser environments
+  }
+
   // Clear existing data
   const stores = [
     'schoolProfile',

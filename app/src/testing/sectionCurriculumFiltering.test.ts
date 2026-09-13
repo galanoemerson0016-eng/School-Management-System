@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { getCategoryForSubject, getCurriculumTemplatesForSection } from '../lib/curriculum';
+import { 
+    getCategoryForSubject, 
+    getCurriculumTemplatesForSection,
+    SSHS_ACADEMIC_CLUSTERS_LIST,
+    SSHS_TECHPRO_CLUSTERS_LIST,
+    getClustersForGrade11Track
+} from '../lib/curriculum';
 
 const normalizeSubjectLabel = (value: string) =>
     value.toLowerCase().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)/g, '').trim();
@@ -199,5 +205,27 @@ describe('Section Curriculum Filtering & Sanitization', () => {
         expect(isSubjectAllowedForProgram('Creative Industries - Dance', 'Grade 11', 'Regular')).toBe(true);
         expect(isSubjectAllowedForProgram('Aesthetic Services (Beauty Care)', 'Grade 11', 'Regular')).toBe(true);
         expect(isSubjectAllowedForProgram('Practical Research 1', 'Grade 12', 'Regular')).toBe(true);
+    });
+
+    it('ensures Grade 11 only provides Academic and TechPro tracks with strictly SSHS clusters and no old K-12 SHS choices', () => {
+        // Academic track in Grade 11
+        const acadClusters = getClustersForGrade11Track('Academic');
+        expect(acadClusters).toEqual([...SSHS_ACADEMIC_CLUSTERS_LIST]);
+        expect(acadClusters).not.toContain('STEM');
+        expect(acadClusters).not.toContain('ABM');
+        expect(acadClusters).not.toContain('HUMSS');
+        expect(acadClusters).not.toContain('GAS');
+
+        // TechPro track in Grade 11
+        const techProClusters = getClustersForGrade11Track('TechPro');
+        expect(techProClusters).toEqual([...SSHS_TECHPRO_CLUSTERS_LIST]);
+        expect(techProClusters).not.toContain('Home Economics (HE)');
+        expect(techProClusters).not.toContain('Information and Communications Technology (ICT)');
+        expect(techProClusters).not.toContain('Industrial Arts (IA)');
+        expect(techProClusters).not.toContain('Agri-Fishery Arts (AFA)');
+
+        // Old K-12 SHS tracks not allowed in Grade 11
+        expect(getClustersForGrade11Track('Sports')).toEqual([]);
+        expect(getClustersForGrade11Track('Arts and Design')).toEqual([]);
     });
 });

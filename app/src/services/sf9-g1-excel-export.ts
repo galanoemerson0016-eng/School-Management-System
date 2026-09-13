@@ -792,19 +792,20 @@ async function populateUpdatedAllInOneGrade1Workbook(
   const males = sectionStudents.filter(isMale).sort(sortFn);
   const females = sectionStudents.filter(s => !isMale(s)).sort(sortFn);
 
-  const cleanDiv = (opts.schoolProfile.division || '')
+  const prof: Partial<SchoolProfile> = opts.schoolProfile || {};
+  const cleanDiv = (prof.division || '')
     .replace(/schools division office of/i, '')
     .replace(/division of/i, '')
     .replace(/schools division/i, '')
     .trim().toUpperCase();
 
-  let distVal = (opts.schoolProfile.district || '').trim();
+  let distVal = (prof.district || '').trim();
   if (distVal) {
     distVal = distVal.toUpperCase().includes('DISTRICT') ? distVal.toUpperCase() : `${distVal.toUpperCase()} DISTRICT`;
   }
-  let muniCity = (opts.schoolProfile.municipality || opts.schoolProfile.city || '').trim();
-  if (!muniCity && opts.schoolProfile.district) {
-    const extracted = opts.schoolProfile.district
+  let muniCity = (prof.municipality || prof.city || '').trim();
+  if (!muniCity && prof.district) {
+    const extracted = prof.district
       .replace(/\b(east|west|north|south|central|district|dist\.|cluster|zone)\b/gi, '')
       .trim();
     if (extracted) {
@@ -812,9 +813,9 @@ async function populateUpdatedAllInOneGrade1Workbook(
     }
   }
   muniCity = (muniCity || 'VICTORIA').toUpperCase();
-  let province = (opts.schoolProfile.province || '').trim();
-  if (!province && opts.schoolProfile.division) {
-    const extractedProv = opts.schoolProfile.division
+  let province = (prof.province || '').trim();
+  if (!province && prof.division) {
+    const extractedProv = prof.division
       .replace(/schools division office of/i, '')
       .replace(/division of/i, '')
       .replace(/schools division/i, '')
@@ -1270,30 +1271,44 @@ async function populateUpdatedAllInOneGrade1Workbook(
   if (paceFile) {
     let paceXml = await paceFile.async('string');
 
-    // 1. Update all 4 subject headers in PACE - GRADE 1 (Rows 6, 91, 168, 250)
-    const replaceHeaderCell = (xml: string, cellRef: string, val: string) => {
+    const paceSubjectFilter = opts.paceSubjectFilter || 'all';
+    const isSingleSubject = paceSubjectFilter !== 'all';
+
+    // 1. Update all 4 subject headers in PACE - GRADE 1 (Rows 6, 91, 168, 250) with dynamic formulas
+    const replaceHeaderCell = (xml: string, cellRef: string, val: string, formula?: string) => {
       const reg = new RegExp(`(<c\\s+r="${cellRef}"[^>]*?)(?:\\/>|>([\\s\\S]*?)<\\/c>)`);
       return xml.replace(reg, (_m, openTag) => {
         const cleanOpen = openTag.replace(/\s+t="[^"]*"/g, '');
+        if (formula && !isSingleSubject) {
+          return `${cleanOpen} t="str"><f>${formula}</f><v>${escapeXml(val)}</v></c>`;
+        }
         return `${cleanOpen} t="str"><v>${escapeXml(val)}</v></c>`;
       });
     };
 
-    paceXml = replaceHeaderCell(paceXml, 'D6', opts.student.lrn || '');
-    paceXml = replaceHeaderCell(paceXml, 'G6', activeName);
-    paceXml = replaceHeaderCell(paceXml, 'N6', rawSection.toUpperCase());
-    paceXml = replaceHeaderCell(paceXml, 'D91', opts.student.lrn || '');
-    paceXml = replaceHeaderCell(paceXml, 'G91', activeName);
-    paceXml = replaceHeaderCell(paceXml, 'N91', rawSection.toUpperCase());
-    paceXml = replaceHeaderCell(paceXml, 'D168', opts.student.lrn || '');
-    paceXml = replaceHeaderCell(paceXml, 'G168', activeName);
-    paceXml = replaceHeaderCell(paceXml, 'N168', rawSection.toUpperCase());
-    paceXml = replaceHeaderCell(paceXml, 'D250', opts.student.lrn || '');
-    paceXml = replaceHeaderCell(paceXml, 'G250', activeName);
-    paceXml = replaceHeaderCell(paceXml, 'N250', rawSection.toUpperCase());
+    const lrnFormula = 'IF(G6="","",IF(VLOOKUP(G6,\'TERM 1 SUMMARY\'!C14:S114,4,0)="","",VLOOKUP(G6,\'TERM 1 SUMMARY\'!C14:S114,4,0)))';
+    const sectionFormula = "IF('TERM 1 SUMMARY'!G10=\"\",\"\",'TERM 1 SUMMARY'!G10)";
+    const nameFormula = "IF('SF9 - GRADE 1'!D15=\"\",\"\",'SF9 - GRADE 1'!D15)";
 
-    const paceSubjectFilter = opts.paceSubjectFilter || 'all';
-    const isSingleSubject = paceSubjectFilter !== 'all';
+    // Page 1: Reading & Literacy
+    paceXml = replaceHeaderCell(paceXml, 'G6', activeName, nameFormula);
+    paceXml = replaceHeaderCell(paceXml, 'D6', opts.student.lrn || '', lrnFormula);
+    paceXml = replaceHeaderCell(paceXml, 'N6', rawSection.toUpperCase(), sectionFormula);
+
+    // Page 2: Language
+    paceXml = replaceHeaderCell(paceXml, 'G91', activeName, 'G6');
+    paceXml = replaceHeaderCell(paceXml, 'D91', opts.student.lrn || '', 'D6');
+    paceXml = replaceHeaderCell(paceXml, 'N91', rawSection.toUpperCase(), 'N6');
+
+    // Page 3: Mathematics
+    paceXml = replaceHeaderCell(paceXml, 'G168', activeName, 'G6');
+    paceXml = replaceHeaderCell(paceXml, 'D168', opts.student.lrn || '', 'D6');
+    paceXml = replaceHeaderCell(paceXml, 'N168', rawSection.toUpperCase(), 'N6');
+
+    // Page 4: GMRC & Makabansa
+    paceXml = replaceHeaderCell(paceXml, 'G250', activeName, 'G6');
+    paceXml = replaceHeaderCell(paceXml, 'D250', opts.student.lrn || '', 'D6');
+    paceXml = replaceHeaderCell(paceXml, 'N250', rawSection.toUpperCase(), 'N6');
 
     const SUBJECT_RANGES: Record<string, { start: number; end: number; printArea: string; startRow: number }> = {
       reading: { start: 1, end: 86, printArea: "'PACE - GRADE 1'!$A$1:$T$86", startRow: 1 },
@@ -1448,6 +1463,90 @@ async function populateUpdatedAllInOneGrade1Workbook(
 <Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>Microsoft Excel</Application><DocSecurity>0</DocSecurity><ScaleCrop>false</ScaleCrop><HeadingPairs><vt:vector size="2" baseType="variant"><vt:variant><vt:lpstr>Worksheets</vt:lpstr></vt:variant><vt:variant><vt:i4>1</vt:i4></vt:variant></vt:vector></HeadingPairs><TitlesOfParts><vt:vector size="1" baseType="lpstr"><vt:lpstr>PACE - GRADE 1</vt:lpstr></vt:vector></TitlesOfParts><Company></Company><LinksUpToDate>false</LinksUpToDate><SharedDoc>false</SharedDoc><HyperlinksChanged>false</HyperlinksChanged><AppVersion>16.0300</AppVersion></Properties>`;
       zip.file('docProps/app.xml', cleanAppXml);
     } else {
+      // 1. Ensure definedName for Print_Area is registered in xl/workbook.xml:
+      // 'PACE - GRADE 1'!$A$1:$T$311
+      const wbFile = zip.file('xl/workbook.xml');
+      if (wbFile) {
+        let wbXml = await wbFile.async('string');
+        const printAreaDef = `<definedName name="_xlnm.Print_Area" localSheetId="6">'PACE - GRADE 1'!$A$1:$T$311</definedName>`;
+        if (wbXml.includes('<definedNames>')) {
+          if (!wbXml.includes('\'PACE - GRADE 1\'!$A$1:$T$311')) {
+            wbXml = wbXml.replace('</definedNames>', `${printAreaDef}</definedNames>`);
+          }
+        } else {
+          // OpenXML schema: <definedNames> MUST appear after </sheets> and before <calcPr>
+          if (wbXml.includes('<calcPr')) {
+            wbXml = wbXml.replace('<calcPr', `<definedNames>${printAreaDef}</definedNames><calcPr`);
+          } else {
+            wbXml = wbXml.replace('</sheets>', `</sheets><definedNames>${printAreaDef}</definedNames>`);
+          }
+        }
+        zip.file('xl/workbook.xml', wbXml);
+      }
+
+      // 2. Prune rows > 311 to eliminate ghost empty rows and fix dimension to A1:T311
+      paceXml = paceXml.replace(/<sheetData>([\s\S]*?)<\/sheetData>/, (_match, rowsContent) => {
+        const rowRegex = /<row\s+r="(\d+)"[\s\S]*?<\/row>/g;
+        const keptRows: string[] = [];
+        let rm;
+        while ((rm = rowRegex.exec(rowsContent)) !== null) {
+          const rNum = parseInt(rm[1], 10);
+          if (rNum <= 311) {
+            keptRows.push(rm[0]);
+          }
+        }
+        if (keptRows.length === 0) {
+          const rowSelfRegex = /<row\s+r="(\d+)"[^>]*\/>/g;
+          while ((rm = rowSelfRegex.exec(rowsContent)) !== null) {
+            const rNum = parseInt(rm[1], 10);
+            if (rNum <= 311) keptRows.push(rm[0]);
+          }
+        }
+        return `<sheetData>${keptRows.join('')}</sheetData>`;
+      });
+
+      paceXml = paceXml.replace(/<dimension\s+ref="[^"]*"\/>/, '<dimension ref="A1:T311"/>');
+
+      // 3. Set pageSetUpPr fitToPage="1" so Excel executes "Fit All Columns on One Page" without extra whitespace
+      if (!paceXml.includes('fitToPage="1"')) {
+        if (paceXml.includes('<pageSetUpPr')) {
+          paceXml = paceXml.replace(/<pageSetUpPr[^>]*\/>/, '<pageSetUpPr fitToPage="1"/>');
+        } else if (paceXml.includes('</sheetPr>')) {
+          paceXml = paceXml.replace('</sheetPr>', '<pageSetUpPr fitToPage="1"/></sheetPr>');
+        } else {
+          paceXml = paceXml.replace('<worksheet', '<worksheet><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>');
+        }
+      }
+
+      // 4. Margins: 0.2 inch top/bottom/left/right, 0 header/footer
+      paceXml = paceXml.replace(
+        /<pageMargins[^>]*\/>/,
+        '<pageMargins left="0.2" right="0.2" top="0.2" bottom="0.2" header="0" footer="0"/>'
+      );
+
+      // 5. PageSetup: paperSize="9" (A4), fitToWidth="1" fitToHeight="0" ("Fit All Columns on One Page")
+      const newPageSetup = '<pageSetup paperSize="9" fitToWidth="1" fitToHeight="0" orientation="portrait" r:id="rId1"/>';
+      if (paceXml.includes('<pageSetup')) {
+        paceXml = paceXml.replace(/<pageSetup[^>]*\/>/, newPageSetup);
+      } else {
+        paceXml = paceXml.replace('</worksheet>', `${newPageSetup}</worksheet>`);
+      }
+
+      // 6. RowBreaks: strictly break after row 86 (Reading), row 163 (Language), row 245 (Math)
+      const newRowBreaks = '<rowBreaks count="3" manualBreakCount="3"><brk id="86" max="19" man="1"/><brk id="163" max="19" man="1"/><brk id="245" max="19" man="1"/></rowBreaks>';
+      if (paceXml.includes('<rowBreaks')) {
+        paceXml = paceXml.replace(/<rowBreaks[\s\S]*?<\/rowBreaks>/, newRowBreaks);
+      } else {
+        paceXml = paceXml.replace(newPageSetup, `${newPageSetup}${newRowBreaks}`);
+      }
+
+      // 7. Centered print options
+      if (paceXml.includes('<printOptions')) {
+        paceXml = paceXml.replace(/<printOptions[^>]*\/>/, '<printOptions horizontalCentered="1" verticalCentered="1"/>');
+      } else {
+        paceXml = paceXml.replace('<pageMargins', '<printOptions horizontalCentered="1" verticalCentered="1"/><pageMargins');
+      }
+
       zip.file(pacePath, paceXml);
     }
   }
@@ -1467,7 +1566,7 @@ export async function populateGrade1TemplateBuffer(
   if (bytes.length < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
     throw new Error('Provided Grade 1 template buffer is not a valid zip/xlsx archive (0 bytes or corrupted).');
   }
-  const zip = await JSZip.loadAsync(buffer);
+  const zip = await JSZip.loadAsync(bytes);
 
   // Check if this is the updated 17-sheet unified master workbook
   if (zip.file('xl/worksheets/sheet17.xml') || zip.file('xl/worksheets/sheet8.xml')) {
@@ -2142,9 +2241,16 @@ export async function populateGrade1TemplateBuffer(
       // Ensure P173 header cell uses matching dark blue header style
       xml = xml.replace(/<c\s+r="P173"\s+s="192"/, '<c r="P173" s="99"');
 
+      if (!xml.includes('fitToPage="1"')) {
+        if (xml.includes('<pageSetUpPr')) {
+          xml = xml.replace(/<pageSetUpPr[^>]*\/>/, '<pageSetUpPr fitToPage="1"/>');
+        } else if (xml.includes('</sheetPr>')) {
+          xml = xml.replace('</sheetPr>', '<pageSetUpPr fitToPage="1"/></sheetPr>');
+        }
+      }
       xml = xml.replace(
         /<pageSetup[^>]*\/>/,
-        '<pageSetup paperSize="14" scale="65" fitToHeight="0" orientation="portrait" r:id="rId1"/>'
+        '<pageSetup paperSize="9" fitToWidth="1" fitToHeight="0" orientation="portrait" r:id="rId1"/>'
       );
     }
 

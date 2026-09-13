@@ -246,11 +246,11 @@ export const ClassRecordPDF = ({
 
     const getQuarterName = (q: number) => {
         switch (q) {
-            case 1: return 'FIRST TERM';
-            case 2: return 'SECOND TERM';
-            case 3: return 'THIRD TERM';
+            case 1: return 'TERM 1';
+            case 2: return 'TERM 2';
+            case 3: return 'TERM 3';
             case 4: return 'LEGACY QUARTER 4';
-            default: return 'FIRST TERM';
+            default: return 'TERM 1';
         }
     };
 

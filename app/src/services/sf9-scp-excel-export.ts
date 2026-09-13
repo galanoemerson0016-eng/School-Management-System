@@ -43,7 +43,7 @@ export interface SF9SCPExportOptions {
   };
   gradeLevel?: string;
   learners?: (Student | StudentWithGrades)[];
-  pageSize?: 'A4' | 'Letter' | 'Legal';
+  pageSize?: 'A4' | 'Letter' | 'Legal' | 'LETTER';
 }
 
 // ---------------------------------------------------------------------------

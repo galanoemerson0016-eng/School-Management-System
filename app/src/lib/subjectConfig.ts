@@ -510,8 +510,15 @@ export function getCanonicalSubjectKey(name: string, gradeLevel?: string | numbe
   const gNum = gradeLevel ? (typeof gradeLevel === 'number' ? gradeLevel : parseInt(String(gradeLevel).replace(/\D/g, '')) || 0) : 0;
   const isSHS = gNum === 11 || gNum === 12;
 
-  // In SHS (Grades 11-12), numbers may indicate legitimate semester sequences (e.g. PE 1, PE 2, Elective 1-3)
-  if (isSHS) {
+  // In SHS (Grades 11-12) and sequential electives (Chemistry 1/2, Biology 1/2, Physics 1/2, PR 1/2, etc.),
+  // trailing digits indicate distinct sequential offerings and must never be stripped
+  const isSequentialStem = norm.includes('chemistry') || norm.includes('biology') || norm.includes('physics') || 
+                           norm.includes('research') || norm.startsWith('hope') || norm.startsWith('pe') || 
+                           norm.includes('creativeindustries') || norm.includes('literature') ||
+                           norm.includes('finitemath') || norm.includes('advancedmath') ||
+                           norm.startsWith('filipino1') || norm.startsWith('filipino2') ||
+                           norm.startsWith('english1') || norm.startsWith('english2');
+  if (isSHS || isSequentialStem) {
     return norm;
   }
 
@@ -570,17 +577,46 @@ export function getStandardSubjectPriority(name: string): number {
     if (normalized.includes('lifeandcareerskills')) return 8;
     if (normalized.includes('pagaaralngkasaysayan') || normalized.includes('kasaysayanatlipunangpilipino')) return 9;
     
-    // 3. Core Academic Subjects
-    if (normalized.includes('filipino')) return 10;
-    if (normalized.includes('english')) return 20;
-    if (normalized.includes('mathematics') || normalized.includes('math')) return 30;
-    if (normalized.includes('science')) return 40;
-    if (normalized.includes('gmrc') || normalized.includes('goodmanners')) return 45;
-    if (normalized === 'aralingpanlipunan' || normalized === 'ap' || normalized.includes('aralingpanlipunan')) return 50;
-    if (normalized.includes('makabansa')) return 55;
-    if (normalized.includes('valueseducation') || normalized.includes('values') || normalized.includes('esp') || normalized.includes('edukasyonsapagpapakatao')) return 60;
-    if (normalized.includes('epp')) return 65;
-    if (normalized.includes('technologyandlivelihood') || normalized.includes('tle')) return 70;
+    // Check if this is an SHS elective or specialized subject (must NOT match elementary core priorities below)
+    const isShsElective = 
+        normalized.includes('elective') || 
+        normalized.includes('calculus') || 
+        normalized.includes('chemistry') || 
+        normalized.includes('physics') || 
+        normalized.includes('biology') ||
+        normalized.includes('finitemathematics') ||
+        normalized.includes('advancedmathematics') ||
+        normalized.includes('earthandspace') ||
+        normalized.includes('akademikongfilipino') ||
+        normalized.startsWith('filipino1') ||
+        normalized.startsWith('filipino2') ||
+        normalized.includes('pilinglarang') ||
+        normalized.includes('creativeindustries') ||
+        normalized.includes('contemporaryliterature') ||
+        normalized.includes('creativecomposition') ||
+        normalized.includes('malikhaingpagsulat') ||
+        normalized.includes('contemporarymarketing') ||
+        normalized.includes('organizationandmanagement') ||
+        normalized.includes('humanmovement') ||
+        normalized.includes('firstaid') ||
+        normalized.includes('sports') ||
+        normalized.includes('broadband') ||
+        normalized.includes('servicing') ||
+        normalized.includes('programming');
+
+    if (!isShsElective) {
+        // 3. Core Academic Subjects
+        if (normalized.includes('filipino')) return 10;
+        if (normalized.includes('english')) return 20;
+        if (normalized.includes('mathematics') || normalized.includes('math')) return 30;
+        if (normalized.includes('science')) return 40;
+        if (normalized.includes('gmrc') || normalized.includes('goodmanners')) return 45;
+        if (normalized === 'aralingpanlipunan' || normalized === 'ap' || normalized.includes('aralingpanlipunan')) return 50;
+        if (normalized.includes('makabansa')) return 55;
+        if (normalized.includes('valueseducation') || normalized.includes('values') || normalized.includes('esp') || normalized.includes('edukasyonsapagpapakatao')) return 60;
+        if (normalized.includes('epp')) return 65;
+        if (normalized.includes('technologyandlivelihood') || normalized.includes('tle')) return 70;
+    }
     
     // 4. MAPEH Header
     if (normalized === 'mapeh') return 80;
@@ -596,6 +632,15 @@ export function getStandardSubjectPriority(name: string): number {
     
     // 6. TVE Specialization (Always Last among standard subjects)
     if (normalized.includes('tvespecialization') || normalized.includes('sptve')) return 1000;
+
+    // Academic Electives / Applied Subjects: priority 500
+    // TechPro Electives / Specialized: priority 700
+    if (isShsElective) {
+        if (normalized.includes('techpro') || normalized.includes('servicing') || normalized.includes('programming') || normalized.includes('broadband')) {
+            return 700;
+        }
+        return 500;
+    }
 
     // Others (General electives, etc.)
     return 500;
@@ -623,3 +668,153 @@ export function findSubject(subjectName: string, subjects: CurriculumSubject[]):
   const normalized = normalizeSubjectName(subjectName);
   return subjects.find(s => normalizeSubjectName(s.name) === normalized);
 }
+
+/**
+ * Returns the official DepEd SHS subject category for display and grouping
+ */
+export function getSubjectCategory(subjectName: string, gradeLevel: string): string {
+    const isSHS = gradeLevel.includes('11') || gradeLevel.includes('12');
+    if (!isSHS) {
+        return '';
+    }
+
+    const normalized = subjectName.trim().toLowerCase();
+    const isG12 = gradeLevel.includes('12');
+
+    if (isG12) {
+        const norm = normalized.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        
+        // 1. Core Subjects
+        const cores = [
+            "21st century literature from the philippines and the world",
+            "contemporary philippine arts from the regions",
+            "disaster readiness and risk reduction",
+            "earth and life science",
+            "earth science",
+            "general mathematics",
+            "introduction to philosophy of the human person",
+            "komunikasyon at pananaliksik sa wika at kulturang pilipino",
+            "media and information literacy",
+            "oral communication in context",
+            "pagbasa at pagsusuri ng ibat ibang teksto tungo sa pananaliksik",
+            "pagbasa at pagsusuri ng iba't ibang teksto tungo sa pananaliksik",
+            "personal development",
+            "physical education and health 1",
+            "physical education and health 2",
+            "physical education and health 3",
+            "physical education and health 4",
+            "health optimizing physical education and health 1",
+            "health optimizing physical education and health 2",
+            "health optimizing physical education and health 3",
+            "health optimizing physical education and health 4",
+            "health optimizing physical education 1",
+            "health optimizing physical education 2",
+            "health optimizing physical education 3",
+            "health optimizing physical education 4",
+            "hope 1",
+            "hope 2",
+            "hope 3",
+            "hope 4",
+            "physical science",
+            "reading and writing skills",
+            "statistics and probability",
+            "understanding culture society and politics",
+            "understanding culture, society and politics",
+            "21st century literature",
+            "contemporary philippine arts",
+            "pe and health 1",
+            "pe and health 2",
+            "pe and health 3",
+            "pe and health 4",
+            "physical education 1",
+            "physical education 2",
+            "physical education 3",
+            "physical education 4",
+            "pe 1",
+            "pe 2",
+            "pe 3",
+            "pe 4"
+        ];
+        if (cores.some(c => {
+            const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return norm === cNorm || norm.includes(cNorm) || cNorm.includes(norm);
+        })) {
+            return 'Core';
+        }
+
+        // 2. Applied Subjects
+        const applied = [
+            "empowerment technologies",
+            "english for academic and professional purposes",
+            "entrepreneurship",
+            "filipino sa piling larang akademik",
+            "filipino sa piling larang akademiko",
+            "filipino sa piling larang isports",
+            "filipino sa piling larang sining at disenyo",
+            "filipino sa piling larang teknikal bokasyunal",
+            "filipino sa piling larang teknikal-bokasyunal",
+            "filipino sa piling larang",
+            "inquiries investigations and immersion",
+            "inquiries, investigations and immersion",
+            "practical research 1",
+            "practical research 2"
+        ];
+        if (applied.some(a => {
+            const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return norm === aNorm || norm.includes(aNorm) || aNorm.includes(norm);
+        })) {
+            return 'Applied';
+        }
+
+        // 3. Specialized Subjects
+        return 'Specialized';
+    }
+
+    const norm = normalized;
+
+    // 1. Core Subject (All Tracks)
+    const cores = [
+        'effective communication',
+        'mabisang komunikasyon',
+        'general mathematics',
+        'general science',
+        'life and career skills',
+        'pag-aaral ng kasaysayan at lipunang pilipino',
+        'kasaysayan at lipunang pilipino'
+    ];
+    if (cores.some(c => norm.includes(c))) {
+        return 'Core Subject (All Tracks)';
+    }
+
+    // 2. TechPro Elective (Work Immersion)
+    if (norm.startsWith('work immersion')) {
+        return 'TechPro Elective (Work Immersion)';
+    }
+
+    // 3. Academic Elective (Field Experience / Exposure, and Sports and Arts)
+    if (norm.startsWith('field exposure') || norm.startsWith('field experience') || norm.includes('apprenticeship')) {
+        return 'Academic Elective (Field Experience / Exposure, and Sports and Arts)';
+    }
+
+    // 4. TechPro Electives (All Other Electives)
+    const techProElectives = [
+        'beauty care', 'barbering', 'caregiving', 'hairdressing', 'wellness', 'massage', 'hilot',
+        'agricultural crops', 'agro-entrepreneurship', 'aquaculture', 'fish capture', 'food processing',
+        'organic agriculture', 'poultry', 'ruminants', 'swine', 'garments', 'handicrafts', 'weaving',
+        'automotive servicing', 'electrical repair', 'engine and chassis', 'driving and automotive',
+        'motorcycle', 'small engine', 'carpentry', 'construction operation', 'metal arc welding',
+        'technical drafting', 'animation', 'illustration', 'visual graphics', 'bakery operation',
+        'events management', 'food and beverage operation', 'hotel operation', 'housekeeping',
+        'kitchen operations', 'tourism services', 'commercial air-conditioning', 'domestic refrigeration',
+        'electrical installation', 'electronics product', 'mechatronics', 'photovoltaic',
+        'broadband installation', 'computer programming', 'computer systems servicing',
+        'contact center services', 'marine engineering', 'marine transportation', 'ships catering'
+    ];
+    if (techProElectives.some(tp => norm.includes(tp))) {
+        return 'TechPro Elective (All Other Electives)';
+    }
+
+    // 5. Academic Elective (All Other Electives)
+    return 'Academic Elective (All Other Electives)';
+}
+

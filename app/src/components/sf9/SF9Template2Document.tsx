@@ -593,9 +593,11 @@ const styles = StyleSheet.create({
 
 
 interface SubjectRowDef {
-  code: string;
+  code?: string;
   name: string;
   isComponent?: boolean;
+  isHeader?: boolean;
+  isReserved?: boolean;
 }
 
 const DEFAULT_SUBJECTS: SubjectRowDef[] = [
@@ -614,7 +616,8 @@ const DEFAULT_SUBJECTS: SubjectRowDef[] = [
 function resolveGradesForSubject(name: string, isComponent: boolean, grades: Record<string, number[]>): number[] {
   const normTarget = normalizeSubjectName(name);
 
-  // 1. Direct key match
+  // 1. Direct key match (exact or normalized)
+  if (grades[name]) return grades[name];
   for (const [key, vals] of Object.entries(grades)) {
     if (normalizeSubjectName(key) === normTarget) {
       return vals;
@@ -624,6 +627,12 @@ function resolveGradesForSubject(name: string, isComponent: boolean, grades: Rec
   // 2. Keyword fallback match
   if (normTarget.includes('filipino')) return grades['Filipino'] || grades['FILIPINO'] || [0, 0, 0];
   if (normTarget.includes('english')) return grades['English'] || grades['ENGLISH'] || [0, 0, 0];
+  if (normTarget.includes('generalmath') || normTarget.includes('genmath')) {
+    return grades['General Mathematics'] || grades['GEN MATH'] || grades['Math'] || [0, 0, 0];
+  }
+  if (normTarget.includes('generalscience') || normTarget.includes('gensci')) {
+    return grades['General Science'] || grades['Science'] || [0, 0, 0];
+  }
   if (normTarget.includes('math')) return grades['Mathematics'] || grades['Math'] || [0, 0, 0];
   if (normTarget.includes('science')) return grades['Science'] || [0, 0, 0];
   if (normTarget.includes('araling') || normTarget === 'ap') return grades['Araling Panlipunan'] || grades['AP'] || [0, 0, 0];
@@ -646,6 +655,20 @@ function resolveGradesForSubject(name: string, isComponent: boolean, grades: Rec
     for (let t = 0; t < 3; t++) {
       const v1 = ma[t] || 0;
       const v2 = pe[t] || 0;
+      if (v1 > 0 && v2 > 0) result.push(Math.round((v1 + v2) / 2));
+      else if (v1 > 0) result.push(v1);
+      else if (v2 > 0) result.push(v2);
+      else result.push(0);
+    }
+    return result;
+  }
+  if (normTarget.includes('effectivecommunication') && normTarget.includes('mabisangkomunikasyon')) {
+    const ec = resolveGradesForSubject('Effective Communication', true, grades);
+    const mk = resolveGradesForSubject('Mabisang Komunikasyon', true, grades);
+    const result: number[] = [];
+    for (let t = 0; t < 3; t++) {
+      const v1 = ec[t] || 0;
+      const v2 = mk[t] || 0;
       if (v1 > 0 && v2 > 0) result.push(Math.round((v1 + v2) / 2));
       else if (v1 > 0) result.push(v1);
       else if (v2 > 0) result.push(v2);
@@ -696,19 +719,50 @@ export function SF9Template2SlipFront({
     : 'SCHOOLS DIVISION OFFICE OF DAVAO DEL NORTE';
   const divisionFontSize = Math.max(5, Math.min(8, 230 / divisionText.length));
 
+  // Determine list of subjects:
+  // If learner.subjects is provided and non-empty, use it.
+  // Otherwise fall back to DEFAULT_SUBJECTS for backward compatibility with tests/fallback.
+  const rawSubjects = (learner.subjects && learner.subjects.length > 0)
+    ? learner.subjects
+        .map((subItem: any) => ({
+          name: (subItem.subject_name || subItem.name || '').trim(),
+          isComponent: Boolean(subItem.isComponent),
+          isHeader: Boolean(subItem.isHeader),
+          isReserved: Boolean(subItem.isReserved),
+        }))
+        .filter((subItem) => !subItem.isReserved && subItem.name)
+    : DEFAULT_SUBJECTS;
+
   // Compute final grades and general average
-  const subjectRowsWithGrades = DEFAULT_SUBJECTS.map((sub) => {
+  const subjectRowsWithGrades = rawSubjects.map((sub) => {
+    if (sub.isHeader) {
+      return {
+        ...sub,
+        row: [0, 0, 0],
+        finalGrade: null,
+        remarks: '',
+      };
+    }
     const row = resolveGradesForSubject(sub.name, sub.isComponent || false, grades);
     const finalGrade = calculateFinalGrade(row);
     const remarks = finalGrade ? getTemplate2Remarks(finalGrade) : '';
     return { ...sub, row, finalGrade, remarks };
   });
 
-  const mainAreas = subjectRowsWithGrades.filter((sub) => !sub.isComponent && sub.finalGrade !== null);
+  const mainAreas = subjectRowsWithGrades.filter((sub) => !sub.isComponent && !sub.isHeader && sub.finalGrade !== null);
   const genAvg = mainAreas.length > 0
     ? Math.round(mainAreas.reduce((sum, item) => sum + (item.finalGrade || 0), 0) / mainAreas.length)
     : null;
   const genAvgRemarks = genAvg ? getTemplate2Remarks(genAvg) : '';
+
+  // Blank rows to ensure consistent table height matching official template (minimum 12 rows)
+  const minTableRows = 12;
+  const blankRowsCount = Math.max(0, minTableRows - subjectRowsWithGrades.length);
+  const blankRows = Array.from({ length: blankRowsCount });
+
+  // Dynamic row height so larger subject lists fit on a single portrait page without spilling over
+  const rowMinHeight = subjectRowsWithGrades.length > 11 ? 18 : 22;
+  const subjectFontSize = subjectRowsWithGrades.length > 11 ? 7.2 : 8;
 
   return (
     <View style={s.slipContainer}>
@@ -823,48 +877,55 @@ export function SF9Template2SlipFront({
             </View>
 
             {/* Subject Data Rows */}
-            {subjectRowsWithGrades.map((sub, idx) => (
-              <View key={idx} style={s.gradesRow}>
-                <View style={s.cellSubjectData}>
-                  <Text style={sub.isComponent ? s.componentSubjectText : s.subjectText}>
-                    {sub.name}
-                  </Text>
+            {subjectRowsWithGrades.map((sub, idx) => {
+              if (sub.isHeader) {
+                return (
+                  <View key={idx} style={[s.gradesRow, { minHeight: rowMinHeight, backgroundColor: '#F8FAFC' }]}>
+                    <View style={[s.cellSubjectData, { width: '100%', borderRightWidth: 0 }]}>
+                      <Text style={[s.subjectText, { fontFamily: 'BookmanOldStyle-Bold', fontSize: subjectFontSize }]}>
+                        {sub.name}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              }
+              return (
+                <View key={idx} style={[s.gradesRow, { minHeight: rowMinHeight }]}>
+                  <View style={s.cellSubjectData}>
+                    <Text style={[sub.isComponent ? s.componentSubjectText : s.subjectText, { fontSize: sub.isComponent ? subjectFontSize - 0.5 : subjectFontSize }]}>
+                      {sub.name}
+                    </Text>
+                  </View>
+                  <View style={s.cellTermData}>
+                    <Text style={[s.gradeText, { fontSize: subjectFontSize }]}>{sub.row[0] ? formatGradeForDisplay(sub.row[0], student.grade_level) : ''}</Text>
+                  </View>
+                  <View style={s.cellTermData}>
+                    <Text style={[s.gradeText, { fontSize: subjectFontSize }]}>{sub.row[1] ? formatGradeForDisplay(sub.row[1], student.grade_level) : ''}</Text>
+                  </View>
+                  <View style={s.cellTermData}>
+                    <Text style={[s.gradeText, { fontSize: subjectFontSize }]}>{sub.row[2] ? formatGradeForDisplay(sub.row[2], student.grade_level) : ''}</Text>
+                  </View>
+                  <View style={s.cellFinalData}>
+                    <Text style={[s.gradeText, { fontSize: subjectFontSize }]}>{sub.finalGrade ? formatGradeForDisplay(sub.finalGrade, student.grade_level) : ''}</Text>
+                  </View>
+                  <View style={s.cellRemarksData}>
+                    <Text style={[s.remarksText, { fontSize: subjectFontSize - 0.5 }]}>{sub.remarks}</Text>
+                  </View>
                 </View>
-                <View style={s.cellTermData}>
-                  <Text style={s.gradeText}>{sub.row[0] ? formatGradeForDisplay(sub.row[0], student.grade_level) : ''}</Text>
-                </View>
-                <View style={s.cellTermData}>
-                  <Text style={s.gradeText}>{sub.row[1] ? formatGradeForDisplay(sub.row[1], student.grade_level) : ''}</Text>
-                </View>
-                <View style={s.cellTermData}>
-                  <Text style={s.gradeText}>{sub.row[2] ? formatGradeForDisplay(sub.row[2], student.grade_level) : ''}</Text>
-                </View>
-                <View style={s.cellFinalData}>
-                  <Text style={s.gradeText}>{sub.finalGrade ? formatGradeForDisplay(sub.finalGrade, student.grade_level) : ''}</Text>
-                </View>
-                <View style={s.cellRemarksData}>
-                  <Text style={s.remarksText}>{sub.remarks}</Text>
-                </View>
+              );
+            })}
+
+            {/* Blank Rows Matching Official Template */}
+            {blankRows.map((_, bIdx) => (
+              <View key={`blank-${bIdx}`} style={[s.gradesRow, { minHeight: rowMinHeight }]}>
+                <View style={s.cellSubjectData}><Text style={s.subjectText}> </Text></View>
+                <View style={s.cellTermData}><Text style={s.gradeText}> </Text></View>
+                <View style={s.cellTermData}><Text style={s.gradeText}> </Text></View>
+                <View style={s.cellTermData}><Text style={s.gradeText}> </Text></View>
+                <View style={s.cellFinalData}><Text style={s.gradeText}> </Text></View>
+                <View style={s.cellRemarksData}><Text style={s.remarksText}> </Text></View>
               </View>
             ))}
-
-            {/* 2 Blank Rows Matching Official Template */}
-            <View style={s.gradesRow}>
-              <View style={s.cellSubjectData}><Text style={s.subjectText}> </Text></View>
-              <View style={s.cellTermData}><Text style={s.gradeText}> </Text></View>
-              <View style={s.cellTermData}><Text style={s.gradeText}> </Text></View>
-              <View style={s.cellTermData}><Text style={s.gradeText}> </Text></View>
-              <View style={s.cellFinalData}><Text style={s.gradeText}> </Text></View>
-              <View style={s.cellRemarksData}><Text style={s.remarksText}> </Text></View>
-            </View>
-            <View style={s.gradesRow}>
-              <View style={s.cellSubjectData}><Text style={s.subjectText}> </Text></View>
-              <View style={s.cellTermData}><Text style={s.gradeText}> </Text></View>
-              <View style={s.cellTermData}><Text style={s.gradeText}> </Text></View>
-              <View style={s.cellTermData}><Text style={s.gradeText}> </Text></View>
-              <View style={s.cellFinalData}><Text style={s.gradeText}> </Text></View>
-              <View style={s.cellRemarksData}><Text style={s.remarksText}> </Text></View>
-            </View>
 
             {/* General Average Row (Merged across Cols 1 to 4) */}
             <View style={s.gradesRowLast}>

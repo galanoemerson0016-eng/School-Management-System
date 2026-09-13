@@ -1,5 +1,5 @@
 import type { Student, SchoolProfile, Section, ClassRecord, Subject, User } from '../types';
-import { getShsSubjectUnitInfo } from '../lib/curriculum';
+import { getShsSubjectUnitInfo, getStandardShsSemester } from '../lib/curriculum';
 import { isMatchingSubject, normalizeGrade12PESubjectName } from './grading-helpers';
 
 interface ShsMapperParams {
@@ -81,11 +81,12 @@ export function mapStudentToShsSf10Data({
   };
 
   // 4. Map Academic Semester Records
-  const buildSemesterAcademicRecord = (gradeLevelNum: number) => {
+  // 4. Map Academic Semester Records with Strict Semester Isolation (Zero Cross-Semester Leakage)
+  const buildSemesterAcademicRecord = (gradeLevelNum: number, targetSemester: 1 | 2) => {
     const taughtRaw = studentSection?.taught_subjects || [];
     const sectionTrack = (effectiveTrack || '').toLowerCase();
 
-    // Filter candidate subjects
+    // Filter candidate subjects for this grade level
     let candidateSubjects = subjects.filter(s => {
       if (s.term === 'none') return false;
       const subjectGradeNum = parseInt(s.grade_level?.replace(/\D/g, '') || '0');
@@ -110,7 +111,8 @@ export function mapStudentToShsSf10Data({
             subject_code: '',
             grade_level: `Grade ${gradeLevelNum}`,
             section_id: studentSection?.id || '',
-            term: 'all'
+            term: targetSemester === 1 ? 1 : 2,
+            semester: targetSemester
           });
         }
       }
@@ -158,6 +160,15 @@ export function mapStudentToShsSf10Data({
     }
     candidateSubjects = uniqueShsSubjects;
 
+    // Strict Semester Isolation: Zero cross-semester leakage!
+    candidateSubjects = candidateSubjects.filter(s => {
+      if (s.semester === 1) return targetSemester === 1;
+      if (s.semester === 2) return targetSemester === 2;
+      if (s.term === 1) return targetSemester === 1;
+      if (s.term === 2 || s.term === 3) return targetSemester === 2;
+      return getStandardShsSemester(s.subject_name, gradeLevelNum) === targetSemester;
+    });
+
     return candidateSubjects.map(dbSubject => {
       const getGrade = (q: number) => {
         const matchRecord = (r: ClassRecord) =>
@@ -181,78 +192,80 @@ export function mapStudentToShsSf10Data({
         return 0;
       };
 
-      const q1 = getGrade(1);
-      const q2 = getGrade(2);
-      const q3 = getGrade(3);
+      // Map quarter grades appropriately based on semester
+      let q1 = 0;
+      let q2 = 0;
+      if (targetSemester === 1) {
+        q1 = getGrade(1);
+        q2 = getGrade(2);
+      } else {
+        // Semester 2: Quarter 3/4 in 4-quarter mode, or Term 2/3 in 3-term mode
+        const g4 = getGrade(4);
+        const g3 = getGrade(3);
+        const g2 = getGrade(2);
+        if (g4 > 0) {
+          q1 = g3 > 0 ? g3 : g2;
+          q2 = g4;
+        } else {
+          q1 = g2 > 0 ? g2 : g3;
+          q2 = g3 > 0 && q1 !== g3 ? g3 : 0;
+        }
+      }
 
-      let final = 0;
-      let count = 0;
-      if (q1 > 0) { final += q1; count++; }
-      if (q2 > 0) { final += q2; count++; }
-      if (q3 > 0) { final += q3; count++; }
-      const finalRating = count > 0 ? Math.round(final / count) : 0;
+      let finalRating = 0;
+      if (q1 > 0 && q2 > 0) {
+        finalRating = Math.round((q1 + q2) / 2);
+      } else {
+        finalRating = q1 || q2 || 0;
+      }
 
       return {
         subjectName: dbSubject.subject_name,
         subjectCode: dbSubject.subject_code || '',
         quarter1Grade: q1 > 0 ? String(q1) : '',
         quarter2Grade: q2 > 0 ? String(q2) : '',
-        quarter3Grade: q3 > 0 ? String(q3) : '',
+        quarter3Grade: '',
         finalGrade: finalRating > 0 ? String(finalRating) : '',
         remarks: finalRating >= 75 ? 'PASSED' : finalRating > 0 ? 'FAILED' : '',
       };
     });
   };
 
+  const createScholasticBlock = (gradeLevelNum: 11 | 12, semesterNum: 1 | 2) => {
+    const semSubjects = buildSemesterAcademicRecord(gradeLevelNum, semesterNum);
+    let sum = 0;
+    let count = 0;
+    semSubjects.forEach(s => {
+      const g = Number(s.finalGrade);
+      if (g > 0) {
+        sum += g;
+        count++;
+      }
+    });
+    const genAvg = count > 0 ? String(Math.round(sum / count)) : '';
+    const genAvgRem = genAvg ? (Number(genAvg) >= 75 ? 'PROMOTED' : 'RETAINED') : '';
+
+    return {
+      gradeLevel: gradeLevelNum,
+      semester: semesterNum,
+      schoolName: profile.name || '',
+      schoolId: profile.school_id || '',
+      track: effectiveTrack,
+      strand: effectiveStrand,
+      section: studentSection?.section_name || '',
+      schoolYear: schoolYear,
+      adviser: adviserName,
+      subjects: semSubjects,
+      generalAverage: genAvg,
+      generalAverageRemarks: genAvgRem,
+    };
+  };
+
   const scholasticRecords = [
-    {
-      gradeLevel: 11,
-      semester: 1,
-      schoolName: profile.name || '',
-      schoolId: profile.school_id || '',
-      track: effectiveTrack,
-      strand: effectiveStrand,
-      section: studentSection?.section_name || '',
-      schoolYear: schoolYear,
-      adviser: adviserName,
-      subjects: buildSemesterAcademicRecord(11),
-    },
-    {
-      gradeLevel: 11,
-      semester: 2,
-      schoolName: profile.name || '',
-      schoolId: profile.school_id || '',
-      track: effectiveTrack,
-      strand: effectiveStrand,
-      section: studentSection?.section_name || '',
-      schoolYear: schoolYear,
-      adviser: adviserName,
-      subjects: buildSemesterAcademicRecord(11),
-    },
-    {
-      gradeLevel: 12,
-      semester: 1,
-      schoolName: profile.name || '',
-      schoolId: profile.school_id || '',
-      track: effectiveTrack,
-      strand: effectiveStrand,
-      section: studentSection?.section_name || '',
-      schoolYear: schoolYear,
-      adviser: adviserName,
-      subjects: buildSemesterAcademicRecord(12),
-    },
-    {
-      gradeLevel: 12,
-      semester: 2,
-      schoolName: profile.name || '',
-      schoolId: profile.school_id || '',
-      track: effectiveTrack,
-      strand: effectiveStrand,
-      section: studentSection?.section_name || '',
-      schoolYear: schoolYear,
-      adviser: adviserName,
-      subjects: buildSemesterAcademicRecord(12),
-    }
+    createScholasticBlock(11, 1),
+    createScholasticBlock(11, 2),
+    createScholasticBlock(12, 1),
+    createScholasticBlock(12, 2)
   ];
 
   return {

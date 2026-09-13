@@ -65,9 +65,9 @@ export function getPeriodUpperLabel(period: number, schoolYear?: string): string
     const isTerm = isThreeTermSchoolYear(schoolYear);
     if (isTerm) {
         switch (period) {
-            case 1: return 'FIRST TERM';
-            case 2: return 'SECOND TERM';
-            case 3: return 'THIRD TERM';
+            case 1: return 'TERM 1';
+            case 2: return 'TERM 2';
+            case 3: return 'TERM 3';
             default: return `TERM ${period}`;
         }
     } else {

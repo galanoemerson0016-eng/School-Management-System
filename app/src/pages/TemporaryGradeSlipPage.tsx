@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useAppStore } from '../stores';
 import { ArrowLeft, Printer, Layout, Plus, Minus, Bug } from 'lucide-react';
 import { sortSubjects, normalizeSubjectName, getCanonicalSubjectKey, getSubjectsForGrade } from '../lib/subjectConfig';
@@ -9,15 +9,26 @@ import { resolveStudentQuarterGrade, isMatchingSubject, normalizeGrade12PESubjec
 type PaperSize = 'a4' | 'letter' | 'folio';
 
 export function TemporaryGradeSlipPage() {
-    const { students, sections, subjects, schoolProfile, setCurrentView, gradingSheetRecords, activeSchoolYear } = useAppStore();
-    const [selectedSection, setSelectedSection] = useState('');
+    const { 
+        students, 
+        sections, 
+        subjects, 
+        schoolProfile, 
+        setCurrentView, 
+        gradingSheetRecords, 
+        activeSchoolYear,
+        selectedSection: globalSelectedSection,
+        setSelectedSection: setGlobalSelectedSection
+    } = useAppStore();
     const [paperSize, setPaperSize] = useState<PaperSize>('letter');
     const [zoom, setZoom] = useState(1);
 
     const sortedSections = useMemo(() => {
         if (!sections || sections.length === 0) return [];
+        const advisoryOnly = sections.filter(s => s.is_advisory);
+        const base = advisoryOnly.length > 0 ? advisoryOnly : sections;
         // Sort strictly by grade level (numeric) then section name (alphabetical)
-        return [...sections].sort((a, b) => {
+        return [...base].sort((a, b) => {
             const getGradeNum = (gl?: string) => {
                 if (!gl) return 99;
                 const num = parseInt(gl.replace(/\D/g, ''), 10);
@@ -32,15 +43,17 @@ export function TemporaryGradeSlipPage() {
         });
     }, [sections]);
 
-    // Auto-select the first available advisory section
-    useEffect(() => {
-        if (!selectedSection && sortedSections.length > 0) {
-            const timer = setTimeout(() => {
-                setSelectedSection(sortedSections[0].section_name);
-            }, 0);
-            return () => clearTimeout(timer);
+    const selectedSection = useMemo(() => {
+        if (globalSelectedSection && sortedSections.some(s => s.section_name === globalSelectedSection || s.id === globalSelectedSection)) {
+            const match = sortedSections.find(s => s.section_name === globalSelectedSection || s.id === globalSelectedSection);
+            return match ? match.section_name : globalSelectedSection;
         }
-    }, [sortedSections, selectedSection]);
+        return sortedSections[0]?.section_name || '';
+    }, [globalSelectedSection, sortedSections]);
+
+    const setSelectedSection = (val: string) => {
+        setGlobalSelectedSection(val);
+    };
 
     const selectedSectionObj = useMemo(() => {
         return sections.find(s => s.section_name === selectedSection || s.id === selectedSection);

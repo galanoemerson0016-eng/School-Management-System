@@ -331,7 +331,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
           observedValues: await db.getStoreCount('observedValues')
         };
 
-        const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.4.1';
+        const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.1';
         const stateData = {
           fromVersion: currentVersion,
           toVersion: get().updateInfo?.version || 'Unknown',
@@ -354,10 +354,8 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
 
     startDownload: async () => {
       if (window.electronAPI?.downloadUpdate) {
-        const result = await window.electronAPI.downloadUpdate();
-        if (!result.success) {
-          set({ updateStep: 'failed', errorMessage: result.error || 'Failed to start download.' });
-        }
+        set({ updateStep: 'downloading', errorMessage: null });
+        window.electronAPI.downloadUpdate();
       }
     },
 
@@ -368,7 +366,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.0';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.1';
       const api = window.electronAPI;
 
       try {
@@ -426,10 +424,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "📖 Double-Sided SF9 Booklet (Template 2): High-fidelity 2-up front-and-back printable booklet with automatic cut guides and strict 2-page pagination on A4 and Letter.",
-              "🎨 SF10 Customization & Dynamic Layout Engine: Flexible subject ordering, custom learning areas, historical record management, and specialized renderers for JHS, SHS, and Special Curricula.",
-              "🎓 Senior High School Grade 12 Cross-Curricular SF9: Official Academic & TechPro with Cross School Form 9 templates and export pipelines.",
-              "📋 Teaching Load Matrix & Advisory Synchronization: Live multi-subject assignment matrix, STE curriculum tailoring, and seamless real-time teaching load sync.",
+              "📊 Summary of Grades Term Shading: Automated visual graying out of unoffered terms for academic electives in SHS Grade 11 with clean em-dash markers and zero false incomplete grade flags.",
+              "📄 Grade 1 PACE Form Master Excel Setup: Complete 17-sheet master workbook generation with strict 4-page print setup and single-subject PACE form isolation.",
+              "🛡️ 3-Tier Ghost & Duplicate Subject Prevention: Intelligent deduplication protecting TVL/SHS parenthetical specializations while preventing duplicate subject entries.",
+              "📖 SF9 Booklet (Template 2) Live Synchronization: Seamless live grade and subject synchronization for Grade 1 MATATAG and SHS Grade 11 in 2-page duplex booklets.",
               "💾 Master Excel Full Database Backup & Safety Vault: Automated comprehensive workbook backup generation with pre-update safety snapshots and zero data loss guarantee.",
               "🛡️ Self-Healing Grade Reconciliation: Automatic startup scanning that detects and unhides all client records, subjects, and PE & Health components.",
               "🔒 100% backward-compatible update with zero risk to student records, grades, and section enrollments."

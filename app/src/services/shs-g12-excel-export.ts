@@ -321,12 +321,12 @@ export function resolveSHSG12Terms(
     const nt = Number(explicitNumTerms);
     const tb = String(explicitTermBlock).toUpperCase();
     if (nt === 1) {
-      if (tb.includes('2ND') || tb.includes('SECOND')) return { numTerms: 1, termBlock: 'SECOND TERM', termDesc: '2ND', code: 12 };
-      if (tb.includes('3RD') || tb.includes('THIRD')) return { numTerms: 1, termBlock: 'THIRD TERM', termDesc: '3RD', code: 13 };
+      if (tb.includes('2ND') || tb.includes('SECOND') || tb.includes('TERM 2') || tb.includes('T2')) return { numTerms: 1, termBlock: 'SECOND TERM', termDesc: '2ND', code: 12 };
+      if (tb.includes('3RD') || tb.includes('THIRD') || tb.includes('TERM 3') || tb.includes('T3')) return { numTerms: 1, termBlock: 'THIRD TERM', termDesc: '3RD', code: 13 };
       return { numTerms: 1, termBlock: 'FIRST TERM', termDesc: '1ST', code: 11 };
     }
     if (nt === 2) {
-      if (tb.includes('2ND') || tb.includes('SECOND')) return { numTerms: 2, termBlock: 'SECOND TERM', termDesc: '2ND & 3RD', code: 22 };
+      if (tb.includes('2ND') || tb.includes('SECOND') || tb.includes('TERM 2') || tb.includes('T2')) return { numTerms: 2, termBlock: 'SECOND TERM', termDesc: '2ND & 3RD', code: 22 };
       return { numTerms: 2, termBlock: 'FIRST TERM', termDesc: '1ST & 2ND', code: 21 };
     }
     return { numTerms: 3, termBlock: 'FIRST TERM', termDesc: '1ST, 2ND, 3RD', code: 33 };
@@ -1407,9 +1407,9 @@ export async function populateSHSG12WorkbookZip(
     numTerms,
     termBlock,
     ...(numTerms === 3 ? { termDesc: '1ST, 2ND, 3RD', code: 33 } :
-        numTerms === 2 ? (termBlock.includes('2ND') || termBlock.includes('SECOND') ? { termDesc: '2ND & 3RD', code: 22 } : { termDesc: '1ST & 2ND', code: 21 }) :
-        (termBlock.includes('2ND') || termBlock.includes('SECOND') ? { termDesc: '2ND', code: 12 } :
-         termBlock.includes('3RD') || termBlock.includes('THIRD') ? { termDesc: '3RD', code: 13 } :
+        numTerms === 2 ? (termBlock.includes('2ND') || termBlock.includes('SECOND') || termBlock.includes('TERM 2') ? { termDesc: '2ND & 3RD', code: 22 } : { termDesc: '1ST & 2ND', code: 21 }) :
+        (termBlock.includes('2ND') || termBlock.includes('SECOND') || termBlock.includes('TERM 2') ? { termDesc: '2ND', code: 12 } :
+         termBlock.includes('3RD') || termBlock.includes('THIRD') || termBlock.includes('TERM 3') ? { termDesc: '3RD', code: 13 } :
          { termDesc: '1ST', code: 11 }))
   };
 

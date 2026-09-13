@@ -535,6 +535,8 @@ export function ShsEClassRecord() {
     const classRecords = useAppStore(state => state.classRecords);
     const updateClassRecord = useAppStore(state => state.updateClassRecord);
     const deleteClassRecord = useAppStore(state => state.deleteClassRecord);
+    const updateSubject = useAppStore(state => state.updateSubject);
+    const updateSection = useAppStore(state => state.updateSection);
     const hpsRecords = useAppStore(state => state.hpsRecords);
     const updateHPSRecord = useAppStore(state => state.updateHPSRecord);
     const setGlobalSection = useAppStore(state => state.setSelectedSection);
@@ -547,10 +549,18 @@ export function ShsEClassRecord() {
     const [selectedSection, setSelectedSection] = useState(globalSection || '');
     const [selectedSubject, setSelectedSubject] = useState(globalSubject || '');
     const [quarter, setQuarter] = useState<1 | 2 | 3 | 'summary' | 'summary_t1' | 'summary_t2' | 'summary_t3' | 'summary_final'>(1);
+    const [lastNumericTerm, setLastNumericTerm] = useState<number>(1);
+    const [offeredTermsOverride, setOfferedTermsOverride] = useState<string>('auto');
     const [zoom, setZoom] = useState(0.95);
     const [paperSize, setPaperSize] = useState<PaperSize>('folio');
     const [isDownloading, setIsDownloading] = useState(false);
     const [isEnrollmentModalOpen, setIsEnrollmentModalOpen] = useState(false);
+
+    useEffect(() => {
+        if (typeof quarter === 'number' && quarter >= 1 && quarter <= 3) {
+            setLastNumericTerm(quarter);
+        }
+    }, [quarter]);
 
     const formatStudentFullName = useCallback((student: typeof students[number]) => {
         const middleName = student.middle_name?.trim();
@@ -570,6 +580,11 @@ export function ShsEClassRecord() {
         }
     }, [globalSubject, selectedSubject]);
 
+    // Reset offered terms override on subject switch
+    useEffect(() => {
+        setOfferedTermsOverride('auto');
+    }, [selectedSubject]);
+
     // Get the selected section's grade level
     const selectedSectionObj = useMemo(() => {
         return sections.find(s => s.id === selectedSection || s.section_name === selectedSection);
@@ -580,14 +595,125 @@ export function ShsEClassRecord() {
         return subjects.find(s => s.id === selectedSubject);
     }, [subjects, selectedSubject]);
 
+    const sectionStudents = useMemo(() => {
+        if (!selectedSection) return [];
+        const baseStudents = students.filter((s) => s.student_section === selectedSection || (selectedSectionObj?.id && s.student_section === selectedSectionObj.id));
+        
+        // Find subject enrollment if defined
+        const subj = subjects.find(s => s.id === selectedSubject);
+        if (subj?.enrolled_student_lrns && subj.enrolled_student_lrns.length > 0) {
+            return baseStudents.filter(s => subj.enrolled_student_lrns?.includes(s.lrn));
+        }
+        
+        return baseStudents;
+    }, [students, selectedSection, selectedSectionObj, selectedSubject, subjects]);
+
+    // Detect which terms currently have encoded final grades or scores for this subject in this section
+    const activeTermsWithGrades = useMemo(() => {
+        if (!selectedSubject || !selectedSection) return [];
+        const terms = new Set<number>();
+        const secId = selectedSectionObj?.id;
+        const secName = selectedSectionObj?.section_name;
+        const studentLrns = new Set(sectionStudents.map(s => s.lrn));
+
+        classRecords.forEach(r => {
+            const isSecMatch =
+                r.section_id === selectedSection ||
+                (secId && r.section_id === secId) ||
+                (secName && r.section_id === secName) ||
+                (studentLrns.size > 0 && studentLrns.has(r.student_lrn));
+
+            const isSubjMatch =
+                r.subject_id === selectedSubject ||
+                (selectedSubjectObj && (
+                    r.subject_id === selectedSubjectObj.id ||
+                    isSameSubject(selectedSubjectObj.id, selectedSubjectObj.subject_name, r.subject_id, r.subject_name) ||
+                    isMatchingSubject(selectedSubjectObj.subject_name, r.subject_id, r.subject_name)
+                ));
+
+            if (isSecMatch && isSubjMatch) {
+                const g = Number(r.final_grade);
+                const hasScores =
+                    (Array.isArray(r.written_works) && r.written_works.some(v => v !== '' && v !== null && !isNaN(Number(v)))) ||
+                    (Array.isArray(r.performance_tasks) && r.performance_tasks.some(v => v !== '' && v !== null && !isNaN(Number(v)))) ||
+                    (r.quarterly_exam !== '' && r.quarterly_exam !== null && !isNaN(Number(r.quarterly_exam)));
+
+                if (g > 0 || hasScores) {
+                    const q = Number(r.quarter);
+                    if (q >= 1 && q <= 3) terms.add(q);
+                }
+            }
+        });
+        return Array.from(terms).sort((a, b) => a - b);
+    }, [classRecords, selectedSubject, selectedSubjectObj, selectedSection, selectedSectionObj, sectionStudents]);
+
     // Compute which terms the selected subject is offered in
     const offeredTerms = useMemo(() => {
-        if (!selectedSubjectObj) return [1, 2, 3];
-        const termVal = selectedSubjectObj.term;
-        if (termVal === undefined || termVal === null || termVal === 'all') return [1, 2, 3];
-        if (termVal === 'none') return [];
-        return [Number(termVal)];
-    }, [selectedSubjectObj]);
+        if (offeredTermsOverride !== 'auto') {
+            if (offeredTermsOverride === 'all') return [1, 2, 3];
+            if (offeredTermsOverride === 'none') return [];
+            return offeredTermsOverride.split(',').map(n => Number(n.trim())).filter(n => n >= 1 && n <= 3);
+        }
+
+        const subjectTermsMeta = (selectedSectionObj?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, 1 | 2 | 3 | 'all' | 'none'> | undefined;
+        const effTerm = (selectedSubjectObj ? subjectTermsMeta?.[selectedSubjectObj.subject_name] : undefined) ?? selectedSubjectObj?.term;
+
+        if (effTerm === 1) return [1];
+        if (effTerm === 2) return [2];
+        if (effTerm === 3) return [3];
+        if (effTerm === 'none') return [];
+
+        // Smart Auto-detection: If grades ONLY exist in a single term (e.g. only Term 1),
+        // or a specific subset of terms, collapse to those terms so unoffered terms don't render blank columns!
+        if (activeTermsWithGrades.length > 0 && activeTermsWithGrades.length < 3) {
+            return activeTermsWithGrades;
+        }
+
+        // For SSHS Grade 11, subjects are modular single-term offerings (80 hours per term).
+        // If no grades exist across other terms, default to the current active term (e.g. Term 1).
+        const isG11 = (sectionGradeLevel || '').includes('11');
+        if (isG11) {
+            return [lastNumericTerm || 1];
+        }
+
+        return [1, 2, 3];
+    }, [offeredTermsOverride, selectedSectionObj, selectedSubjectObj, activeTermsWithGrades, sectionGradeLevel, lastNumericTerm]);
+
+    const isSingleTerm = offeredTerms.length === 1;
+    const singleTermNum = isSingleTerm ? offeredTerms[0] : (lastNumericTerm || 1);
+
+    const handleSetOfferedTerms = async (val: string) => {
+        setOfferedTermsOverride(val);
+        if (selectedSubjectObj) {
+            const newTerm: 1 | 2 | 3 | 'all' = val === 'auto'
+                ? (activeTermsWithGrades.length === 1 ? (activeTermsWithGrades[0] as 1 | 2 | 3) : 'all')
+                : val === '1' ? 1
+                : val === '2' ? 2
+                : val === '3' ? 3
+                : 'all';
+
+            await updateSubject({
+                ...selectedSubjectObj,
+                term: newTerm
+            });
+
+            if (selectedSectionObj) {
+                const currentMeta = (selectedSectionObj.section_metadata as Record<string, any>) || {};
+                const currentSubjectTerms = (currentMeta.subjectTerms as Record<string, any>) || {};
+                await updateSection({
+                    ...selectedSectionObj,
+                    section_metadata: {
+                        ...currentMeta,
+                        subjectTerms: {
+                            ...currentSubjectTerms,
+                            [selectedSubjectObj.subject_name]: newTerm
+                        }
+                    }
+                });
+            }
+            showNotification(`Updated ${selectedSubjectObj.subject_name} offering to ${val === '1' ? 'Term 1 Only' : val === '2' ? 'Term 2 Only' : val === '3' ? 'Term 3 Only' : val === '1,2' ? 'Terms 1 & 2' : val === '2,3' ? 'Terms 2 & 3' : 'All Terms'}.`, 'success');
+        }
+    };
 
     // Sort Sections
     const sortedSections = useMemo(() => {
@@ -642,17 +768,27 @@ export function ShsEClassRecord() {
         base = uniqueBase;
 
         // Filter based on the selected term (quarter) if it's a specific term (1, 2, 3)
-        if (typeof quarter === 'number') {
-            base = base.filter(s => s.term === undefined || s.term === null || s.term === 'all' || Number(s.term) === quarter);
-        } else if (quarter === 'summary_t1') {
-            base = base.filter(s => s.term === undefined || s.term === null || s.term === 'all' || Number(s.term) === 1);
-        } else if (quarter === 'summary_t2') {
-            base = base.filter(s => s.term === undefined || s.term === null || s.term === 'all' || Number(s.term) === 2);
-        } else if (quarter === 'summary_t3') {
-            base = base.filter(s => s.term === undefined || s.term === null || s.term === 'all' || Number(s.term) === 3);
+        // Strict Term Isolation: Only SSHS Grade 11 Core subjects span all terms; Grade 12 & electives match strictly.
+        const targetTermNum = typeof quarter === 'number' 
+            ? quarter 
+            : quarter === 'summary_t1' ? 1 
+            : quarter === 'summary_t2' ? 2 
+            : quarter === 'summary_t3' ? 3 
+            : null;
+
+        if (targetTermNum !== null) {
+            const subjectTermsMeta = (selectedSectionObj?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, 1 | 2 | 3 | 'all' | 'none'> | undefined;
+            base = base.filter(s => {
+                const effTerm = subjectTermsMeta?.[s.subject_name] || s.term;
+                if (sectionGradeLevel.includes('11') && (effTerm === 'all' || isGrade11CoreSubject(s.subject_name))) {
+                    return true;
+                }
+                const num = effTerm ? Number(effTerm) : targetTermNum;
+                return num === targetTermNum;
+            });
         }
         return base.sort((a, b) => a.subject_name.localeCompare(b.subject_name));
-    }, [subjects, selectedSectionObj, user, quarter]);
+    }, [subjects, selectedSectionObj, user, quarter, sectionGradeLevel]);
 
     // Group subjects by category if it's SHS
     const groupedSubjects = useMemo(() => {
@@ -718,19 +854,6 @@ export function ShsEClassRecord() {
     const subjectName = useMemo(() => {
         return subjects.find(s => s.id === effectiveSubjectId)?.subject_name || '';
     }, [subjects, effectiveSubjectId]);
-
-    const sectionStudents = useMemo(() => {
-        if (!selectedSection) return [];
-        const baseStudents = students.filter((s) => s.student_section === selectedSection || (selectedSectionObj?.id && s.student_section === selectedSectionObj.id));
-        
-        // Find subject enrollment if defined
-        const subj = subjects.find(s => s.id === selectedSubject);
-        if (subj?.enrolled_student_lrns && subj.enrolled_student_lrns.length > 0) {
-            return baseStudents.filter(s => subj.enrolled_student_lrns?.includes(s.lrn));
-        }
-        
-        return baseStudents;
-    }, [students, selectedSection, selectedSectionObj, selectedSubject, subjects]);
 
     const isGrade11 = (sectionGradeLevel || '').includes('11');
     const isGrade12 = (sectionGradeLevel || '').includes('12');
@@ -1145,23 +1268,23 @@ export function ShsEClassRecord() {
 
     const getSummaryGrades = useCallback((student: typeof students[0]) => {
         const targetSubjectObj = subjects.find(s => s.id === selectedSubject);
-        const isTermOffered = (subj: typeof targetSubjectObj | undefined, q: number) => {
-            if (!subj) return true;
-            const termVal = subj.term;
-            if (termVal === undefined || termVal === null || termVal === 'all') return true;
-            if (termVal === 'none') return false;
-            return Number(termVal) === q;
+        const isTermOffered = (q: number) => {
+            return offeredTerms.includes(q);
         };
 
         let total = 0;
         let count = 0;
         const terms = [1, 2, 3].map(q => {
-            if (!isTermOffered(targetSubjectObj, q)) {
+            if (!isTermOffered(q)) {
                 return '';
             }
             const record = classRecords.find(r =>
                 r.student_lrn === student.lrn &&
-                (r.subject_id === selectedSubject || (targetSubjectObj && isMatchingSubject(targetSubjectObj.subject_name, r.subject_id, r.subject_name))) &&
+                (r.subject_id === selectedSubject || (targetSubjectObj && (
+                    r.subject_id === targetSubjectObj.id ||
+                    isSameSubject(targetSubjectObj.id, targetSubjectObj.subject_name, r.subject_id, r.subject_name) ||
+                    isMatchingSubject(targetSubjectObj.subject_name, r.subject_id, r.subject_name)
+                ))) &&
                 Number(r.quarter) === q
             );
             const grade = record?.final_grade ? Number(record.final_grade) : 0;
@@ -1182,7 +1305,7 @@ export function ShsEClassRecord() {
             final,
             descriptor
         };
-    }, [classRecords, selectedSubject, getGradeDescriptor, subjects]);
+    }, [classRecords, selectedSubject, getGradeDescriptor, subjects, offeredTerms]);
 
     const proficiencyData = useMemo(() => {
         const levels = [
@@ -1867,6 +1990,26 @@ export function ShsEClassRecord() {
                             <option value="summary_final">Final Summary</option>
                         </select>
                     </div>
+
+                    <div className="w-full sm:w-28 lg:w-32 shrink-0">
+                        <label className="block text-[9.5px] font-bold mb-0.5 text-deped-blue whitespace-nowrap">Offered In</label>
+                        <select
+                            value={offeredTermsOverride}
+                            onChange={(e) => handleSetOfferedTerms(e.target.value)}
+                            className="form-input h-7.5 py-0.5 px-1.5 text-[10px] rounded-lg font-medium"
+                            title="Configure which term(s) this subject is taught in"
+                        >
+                            <option value="auto">
+                                Auto {offeredTerms.length < 3 ? `(Term ${offeredTerms.join(', ')} Only)` : '(All Terms)'}
+                            </option>
+                            <option value="1">Term 1 Only</option>
+                            <option value="2">Term 2 Only</option>
+                            <option value="3">Term 3 Only</option>
+                            <option value="1,2">Terms 1 & 2</option>
+                            <option value="2,3">Terms 2 & 3</option>
+                            <option value="all">All Terms (1, 2, 3)</option>
+                        </select>
+                    </div>
                     <div className="w-full sm:w-20 lg:w-20 shrink-0">
                         <label className="text-[9.5px] font-bold mb-0.5 text-deped-blue flex items-center gap-1 whitespace-nowrap">
                             <FileText className="w-3 h-3" /> Paper Size
@@ -2138,16 +2281,24 @@ export function ShsEClassRecord() {
                                     <tr className="text-center text-[10px] font-bold bg-gray-100 h-10">
                                         <th className="border border-black w-8"></th>
                                         <th className="border border-black p-2 align-middle w-62.5 text-center tracking-wider">LEARNERS' NAMES</th>
-                                        {offeredTerms.map(t => (
-                                            <th key={t} className="border border-black p-1 w-20">TERM {t}</th>
-                                        ))}
-                                        <th className="border border-black p-1 w-22.5">FINAL GRADE</th>
+                                        {isSingleTerm ? (
+                                            <th className="border border-black p-1 w-24 text-center leading-tight">
+                                                TERM {singleTermNum}<br />FINAL GRADE
+                                            </th>
+                                        ) : (
+                                            <>
+                                                {offeredTerms.map(t => (
+                                                    <th key={t} className="border border-black p-1 w-20">TERM {t}</th>
+                                                ))}
+                                                <th className="border border-black p-1 w-22.5">FINAL GRADE</th>
+                                            </>
+                                        )}
                                         <th className="border border-black p-1 w-25">DESCRIPTOR</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td colSpan={3 + offeredTerms.length} className="bg-gray-200 border border-black text-left px-2 py-0.5 text-[10px] tracking-widest uppercase font-bold">MALE</td>
+                                        <td colSpan={isSingleTerm ? 3 : (3 + offeredTerms.length)} className="bg-gray-200 border border-black text-left px-2 py-0.5 text-[10px] tracking-widest uppercase font-bold">MALE</td>
                                         <td className="bg-gray-200 border border-black"></td>
                                     </tr>
                                     {maleStudents.map((student, i) => {
@@ -2159,16 +2310,24 @@ export function ShsEClassRecord() {
                                                 <td className="border border-black text-left px-2 uppercase text-[10px] font-bold truncate max-w-62.5">
                                                     {formatStudentFullName(student)}
                                                 </td>
-                                                {offeredTerms.map(t => (
-                                                    <td key={t} className="border border-black text-center font-semibold">{formatGradeForDisplay(termGrades[t - 1], sectionGradeLevel)}</td>
-                                                ))}
-                                                <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
+                                                {isSingleTerm ? (
+                                                    <td className="border border-black text-center font-bold bg-gray-50">
+                                                        {formatGradeForDisplay(summary.final || termGrades[singleTermNum - 1], sectionGradeLevel)}
+                                                    </td>
+                                                ) : (
+                                                    <>
+                                                        {offeredTerms.map(t => (
+                                                            <td key={t} className="border border-black text-center font-semibold">{formatGradeForDisplay(termGrades[t - 1], sectionGradeLevel)}</td>
+                                                        ))}
+                                                        <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
+                                                    </>
+                                                )}
                                                 <td className="border border-black text-center font-bold bg-gray-50 text-[9px] text-deped-blue px-1 whitespace-normal wrap-break-word">{summary.descriptor}</td>
                                             </tr>
                                         );
                                     })}
                                     <tr>
-                                        <td colSpan={3 + offeredTerms.length} className="bg-gray-200 border border-black text-left px-2 py-0.5 text-[10px] tracking-widest uppercase font-bold">FEMALE</td>
+                                        <td colSpan={isSingleTerm ? 3 : (3 + offeredTerms.length)} className="bg-gray-200 border border-black text-left px-2 py-0.5 text-[10px] tracking-widest uppercase font-bold">FEMALE</td>
                                         <td className="bg-gray-200 border border-black"></td>
                                     </tr>
                                     {femaleStudents.map((student, i) => {
@@ -2180,10 +2339,18 @@ export function ShsEClassRecord() {
                                                 <td className="border border-black text-left px-2 uppercase text-[10px] font-bold truncate max-w-62.5">
                                                     {formatStudentFullName(student)}
                                                 </td>
-                                                {offeredTerms.map(t => (
-                                                    <td key={t} className="border border-black text-center font-semibold">{formatGradeForDisplay(termGrades[t - 1], sectionGradeLevel)}</td>
-                                                ))}
-                                                <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
+                                                {isSingleTerm ? (
+                                                    <td className="border border-black text-center font-bold bg-gray-50">
+                                                        {formatGradeForDisplay(summary.final || termGrades[singleTermNum - 1], sectionGradeLevel)}
+                                                    </td>
+                                                ) : (
+                                                    <>
+                                                        {offeredTerms.map(t => (
+                                                            <td key={t} className="border border-black text-center font-semibold">{formatGradeForDisplay(termGrades[t - 1], sectionGradeLevel)}</td>
+                                                        ))}
+                                                        <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
+                                                    </>
+                                                )}
                                                 <td className="border border-black text-center font-bold bg-gray-50 text-[9px] text-deped-blue px-1 whitespace-normal wrap-break-word">{summary.descriptor}</td>
                                             </tr>
                                         );

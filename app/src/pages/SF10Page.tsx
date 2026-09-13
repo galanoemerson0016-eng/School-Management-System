@@ -14,7 +14,19 @@ import { ArrowLeft, Printer, FileText, Plus, Minus, ChevronDown, Bug, RefreshCcw
 import { canAccessSF9Section, filterSF9Sections } from '../lib/rbac';
 
 export function SF10Page() {
-    const { students, sections, subjects, gradingSheetRecords, classRecords, teachers, schoolProfile, activeSchoolYear, setCurrentView } = useAppStore();
+    const { 
+        students, 
+        sections, 
+        subjects, 
+        gradingSheetRecords, 
+        classRecords, 
+        teachers, 
+        schoolProfile, 
+        activeSchoolYear, 
+        setCurrentView,
+        selectedSection: globalSelectedSection,
+        setSelectedSection: setGlobalSelectedSection
+    } = useAppStore();
     const { user } = useAuthStore();
     const { overrides, setOverride, clearOverrides } = useSF10Store();
     
@@ -49,10 +61,21 @@ export function SF10Page() {
         });
     }, [sections, user]);
 
-    const selectedSection = !selectedSectionState && sortedSections?.length === 1 
-        ? sortedSections[0].section_name 
-        : selectedSectionState;
-    const setSelectedSection = setSelectedSectionState;
+    const selectedSection = useMemo(() => {
+        if (selectedSectionState && sortedSections?.some(s => s.section_name === selectedSectionState || s.id === selectedSectionState)) {
+            return selectedSectionState;
+        }
+        if (globalSelectedSection && sortedSections?.some(s => s.section_name === globalSelectedSection || s.id === globalSelectedSection)) {
+            const match = sortedSections.find(s => s.section_name === globalSelectedSection || s.id === globalSelectedSection);
+            return match ? match.section_name : globalSelectedSection;
+        }
+        return sortedSections?.[0]?.section_name || '';
+    }, [selectedSectionState, globalSelectedSection, sortedSections]);
+
+    const setSelectedSection = (val: string) => {
+        setSelectedSectionState(val);
+        setGlobalSelectedSection(val);
+    };
 
     const groupedSections = useMemo(() => {
         const groups: Record<string, Section[]> = {

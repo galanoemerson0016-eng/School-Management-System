@@ -1652,7 +1652,8 @@ export function SettingsPage() {
 
     const handleFullHardReset = async () => {
         // Full hard reset targets ALL records to ensure a completely clean state
-        const profileLrns = Array.from(new Set(studentProfiles.map((s) => s.lrn)));
+        const effectiveProfiles = studentProfiles.length > 0 ? studentProfiles : students;
+        const profileLrns = Array.from(new Set(effectiveProfiles.map((s) => s.lrn)));
         const enrollmentIdsToDelete = enrollments.map((entry) => entry.id);
         const gradeIdsToDelete = classRecords.map((record) => record.id);
         const gradingSheetIdsToDelete = gradingSheetRecords.map((record) => record.id);
@@ -1666,7 +1667,7 @@ export function SettingsPage() {
 
         const totalGradeRecords = gradeIdsToDelete.length + gradingSheetIdsToDelete.length + observedValuesIdsToDelete.length;
         const totalAttendanceRecords = attendanceIdsToDelete.length + sf2SheetIdsToDelete.length;
-        const totalToReset = profileLrns.length + 
+        let totalToReset = profileLrns.length + 
                              enrollmentIdsToDelete.length + 
                              totalGradeRecords + 
                              totalAttendanceRecords + 
@@ -1675,8 +1676,27 @@ export function SettingsPage() {
                              subjectIdsToDelete.length +
                              announcementIdsToDelete.length;
 
+        // If in-memory state is empty or missing data, check live IndexedDB record counts
         if (totalToReset === 0) {
-            alert('No data found to reset.');
+            try {
+                const liveCounts = await getLiveDatabaseRecordCounts();
+                const liveTotal = (liveCounts.students || 0) +
+                                  (liveCounts.sections || 0) +
+                                  (liveCounts.subjects || 0) +
+                                  (liveCounts.classRecords || 0) +
+                                  (liveCounts.gradingSheetRecords || 0) +
+                                  (liveCounts.attendanceRecords || 0) +
+                                  (liveCounts.enrollments || 0);
+                if (liveTotal > 0) {
+                    totalToReset = liveTotal;
+                }
+            } catch (e) {
+                console.warn('Failed to check live database record counts:', e);
+            }
+        }
+
+        if (totalToReset === 0) {
+            alert('No data found to reset. The database is already clean.');
             return;
         }
 
@@ -1711,7 +1731,7 @@ export function SettingsPage() {
             enrollmentIdsToDelete, 
             gradeIdsToDelete, 
             gradingSheetIdsToDelete, 
-            observedValuesIdsToDelete,
+            observedValuesIdsToDelete, 
             attendanceIdsToDelete,
             sf2SheetIdsToDelete,
             hpsRecordIdsToDelete,
@@ -1773,6 +1793,64 @@ export function SettingsPage() {
             setProgressStep('Deleting student profiles...');
             await deleteByCollectionIds('students', profileLrns, makeTracker(totalDeleted));
 
+            // CRITICAL STEP: Guarantee 100% complete wipe of all data stores in IndexedDB
+            setProgressStep('Clearing all database stores...');
+            const storesToWipe = [
+                'students',
+                'enrollments',
+                'classRecords',
+                'gradingSheetRecords',
+                'observedValues',
+                'attendanceRecords',
+                'sf2Sheets',
+                'hpsRecords',
+                'sections',
+                'subjects',
+                'announcements'
+            ];
+            for (const store of storesToWipe) {
+                try {
+                    await db.clearStore(store);
+                } catch (e) {
+                    console.warn(`Failed to clear store ${store}:`, e);
+                }
+            }
+
+            // Clear PACE Form ratings & cache in localStorage
+            const paceKeys = [
+                'formease_pace_reading_ratings',
+                'formease_pace_language_ratings',
+                'formease_pace_math_ratings',
+                'formease_pace_makabansa_ratings',
+                'formease_pace_gmrc_ratings',
+                'formease_pace_active_assessment'
+            ];
+            for (const pk of paceKeys) {
+                localStorage.removeItem(pk);
+            }
+
+            // Mark hard reset executed so self-healing doesn't resurrect data
+            localStorage.setItem('formease-hard-reset-executed', 'true');
+            localStorage.setItem('formease-einstein-restored-v1', 'true');
+            localStorage.removeItem('formease-selected-section');
+
+            // Immediately reset in-memory Zustand store
+            useAppStore.setState({
+                students: [],
+                studentProfiles: [],
+                sections: [],
+                subjects: [],
+                classRecords: [],
+                gradingSheetRecords: [],
+                observedValues: [],
+                attendanceRecords: [],
+                sf2Sheets: [],
+                hpsRecords: [],
+                enrollments: [],
+                announcements: [],
+                selectedSection: null
+            });
+
             alert(
                 `Hard reset complete.\n\n` +
                 `Deleted student profiles: ${profileLrns.length}\n` +
@@ -1786,6 +1864,7 @@ export function SettingsPage() {
             );
             setCleanupPreview(null);
             finishProgress('Completed');
+            await handleScanLiveDatabase();
             await initializeAppStore();
         } catch (error) {
             finishProgress('Failed');
@@ -3697,12 +3776,28 @@ export function SettingsPage() {
                             </div>
 
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 3.5.0 */}
+                                {/* Version 3.5.1 */}
                                 <div className="relative pl-6">
                                     <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.0</span>
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.1</span>
                                         <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 13, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>📊 <strong>Summary of Grades Term Shading (SHS G11)</strong>: Automated visual graying out of unoffered terms for academic electives in SHS Grade 11 with clean em-dash markers and zero false incomplete grade flags.</li>
+                                        <li>📄 <strong>Grade 1 PACE Form Master Excel Setup</strong>: Complete 17-sheet master workbook generation with strict 4-page print layout and single-subject PACE form isolation.</li>
+                                        <li>🛡️ <strong>3-Tier Ghost & Duplicate Subject Prevention</strong>: Intelligent deduplication protecting TVL/SHS parenthetical specializations while preventing duplicate subject entries.</li>
+                                        <li>📖 <strong>SF9 Booklet (Template 2) Live Synchronization</strong>: Seamless live grade and subject synchronization for Grade 1 MATATAG and SHS Grade 11 in 2-page duplex booklets.</li>
+                                        <li>💾 <strong>Comprehensive Master Backups & OpenXML Repair</strong>: High-fidelity OpenXML repair ensuring smooth Excel export without formula calculation errors or corruption.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 3.5.0 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.0</span>
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 11, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">

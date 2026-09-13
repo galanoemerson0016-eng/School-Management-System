@@ -18,7 +18,7 @@ function colToNum(colStr: string): number {
   return num;
 }
 
-function validateSheetXml(sheetXml: string, sheetName: string) {
+function validateSheetXml(sheetXml: string, _sheetName: string) {
   const issues: string[] = [];
 
   // 1. Check all rows for cell order and duplicate cells
@@ -96,6 +96,9 @@ describe('Diagnose Grade 11 SF9 Excel Repair Errors in sheet6.xml', () => {
     gender: 'Male',
     grade_level: 'Grade 11',
     student_section: 'AMETHYST',
+    birthday: '2010-01-01',
+    age: 16,
+    address: 'Cavite'
   };
 
   const schoolProfile: SchoolProfile = {
@@ -115,8 +118,8 @@ describe('Diagnose Grade 11 SF9 Excel Repair Errors in sheet6.xml', () => {
 
     const rawZip = await JSZip.loadAsync(buffer);
     const rawSheet6Xml = await rawZip.file('xl/worksheets/sheet6.xml')!.async('text');
-    const rawAC5 = rawSheet6Xml.match(/<c r="AC5"[^>]*>[\s\S]*?<\/c>/);
-    const rawF34 = rawSheet6Xml.match(/<c r="F34"[^>]*>[\s\S]*?<\/c>/);
+    const _rawAC5 = rawSheet6Xml.match(/<c r="AC5"[^>]*>[\s\S]*?<\/c>/);
+    const _rawF34 = rawSheet6Xml.match(/<c r="F34"[^>]*>[\s\S]*?<\/c>/);
     const rawK41 = rawSheet6Xml.match(/<c r="K41"[^>]*>[\s\S]*?<\/c>/);
     const rawK44 = rawSheet6Xml.match(/<c r="K44"[^>]*>[\s\S]*?<\/c>/);
     console.log('--- RAW K41: ---', rawK41 ? rawK41[0] : 'not found');
@@ -128,8 +131,8 @@ describe('Diagnose Grade 11 SF9 Excel Repair Errors in sheet6.xml', () => {
       schoolProfile,
       schoolYear: '2026-2027',
       section: 'AMETHYST',
-      adviserName: 'Adviser Name',
-      grades: [],
+      adviser: 'Adviser Name',
+      grades: {},
       subjects: [],
     });
 
@@ -165,7 +168,7 @@ describe('Diagnose Grade 11 SF9 Excel Repair Errors in sheet6.xml', () => {
       schoolProfile,
       schoolYear: '2026-2027',
       section: 'AMETHYST',
-      adviserName: 'Adviser Name',
+      adviser: 'Adviser Name',
       grades: {
         'Effective Communication': { q1: 95, q2: 96, q3: 94, final: 95 },
         'Mabisang Komunikasyon': { q1: 92, q2: 93, q3: 94, final: 93 },
@@ -178,15 +181,15 @@ describe('Diagnose Grade 11 SF9 Excel Repair Errors in sheet6.xml', () => {
         'Academic Elective 3': { q1: 92, q2: 93, q3: 94, final: 93 },
       },
       subjects: [
-        { id: '1', name: 'Effective Communication', subject_type: 'core', grade_level: 'Grade 11' },
-        { id: '2', name: 'Mabisang Komunikasyon', subject_type: 'core', grade_level: 'Grade 11' },
-        { id: '3', name: 'General Mathematics', subject_type: 'core', grade_level: 'Grade 11' },
-        { id: '4', name: 'General Science', subject_type: 'core', grade_level: 'Grade 11' },
-        { id: '5', name: 'Life and Career Skills', subject_type: 'core', grade_level: 'Grade 11' },
-        { id: '6', name: 'Pampamayanang Paglilingkod', subject_type: 'core', grade_level: 'Grade 11' },
-        { id: '7', name: 'Academic Elective 1', subject_type: 'applied', grade_level: 'Grade 11' },
-        { id: '8', name: 'Academic Elective 2', subject_type: 'applied', grade_level: 'Grade 11' },
-        { id: '9', name: 'Academic Elective 3', subject_type: 'applied', grade_level: 'Grade 11' },
+        { id: '1', subject_name: 'Effective Communication', grade_level: 'Grade 11' },
+        { id: '2', subject_name: 'Mabisang Komunikasyon', grade_level: 'Grade 11' },
+        { id: '3', subject_name: 'General Mathematics', grade_level: 'Grade 11' },
+        { id: '4', subject_name: 'General Science', grade_level: 'Grade 11' },
+        { id: '5', subject_name: 'Life and Career Skills', grade_level: 'Grade 11' },
+        { id: '6', subject_name: 'Pampamayanang Paglilingkod', grade_level: 'Grade 11' },
+        { id: '7', subject_name: 'Academic Elective 1', grade_level: 'Grade 11' },
+        { id: '8', subject_name: 'Academic Elective 2', grade_level: 'Grade 11' },
+        { id: '9', subject_name: 'Academic Elective 3', grade_level: 'Grade 11' },
       ],
       attendance: {
         months: ['Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
@@ -224,8 +227,8 @@ describe('Diagnose Grade 11 SF9 Excel Repair Errors in sheet6.xml', () => {
       schoolProfile,
       schoolYear: '2026-2027',
       section: 'AMETHYST',
-      adviserName: 'Adviser Name',
-      grades: [],
+      adviser: 'Adviser Name',
+      grades: {},
       subjects: [],
     });
 
@@ -257,7 +260,7 @@ describe('Diagnose Grade 11 SF9 Excel Repair Errors in sheet6.xml', () => {
       schoolProfile,
       schoolYear: '2026-2027',
       section: 'AMETHYST',
-      adviserName: 'Adviser Name',
+      adviser: 'Adviser Name',
       grades: {
         'Effective Communication': { q1: 88, q2: 89, q3: 90, final: 89 },
         'Mabisang Komunikasyon': { q1: 85, q2: 86, q3: 87, final: 86 },
@@ -268,13 +271,13 @@ describe('Diagnose Grade 11 SF9 Excel Repair Errors in sheet6.xml', () => {
         'Specialized Technical Subject': { q1: 88, q2: 89, q3: 90, final: 89 },
       },
       subjects: [
-        { id: '1', name: 'Effective Communication', subject_type: 'core', grade_level: 'Grade 11' },
-        { id: '2', name: 'Mabisang Komunikasyon', subject_type: 'core', grade_level: 'Grade 11' },
-        { id: '3', name: 'General Mathematics', subject_type: 'core', grade_level: 'Grade 11' },
-        { id: '4', name: 'General Science', subject_type: 'core', grade_level: 'Grade 11' },
-        { id: '5', name: 'Life and Career Skills', subject_type: 'core', grade_level: 'Grade 11' },
-        { id: '6', name: 'Pampamayanang Paglilingkod', subject_type: 'core', grade_level: 'Grade 11' },
-        { id: '7', name: 'Specialized Technical Subject', subject_type: 'specialized', grade_level: 'Grade 11' },
+        { id: '1', subject_name: 'Effective Communication', grade_level: 'Grade 11' },
+        { id: '2', subject_name: 'Mabisang Komunikasyon', grade_level: 'Grade 11' },
+        { id: '3', subject_name: 'General Mathematics', grade_level: 'Grade 11' },
+        { id: '4', subject_name: 'General Science', grade_level: 'Grade 11' },
+        { id: '5', subject_name: 'Life and Career Skills', grade_level: 'Grade 11' },
+        { id: '6', subject_name: 'Pampamayanang Paglilingkod', grade_level: 'Grade 11' },
+        { id: '7', subject_name: 'Specialized Technical Subject', grade_level: 'Grade 11' },
       ],
       attendance: {
         months: ['Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],

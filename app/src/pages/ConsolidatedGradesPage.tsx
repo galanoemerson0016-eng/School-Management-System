@@ -1,13 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo, Fragment, useEffect, useCallback, memo, useRef } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
-import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus, Download, Bug, AlertTriangle, CheckCircle2, Lock, Unlock, ChevronLeft, ChevronRight, RefreshCw, X, Search, RotateCcw } from 'lucide-react';
+import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus, Download, Bug, AlertTriangle, CheckCircle2, Lock, Unlock, ChevronLeft, ChevronRight, RefreshCw, X, Search, RotateCcw, Sparkles } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
-import { getSubjectsForGrade, normalizeSubjectName, sortSubjects } from '../lib/subjectConfig';
-import { getDefaultTermForSubject, getShsSubjectUnitInfo, getCurriculumTemplatesForSection, SPECIAL_SUBJECTS } from '../lib/curriculum';
-import { resolveStudentQuarterGrade, isMatchingSubject, isSameSubject, normalizeGrade12PESubjectName, cleanSubjectQuery, isQuarterMatch, isSubjectInTeachingLoad } from '../utils/grading-helpers';
+import { getSubjectsForGrade, normalizeSubjectName, sortSubjects, getCanonicalSubjectKey, getSubjectCategory, getStandardSubjectPriority } from '../lib/subjectConfig';
+import { getDefaultTermForSubject, getShsSubjectUnitInfo, getCurriculumTemplatesForSection, SPECIAL_SUBJECTS, isGrade11CoreSubject, SSHS_ACADEMIC_CLUSTERS, SSHS_TECHPRO_CLUSTERS, resolveSubjectOfferedTerms } from '../lib/curriculum';
+import { resolveStudentQuarterGrade, isMatchingSubject, isSameSubject, normalizeGrade12PESubjectName, cleanSubjectQuery, isQuarterMatch, isSubjectInTeachingLoad, extractSubjectSequence } from '../utils/grading-helpers';
+import { autoRepairSectionCurriculum } from '../services/curriculumSync';
 import type { Subject, ClassRecord, Section } from '../types';
 
 type QuarterGrades = {
@@ -66,151 +67,7 @@ const isElementaryLevel = (gradeLevel: string) => {
     return false;
 };
 
-const getSubjectCategory = (subjectName: string, gradeLevel: string): string => {
-    const isSHS = gradeLevel.includes('11') || gradeLevel.includes('12');
-    if (!isSHS) {
-        return '';
-    }
 
-    const normalized = subjectName.trim().toLowerCase();
-    const isG12 = gradeLevel.includes('12');
-
-    if (isG12) {
-        const norm = normalized.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-        
-        // 1. Core Subjects
-        const cores = [
-            "21st century literature from the philippines and the world",
-            "contemporary philippine arts from the regions",
-            "disaster readiness and risk reduction",
-            "earth and life science",
-            "earth science",
-            "general mathematics",
-            "introduction to philosophy of the human person",
-            "komunikasyon at pananaliksik sa wika at kulturang pilipino",
-            "media and information literacy",
-            "oral communication in context",
-            "pagbasa at pagsusuri ng ibat ibang teksto tungo sa pananaliksik",
-            "pagbasa at pagsusuri ng iba't ibang teksto tungo sa pananaliksik",
-            "personal development",
-            "physical education and health 1",
-            "physical education and health 2",
-            "physical education and health 3",
-            "physical education and health 4",
-            "health optimizing physical education and health 1",
-            "health optimizing physical education and health 2",
-            "health optimizing physical education and health 3",
-            "health optimizing physical education and health 4",
-            "health optimizing physical education 1",
-            "health optimizing physical education 2",
-            "health optimizing physical education 3",
-            "health optimizing physical education 4",
-            "hope 1",
-            "hope 2",
-            "hope 3",
-            "hope 4",
-            "physical science",
-            "reading and writing skills",
-            "statistics and probability",
-            "understanding culture society and politics",
-            "understanding culture, society and politics",
-            "21st century literature",
-            "contemporary philippine arts",
-            "pe and health 1",
-            "pe and health 2",
-            "pe and health 3",
-            "pe and health 4",
-            "physical education 1",
-            "physical education 2",
-            "physical education 3",
-            "physical education 4",
-            "pe 1",
-            "pe 2",
-            "pe 3",
-            "pe 4"
-        ];
-        if (cores.some(c => {
-            const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return norm === cNorm || norm.includes(cNorm) || cNorm.includes(norm);
-        })) {
-            return 'Core';
-        }
-
-        // 2. Applied Subjects
-        const applied = [
-            "empowerment technologies",
-            "english for academic and professional purposes",
-            "entrepreneurship",
-            "filipino sa piling larang akademik",
-            "filipino sa piling larang akademiko",
-            "filipino sa piling larang isports",
-            "filipino sa piling larang sining at disenyo",
-            "filipino sa piling larang teknikal bokasyunal",
-            "filipino sa piling larang teknikal-bokasyunal",
-            "filipino sa piling larang",
-            "inquiries investigations and immersion",
-            "inquiries, investigations and immersion",
-            "practical research 1",
-            "practical research 2"
-        ];
-        if (applied.some(a => {
-            const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return norm === aNorm || norm.includes(aNorm) || aNorm.includes(norm);
-        })) {
-            return 'Applied';
-        }
-
-        // 3. Specialized Subjects
-        return 'Specialized';
-    }
-
-    const norm = normalized;
-
-    // 1. Core Subject (All Tracks)
-    const cores = [
-        'effective communication',
-        'mabisang komunikasyon',
-        'general mathematics',
-        'general science',
-        'life and career skills',
-        'pag-aaral ng kasaysayan at lipunang pilipino',
-        'kasaysayan at lipunang pilipino'
-    ];
-    if (cores.some(c => norm.includes(c))) {
-        return 'Core Subject (All Tracks)';
-    }
-
-    // 2. TechPro Elective (Work Immersion)
-    if (norm.startsWith('work immersion')) {
-        return 'TechPro Elective (Work Immersion)';
-    }
-
-    // 3. Academic Elective (Field Experience / Exposure, and Sports and Arts)
-    if (norm.startsWith('field exposure') || norm.startsWith('field experience') || norm.includes('apprenticeship')) {
-        return 'Academic Elective (Field Experience / Exposure, and Sports and Arts)';
-    }
-
-    // 4. TechPro Electives (All Other Electives)
-    const techProElectives = [
-        'beauty care', 'barbering', 'caregiving', 'hairdressing', 'wellness', 'massage', 'hilot',
-        'agricultural crops', 'agro-entrepreneurship', 'aquaculture', 'fish capture', 'food processing',
-        'organic agriculture', 'poultry', 'ruminants', 'swine', 'garments', 'handicrafts', 'weaving',
-        'automotive servicing', 'electrical repair', 'engine and chassis', 'driving and automotive',
-        'motorcycle', 'small engine', 'carpentry', 'construction operation', 'metal arc welding',
-        'technical drafting', 'animation', 'illustration', 'visual graphics', 'bakery operation',
-        'events management', 'food and beverage operation', 'hotel operation', 'housekeeping',
-        'kitchen operations', 'tourism services', 'commercial air-conditioning', 'domestic refrigeration',
-        'electrical installation', 'electronics product', 'mechatronics', 'photovoltaic',
-        'broadband installation', 'computer programming', 'computer systems servicing',
-        'contact center services', 'marine engineering', 'marine transportation', 'ships catering'
-    ];
-    if (techProElectives.some(tp => norm.includes(tp))) {
-        return 'TechPro Elective (All Other Electives)';
-    }
-
-    // 5. Academic Elective (All Other Electives)
-    return 'Academic Elective (All Other Electives)';
-};
 
 
 
@@ -302,7 +159,7 @@ const GradeInput = ({
         if (targetVal === valueRef.current) return;
 
         if (isLocked) {
-            useAppStore.getState().showNotification(`Quarter ${quarter} is locked. Unlock it in the Lock menu to edit.`, 'error');
+            useAppStore.getState().showNotification(`Term ${quarter} is locked. Unlock it in the Lock menu to edit.`, 'error');
             setLocalValue(valueRef.current || '');
             return;
         }
@@ -401,7 +258,7 @@ const GradeInput = ({
     return (
         <div 
             className={`relative w-full h-full group ${isMissing ? 'bg-amber-100/80 dark:bg-amber-950/50 is-missing' : ''} ${isLocked ? 'bg-slate-100/60 dark:bg-slate-800/40' : ''}`}
-            title={isLocked ? `Quarter ${quarter} is locked against editing.` : undefined}
+            title={isLocked ? `Term ${quarter} is locked against editing.` : undefined}
         >
             <input
                 type="number"
@@ -437,6 +294,13 @@ const formatLearnerName = (student: any) => {
     return `${student.last_name || ''}, ${student.first_name || ''} ${middleInitial}`.trim().replace(/\s+/g, ' ').toUpperCase();
 };
 
+const TERM_LABELS = {
+    q1: 'TERM 1',
+    q2: 'TERM 2',
+    q3: 'TERM 3',
+    all: 'Final & General Average'
+} as const;
+
 interface StudentGradeRowProps {
     student: any;
     studentRow: number;
@@ -460,6 +324,7 @@ interface StudentGradeRowProps {
     averageColWidth?: number;
     generalAvgColWidth?: number;
     descriptorColWidth?: number;
+    getSubjectOfferedTerms?: (sub: any) => number[];
 }
 
 const areEqual = (prev: StudentGradeRowProps, next: StudentGradeRowProps) => {
@@ -480,35 +345,26 @@ const areEqual = (prev: StudentGradeRowProps, next: StudentGradeRowProps) => {
     if (prev.averageColWidth !== next.averageColWidth) return false;
     if (prev.generalAvgColWidth !== next.generalAvgColWidth) return false;
     if (prev.descriptorColWidth !== next.descriptorColWidth) return false;
+    if (prev.getSubjectOfferedTerms !== next.getSubjectOfferedTerms) return false;
     
     if (prev.subjectColumns?.length !== next.subjectColumns?.length) return false;
     
     const prevData = prev.data || {};
     const nextData = next.data || {};
-    
-    if (prevData.termAverage !== nextData.termAverage) return false;
-    if (prevData.generalAverage !== nextData.generalAverage) return false;
-    
-    const keys = prev.subjectColumns.map(col => col.subject.id);
-    for (const key of keys) {
-        const pSub = prevData[key] || {};
-        const nSub = nextData[key] || {};
-        
-        if (typeof pSub === 'object' && typeof nSub === 'object') {
-            if (pSub.value !== nSub.value) return false;
-            if (pSub.musicArts !== nSub.musicArts) return false;
-            if (pSub.peHealth !== nSub.peHealth) return false;
-            if (pSub.effectiveComm !== nSub.effectiveComm) return false;
-            if (pSub.mabisangKom !== nSub.mabisangKom) return false;
-        } else {
-            if (pSub.q1 !== nSub.q1) return false;
-            if (pSub.q2 !== nSub.q2) return false;
-            if (pSub.q3 !== nSub.q3) return false;
-            if (pSub.q4 !== nSub.q4) return false;
-            if (pSub.final !== nSub.final) return false;
+    for (let i = 0; i < prev.subjectColumns.length; i++) {
+        const colId = prev.subjectColumns[i].subject.id;
+        const prevColData = prevData[colId];
+        const nextColData = nextData[colId];
+        if (prevColData !== nextColData) {
+            if (!prevColData || !nextColData) return false;
+            if (prevColData.q1 !== nextColData.q1 ||
+                prevColData.q2 !== nextColData.q2 ||
+                prevColData.q3 !== nextColData.q3 ||
+                prevColData.final !== nextColData.final) {
+                return false;
+            }
         }
     }
-    
     return true;
 };
 
@@ -560,14 +416,16 @@ const StudentGradeRow = memo(({
     averageColWidth,
     generalAvgColWidth,
     descriptorColWidth,
+    getSubjectOfferedTerms,
 }: StudentGradeRowProps) => {
     const isQuarterLocked = (q: string | number) => {
         const key = (typeof q === 'number' ? `q${q}` : q.toLowerCase()) as 'q1' | 'q2' | 'q3' | 'q4';
         return (lockedQuarters || []).includes(key);
     };
 
-    const getSubColWidth = (subId: string) => {
-        return (customColumnWidths && customColumnWidths[subId]) || subjectColumnWidth;
+    const getSubColWidth = (subId: string, _subject?: any) => {
+        if (customColumnWidths && customColumnWidths[subId]) return customColumnWidths[subId];
+        return subjectColumnWidth;
     };
     const colIndices = useMemo(() => {
         const indices: number[] = [];
@@ -607,45 +465,53 @@ const StudentGradeRow = memo(({
                                     const isMaMissing = Boolean(highlightMissingGrades && activeQuarterTerm && (!maVal && maVal !== 0));
                                     const phVal = activeQuarterTerm ? getQuarterGradeDetail(sData[activeQuarterTerm])?.peHealth : undefined;
                                     const isPhMissing = Boolean(highlightMissingGrades && activeQuarterTerm && (!phVal && phVal !== 0));
+                                    const maComp = column.subject._mapehGroups?.musicArts?.[0] || {
+                                        id: `virtual_music_arts_${sectionObj?.id || 'sec'}`,
+                                        subject_name: 'Music and Arts'
+                                    };
+                                    const phComp = column.subject._mapehGroups?.peHealth?.[0] || {
+                                        id: `virtual_pe_health_${sectionObj?.id || 'sec'}`,
+                                        subject_name: 'Physical Education and Health'
+                                    };
                                     return (
                                         <>
-                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums ${isMaMissing ? 'bg-amber-100/70 dark:bg-amber-950/40' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
-                                                {activeQuarterTerm && column.subject._mapehGroups?.musicArts[0] && (
-                                                    <GradeInput
-                                                        studentLrn={student.lrn}
-                                                        subjectId={column.subject._mapehGroups.musicArts[0].id}
-                                                        subjectName={column.subject._mapehGroups.musicArts[0].subject_name}
-                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
-                                                        value={maVal}
+                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isMaMissing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                                {activeQuarterTerm ? (
+                                                    <GradeInput 
+                                                        studentLrn={student.lrn} 
+                                                        subjectId={maComp.id} 
+                                                        subjectName={maComp.subject_name}
+                                                        quarter={activeQuarterTerm === 'q1' ? 1 : activeQuarterTerm === 'q2' ? 2 : activeQuarterTerm === 'q3' ? 3 : 4} 
+                                                        value={maVal} 
                                                         activeSchoolYear={activeSchoolYear}
                                                         subjects={subjects}
                                                         sectionObj={sectionObj}
                                                         updateGradingSheetRecord={updateGradingSheetRecord}
                                                         row={studentRow} col={currentCol}
                                                         isMissing={isMaMissing}
-                                                        isLocked={Boolean(activeQuarterTerm && isQuarterLocked(activeQuarterTerm))}
+                                                        isLocked={isQuarterLocked(activeQuarterTerm)}
                                                     />
-                                                )}
+                                                ) : ''}
                                             </td>
-                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums ${isPhMissing ? 'bg-amber-100/70 dark:bg-amber-950/40' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
-                                                {activeQuarterTerm && column.subject._mapehGroups?.peHealth[0] && (
-                                                    <GradeInput
-                                                        studentLrn={student.lrn}
-                                                        subjectId={column.subject._mapehGroups.peHealth[0].id}
-                                                        subjectName={column.subject._mapehGroups.peHealth[0].subject_name}
-                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
-                                                        value={phVal}
+                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isPhMissing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                                {activeQuarterTerm ? (
+                                                    <GradeInput 
+                                                        studentLrn={student.lrn} 
+                                                        subjectId={phComp.id} 
+                                                        subjectName={phComp.subject_name}
+                                                        quarter={activeQuarterTerm === 'q1' ? 1 : activeQuarterTerm === 'q2' ? 2 : activeQuarterTerm === 'q3' ? 3 : 4} 
+                                                        value={phVal} 
                                                         activeSchoolYear={activeSchoolYear}
                                                         subjects={subjects}
                                                         sectionObj={sectionObj}
                                                         updateGradingSheetRecord={updateGradingSheetRecord}
                                                         row={studentRow} col={currentCol + 1}
                                                         isMissing={isPhMissing}
-                                                        isLocked={Boolean(activeQuarterTerm && isQuarterLocked(activeQuarterTerm))}
+                                                        isLocked={isQuarterLocked(activeQuarterTerm)}
                                                     />
-                                                )}
+                                                ) : ''}
                                             </td>
-                                            <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
+                                            <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold bg-gray-200" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
                                         </>
                                     );
                                 })()}
@@ -657,43 +523,51 @@ const StudentGradeRow = memo(({
                                     const isEcMissing = Boolean(highlightMissingGrades && activeQuarterTerm && (!ecVal && ecVal !== 0));
                                     const mkVal = activeQuarterTerm ? getQuarterGradeDetail(sData[activeQuarterTerm])?.mabisangKom : undefined;
                                     const isMkMissing = Boolean(highlightMissingGrades && activeQuarterTerm && (!mkVal && mkVal !== 0));
+                                    const ecComp = {
+                                        id: `ecmk_ec_${sectionObj?.id || 'sec'}`,
+                                        subject_name: 'Effective Communication'
+                                    };
+                                    const mkComp = {
+                                        id: `ecmk_mk_${sectionObj?.id || 'sec'}`,
+                                        subject_name: 'Mabisang Komunikasyon'
+                                    };
                                     return (
                                         <>
-                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums ${isEcMissing ? 'bg-amber-100/70 dark:bg-amber-950/40' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
-                                                {activeQuarterTerm && column.subject._ecmkGroups?.effectiveComm[0] && (
-                                                    <GradeInput
-                                                        studentLrn={student.lrn}
-                                                        subjectId={column.subject._ecmkGroups.effectiveComm[0].id}
-                                                        subjectName={column.subject._ecmkGroups.effectiveComm[0].subject_name}
-                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
-                                                        value={ecVal}
+                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isEcMissing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                                {activeQuarterTerm ? (
+                                                    <GradeInput 
+                                                        studentLrn={student.lrn} 
+                                                        subjectId={ecComp.id} 
+                                                        subjectName={ecComp.subject_name}
+                                                        quarter={activeQuarterTerm === 'q1' ? 1 : activeQuarterTerm === 'q2' ? 2 : activeQuarterTerm === 'q3' ? 3 : 4} 
+                                                        value={ecVal} 
                                                         activeSchoolYear={activeSchoolYear}
                                                         subjects={subjects}
                                                         sectionObj={sectionObj}
                                                         updateGradingSheetRecord={updateGradingSheetRecord}
                                                         row={studentRow} col={currentCol}
                                                         isMissing={isEcMissing}
-                                                        isLocked={Boolean(activeQuarterTerm && isQuarterLocked(activeQuarterTerm))}
+                                                        isLocked={isQuarterLocked(activeQuarterTerm)}
                                                     />
-                                                )}
+                                                ) : ''}
                                             </td>
-                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums ${isMkMissing ? 'bg-amber-100/70 dark:bg-amber-950/40' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
-                                                {activeQuarterTerm && column.subject._ecmkGroups?.mabisangKom[0] && (
-                                                    <GradeInput
-                                                        studentLrn={student.lrn}
-                                                        subjectId={column.subject._ecmkGroups.mabisangKom[0].id}
-                                                        subjectName={column.subject._ecmkGroups.mabisangKom[0].subject_name}
-                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
-                                                        value={mkVal}
+                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isMkMissing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                                {activeQuarterTerm ? (
+                                                    <GradeInput 
+                                                        studentLrn={student.lrn} 
+                                                        subjectId={mkComp.id} 
+                                                        subjectName={mkComp.subject_name}
+                                                        quarter={activeQuarterTerm === 'q1' ? 1 : activeQuarterTerm === 'q2' ? 2 : activeQuarterTerm === 'q3' ? 3 : 4} 
+                                                        value={mkVal} 
                                                         activeSchoolYear={activeSchoolYear}
                                                         subjects={subjects}
                                                         sectionObj={sectionObj}
                                                         updateGradingSheetRecord={updateGradingSheetRecord}
                                                         row={studentRow} col={currentCol + 1}
                                                         isMissing={isMkMissing}
-                                                        isLocked={Boolean(activeQuarterTerm && isQuarterLocked(activeQuarterTerm))}
+                                                        isLocked={isQuarterLocked(activeQuarterTerm)}
                                                     />
-                                                )}
+                                                ) : ''}
                                             </td>
                                             <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold bg-gray-200" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
                                         </>
@@ -709,69 +583,166 @@ const StudentGradeRow = memo(({
                                     const isQ2Missing = Boolean(highlightMissingGrades && (!q2Val && q2Val !== 0));
                                     const q3Val = getQuarterGradeValue(sData.q3);
                                     const isQ3Missing = Boolean(highlightMissingGrades && (!q3Val && q3Val !== 0));
+                                    
+                                    const offered = getSubjectOfferedTerms 
+                                        ? getSubjectOfferedTerms(column.subject) 
+                                        : resolveSubjectOfferedTerms(column.subject, sectionObj);
+
+                                    if (selectedTerm === 'all') {
+                                        const isT1 = offered.includes(1);
+                                        const isT2 = offered.includes(2);
+                                        const isT3 = offered.includes(3);
+
+                                        const isQ1Missing = Boolean(highlightMissingGrades && isT1 && (!q1Val && q1Val !== 0));
+                                        const isQ2Missing = Boolean(highlightMissingGrades && isT2 && (!q2Val && q2Val !== 0));
+                                        const isQ3Missing = Boolean(highlightMissingGrades && isT3 && (!q3Val && q3Val !== 0));
+
+                                        let finalVal = sData.final;
+                                        if (finalVal === undefined || finalVal === null) {
+                                            const offeredGrades = [
+                                                isT1 ? q1Val : null,
+                                                isT2 ? q2Val : null,
+                                                isT3 ? q3Val : null,
+                                            ].filter((v): v is number => typeof v === 'number' && v > 0);
+                                            if (offeredGrades.length > 0) {
+                                                finalVal = Math.round(offeredGrades.reduce((a, b) => a + b, 0) / offeredGrades.length);
+                                            }
+                                        }
+
+                                        return (
+                                            <>
+                                                {isT1 ? (
+                                                    <td
+                                                        className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isQ1Missing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`}
+                                                        style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
+                                                    >
+                                                        {formatGradeForDisplay(q1Val, sectionObj?.section_grade_level || '') || ''}
+                                                    </td>
+                                                ) : (
+                                                    <td
+                                                        className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-normal bg-gray-200/90 dark:bg-slate-800 text-gray-400 dark:text-slate-500 select-none cursor-not-allowed"
+                                                        style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
+                                                        title="Not offered in Term 1"
+                                                    >
+                                                        —
+                                                    </td>
+                                                )}
+
+                                                {isT2 ? (
+                                                    <td
+                                                        className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isQ2Missing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`}
+                                                        style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
+                                                    >
+                                                        {formatGradeForDisplay(q2Val, sectionObj?.section_grade_level || '') || ''}
+                                                    </td>
+                                                ) : (
+                                                    <td
+                                                        className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-normal bg-gray-200/90 dark:bg-slate-800 text-gray-400 dark:text-slate-500 select-none cursor-not-allowed"
+                                                        style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
+                                                        title="Not offered in Term 2"
+                                                    >
+                                                        —
+                                                    </td>
+                                                )}
+
+                                                {isT3 ? (
+                                                    <td
+                                                        className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isQ3Missing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`}
+                                                        style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
+                                                    >
+                                                        {formatGradeForDisplay(q3Val, sectionObj?.section_grade_level || '') || ''}
+                                                    </td>
+                                                ) : (
+                                                    <td
+                                                        className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-normal bg-gray-200/90 dark:bg-slate-800 text-gray-400 dark:text-slate-500 select-none cursor-not-allowed"
+                                                        style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
+                                                        title="Not offered in Term 3"
+                                                    >
+                                                        —
+                                                    </td>
+                                                )}
+
+                                                <td
+                                                    className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-bold bg-gray-200"
+                                                    style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
+                                                >
+                                                    {formatGradeForDisplay(finalVal, sectionObj?.section_grade_level || '') || ''}
+                                                </td>
+                                            </>
+                                        );
+                                    }
+
+                                    const currentTermNum = selectedTerm === 'q1' ? 1 : selectedTerm === 'q2' ? 2 : selectedTerm === 'q3' ? 3 : 4;
+                                    const isCurrentTermOffered = offered.includes(currentTermNum);
+
+                                    if (!isCurrentTermOffered) {
+                                        return (
+                                            <td
+                                                className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-normal bg-gray-200/90 dark:bg-slate-800 text-gray-400 dark:text-slate-500 select-none cursor-not-allowed"
+                                                style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
+                                                title={`Not offered in ${TERM_LABELS[selectedTerm as keyof typeof TERM_LABELS] || 'this term'}`}
+                                            >
+                                                —
+                                            </td>
+                                        );
+                                    }
+
                                     return (
                                         <>
-                                            {(selectedTerm === 'q1' || selectedTerm === 'all') && (
+                                            {selectedTerm === 'q1' && (
                                                 <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isQ1Missing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
-                                                    {selectedTerm === 'q1' ? (
-                                                         <GradeInput 
-                                                             studentLrn={student.lrn} 
-                                                            subjectId={column.subject.id} 
-                                                            subjectName={column.subject.subject_name}
-                                                            quarter={1} 
-                                                            value={sData.q1} 
-                                                            activeSchoolYear={activeSchoolYear}
-                                                            subjects={subjects}
-                                                            sectionObj={sectionObj}
-                                                            updateGradingSheetRecord={updateGradingSheetRecord}
-                                                            row={studentRow} col={currentCol}
-                                                            isMissing={isQ1Missing}
-                                                            isLocked={isQuarterLocked('q1')}
-                                                        />
-                                                        ) : (formatGradeForDisplay(q1Val, sectionObj?.section_grade_level || '') || '')}
+                                                    <GradeInput 
+                                                        studentLrn={student.lrn} 
+                                                        subjectId={column.subject.id} 
+                                                        subjectName={column.subject.subject_name}
+                                                        quarter={1} 
+                                                        value={sData.q1} 
+                                                        activeSchoolYear={activeSchoolYear}
+                                                        subjects={subjects}
+                                                        sectionObj={sectionObj}
+                                                        updateGradingSheetRecord={updateGradingSheetRecord}
+                                                        row={studentRow} col={currentCol}
+                                                        isMissing={isQ1Missing}
+                                                        isLocked={isQuarterLocked('q1')}
+                                                    />
                                                 </td>
                                             )}
-                                            {(selectedTerm === 'q2' || selectedTerm === 'all') && (
+                                            {selectedTerm === 'q2' && (
                                                 <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isQ2Missing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
-                                                    {selectedTerm === 'q2' ? (
-                                                        <GradeInput 
-                                                            studentLrn={student.lrn} 
-                                                            subjectId={column.subject.id} 
-                                                            subjectName={column.subject.subject_name}
-                                                            quarter={2} 
-                                                            value={sData.q2} 
-                                                            activeSchoolYear={activeSchoolYear}
-                                                            subjects={subjects}
-                                                            sectionObj={sectionObj}
-                                                            updateGradingSheetRecord={updateGradingSheetRecord}
-                                                            row={studentRow} col={currentCol}
-                                                            isMissing={isQ2Missing}
-                                                            isLocked={isQuarterLocked('q2')}
-                                                        />
-                                                        ) : (formatGradeForDisplay(q2Val, sectionObj?.section_grade_level || '') || '')}
+                                                    <GradeInput 
+                                                        studentLrn={student.lrn} 
+                                                        subjectId={column.subject.id} 
+                                                        subjectName={column.subject.subject_name}
+                                                        quarter={2} 
+                                                        value={sData.q2} 
+                                                        activeSchoolYear={activeSchoolYear}
+                                                        subjects={subjects}
+                                                        sectionObj={sectionObj}
+                                                        updateGradingSheetRecord={updateGradingSheetRecord}
+                                                        row={studentRow} col={currentCol}
+                                                        isMissing={isQ2Missing}
+                                                        isLocked={isQuarterLocked('q2')}
+                                                    />
                                                 </td>
                                             )}
-                                            {(selectedTerm === 'q3' || selectedTerm === 'all') && (
+                                            {selectedTerm === 'q3' && (
                                                 <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isQ3Missing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
-                                                    {selectedTerm === 'q3' ? (
-                                                        <GradeInput 
-                                                            studentLrn={student.lrn} 
-                                                            subjectId={column.subject.id} 
-                                                            subjectName={column.subject.subject_name}
-                                                            quarter={3} 
-                                                            value={sData.q3} 
-                                                            activeSchoolYear={activeSchoolYear}
-                                                            subjects={subjects}
-                                                            sectionObj={sectionObj}
-                                                            updateGradingSheetRecord={updateGradingSheetRecord}
-                                                            row={studentRow} col={currentCol}
-                                                            isMissing={isQ3Missing}
-                                                            isLocked={isQuarterLocked('q3')}
-                                                        />
-                                                        ) : (formatGradeForDisplay(q3Val, sectionObj?.section_grade_level || '') || '')}
+                                                    <GradeInput 
+                                                        studentLrn={student.lrn} 
+                                                        subjectId={column.subject.id} 
+                                                        subjectName={column.subject.subject_name}
+                                                        quarter={3} 
+                                                        value={sData.q3} 
+                                                        activeSchoolYear={activeSchoolYear}
+                                                        subjects={subjects}
+                                                        sectionObj={sectionObj}
+                                                        updateGradingSheetRecord={updateGradingSheetRecord}
+                                                        row={studentRow} col={currentCol}
+                                                        isMissing={isQ3Missing}
+                                                        isLocked={isQuarterLocked('q3')}
+                                                    />
                                                 </td>
                                             )}
-                                            {selectedTerm === 'all' && <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-bold bg-gray-200" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>{formatGradeForDisplay(sData.final, sectionObj?.section_grade_level || '') || ''}</td>}
                                         </>
                                     );
                                 })()}
@@ -1303,8 +1274,9 @@ export function ConsolidatedGradesPage() {
     };
 
     const availableSections = useMemo(() => {
-        const filtered = filterSF9Sections(user, sections);
-        return filtered.sort((a, b) => {
+        const advisoryOnly = sections.filter(s => s.is_advisory);
+        const base = advisoryOnly.length > 0 ? advisoryOnly : filterSF9Sections(user, sections);
+        return [...base].sort((a, b) => {
             const getGrade = (g: string) => {
                 const match = g.match(/\d+/);
                 return match ? parseInt(match[0], 10) : 999;
@@ -1340,11 +1312,29 @@ const groupedSections = useMemo(() => {
         return groups;
     }, [availableSections]);
 
-    const TERM_LABELS = {
-        q1: 'First Term',
-        q2: 'Second Term',
-        q3: 'Third Term',
-        all: 'Final & General Average'
+    const [isAutoRepairing, setIsAutoRepairing] = useState(false);
+
+    const handleAutoRepairSection = async () => {
+        if (!sectionObj) return;
+        setIsAutoRepairing(true);
+        try {
+            const { addSubject, updateSubject, updateSection, showNotification } = useAppStore.getState();
+            const result = await autoRepairSectionCurriculum(
+                sectionObj,
+                subjects,
+                { addSubject, updateSubject, updateSection }
+            );
+            if (result.success) {
+                showNotification(result.message, 'success');
+            } else {
+                showNotification(result.message, 'error');
+            }
+        } catch (err) {
+            console.error('Failed to auto-repair section curriculum:', err);
+            useAppStore.getState().showNotification('Failed to auto-repair section.', 'error');
+        } finally {
+            setIsAutoRepairing(false);
+        }
     };
 
     // Update selectedSection if it's no longer available
@@ -1365,6 +1355,40 @@ const groupedSections = useMemo(() => {
     const sectionSubjects = useMemo(() => {
         if (!sectionObj) return [];
 
+        // 0. Hidden subjects filter helper (from section_metadata.hiddenConsolidatedSubjects)
+        const hiddenList = sectionObj.section_metadata?.hiddenConsolidatedSubjects || [];
+        const isSubjectHidden = (subName: string, subId?: string): boolean => {
+            if (!hiddenList || hiddenList.length === 0 || !subName) return false;
+            const normSub = normalizeSubjectName(subName);
+            const canonSub = getCanonicalSubjectKey(subName, sectionObj.section_grade_level);
+
+            const isMapehParentHidden = hiddenList.some(h => normalizeSubjectName(h) === 'mapeh');
+            if (isMapehParentHidden && !isSHS) {
+                if (normSub === 'mapeh' || normSub.includes('music') || normSub.includes('arts') || normSub.includes('pe') || normSub.includes('health') || normSub.includes('physical')) {
+                    return true;
+                }
+            }
+
+            const isEcmkParentHidden = hiddenList.some(h => isEcmkParent(h));
+            if (isEcmkParentHidden) {
+                if (isEcmkParent(subName) || normSub === 'effectivecommunication' || normSub === 'mabisangkomunikasyon') {
+                    return true;
+                }
+            }
+
+            for (const h of hiddenList) {
+                if (!h) continue;
+                if (h.toLowerCase().trim() === subName.toLowerCase().trim()) return true;
+                const normH = normalizeSubjectName(h);
+                if (normH && normH === normSub) return true;
+                const canonH = getCanonicalSubjectKey(h, sectionObj.section_grade_level);
+                if (canonH && (canonH === canonSub || canonH === normSub || normH === canonSub)) return true;
+                if (isSameSubject(subId, subName, undefined, h)) return true;
+                if (isMatchingSubject(h, subId, subName)) return true;
+            }
+            return false;
+        };
+
         // 1. Get the official list of subjects for this grade level from the curriculum
         const standardTemplates = getSubjectsForGrade(sectionObj.section_grade_level, schoolProfile.curriculum);
         const programTemplates = getCurriculumTemplatesForSection(
@@ -1381,17 +1405,65 @@ const groupedSections = useMemo(() => {
         const sectionGradeNum = parseInt(sectionObj.section_grade_level.replace(/\D/g, '')) || 0;
         const isSHS = sectionGradeNum === 11 || sectionGradeNum === 12;
         
-        const getEffectiveTerm = (s: Subject | { subject_name: string; grade_level?: string; term?: string | number | null }) => {
-            if (s.term !== undefined && s.term !== null) return s.term;
+        const getEffectiveTerm = (s: Subject | { subject_name: string; grade_level?: string; term?: string | number | null; id?: string }): 1 | 2 | 3 | 'all' | 'none' => {
+            const sectionTermOverride = (sectionObj?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, 1 | 2 | 3 | 'all' | 'none'> | undefined;
+            if (sectionTermOverride) {
+                if (sectionTermOverride[s.subject_name] !== undefined) {
+                    return sectionTermOverride[s.subject_name];
+                }
+                const normName = normalizeSubjectName(s.subject_name);
+                for (const [key, val] of Object.entries(sectionTermOverride)) {
+                    if (normalizeSubjectName(key) === normName || isMatchingSubject(key, (s as Subject).id, s.subject_name)) {
+                        return val;
+                    }
+                }
+            }
+            if (sectionGradeNum === 11) {
+                if (isGrade11CoreSubject(s.subject_name)) {
+                    return 'all';
+                }
+                // For Grade 11 electives: if stored term is 1, 2, or 3, respect it
+                if (s.term === 1 || s.term === 2 || s.term === 3 || s.term === '1' || s.term === '2' || s.term === '3') {
+                    return Number(s.term) as 1 | 2 | 3;
+                }
+                // If stored term was corrupted as 'all' or 'none', fallback to intelligent default
+                return getDefaultTermForSubject(s.subject_name, 11);
+            }
+            if (s.term !== undefined && s.term !== null && s.term !== 'none') {
+                if (s.term === 1 || s.term === 2 || s.term === 3) return s.term;
+                if (s.term === 'all') return 'all';
+                if (s.term === '1' || s.term === '2' || s.term === '3') return Number(s.term) as 1 | 2 | 3;
+            }
             return getDefaultTermForSubject(s.subject_name, (s as Subject).grade_level || sectionObj.section_grade_level);
         };
 
         const sectionTrack = (sectionObj.track || '').toLowerCase();
-        const taughtRaw = sectionObj.taught_subjects || [];
+        let taughtRaw = (sectionObj.taught_subjects || []).filter(t => !isSubjectHidden(t));
+        if (sectionGradeNum === 11) {
+            // For Grade 11 SSHS: If an elective has NO student grades recorded in this section,
+            // and it does not match the section's assigned cluster (or section has no cluster),
+            // filter it out so leaked/auto-appended cross-cluster electives do not pollute the summary!
+            const clusterKey = sectionObj.cluster || sectionObj.strand || '';
+            const allowedClusterSubjects = clusterKey && ((SSHS_ACADEMIC_CLUSTERS as Record<string, string[]>)[clusterKey] || (SSHS_TECHPRO_CLUSTERS as Record<string, string[]>)[clusterKey])
+                ? ((SSHS_ACADEMIC_CLUSTERS as Record<string, string[]>)[clusterKey] || (SSHS_TECHPRO_CLUSTERS as Record<string, string[]>)[clusterKey])
+                : [];
+            taughtRaw = taughtRaw.filter(tName => {
+                if (isGrade11CoreSubject(tName)) return true;
+                const hasGrades = gradingSheetRecords.some(r => r.section_id === sectionObj.id && isMatchingSubject(tName, r.subject_id, r.subject_name) && Number(r.final_grade) > 0) ||
+                                  classRecords.some(r => (r as any).section_id === sectionObj.id && isMatchingSubject(tName, r.subject_id, r.subject_name) && Number((r as any).final_grade) > 0);
+                if (hasGrades) return true;
+                if (allowedClusterSubjects.length > 0) {
+                    return allowedClusterSubjects.some(cSub => isMatchingSubject(cSub, '', tName) || normalizeSubjectName(cSub) === normalizeSubjectName(tName));
+                }
+                return false;
+            });
+        }
 
         let candidates = subjects.filter(s => {
             // Never include standalone 'Specialization' subject (not part of official curriculum)
             if (normalizeSubjectName(s.subject_name) === 'specialization') return false;
+            // Never include hidden subjects
+            if (isSubjectHidden(s.subject_name, s.id)) return false;
 
             const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
             const isMatchingGrade = subjectGradeNum === sectionGradeNum;
@@ -1409,6 +1481,23 @@ const groupedSections = useMemo(() => {
 
         // Helper: Check if a subject is section-specific, an imported special program offering, or has grades in this section
         const isSpecialOrImported = (s: Subject) => {
+            if (isSubjectHidden(s.subject_name, s.id)) return false;
+
+            const hasGrades = gradingSheetRecords.some(r => isSameSubject(r.subject_id, r.subject_name, s.id, s.subject_name) && r.section_id === sectionObj.id && Number(r.final_grade) > 0) ||
+                              classRecords.some(r => isSameSubject(r.subject_id, r.subject_name, s.id, s.subject_name) && (r as any).section_id === sectionObj.id && Number((r as any).final_grade) > 0);
+            if (hasGrades) return true;
+
+            // In SHS (Grades 11 & 12): Electives must NEVER be auto-injected or kept unless explicitly in taughtRaw or having grades
+            if (isSHS) {
+                if (taughtRaw.length > 0) {
+                    return taughtRaw.some(t => isMatchingSubject(t, s.id, s.subject_name));
+                }
+                if (sectionGradeNum === 11) {
+                    return isGrade11CoreSubject(s.subject_name);
+                }
+                return false;
+            }
+
             if (s.section_id === sectionObj.id) return true;
             
             // Check if section belongs to a specialized program matching this subject
@@ -1421,10 +1510,6 @@ const groupedSections = useMemo(() => {
 
             const specialTemplates = SPECIAL_SUBJECTS[sectionObj.section_grade_level] || [];
             const isSpecialTemplate = specialTemplates.some(t => isMatchingSubject(t.name, s.id, s.subject_name) || normalizeSubjectName(t.name) === normalizeSubjectName(s.subject_name));
-
-            const hasGrades = gradingSheetRecords.some(r => isSameSubject(r.subject_id, r.subject_name, s.id, s.subject_name) && r.section_id === sectionObj.id && Number(r.final_grade) > 0) ||
-                              classRecords.some(r => isSameSubject(r.subject_id, r.subject_name, s.id, s.subject_name) && (r as any).section_id === sectionObj.id && Number((r as any).final_grade) > 0);
-            if (hasGrades) return true;
 
             // Only fallback to special templates if the section does NOT have an explicit taught roster
             if (taughtRaw.length <= 1) {
@@ -1442,6 +1527,7 @@ const groupedSections = useMemo(() => {
             if (taughtRaw.length > 0) {
                 // Ensure all explicitly taught subjects are present
                 for (const tName of taughtRaw) {
+                    if (isSubjectHidden(tName)) continue;
                     const alreadyHas = candidates.some(s => isMatchingSubject(tName, s.id, s.subject_name));
                     if (!alreadyHas) {
                         candidates.push({
@@ -1450,7 +1536,7 @@ const groupedSections = useMemo(() => {
                             subject_code: '',
                             grade_level: sectionObj.section_grade_level,
                             section_id: sectionObj.id,
-                            term: 'all'
+                            term: getEffectiveTerm({ subject_name: tName, grade_level: sectionObj.section_grade_level })
                         });
                     }
                 }
@@ -1475,9 +1561,15 @@ const groupedSections = useMemo(() => {
                 });
             } else if (sectionTrack) {
                 candidates = candidates.filter(s => {
+                    const hasGrades = gradingSheetRecords.some(r => isSameSubject(r.subject_id, r.subject_name, s.id, s.subject_name) && r.section_id === sectionObj.id && Number(r.final_grade) > 0) ||
+                                      classRecords.some(r => isSameSubject(r.subject_id, r.subject_name, s.id, s.subject_name) && (r as any).section_id === sectionObj.id && Number((r as any).final_grade) > 0);
+                    if (hasGrades) return true;
+                    if (sectionGradeNum === 11) {
+                        // For Grade 11 SSHS: Only Core subjects auto-populate if taught_subjects is empty!
+                        return isGrade11CoreSubject(s.subject_name);
+                    }
                     if (isSpecialOrImported(s)) return true;
                     const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
-                    if (unitInfo.category === 'core' && sectionGradeNum === 11) return true;
                     if (sectionTrack.includes('acad')) {
                         return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
                     }
@@ -1497,6 +1589,7 @@ const groupedSections = useMemo(() => {
         // For JHS (Grades 7–10) & Elementary (Grades 1–6):
         if (!isSHS) {
             const isSubjectAllowedInTaught = (subId: string, subName: string) => {
+                if (isSubjectHidden(subName, subId)) return false;
                 return taughtRaw.some(t => {
                     if (isMatchingSubject(t, subId, subName)) return true;
                     const normT = normalizeSubjectName(t);
@@ -1515,6 +1608,7 @@ const groupedSections = useMemo(() => {
             } else {
                 // If taught_subjects is not explicitly set (or single legacy pollution), allow standard intended curriculum subjects or special/imported subjects
                 candidates = candidates.filter(s => {
+                    if (isSubjectHidden(s.subject_name, s.id)) return false;
                     const isIntended = intendedSubjects.some(intended => isMatchingSubject(intended.name, s.id, s.subject_name) || normalizeSubjectName(intended.name) === normalizeSubjectName(s.subject_name));
                     const isExplicitlyTaught = isSubjectAllowedInTaught(s.id, s.subject_name);
                     return isIntended || isExplicitlyTaught || isSpecialOrImported(s);
@@ -1522,15 +1616,21 @@ const groupedSections = useMemo(() => {
             }
         }
 
-        let sectionDbSubjects = candidates;
+        let sectionDbSubjects = candidates.filter(s => !isSubjectHidden(s.subject_name, s.id));
 
         // Filter based on the selected term (quarter) if it's a specific term (1, 2, 3)
+        // Strict Term Isolation: In SHS, subjects only render in their active offering term (zero ghost blanks)
         if (selectedTerm !== 'all') {
             const termNum = selectedTerm === 'q1' ? 1 : selectedTerm === 'q2' ? 2 : selectedTerm === 'q3' ? 3 : null;
             if (termNum !== null) {
                 sectionDbSubjects = sectionDbSubjects.filter(s => {
                     const effTerm = getEffectiveTerm(s);
-                    return effTerm === 'all' || Number(effTerm) === termNum;
+                    // Elementary & JHS subjects run all year
+                    if (!isSHS) return true;
+                    // SSHS Grade 11 Core subjects span all 3 terms
+                    if (sectionGradeNum === 11 && (effTerm === 'all' || isGrade11CoreSubject(s.subject_name))) return true;
+                    // Grade 12 subjects and SHS electives strictly render in their designated offering term
+                    return Number(effTerm) === termNum;
                 });
             }
         }
@@ -1561,6 +1661,7 @@ const groupedSections = useMemo(() => {
         for (const s of sectionDbSubjects) {
             const norm = normalizeSubjectName(s.subject_name);
             if (norm === 'specialization') continue; // Never include standalone Specialization
+            if (isSubjectHidden(s.subject_name, s.id)) continue;
             if (norm) matchedNorms.add(norm);
             baseList.push({ ...s, is_virtual: false } as VirtualSectionSubject);
         }
@@ -1571,8 +1672,21 @@ const groupedSections = useMemo(() => {
             if (normalizeSubjectName(intended.name) === 'specialization') {
                 return false;
             }
-            // If explicit subject roster is configured (> 1), don't inject unselected subjects unless they are special program offerings
-            if (!isSHS && taughtRaw.length > 1) {
+            // Never inject hidden subjects
+            if (isSubjectHidden(intended.name)) {
+                return false;
+            }
+            // Strict Section Isolation: Never auto-inject unselected electives!
+            if (isSHS) {
+                // In SHS (Grades 11 & 12): Electives/Specialized subjects must NEVER be auto-injected.
+                // An advisory section only takes electives that were explicitly chosen in taught_subjects.
+                // Only official Core subjects (which all Grade 11 learners must take) are allowed to be auto-injected if missing.
+                const isG11Core = sectionGradeNum === 11 ? isGrade11CoreSubject(intended.name) : false;
+                const isTaught = taughtRaw.length > 0 && taughtRaw.some(t => isMatchingSubject(t, '', intended.name));
+                if (!isG11Core && !isTaught) {
+                    return false;
+                }
+            } else if (taughtRaw.length > 1) {
                 const isAllowed = taughtRaw.some(t => {
                     if (isMatchingSubject(t, '', intended.name)) return true;
                     const normT = normalizeSubjectName(t);
@@ -1595,7 +1709,9 @@ const groupedSections = useMemo(() => {
             if (selectedTerm !== 'all') {
                 const termNum = selectedTerm === 'q1' ? 1 : selectedTerm === 'q2' ? 2 : selectedTerm === 'q3' ? 3 : null;
                 if (termNum !== null) {
-                    return defaultTerm === 'all' || Number(defaultTerm) === termNum;
+                    if (!isSHS) return true;
+                    if (sectionGradeNum === 11 && (defaultTerm === 'all' || isGrade11CoreSubject(intended.name))) return true;
+                    return Number(defaultTerm) === termNum;
                 }
             }
             return true;
@@ -1603,9 +1719,13 @@ const groupedSections = useMemo(() => {
 
         for (const intended of relevantIntended) {
             const norm = normalizeSubjectName(intended.name);
+            if (isSubjectHidden(intended.name)) continue;
             let alreadyCovered = matchedNorms.has(norm);
             if (!alreadyCovered) {
+                const seqNorm = extractSubjectSequence(norm);
                 for (const m of matchedNorms) {
+                    const seqM = extractSubjectSequence(m);
+                    if (seqNorm && seqM && seqNorm !== seqM) continue;
                     if (m === norm || m.includes(norm) || norm.includes(m)) {
                         alreadyCovered = true;
                         break;
@@ -1625,8 +1745,9 @@ const groupedSections = useMemo(() => {
         }
 
         // Special Case: If we have MAPEH components but no MAPEH header row, create a virtual one
-        const hasMapehHeader = !isSHS && baseList.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
-        const hasMapehComponents = !isSHS && baseList.some(s => {
+        const hasMapehHeader = !isSHS && !isSubjectHidden('MAPEH') && baseList.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
+        const hasMapehComponents = !isSHS && !isSubjectHidden('MAPEH') && baseList.some(s => {
+            if (isSubjectHidden(s.subject_name, s.id)) return false;
             const n = normalizeSubjectName(s.subject_name);
             return n.includes('musicandarts') || n.includes('musicarts') || 
                    n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth') ||
@@ -1645,10 +1766,10 @@ const groupedSections = useMemo(() => {
 
         // Special Case: If we have both EC and MK components but no parent header, create a virtual one
         const hasEcmkHeader = baseList.some(s => isEcmkParent(s.subject_name));
-        const hasEc = baseList.some(s => normalizeSubjectName(s.subject_name) === 'effectivecommunication');
-        const hasMk = baseList.some(s => normalizeSubjectName(s.subject_name) === 'mabisangkomunikasyon');
+        const hasEc = baseList.some(s => normalizeSubjectName(s.subject_name) === 'effectivecommunication' && !isSubjectHidden(s.subject_name, s.id));
+        const hasMk = baseList.some(s => normalizeSubjectName(s.subject_name) === 'mabisangkomunikasyon' && !isSubjectHidden(s.subject_name, s.id));
 
-        if (hasEc && hasMk && !hasEcmkHeader) {
+        if (hasEc && hasMk && !hasEcmkHeader && !isSubjectHidden('Effective Communication & Mabisang Komunikasyon')) {
             baseList.push({
                 id: `virtual-ecmk-${sectionObj.id}`,
                 subject_name: 'Effective Communication & Mabisang Komunikasyon',
@@ -1675,48 +1796,179 @@ const groupedSections = useMemo(() => {
                    n === 'physicaleducation' || n === 'pe' || n === 'health';
         };
 
+        const isEffCommComp = (name: string) => {
+            const n = normalizeSubjectName(name);
+            return (n.includes('effectivecommunication') || n.startsWith('effectivecomm')) && !n.includes('mabisang');
+        };
+
+        const isMabKomComp = (name: string) => {
+            const n = normalizeSubjectName(name);
+            return (n.includes('mabisangkomunikasyon') || n.startsWith('mabisangkom')) && !n.includes('effective');
+        };
+
         const withGroupData = baseList.map(base => {
             const norm = normalizeSubjectName(base.subject_name);
             if (norm === 'mapeh' && !isSHS) {
-                const musicArts = sectionDbSubjects.filter(s => isMusicArtsSubject(s.subject_name));
-                const peHealth = sectionDbSubjects.filter(s => isPeHealthSubject(s.subject_name));
-                if (musicArts.length > 0 || peHealth.length > 0) {
-                    return {
-                        ...base,
-                        _mapehGroups: {
-                            musicArts,
-                            peHealth
-                        }
-                    };
+                let musicArts = sectionDbSubjects.filter(s => isMusicArtsSubject(s.subject_name));
+                let peHealth = sectionDbSubjects.filter(s => isPeHealthSubject(s.subject_name));
+                if (musicArts.length === 0) {
+                    musicArts = subjects.filter(s => isMusicArtsSubject(s.subject_name) && (s.grade_level === sectionObj.section_grade_level || !s.grade_level));
                 }
+                if (peHealth.length === 0) {
+                    peHealth = subjects.filter(s => isPeHealthSubject(s.subject_name) && (s.grade_level === sectionObj.section_grade_level || !s.grade_level));
+                }
+                if (musicArts.length === 0) {
+                    musicArts = [{
+                        id: `virtual_music_arts_${sectionObj.id}`,
+                        subject_name: 'Music and Arts',
+                        section_id: sectionObj.id,
+                        grade_level: sectionObj.section_grade_level,
+                        is_virtual: true
+                    } as Subject];
+                }
+                if (peHealth.length === 0) {
+                    peHealth = [{
+                        id: `virtual_pe_health_${sectionObj.id}`,
+                        subject_name: 'Physical Education and Health',
+                        section_id: sectionObj.id,
+                        grade_level: sectionObj.section_grade_level,
+                        is_virtual: true
+                    } as Subject];
+                }
+                return {
+                    ...base,
+                    _mapehGroups: {
+                        musicArts,
+                        peHealth
+                    }
+                };
             }
             if (isEcmkParent(base.subject_name)) {
+                let effectiveComm = sectionDbSubjects.filter(s => isEffCommComp(s.subject_name));
+                let mabisangKom = sectionDbSubjects.filter(s => isMabKomComp(s.subject_name));
+
+                if (effectiveComm.length === 0) {
+                    effectiveComm = subjects.filter(s => 
+                        isEffCommComp(s.subject_name) && 
+                        (s.grade_level === sectionObj.section_grade_level || !s.grade_level)
+                    );
+                }
+                if (mabisangKom.length === 0) {
+                    mabisangKom = subjects.filter(s => 
+                        isMabKomComp(s.subject_name) && 
+                        (s.grade_level === sectionObj.section_grade_level || !s.grade_level)
+                    );
+                }
+
+                if (effectiveComm.length === 0) {
+                    effectiveComm = [{
+                        id: `virtual_effective_comm_${sectionObj.id}`,
+                        subject_name: 'Effective Communication',
+                        section_id: sectionObj.id,
+                        grade_level: sectionObj.section_grade_level,
+                        is_virtual: true
+                    } as Subject];
+                }
+                if (mabisangKom.length === 0) {
+                    mabisangKom = [{
+                        id: `virtual_mabisang_kom_${sectionObj.id}`,
+                        subject_name: 'Mabisang Komunikasyon',
+                        section_id: sectionObj.id,
+                        grade_level: sectionObj.section_grade_level,
+                        is_virtual: true
+                    } as Subject];
+                }
+
                 return {
                     ...base,
                     _ecmkGroups: {
-                        effectiveComm: sectionDbSubjects.filter(s => normalizeSubjectName(s.subject_name) === 'effectivecommunication'),
-                        mabisangKom: sectionDbSubjects.filter(s => normalizeSubjectName(s.subject_name) === 'mabisangkomunikasyon')
+                        effectiveComm,
+                        mabisangKom
                     }
                 };
             }
             return base;
         });
 
-        // 5. Subject Ordering: Respect explicit order in sectionObj.taught_subjects if configured,
-        // otherwise fall back to Global Standard DepEd Ordering
+        // 5. Subject Ordering:
+        // In DepEd Senior High School (DO 017 s. 2026 for G11 SSHS, DO 8 s. 2015 for G12):
+        // Core subjects MUST ALWAYS appear first on the left, followed by Electives/Applied/Specialized.
         const taughtOrder = sectionObj?.taught_subjects || [];
-        let orderedSubjects: typeof withGroupData;
-        if (taughtOrder.length > 1) {
-            const getTaughtIndex = (subName: string) => {
-                const norm = normalizeSubjectName(subName);
-                return taughtOrder.findIndex(t => {
-                    const normT = normalizeSubjectName(t);
-                    if (normT === norm) return true;
-                    if (norm === 'mapeh' && (normT.includes('music') || normT.includes('pe') || normT.includes('arts') || normT.includes('health'))) return true;
-                    return isMatchingSubject(t, '', subName);
-                });
-            };
+        const gradeLevelStr = sectionObj?.section_grade_level || '';
+        const isG11 = sectionGradeNum === 11;
 
+        const getShsCategoryRank = (name: string): number => {
+            const cat = getSubjectCategory(name, gradeLevelStr);
+            if (isG11) {
+                if (cat.startsWith('Core')) return 1;
+                if (cat.startsWith('Academic Elective')) return 2;
+                if (cat.startsWith('TechPro Elective')) return 3;
+                return 4;
+            } else {
+                if (cat === 'Core' || cat.startsWith('Core')) return 1;
+                if (cat === 'Applied' || cat.startsWith('Academic')) return 2;
+                if (cat === 'Specialized' || cat.startsWith('TechPro')) return 3;
+                return 4;
+            }
+        };
+
+        const getG11CoreOrderIndex = (name: string): number => {
+            const norm = normalizeSubjectName(name);
+            if (norm.includes('effectivecommunication') || norm.includes('mabisangkomunikasyon')) return 1;
+            if (norm.includes('generalmathematics')) return 2;
+            if (norm.includes('generalscience')) return 3;
+            if (norm.includes('lifeandcareerskills')) return 4;
+            if (norm.includes('pagaaralngkasaysayan') || norm.includes('kasaysayanatlipunangpilipino')) return 5;
+            return 99;
+        };
+
+        const getTaughtIndex = (subName: string) => {
+            const norm = normalizeSubjectName(subName);
+            return taughtOrder.findIndex(t => {
+                const normT = normalizeSubjectName(t);
+                if (normT === norm) return true;
+                if (norm === 'mapeh' && (normT.includes('music') || normT.includes('pe') || normT.includes('arts') || normT.includes('health'))) return true;
+                return isMatchingSubject(t, '', subName);
+            });
+        };
+
+        let orderedSubjects: typeof withGroupData;
+        if (isSHS) {
+            orderedSubjects = [...withGroupData].sort((a, b) => {
+                // 1. DepEd SHS Category grouping: Core subjects must always precede electives
+                const rankA = getShsCategoryRank(a.subject_name);
+                const rankB = getShsCategoryRank(b.subject_name);
+                if (rankA !== rankB) {
+                    return rankA - rankB;
+                }
+
+                // 2. Canonical DO 017 s. 2026 Core ordering for Grade 11
+                if (isG11 && rankA === 1) {
+                    const coreIdxA = getG11CoreOrderIndex(a.subject_name);
+                    const coreIdxB = getG11CoreOrderIndex(b.subject_name);
+                    if (coreIdxA !== coreIdxB) {
+                        return coreIdxA - coreIdxB;
+                    }
+                }
+
+                // 3. Within the same category, respect explicit taughtOrder if configured
+                if (taughtOrder.length > 1) {
+                    const idxA = getTaughtIndex(a.subject_name);
+                    const idxB = getTaughtIndex(b.subject_name);
+                    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                    if (idxA !== -1) return -1;
+                    if (idxB !== -1) return 1;
+                }
+
+                // 4. Fallback: priority then alphabetical
+                const priorityA = getStandardSubjectPriority(a.subject_name);
+                const priorityB = getStandardSubjectPriority(b.subject_name);
+                if (priorityA !== priorityB) {
+                    return priorityA - priorityB;
+                }
+                return a.subject_name.localeCompare(b.subject_name);
+            });
+        } else if (taughtOrder.length > 1) {
             orderedSubjects = [...withGroupData].sort((a, b) => {
                 const idxA = getTaughtIndex(a.subject_name);
                 const idxB = getTaughtIndex(b.subject_name);
@@ -1730,12 +1982,10 @@ const groupedSections = useMemo(() => {
         }
 
         // 6. Filter out hidden subjects and individual MAPEH/ECMK subcomponents
-        const hiddenNorms = new Set((sectionObj?.section_metadata?.hiddenConsolidatedSubjects || []).map(h => normalizeSubjectName(h)));
-
         return orderedSubjects.filter(sub => {
             const norm = normalizeSubjectName(sub.subject_name);
             if (norm === 'specialization') return false; // Never show standalone Specialization
-            if (hiddenNorms.has(norm)) return false;
+            if (isSubjectHidden(sub.subject_name, sub.id)) return false;
 
             const isMapehComponent = !isSHS && (isMusicArtsSubject(sub.subject_name) || isPeHealthSubject(sub.subject_name));
             
@@ -1834,6 +2084,26 @@ const groupedSections = useMemo(() => {
         return 1;
     }, [selectedTerm]);
 
+    // Contiguous category grouping for clean DepEd-compliant header display (merges same-category columns into a single header block)
+    const categoryGroups = useMemo(() => {
+        const groups: { category: string; colSpan: number; key: string }[] = [];
+        subjectColumns.forEach((col, idx) => {
+            const cat = getSubjectCategory(col.subject.subject_name, sectionObj?.section_grade_level || '');
+            const span = termColSpan(col.subject);
+            const last = groups[groups.length - 1];
+            if (last && last.category === cat) {
+                last.colSpan += span;
+            } else {
+                groups.push({
+                    category: cat,
+                    colSpan: span,
+                    key: `cat-group-${idx}-${cat}`
+                });
+            }
+        });
+        return groups;
+    }, [subjectColumns, sectionObj?.section_grade_level, termColSpan]);
+
     const BASE_PAGE_WIDTH = 1248; // Standard 13in Folio Landscape at 96 DPI
     const SHEET_PADDING = 48; // p-6 = 24px left + 24px right
 
@@ -1891,6 +2161,10 @@ const groupedSections = useMemo(() => {
     const getSubjectSubColWidth = useCallback((subjectId: string) => {
         return customColumnWidths[subjectId] || subjectColumnWidth;
     }, [customColumnWidths, subjectColumnWidth]);
+
+    const getSubjectOfferedTerms = useCallback((sub: any) => {
+        return resolveSubjectOfferedTerms(sub, sectionObj);
+    }, [sectionObj]);
 
     const totalSubjectColumnsWidth = useMemo(() => {
         return subjectColumns.reduce((acc, col) => {
@@ -2101,6 +2375,16 @@ const groupedSections = useMemo(() => {
         const targetIndex = direction === 'left' ? currentIndex - 1 : currentIndex + 1;
         if (targetIndex < 0 || targetIndex >= currentOrder.length) return;
 
+        // In SHS: prevent reordering across categories (Core subjects and Electives must remain grouped)
+        if (isSHSSection) {
+            const currentCat = getSubjectCategory(subjectName, sectionObj.section_grade_level || '');
+            const targetCat = getSubjectCategory(currentOrder[targetIndex], sectionObj.section_grade_level || '');
+            if (currentCat !== targetCat) {
+                showNotification(`Cannot move "${subjectName}" across subject categories (${currentCat} ↔ ${targetCat}). Core and Elective subjects must remain grouped per DepEd standards.`, 'info');
+                return;
+            }
+        }
+
         const updatedOrder = [...currentOrder];
         const temp = updatedOrder[currentIndex];
         updatedOrder[currentIndex] = updatedOrder[targetIndex];
@@ -2177,11 +2461,30 @@ const groupedSections = useMemo(() => {
             showNotification(`"${trimmed}" is already on the sheet.`, 'info');
             return;
         }
+
+        const normTrimmed = normalizeSubjectName(trimmed);
+        const canonTrimmed = getCanonicalSubjectKey(trimmed, sectionObj.section_grade_level);
+
         const updatedTaught = [...currentTaught, trimmed];
+        const prevHidden = sectionObj.section_metadata?.hiddenConsolidatedSubjects || [];
+        const updatedHidden = prevHidden.filter(h => {
+            if (h.toLowerCase().trim() === trimmed.toLowerCase()) return false;
+            if (normalizeSubjectName(h) === normTrimmed) return false;
+            const canonH = getCanonicalSubjectKey(h, sectionObj.section_grade_level);
+            if (canonH && (canonH === canonTrimmed || canonH === normTrimmed)) return false;
+            if (isSameSubject(undefined, h, undefined, trimmed)) return false;
+            return true;
+        });
+
         const updatedSection: Section = {
             ...sectionObj,
-            taught_subjects: updatedTaught
+            taught_subjects: updatedTaught,
+            section_metadata: {
+                ...sectionObj.section_metadata,
+                hiddenConsolidatedSubjects: updatedHidden
+            }
         };
+
         try {
             await useAppStore.getState().updateSection(updatedSection);
             showNotification(`Added "${trimmed}" column to sheet!`, 'success');
@@ -2194,31 +2497,114 @@ const groupedSections = useMemo(() => {
         }
     };
 
-    const handleDeleteColumn = async (subjectName: string) => {
+    const handleDeleteColumn = async (subjectName: string, baseId?: string) => {
         if (!sectionObj) return;
         const trimmed = subjectName.trim();
+        if (!trimmed) return;
         const confirmed = window.confirm(
             `Are you sure you want to delete the "${trimmed}" column from ${sectionObj.section_name}?\n\nThis will remove the column from Grade Management and Summary of Grades.`
         );
         if (!confirmed) return;
 
-        const currentTaught = sectionObj.taught_subjects || sectionSubjects.map(s => s.subject_name);
-        const updatedTaught = currentTaught.filter(s => s.toLowerCase().trim() !== trimmed.toLowerCase());
+        const normTrimmed = normalizeSubjectName(trimmed);
+        const canonTrimmed = getCanonicalSubjectKey(trimmed, sectionObj.section_grade_level);
 
-        const hiddenConsolidated = (sectionObj.section_metadata?.hiddenConsolidatedSubjects || []).filter(
-            s => s.toLowerCase().trim() !== trimmed.toLowerCase()
-        );
+        // 1. Target subject names to add to hiddenConsolidatedSubjects
+        const prevHidden = sectionObj.section_metadata?.hiddenConsolidatedSubjects || [];
+        const isTargetMatch = (s: string) => {
+            if (s.toLowerCase().trim() === trimmed.toLowerCase()) return true;
+            if (normalizeSubjectName(s) === normTrimmed) return true;
+            const canon = getCanonicalSubjectKey(s, sectionObj.section_grade_level);
+            if (canon && (canon === canonTrimmed || canon === normTrimmed)) return true;
+            if (isSameSubject(undefined, s, undefined, trimmed)) return true;
+            if (isMatchingSubject(trimmed, undefined, s)) return true;
+            return false;
+        };
 
+        const alreadyInHidden = prevHidden.some(h => isTargetMatch(h));
+        const updatedHidden = alreadyInHidden ? [...prevHidden] : [...prevHidden, trimmed];
+
+        // If deleting MAPEH, also hide its subcomponents
+        if (normTrimmed === 'mapeh') {
+            const mapehSubs = ['Music and Arts', 'Physical Education and Health', 'Music', 'Arts', 'Physical Education', 'Health'];
+            mapehSubs.forEach(ms => {
+                if (!updatedHidden.some(h => normalizeSubjectName(h) === normalizeSubjectName(ms))) {
+                    updatedHidden.push(ms);
+                }
+            });
+        }
+
+        // 2. Filter taught_subjects
+        const currentTaught = sectionObj.taught_subjects && sectionObj.taught_subjects.length > 0
+            ? sectionObj.taught_subjects
+            : sectionSubjects.map(s => s.subject_name);
+        const updatedTaught = currentTaught.filter(s => !isTargetMatch(s));
+
+        // 3. Filter teaching_subjects (teaching load)
+        const updatedTeaching = sectionObj.teaching_subjects
+            ? sectionObj.teaching_subjects.filter(s => !isTargetMatch(s))
+            : undefined;
+
+        // 4. Prune sf9SubjectSelections
+        const prevSelections = sectionObj.section_metadata?.sf9SubjectSelections || {};
+        const updatedSelections: Record<string, string> = { ...(prevSelections as Record<string, string>) };
+        if (baseId && updatedSelections[baseId]) {
+            delete updatedSelections[baseId];
+        }
+        for (const [k, v] of Object.entries(updatedSelections)) {
+            if (k.toLowerCase().includes(normTrimmed) || (typeof v === 'string' && (isTargetMatch(v) || normalizeSubjectName(v) === normTrimmed))) {
+                delete updatedSelections[k];
+            }
+        }
+
+        // 5. Build updated section
         const updatedSection: Section = {
             ...sectionObj,
             taught_subjects: updatedTaught,
+            ...(updatedTeaching !== undefined ? { teaching_subjects: updatedTeaching } : {}),
             section_metadata: {
                 ...sectionObj.section_metadata,
-                hiddenConsolidatedSubjects: hiddenConsolidated
+                hiddenConsolidatedSubjects: updatedHidden,
+                sf9SubjectSelections: updatedSelections
             }
         };
 
+        // 6. Prune local overrideSubjectSelections
+        setOverrideSubjectSelections(prev => {
+            const next = { ...prev };
+            delete next[sectionObj.id];
+            return next;
+        });
+
         try {
+            const { 
+                gradingSheetRecords: allGradingRecords, 
+                deleteGradingSheetRecord, 
+                subjects: allDbSubjects, 
+                deleteSubject 
+            } = useAppStore.getState();
+
+            // 7. Delete orphaned gradingSheetRecords for this section & subject
+            const recordsToDelete = allGradingRecords.filter(r => 
+                r.section_id === sectionObj.id && 
+                (isTargetMatch(r.subject_name || '') || 
+                 (r.subject_id && (isSameSubject(r.subject_id, r.subject_name, undefined, trimmed) || cleanSubjectQuery(r.subject_id).includes(normTrimmed))))
+            );
+
+            for (const rec of recordsToDelete) {
+                await deleteGradingSheetRecord(rec.id);
+            }
+
+            // 8. Delete section-specific subject from DB if one exists
+            const sectionDbSubject = allDbSubjects.find(s => 
+                s.section_id === sectionObj.id && 
+                (isTargetMatch(s.subject_name) || (baseId && s.id === baseId))
+            );
+            if (sectionDbSubject) {
+                await deleteSubject(sectionDbSubject.id);
+            }
+
+            // 9. Update section in store & DB
             await useAppStore.getState().updateSection(updatedSection);
             showNotification(`Deleted "${trimmed}" column.`, 'success');
         } catch (err) {
@@ -2227,11 +2613,79 @@ const groupedSections = useMemo(() => {
         }
     };
 
+    const handleResetDepEdOrder = async () => {
+        if (!sectionObj) return;
+        const currentSubjects = sectionSubjects.map(s => s.subject_name);
+        const gradeLevelStr = sectionObj.section_grade_level || '';
+        const isG11 = isSHSSection && (gradeLevelStr.includes('11') || gradeLevelStr === '11');
+
+        const getShsCategoryRank = (name: string): number => {
+            const cat = getSubjectCategory(name, gradeLevelStr);
+            if (isG11) {
+                if (cat.startsWith('Core')) return 1;
+                if (cat.startsWith('Academic Elective')) return 2;
+                if (cat.startsWith('TechPro Elective')) return 3;
+                return 4;
+            } else {
+                if (cat === 'Core' || cat.startsWith('Core')) return 1;
+                if (cat === 'Applied' || cat.startsWith('Academic')) return 2;
+                if (cat === 'Specialized' || cat.startsWith('TechPro')) return 3;
+                return 4;
+            }
+        };
+
+        const getG11CoreOrderIndex = (name: string): number => {
+            const norm = normalizeSubjectName(name);
+            if (norm.includes('effectivecommunication') || norm.includes('mabisangkomunikasyon')) return 1;
+            if (norm.includes('generalmathematics')) return 2;
+            if (norm.includes('generalscience')) return 3;
+            if (norm.includes('lifeandcareerskills')) return 4;
+            if (norm.includes('pagaaralngkasaysayan') || norm.includes('kasaysayanatlipunangpilipino')) return 5;
+            return 99;
+        };
+
+        const sorted = [...currentSubjects].sort((a, b) => {
+            if (isSHSSection) {
+                const rankA = getShsCategoryRank(a);
+                const rankB = getShsCategoryRank(b);
+                if (rankA !== rankB) return rankA - rankB;
+
+                if (isG11 && rankA === 1) {
+                    const coreIdxA = getG11CoreOrderIndex(a);
+                    const coreIdxB = getG11CoreOrderIndex(b);
+                    if (coreIdxA !== coreIdxB) return coreIdxA - coreIdxB;
+                }
+            }
+            const prioA = getStandardSubjectPriority(a);
+            const prioB = getStandardSubjectPriority(b);
+            if (prioA !== prioB) return prioA - prioB;
+            return a.localeCompare(b);
+        });
+
+        const updatedSection: Section = {
+            ...sectionObj,
+            taught_subjects: sorted
+        };
+
+        try {
+            await useAppStore.getState().updateSection(updatedSection);
+            showNotification('Reset subjects to official DepEd order.', 'success');
+        } catch (err) {
+            console.error('Failed to reset subject order:', err);
+            showNotification('Failed to reset subject order.', 'error');
+        }
+    };
+
     const handleSubjectHeaderAction = async (column: { baseId: string; subject: VirtualSectionSubject }, actionValue: string) => {
         if (!actionValue || !sectionObj) return;
 
+        if (actionValue === '__RESET_DEPED_ORDER__') {
+            await handleResetDepEdOrder();
+            return;
+        }
+
         if (actionValue === '__DELETE_COLUMN__') {
-            await handleDeleteColumn(column.subject.subject_name);
+            await handleDeleteColumn(column.subject.subject_name, column.baseId);
             return;
         }
 
@@ -2364,7 +2818,7 @@ const groupedSections = useMemo(() => {
                         for (const comp of [...ecComps, ...mkComps]) {
                             const compGrade = resolveStudentQuarterGrade(
                                 student.lrn,
-                                comp.id,
+                                comp.subject_name || comp.id,
                                 quarter,
                                 activeSchoolYear,
                                 classRecords,
@@ -2464,10 +2918,10 @@ const groupedSections = useMemo(() => {
 
             const stRecs = recordsByLrn.get(student.lrn) || recordsByLrn.get(String(student.lrn).trim()) || { classRecs: [], gradingRecs: [] };
 
-            const getStudentQuarterGrade = (subjectId: string, q: number) => {
-                const cacheKey = `${student.lrn}_${subjectId}_${q}`;
+            const getStudentQuarterGrade = (subjectId: string, q: number, subjectName?: string) => {
+                const cacheKey = `${student.lrn}_${subjectId}_${q}_${subjectName || ''}`;
                 if (gradeCache.has(cacheKey)) return gradeCache.get(cacheKey)!;
-                const val = resolveStudentQuarterGrade(
+                let val = resolveStudentQuarterGrade(
                     student.lrn,
                     subjectId,
                     q,
@@ -2478,6 +2932,19 @@ const groupedSections = useMemo(() => {
                     sectionObj?.section_grade_level,
                     sectionObj?.track
                 );
+                if (val === 0 && subjectName && subjectName !== subjectId) {
+                    val = resolveStudentQuarterGrade(
+                        student.lrn,
+                        subjectName,
+                        q,
+                        activeSchoolYear,
+                        [],
+                        stRecs.gradingRecs,
+                        hpsRecords,
+                        sectionObj?.section_grade_level,
+                        sectionObj?.track
+                    );
+                }
                 gradeCache.set(cacheKey, val);
                 return val;
             };
@@ -2494,12 +2961,12 @@ const groupedSections = useMemo(() => {
                         const peHealthResults: number[] = [];
 
                         subject._mapehGroups.musicArts.forEach(comp => {
-                            const val = getStudentQuarterGrade(comp.id, q);
+                            const val = getStudentQuarterGrade(comp.id, q, comp.subject_name);
                             if (val > 0) musicArtsResults.push(val);
                         });
 
                         subject._mapehGroups.peHealth.forEach(comp => {
-                            const val = getStudentQuarterGrade(comp.id, q);
+                            const val = getStudentQuarterGrade(comp.id, q, comp.subject_name);
                             if (val > 0) peHealthResults.push(val);
                         });
 
@@ -2562,12 +3029,12 @@ const groupedSections = useMemo(() => {
                         const mkResults: number[] = [];
 
                         subject._ecmkGroups.effectiveComm.forEach(comp => {
-                            const val = getStudentQuarterGrade(comp.id, q);
+                            const val = getStudentQuarterGrade(comp.id, q, comp.subject_name);
                             if (val > 0) ecResults.push(val);
                         });
 
                         subject._ecmkGroups.mabisangKom.forEach(comp => {
-                            const val = getStudentQuarterGrade(comp.id, q);
+                            const val = getStudentQuarterGrade(comp.id, q, comp.subject_name);
                             if (val > 0) mkResults.push(val);
                         });
 
@@ -2618,7 +3085,7 @@ const groupedSections = useMemo(() => {
                     let qCount = 0;
 
                     for (let q = 1; q <= 4; q++) {
-                        const gradeVal = getStudentQuarterGrade(subject.id, q);
+                        const gradeVal = getStudentQuarterGrade(subject.id, q, subject.subject_name);
 
                         if (gradeVal > 0) {
                             const qKey = `q${q}` as QuarterKey;
@@ -2749,7 +3216,11 @@ const groupedSections = useMemo(() => {
             sectionSubjects.forEach(subject => {
                 const sData = studentGrades[subject.id] || {};
 
+                const offered = resolveSubjectOfferedTerms(subject, sectionObj);
                 if (selectedTerm !== 'all') {
+                    const termNum = selectedTerm === 'q1' ? 1 : selectedTerm === 'q2' ? 2 : selectedTerm === 'q3' ? 3 : 4;
+                    if (!offered.includes(termNum)) return;
+
                     const qKey = selectedTerm as QuarterKey;
                     if (subject._mapehGroups) {
                         const detail = sData[qKey] as any;
@@ -2787,8 +3258,13 @@ const groupedSections = useMemo(() => {
                         }
                     }
                 } else {
-                    const quarters: QuarterKey[] = ['q1', 'q2', 'q3'];
-                    quarters.forEach(qKey => {
+                    const quarters: { key: QuarterKey; termNum: number }[] = [
+                        { key: 'q1', termNum: 1 },
+                        { key: 'q2', termNum: 2 },
+                        { key: 'q3', termNum: 3 }
+                    ];
+                    quarters.forEach(({ key: qKey, termNum }) => {
+                        if (!offered.includes(termNum)) return;
                         const val = typeof sData[qKey] === 'object' ? sData[qKey]?.value : sData[qKey];
                         if (!val && val !== 0) {
                             total++;
@@ -2807,7 +3283,7 @@ const groupedSections = useMemo(() => {
             .sort((a, b) => b.missingCount - a.missingCount);
 
         return { totalMissing: total, bySubject, studentsWithMissing };
-    }, [sectionStudents, sectionSubjects, gradesData, selectedTerm]);
+    }, [sectionStudents, sectionSubjects, gradesData, selectedTerm, sectionObj]);
 
     const displayedMaleStudents = useMemo(() => {
         if (!showMissingOnly) return maleStudents;
@@ -3274,6 +3750,8 @@ const groupedSections = useMemo(() => {
     const renderGradesTable = (studentsList: typeof maleStudents, startRowIdx: number, genderLabel: string) => {
         const renderSubjectHeaderCellInner = (column: { baseId: string; subject: VirtualSectionSubject }) => {
             const inTeachingLoad = isSubjectInTeachingLoad(column.subject, sectionObj, classRecords);
+            const currentTermNum = selectedTerm === 'q1' ? 1 : selectedTerm === 'q2' ? 2 : selectedTerm === 'q3' ? 3 : 4;
+            const isOfferedInCurrentTerm = selectedTerm === 'all' || getSubjectOfferedTerms(column.subject).includes(currentTermNum);
             return (
                 <div className="relative w-full h-full flex flex-col items-center justify-center py-0.5">
                     <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
@@ -3281,13 +3759,21 @@ const groupedSections = useMemo(() => {
                     </span>
                     <span 
                         className={`no-print inline-block mt-0.5 px-1 py-0.2 rounded text-[5px] font-bold uppercase tracking-tight select-none ${
-                            inTeachingLoad 
-                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50' 
-                                : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50'
+                            !isOfferedInCurrentTerm
+                                ? 'bg-slate-100 text-slate-500 dark:bg-slate-800/80 dark:text-slate-400 border border-slate-300 dark:border-slate-700'
+                                : inTeachingLoad 
+                                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50' 
+                                    : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50'
                         }`}
-                        title={inTeachingLoad ? 'Syncs from your personal E-Class Record' : 'Assigned to another subject teacher (Manual grade entry)'}
+                        title={
+                            !isOfferedInCurrentTerm
+                                ? `Not offered in ${TERM_LABELS[selectedTerm as keyof typeof TERM_LABELS] || 'this term'}`
+                                : inTeachingLoad 
+                                    ? 'Syncs from your personal E-Class Record' 
+                                    : 'Assigned to another subject teacher (Manual grade entry)'
+                        }
                     >
-                        {inTeachingLoad ? 'E-Class' : 'Manual'}
+                        {!isOfferedInCurrentTerm ? 'Not Offered' : inTeachingLoad ? 'E-Class' : 'Manual'}
                     </span>
                     <select
                         value=""
@@ -3302,6 +3788,7 @@ const groupedSections = useMemo(() => {
                             <option value="__ADD_COLUMN__">➕ Add Column...</option>
                             <option value="__DELETE_COLUMN__">🗑️ Delete This Column</option>
                             <option value="__RESET_WIDTHS__">📏 Reset All Column Widths</option>
+                            <option value="__RESET_DEPED_ORDER__">🔄 Reset to Official DepEd Order</option>
                         </optgroup>
                         {availableSubjectsToAdd.length > 0 && (
                             <optgroup label="➕ Quick Add Column (From Catalog)">
@@ -3446,21 +3933,20 @@ const groupedSections = useMemo(() => {
                                     <span>NAME OF LEARNERS</span>
                                     <ColumnResizeHandle colKey="name" currentWidth={learnerNameWidth} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
                                 </th>
-                                {subjectColumns.map((column, index) => {
-                                    const cat = getSubjectCategory(column.subject.subject_name, sectionObj?.section_grade_level || '');
-                                    const parts = cat.split(' (');
+                                {categoryGroups.map((group) => {
+                                    const parts = group.category.split(' (');
                                     return (
                                         <th
-                                            key={`subject-type-${column.baseId}-${index}`}
-                                            colSpan={termColSpan(column.subject)}
-                                            className="border border-black p-1 text-center font-black text-[7px] leading-tight bg-gray-100"
+                                            key={group.key}
+                                            colSpan={group.colSpan}
+                                            className="border border-black p-1 text-center font-black text-[7px] leading-tight bg-gray-100 uppercase"
                                         >
                                             {parts.length > 1 ? (
                                                 <>
                                                     {parts[0]}<br />({parts[1]}
                                                 </>
                                             ) : (
-                                                cat
+                                                group.category
                                             )}
                                         </th>
                                     );
@@ -3615,14 +4101,55 @@ const groupedSections = useMemo(() => {
                                         </>
                                     )}
                                     
-                                    {selectedTerm === 'all' && (
-                                        <>
-                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>T1</th>
-                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>T2</th>
-                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>T3</th>
-                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-bold bg-gray-200" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>Final</th>
-                                        </>
-                                    )}
+                                    {selectedTerm === 'all' && (() => {
+                                        const offered = getSubjectOfferedTerms(column.subject);
+                                        const isT1 = offered.includes(1);
+                                        const isT2 = offered.includes(2);
+                                        const isT3 = offered.includes(3);
+                                        return (
+                                            <>
+                                                <th
+                                                    className={`consolidated-subject-col border border-black p-0.5 text-center font-normal ${
+                                                        isT1 
+                                                            ? 'bg-gray-50 text-slate-800' 
+                                                            : 'bg-gray-200/90 dark:bg-slate-800 text-gray-400 dark:text-slate-500 select-none cursor-not-allowed'
+                                                    }`}
+                                                    style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
+                                                    title={isT1 ? 'Term 1' : 'Not offered in Term 1'}
+                                                >
+                                                    T1
+                                                </th>
+                                                <th
+                                                    className={`consolidated-subject-col border border-black p-0.5 text-center font-normal ${
+                                                        isT2 
+                                                            ? 'bg-gray-50 text-slate-800' 
+                                                            : 'bg-gray-200/90 dark:bg-slate-800 text-gray-400 dark:text-slate-500 select-none cursor-not-allowed'
+                                                    }`}
+                                                    style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
+                                                    title={isT2 ? 'Term 2' : 'Not offered in Term 2'}
+                                                >
+                                                    T2
+                                                </th>
+                                                <th
+                                                    className={`consolidated-subject-col border border-black p-0.5 text-center font-normal ${
+                                                        isT3 
+                                                            ? 'bg-gray-50 text-slate-800' 
+                                                            : 'bg-gray-200/90 dark:bg-slate-800 text-gray-400 dark:text-slate-500 select-none cursor-not-allowed'
+                                                    }`}
+                                                    style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
+                                                    title={isT3 ? 'Term 3' : 'Not offered in Term 3'}
+                                                >
+                                                    T3
+                                                </th>
+                                                <th
+                                                    className="consolidated-subject-col border border-black p-0.5 text-center font-bold bg-gray-200 text-slate-900"
+                                                    style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
+                                                >
+                                                    Final
+                                                </th>
+                                            </>
+                                        );
+                                    })()}
                                 </Fragment>
                             );
                         })}
@@ -3671,6 +4198,7 @@ const groupedSections = useMemo(() => {
                                 averageColWidth={averageColWidth}
                                 generalAvgColWidth={generalAvgColWidth}
                                 descriptorColWidth={descriptorColWidth}
+                                getSubjectOfferedTerms={getSubjectOfferedTerms}
                             />
                         );
                     })
@@ -3699,6 +4227,7 @@ const groupedSections = useMemo(() => {
                 }
 
                 @media print {
+                    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                     @page { size: ${selectedTerm === 'all' ? 'folio landscape' : 'legal landscape'}; margin: 6mm; }
                     #printable-consolidated-grades { width: auto !important; min-width: fit-content !important; margin: 0 !important; }
                     .consolidated-zoom-shell { transform: none !important; display: flex !important; flex-direction: column !important; gap: 0 !important; }
@@ -3764,7 +4293,7 @@ const groupedSections = useMemo(() => {
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
                                 </span>
                                 <span>
-                                    🟡 {missingGradesSummary.totalMissing} Incomplete {missingGradesSummary.totalMissing === 1 ? 'Grade' : 'Grades'} in {selectedTerm === 'all' ? 'All Quarters' : (TERM_LABELS[selectedTerm] || selectedTerm.toUpperCase().replace('Q', 'Quarter '))}
+                                    🟡 {missingGradesSummary.totalMissing} Incomplete {missingGradesSummary.totalMissing === 1 ? 'Grade' : 'Grades'} in {selectedTerm === 'all' ? 'All Terms' : (TERM_LABELS[selectedTerm] || selectedTerm.toUpperCase().replace('Q', 'TERM '))}
                                 </span>
                                 <span className="text-[10px] font-semibold underline ml-0.5 opacity-90">
                                     {showMissingOnly ? '(Showing Missing)' : '(Click to Filter)'}
@@ -4229,7 +4758,7 @@ const groupedSections = useMemo(() => {
                                     <div className="flex items-center gap-2">
                                         <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                                         <span className="font-semibold">
-                                            Spotlight Filter Active: Showing {displayedMaleStudents.length + displayedFemaleStudents.length} learner(s) with missing grades out of {sectionStudents.length} total enrolled ({selectedTerm === 'all' ? 'All Quarters' : (TERM_LABELS[selectedTerm] || selectedTerm.toUpperCase().replace('Q', 'Quarter '))}).
+                                            Spotlight Filter Active: Showing {displayedMaleStudents.length + displayedFemaleStudents.length} learner(s) with missing grades out of {sectionStudents.length} total enrolled ({selectedTerm === 'all' ? 'All Terms' : (TERM_LABELS[selectedTerm] || selectedTerm.toUpperCase().replace('Q', 'TERM '))}).
                                         </span>
                                     </div>
                                     <button
@@ -4238,6 +4767,30 @@ const groupedSections = useMemo(() => {
                                         className="px-3 py-1 bg-amber-200 hover:bg-amber-300 dark:bg-amber-800 dark:hover:bg-amber-700 text-amber-900 dark:text-amber-100 rounded-md font-bold text-[11px] transition-colors cursor-pointer"
                                     >
                                         Show All Students
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* In-Situ Curriculum Health Check & Auto-Repair Banner */}
+                            {selectedSection && subjectColumns.length === 0 && (
+                                <div className="w-full max-w-2xl mx-auto my-8 p-6 rounded-3xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 shadow-lg text-center no-print">
+                                    <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-3">
+                                        <AlertTriangle className="w-6 h-6" />
+                                    </div>
+                                    <h3 className="text-base font-black text-amber-950 dark:text-amber-100 mb-1">
+                                        No Subjects Configured for {TERM_LABELS[selectedTerm as keyof typeof TERM_LABELS] || 'this term'}
+                                    </h3>
+                                    <p className="text-xs text-amber-800 dark:text-amber-300/80 mb-5 leading-relaxed max-w-lg mx-auto">
+                                        <strong>{sectionObj?.section_grade_level} - {sectionObj?.section_name}</strong> currently has no subjects scheduled for <strong>{TERM_LABELS[selectedTerm as keyof typeof TERM_LABELS] || 'this term'}</strong>. You can automatically configure and repair this section with official DepEd subjects and terms in 1 click.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={handleAutoRepairSection}
+                                        disabled={isAutoRepairing}
+                                        className="inline-flex items-center gap-2 px-6 py-3 bg-linear-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-2xl text-xs font-black shadow-md hover:shadow-lg transition-all cursor-pointer hover:scale-[1.02]"
+                                    >
+                                        <Sparkles className="w-4 h-4" />
+                                        {isAutoRepairing ? 'Configuring DepEd Subjects...' : '✨ 1-Click Auto-Repair DepEd Curriculum'}
                                     </button>
                                 </div>
                             )}

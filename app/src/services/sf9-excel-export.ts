@@ -538,7 +538,7 @@ export async function exportSF9ToExcel(opts: SF9ExcelExportOptions): Promise<voi
   const isG2 = isGrade2(opts.gradeLevel || opts.student.grade_level);
   const isG3 = isGrade3(opts.gradeLevel || opts.student.grade_level);
   const isG4to10 = isGrade4to10(opts.gradeLevel || opts.student.grade_level);
-  const rawProgram = opts.program || (opts.student as any).program || (opts.student as any).curriculum || opts.section || '';
+  const rawProgram = opts.program || opts.student.program || opts.student.curriculum || opts.section || '';
   const isSCP = isSpecialCurricularProgram(rawProgram) && isG4to10;
   const rawTrack = opts.track || opts.student.track || opts.student.strand || opts.student.student_section || opts.section;
   const isG11Tech = !isSCP && isGrade11TechPro(opts.gradeLevel || opts.student.grade_level, rawTrack);
@@ -562,6 +562,7 @@ export async function exportSF9ToExcel(opts: SF9ExcelExportOptions): Promise<voi
     outBuffer = await populateSCPTemplateBuffer(buffer, {
       ...opts,
       program: rawProgram,
+      pageSize: opts.pageSize === 'LETTER' ? 'Letter' : opts.pageSize === 'A4' ? 'A4' : undefined,
       grades: opts.grades as unknown as Parameters<typeof populateSCPTemplateBuffer>[1]['grades'],
       subjects: opts.subjects as unknown as Parameters<typeof populateSCPTemplateBuffer>[1]['subjects'],
       learners: opts.sectionStudents || [opts.student]
@@ -748,7 +749,7 @@ export async function exportSF9BatchToExcel(
     const isThisG2 = isGrade2(opts.gradeLevel || opts.student.grade_level);
     const isThisG3 = isGrade3(opts.gradeLevel || opts.student.grade_level);
     const isThisG4to10 = isGrade4to10(opts.gradeLevel || opts.student.grade_level);
-    const rawProgram = opts.program || (opts.student as any).program || (opts.student as any).curriculum || opts.section || '';
+    const rawProgram = opts.program || opts.student.program || opts.student.curriculum || opts.section || '';
     const isThisSCP = isThisG4to10 && isSpecialCurricularProgram(rawProgram);
     const rawTrack = opts.track || opts.student.track || opts.student.strand || opts.student.student_section || opts.section;
     const isThisG11Tech = !isThisSCP && isGrade11TechPro(opts.gradeLevel || opts.student.grade_level, rawTrack);
@@ -768,13 +769,17 @@ export async function exportSF9BatchToExcel(
       const pKey = `${rawProgram}_${opts.gradeLevel || opts.student.grade_level}`;
       let scpBuf = scpBuffers.get(pKey);
       if (!scpBuf) {
-        scpBuf = await fetchSCPTemplateBuffer(rawProgram, opts.gradeLevel || opts.student.grade_level).catch(() => null as any);
-        if (scpBuf) scpBuffers.set(pKey, scpBuf);
+        const fetched = await fetchSCPTemplateBuffer(rawProgram, opts.gradeLevel || opts.student.grade_level).catch(() => null);
+        if (fetched) {
+          scpBuf = fetched;
+          scpBuffers.set(pKey, fetched);
+        }
       }
       if (scpBuf) {
         outBuffer = await populateSCPTemplateBuffer(scpBuf, {
           ...opts,
           program: rawProgram,
+          pageSize: opts.pageSize === 'LETTER' ? 'Letter' : opts.pageSize === 'A4' ? 'A4' : undefined,
           grades: opts.grades as unknown as Parameters<typeof populateSCPTemplateBuffer>[1]['grades'],
           subjects: opts.subjects as unknown as Parameters<typeof populateSCPTemplateBuffer>[1]['subjects'],
           learners: opts.sectionStudents || [opts.student]
