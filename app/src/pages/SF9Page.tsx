@@ -3,14 +3,38 @@ import { Document, Page, Text, View, StyleSheet, PDFViewer, PDFDownloadLink, Ima
 Font.registerHyphenationCallback(word => [word]);
 
 const isNodeEnv = typeof process !== 'undefined' && Boolean(process.versions?.node);
-const rawBase = import.meta.env.BASE_URL || '/';
+const rawBase = import.meta.env?.BASE_URL || '/';
 const assetBase = isNodeEnv 
-    ? `${process.cwd()}/public/` 
+    ? `${process.cwd().replace(/\\/g, '/')}/public/` 
     : (rawBase.endsWith('/') ? rawBase : `${rawBase}/`);
 
 const fontPath = isNodeEnv
     ? `${process.cwd()}/public/fonts`
     : `${assetBase}fonts`;
+
+const resolveLogoSrc = (logoPathOrUrl: string): string => {
+    if (!logoPathOrUrl) return '';
+    if (logoPathOrUrl.startsWith('data:') || logoPathOrUrl.startsWith('http')) return logoPathOrUrl;
+    if (isNodeEnv) {
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const fs = require('fs');
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const path = require('path');
+            const cleanRel = logoPathOrUrl.replace(/^file:\/\/\//, '').replace(/^file:\/\//, '');
+            const filename = path.basename(cleanRel);
+            const targetPath = path.resolve(process.cwd(), 'public', filename);
+            if (fs.existsSync(targetPath)) {
+                const ext = path.extname(targetPath).toLowerCase().replace('.', '') || 'png';
+                const mime = ext === 'jpg' ? 'jpeg' : ext;
+                return `data:image/${mime};base64,${fs.readFileSync(targetPath).toString('base64')}`;
+            }
+        } catch (_e) {
+            // fallback
+        }
+    }
+    return logoPathOrUrl;
+};
 
 try {
     Font.register({ family: 'BookmanOldStyle', src: `${fontPath}/BOOKOS.TTF` });
@@ -1757,7 +1781,7 @@ function SF9Pages({
                     <View style={styles.singleContainer}>
                         <View style={styles.singleLeftColumn}>
                             <View style={[styles.singleHeaderContainer, isValuesOnly ? { opacity: 0 } : {}]}>
-                                <Image src={`${assetBase}deped_logo_left.png`} style={styles.singleLogo} />
+                                <Image src={resolveLogoSrc(`${assetBase}deped_logo_left.png`)} style={styles.singleLogo} />
                                 <View style={styles.singleHeaderCenter}>
                                     <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: isG11Academic ? 7 : 8.5 }]}>Republic of the Philippines</Text>
                                     <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: isG11Academic ? 7 : 8.5 }]}>Department of Education</Text>
@@ -1778,7 +1802,7 @@ function SF9Pages({
                                     </Text>
                                     <Text style={[styles.singleHeaderText, { marginTop: isG11Academic ? 2 : 4, fontFamily: 'BookmanOldStyle-Bold', fontSize: isG11Academic ? 8 : 8.5 }]}>{schoolName}</Text>
                                 </View>
-                                <Image src={logoUrl || `${assetBase}school-logo.png`} style={styles.singleLogo} />
+                                <Image src={resolveLogoSrc(logoUrl || `${assetBase}school-logo.png`)} style={styles.singleLogo} />
                             </View>
                             <Text style={{ textAlign: 'center', marginBottom: isG11Academic ? 3 : 6, marginTop: isG11Academic ? 0 : -15 }}>
                                 <Text style={[styles.singleReportTitle, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: isG11Academic ? 10 : 14 }]}>{"LEARNER'S PERFORMANCE REPORT\n"}</Text>

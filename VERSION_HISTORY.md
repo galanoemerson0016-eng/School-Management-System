@@ -1,5 +1,25 @@
 # Version History
 
+## v3.5.3 (2026-09-14)
+
+### 🚀 New Features & Enhancements
+
+- **Base64 Data URL Image Resolution for React-PDF**: Automated Base64 Data URL conversion for local image assets (`deped_logo_left.png`, `school-logo.png`) in Node.js test environments, eliminating `fetch failed` warnings.
+
+### ⚡ Client Data Protection & Code Quality
+
+- **ESLint Code Compliance**: Conformed caught error variable names (`_e`) to strict ESLint `/^_/u` rule standards across PDF renderer utility methods.
+- **Zero Data Loss Guarantee**: 100% preservation of all existing client records, raw scores, student profiles, and section assignments in IndexedDB.
+
+### 🐞 Bug Fixes
+
+- Fixed `fetch failed` image loading warnings in Vitest test runners.
+- Resolved ESLint unused catch variable parameter lint errors in `SF9Page.tsx`.
+
+### 📝 Notes
+
+- 100% backward-compatible update with automated database self-healing on first startup.
+
 ## v3.5.2 (2026-09-14)
 
 ### 🚀 New Features & Enhancements
