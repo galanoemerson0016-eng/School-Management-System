@@ -162,6 +162,10 @@ describe('Grade 3 SF9 Excel Export Service', () => {
     expect(sheet2Xml).toContain('100000000001');
     expect(sheet2Xml).toContain('r="L11"'); // Male 1 Name
     expect(sheet2Xml).toContain('r="Q11"'); // Female 1 Name
+    expect(sheet2Xml).not.toContain('r="L11" s="26"');
+    expect(sheet2Xml).not.toContain('r="M11" s="27"');
+    expect(sheet2Xml).not.toContain('r="N11" s="28"');
+    expect(sheet2Xml).toContain('DATE(');
 
     // Term 1 summary checks (Sex in column J, Science in column N)
     const sheet3Xml = await zip.file('xl/worksheets/sheet3.xml')!.async('text');
@@ -174,6 +178,8 @@ describe('Grade 3 SF9 Excel Export Service', () => {
     expect(sheet3Xml).toContain('r="K65"'); // Female 1 Filipino on Row 65
     expect(sheet3Xml).toContain('r="N65"'); // Female 1 Science on Row 65
     expect(sheet3Xml).toContain('BACARRA CENTRAL ELEMENTARY SCHOOL');
+    expect(sheet3Xml).toMatch(/<c\s+r="I14"[^>]*>(?:<f[^>]*>[\s\S]*?<\/f>|<f[^>]*\/>)?<v>\d+<\/v><\/c>/);
+    expect(sheet3Xml).toMatch(/<c\s+r="I65"[^>]*>(?:<f[^>]*>[\s\S]*?<\/f>|<f[^>]*\/>)?<v>\d+<\/v><\/c>/);
 
     // Attendance sheet checks (sheet7.xml in updated template)
     const sheet7Xml = await zip.file('xl/worksheets/sheet7.xml')!.async('text');
@@ -194,7 +200,7 @@ describe('Grade 3 SF9 Excel Export Service', () => {
     expect(sheet6Xml).toContain('r="S7"'); // July Days Present
     expect(sheet6Xml).toContain("VLOOKUP(C17,'ATTENDANCE RECORD SUMMARY'!$C$14:$P$114,5,0)"); // July formula repaired
     expect(sheet6Xml).toContain('r="R5"'); // School days
-    expect(sheet6Xml).toContain('IF(COUNT(I33:I38)=0,"",AVERAGE((I33:I38)))'); // Repaired General Average formula
+    expect(sheet6Xml).toContain('IF(COUNT(I33:I38)&lt;6,&quot;&quot;,ROUND(AVERAGE(I33:I38),0))'); // Repaired General Average formula
     expect(sheet6Xml).not.toContain('<f>#REF!</f>');
     expect(sheet6Xml).not.toContain('<v>#REF!</v>');
 
@@ -213,5 +219,69 @@ describe('Grade 3 SF9 Excel Export Service', () => {
     const d6Xml = await zip.file('xl/drawings/drawing6.xml')!.async('text');
     expect(d6Xml).toContain('name="School Logo"');
     expect(d6Xml).not.toContain('name="Shape 3"');
+  });
+
+  it('renders blank cells for missing/unentered grades and avoids 0 or premature Failed', async () => {
+    const templatePath = path.resolve(process.cwd(), 'public/templates/G3 School Form 9 (SY 26-27).xlsx');
+    if (!fs.existsSync(templatePath)) return;
+
+    const nodeBuf = fs.readFileSync(templatePath);
+    const mockOpts: SF9ExcelExportOptions = {
+      student: {
+        id: 's1',
+        lrn: '100000000001',
+        first_name: 'JUAN JR.',
+        last_name: 'DELA CRUZ',
+        gender: 'Male',
+        student_section: 'sec1',
+        grade_level: 'Grade 3'
+      } as unknown as SF9ExcelExportOptions['student'],
+      schoolProfile: {
+        school_id: '100123',
+        name: 'TEST ELEM'
+      } as unknown as SF9ExcelExportOptions['schoolProfile'],
+      schoolYear: '2026-2027',
+      section: 'ROSE',
+      adviser: 'JUAN DELA CRUZ',
+      principal: 'MARIA SANTOS, PhD',
+      principalTitle: 'Principal IV',
+      grades: {
+        'Filipino': [85, 0, 0], // Only Term 1 has grade
+        'English': [0, 0, 0],    // No grades yet
+        'Mathematics': [0, 0, 0],
+      },
+      subjects: [{ name: 'Filipino' }, { name: 'English' }, { name: 'Mathematics' }],
+      observedValues: {},
+      comments: [],
+      attendance: {
+        months: [],
+        schoolDays: [],
+        daysPresent: [],
+        daysAbsent: []
+      },
+      gradeLevel: 'Grade 3'
+    };
+
+    const outBuffer = await populateGrade3TemplateBuffer(nodeBuf, mockOpts);
+    const zip = await JSZip.loadAsync(outBuffer);
+    const s6Xml = await zip.file('xl/worksheets/sheet6.xml')!.async('text');
+
+    // Term 2 & 3 for Filipino should NOT have <v>0</v>
+    expect(s6Xml).not.toMatch(/<c\s+r="G33"[^>]*><f>[^<]*<\/f><v>0<\/v><\/c>/);
+    expect(s6Xml).not.toMatch(/<c\s+r="H33"[^>]*><f>[^<]*<\/f><v>0<\/v><\/c>/);
+
+    // Final Grade (I33) and Remark (J33) must NOT show 0 or "Failed" when terms are incomplete
+    expect(s6Xml).not.toMatch(/<c\s+r="I33"[^>]*><f>[^<]*<\/f><v>0<\/v><\/c>/);
+    expect(s6Xml).not.toMatch(/<c\s+r="I33"[^>]*><f>[^<]*<\/f><v>28<\/v><\/c>/);
+    expect(s6Xml).not.toMatch(/<c\s+r="J33"[^>]*><f>[^<]*<\/f><v>Failed<\/v><\/c>/);
+
+    // English (Row 34) should be blank across all terms
+    expect(s6Xml).not.toMatch(/<c\s+r="F34"[^>]*><f>[^<]*<\/f><v>0<\/v><\/c>/);
+    expect(s6Xml).not.toMatch(/<c\s+r="I34"[^>]*><f>[^<]*<\/f><v>0<\/v><\/c>/);
+    expect(s6Xml).not.toMatch(/<c\s+r="J34"[^>]*><f>[^<]*<\/f><v>Failed<\/v><\/c>/);
+
+    // General Average (I39) must not be 0 or Failed
+    expect(s6Xml).not.toMatch(/<c\s+r="I39"[^>]*><f>[^<]*<\/f><v>0<\/v><\/c>/);
+    expect(s6Xml).not.toMatch(/<c\s+r="J39"[^>]*><f>[^<]*<\/f><v>Failed<\/v><\/c>/);
   });
 });

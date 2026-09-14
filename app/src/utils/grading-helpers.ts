@@ -130,9 +130,17 @@ export function isMatchingSubject(
     const isFilipino2 = (s: string) => s.includes('filipino2');
     if (isFilipino2(normTarget) && (isFilipino2(normName) || isFilipino2(cleanedId))) return true;
 
-    // 3.2 English / Language / Reading & Literacy
-    const isEnglish = (s: string) => s.includes('english') || s === 'eng' || s.includes('readingandliteracy') || s.includes('readingliteracy') || s === 'language';
+    // 3.2 English
+    const isEnglish = (s: string) => (s.includes('english') || s === 'eng') && !s.includes('language') && !s.includes('reading');
     if (isEnglish(normTarget) && (isEnglish(normName) || isEnglish(cleanedId))) return true;
+
+    // 3.2.1 Language (Grade 1 MATATAG)
+    const isLanguage = (s: string) => (s === 'language' || s.includes('matataglanguage') || s.includes('wikaatkomunikasyon')) && !s.includes('reading') && !s.includes('english');
+    if (isLanguage(normTarget) && (isLanguage(normName) || isLanguage(cleanedId))) return true;
+
+    // 3.2.2 Reading and Literacy (Grade 1 MATATAG)
+    const isReading = (s: string) => (s.includes('readingandliteracy') || s.includes('readingliteracy') || (s.includes('reading') && s.includes('literacy'))) && !s.includes('english');
+    if (isReading(normTarget) && (isReading(normName) || isReading(cleanedId))) return true;
 
     // 3.3 Mathematics / Gen Math
     const isMath = (s: string) => (s.includes('mathematics') || s.includes('math') || s.includes('genmath') || s.includes('generalmath')) && 
@@ -171,17 +179,33 @@ export function isMatchingSubject(
     const isPhys = (s: string) => (s.includes('physics') || s === 'phys') && !s.includes('physical') && !s.includes('conceptual') && !s.includes('advanced');
     if (isPhys(normTarget) && (isPhys(normName) || isPhys(cleanedId))) return true;
 
-    // 3.5 Araling Panlipunan (AP) / Makabansa / Kasaysayan / Social Studies
-    const isAP = (s: string) => s === 'ap' || s.includes('aralingpanlipunan') || s.includes('kasaysayan') || s.includes('socialstudies');
+    // 3.5 Araling Panlipunan (AP) / Kasaysayan / Social Studies
+    const isAP = (s: string) => (s === 'ap' || s.includes('aralingpanlipunan') || s.includes('kasaysayan') || s.includes('socialstudies')) && !s.includes('makabansa');
     if (isAP(normTarget) && (isAP(normName) || isAP(cleanedId))) return true;
 
-    // 3.6 Values Education / ESP / GMRC (Exclude Islamic Values unless specified)
-    const isValues = (s: string) => (s.includes('values') || s === 'esp' || s.includes('edukasyonsapagpapakatao') || s.includes('gmrc') || s.includes('goodmanner') || s.includes('goodmoral') || s.includes('makabansa') || s.includes('charactereducation')) && !s.includes('islamic');
+    // 3.5.1 Makabansa (MATATAG Grades 1-3)
+    const isMakabansa = (s: string) => s.includes('makabansa');
+    if (isMakabansa(normTarget) && (isMakabansa(normName) || isMakabansa(cleanedId))) return true;
+
+    // 3.6.1 GMRC (Good Moral and Right Conduct / Good Manners and Right Conduct)
+    const isGMRC = (s: string) => (s.includes('gmrc') || s.includes('goodmanner') || s.includes('goodmoral') || s.includes('charactereducation')) && !s.includes('islamic') && !s.includes('values') && !s.includes('makabansa');
+    if (isGMRC(normTarget) && !normTarget.includes('islamic') && (isGMRC(normName) || isGMRC(cleanedId))) return true;
+
+    // 3.6.2 Values Education / ESP (Exclude Islamic Values unless specified)
+    const isValues = (s: string) => (s.includes('values') || s === 'esp' || s.includes('edukasyonsapagpapakatao') || s.includes('pagpapakatao')) && !s.includes('islamic') && !s.includes('gmrc') && !s.includes('goodmanner') && !s.includes('goodmoral') && !s.includes('makabansa');
     if (isValues(normTarget) && !normTarget.includes('islamic') && (isValues(normName) || isValues(cleanedId))) return true;
 
-    // 3.7 EPP / TLE / TVL / Technology & Livelihood Education
-    const isTLE = (s: string) => s === 'tle' || s.includes('technologyandlivelihood') || s.includes('epp') || s.includes('edukasyongpantahanan') || s === 'tvl';
+    // 3.7.1 EPP (Edukasyong Pantahanan at Pangkabuhayan - Elementary)
+    const isEPP = (s: string) => (s === 'epp' || s.includes('edukasyongpantahanan') || s.includes('pantahanan')) && !s.includes('tle') && !s.includes('technology');
+    if (isEPP(normTarget) && (isEPP(normName) || isEPP(cleanedId))) return true;
+
+    // 3.7.2 TLE (Technology and Livelihood Education - JHS)
+    const isTLE = (s: string) => (s === 'tle' || s.includes('technologyandlivelihood') || (s.includes('technology') && s.includes('livelihood'))) && !s.includes('epp') && !s.includes('pantahanan') && s !== 'tvl';
     if (isTLE(normTarget) && (isTLE(normName) || isTLE(cleanedId))) return true;
+
+    // 3.7.3 TVL (Technical-Vocational-Livelihood - SHS)
+    const isTVL = (s: string) => (s === 'tvl' || s.includes('technicalvocational')) && !s.includes('epp');
+    if (isTVL(normTarget) && (isTVL(normName) || isTVL(cleanedId))) return true;
 
     // 3.8 MAPEH - Full Subject Header
     const isMAPEH = (s: string) => s === 'mapeh' || s === 'musicartspehealth' || s.includes('musicartsphysicaleducation');

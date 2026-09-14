@@ -141,11 +141,17 @@ describe('Grade 2 SF9 Excel Export Service', () => {
     expect(sheet2Xml).toContain('100000000001');
     expect(sheet2Xml).toContain('r="L11"'); // Male 1 Name
     expect(sheet2Xml).toContain('r="Q11"'); // Female 1 Name
+    expect(sheet2Xml).not.toContain('r="L11" s="23"');
+    expect(sheet2Xml).not.toContain('r="M11" s="24"');
+    expect(sheet2Xml).not.toContain('r="N11" s="248"');
+    expect(sheet2Xml).toContain('DATE(2019,5,12)');
 
     const sheet3Xml = await zip.file('xl/worksheets/sheet3.xml')!.async('text');
     expect(sheet3Xml).toContain('r="K14"'); // Male 1 Filipino on Row 14
     expect(sheet3Xml).toContain('r="K65"'); // Female 1 Filipino on Row 65
     expect(sheet3Xml).toContain('BACARRA CENTRAL ELEMENTARY SCHOOL'); // Populated E6 header result
+    expect(sheet3Xml).toMatch(/<c\s+r="I14"[^>]*>(?:<f[^>]*>[\s\S]*?<\/f>)?<v>7<\/v><\/c>/);
+    expect(sheet3Xml).toMatch(/<c\s+r="I65"[^>]*>(?:<f[^>]*>[\s\S]*?<\/f>)?<v>7<\/v><\/c>/);
 
     const sheet7Xml = await zip.file('xl/worksheets/sheet7.xml')!.async('text');
     expect(sheet7Xml).toContain('JUAN DELA CRUZ'); // Adviser in L10/L11
@@ -176,4 +182,69 @@ describe('Grade 2 SF9 Excel Export Service', () => {
     expect(d6Xml).toContain('name="School Logo"');
     expect(d6Xml).not.toContain('name="Shape 3"');
   });
+
+  it('renders blank cells for missing/unentered grades and avoids 0 or premature Failed', async () => {
+    const templatePath = path.resolve(process.cwd(), 'public/templates/G2 School Form 9 (SY 26-27).xlsx');
+    if (!fs.existsSync(templatePath)) return;
+
+    const nodeBuf = fs.readFileSync(templatePath);
+    const mockOpts: SF9ExcelExportOptions = {
+      student: {
+        id: 's1',
+        lrn: '100000000001',
+        first_name: 'JUAN JR.',
+        last_name: 'DELA CRUZ',
+        gender: 'Male',
+        student_section: 'sec1',
+        grade_level: 'Grade 2'
+      } as unknown as SF9ExcelExportOptions['student'],
+      schoolProfile: {
+        school_id: '100123',
+        name: 'TEST ELEM'
+      } as unknown as SF9ExcelExportOptions['schoolProfile'],
+      schoolYear: '2026-2027',
+      section: 'DIAMOND',
+      adviser: 'JUAN DELA CRUZ',
+      principal: 'MARIA SANTOS, PhD',
+      principalTitle: 'Principal IV',
+      grades: {
+        'Filipino': [85, 0, 0], // Only Term 1 has grade
+        'English': [0, 0, 0],    // No grades yet
+        'Mathematics': [0, 0, 0],
+      },
+      subjects: [{ name: 'Filipino' }, { name: 'English' }, { name: 'Mathematics' }],
+      observedValues: {},
+      comments: [],
+      attendance: {
+        months: [],
+        schoolDays: [],
+        daysPresent: [],
+        daysAbsent: []
+      },
+      gradeLevel: 'Grade 2'
+    };
+
+    const outBuffer = await populateGrade2TemplateBuffer(nodeBuf, mockOpts);
+    const zip = await JSZip.loadAsync(outBuffer);
+    const s6Xml = await zip.file('xl/worksheets/sheet6.xml')!.async('text');
+
+    // Term 2 & 3 for Filipino should NOT have <v>0</v>
+    expect(s6Xml).not.toMatch(/<c\s+r="G33"[^>]*><f>[^<]*<\/f><v>0<\/v><\/c>/);
+    expect(s6Xml).not.toMatch(/<c\s+r="H33"[^>]*><f>[^<]*<\/f><v>0<\/v><\/c>/);
+
+    // Final Grade (I33) and Remark (J33) must NOT show 0 or "Failed" when terms are incomplete
+    expect(s6Xml).not.toMatch(/<c\s+r="I33"[^>]*><f>[^<]*<\/f><v>0<\/v><\/c>/);
+    expect(s6Xml).not.toMatch(/<c\s+r="I33"[^>]*><f>[^<]*<\/f><v>28<\/v><\/c>/);
+    expect(s6Xml).not.toMatch(/<c\s+r="J33"[^>]*><f>[^<]*<\/f><v>Failed<\/v><\/c>/);
+
+    // English (Row 34) should be blank across all terms
+    expect(s6Xml).not.toMatch(/<c\s+r="F34"[^>]*><f>[^<]*<\/f><v>0<\/v><\/c>/);
+    expect(s6Xml).not.toMatch(/<c\s+r="I34"[^>]*><f>[^<]*<\/f><v>0<\/v><\/c>/);
+    expect(s6Xml).not.toMatch(/<c\s+r="J34"[^>]*><f>[^<]*<\/f><v>Failed<\/v><\/c>/);
+
+    // General Average (I38) must not be 0 or Failed
+    expect(s6Xml).not.toMatch(/<c\s+r="I38"[^>]*><f>[^<]*<\/f><v>0<\/v><\/c>/);
+    expect(s6Xml).not.toMatch(/<c\s+r="J38"[^>]*><f>[^<]*<\/f><v>Failed<\/v><\/c>/);
+  });
 });
+

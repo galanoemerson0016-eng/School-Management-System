@@ -179,13 +179,24 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     expect(sheet2Xml).toContain('BACARRA NATIONAL COMPREHENSIVE HIGH SCHOOL');
     expect(sheet2Xml).toContain('JUAN DELA CRUZ');
     expect(sheet2Xml).toContain('CLARA, MARIA');
-    // Verify rows 11-14 have standardized clean styles (25 left-aligned, 26 center, 27 center)
-    expect(sheet2Xml).toContain('r="L11" s="25"');
-    expect(sheet2Xml).toContain('r="M11" s="26"');
-    expect(sheet2Xml).toContain('r="N11" s="27"');
-    expect(sheet2Xml).toContain('r="Q11" s="25"');
-    expect(sheet2Xml).toContain('r="R11" s="26"');
-    expect(sheet2Xml).toContain('r="S11" s="27"');
+    // Verify template native styles/outlines are preserved (styles 25, 26, 27 are NOT forced)
+    expect(sheet2Xml).toContain('r="L11"');
+    expect(sheet2Xml).toContain('r="M11"');
+    expect(sheet2Xml).toContain('r="N11"');
+    expect(sheet2Xml).toContain('r="Q11"');
+    expect(sheet2Xml).toContain('r="R11"');
+    expect(sheet2Xml).toContain('r="S11"');
+    expect(sheet2Xml).not.toContain('r="L11" s="25"');
+    expect(sheet2Xml).not.toContain('r="M11" s="26"');
+    expect(sheet2Xml).not.toContain('r="N11" s="27"');
+    expect(sheet2Xml).not.toContain('r="Q11" s="25"');
+    expect(sheet2Xml).not.toContain('r="R11" s="26"');
+    expect(sheet2Xml).not.toContain('r="S11" s="27"');
+    // Verify female LRN is in column R and not duplicated to column T
+    expect(sheet2Xml).toContain('100000000002');
+    const r11Match = sheet2Xml.match(/<row[^>]*r="11"[^>]*>[\s\S]*?<\/row>/);
+    expect(r11Match?.[0]).toContain('r="R11"');
+    expect(r11Match?.[0]).not.toMatch(/<c\s+r="T11"[^>]*>[\s\S]*?100000000002/);
     // Verify birthdate is written as native DATE formula and serial value (prevents Age ##### / DATEDIF #VALUE!)
     expect(sheet2Xml).toMatch(/<c\s+r="N11"[^>]*><f>DATE\(\d+,\d+,\d+\)<\/f><v>\d+<\/v><\/c>/);
     expect(sheet2Xml).toMatch(/<c\s+r="S11"[^>]*><f>DATE\(\d+,\d+,\d+\)<\/f><v>\d+<\/v><\/c>/);
@@ -213,12 +224,19 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     expect(sheet4Xml).not.toContain('t="shared"');
     expect(sheet4Xml).toContain('r="K16"');
     expect(sheet4Xml).toContain('r="R16"'); // Male 1 Academic Elective 2
+    // Verify Q6 and R6 do NOT contain school year
+    expect(sheet4Xml).not.toMatch(/<c\s+r="Q6"[^>]*>[\s\S]*?2026-2027/);
+    expect(sheet4Xml).not.toMatch(/<c\s+r="R6"[^>]*>[\s\S]*?2026-2027/);
 
     // Sheet 5: TERM 3 SUMMARY
     const sheet5Xml = await zip.file('xl/worksheets/sheet5.xml')!.async('text');
     expect(sheet5Xml).not.toContain('t="shared"');
     expect(sheet5Xml).toContain('r="K16"');
     expect(sheet5Xml).toContain('r="R16"'); // Male 1 Academic Elective 3
+    // Verify Q6 and R6 do NOT contain school year or rogue F18 formula
+    expect(sheet5Xml).not.toMatch(/<c\s+r="Q6"[^>]*>[\s\S]*?2026-2027/);
+    expect(sheet5Xml).not.toMatch(/<c\s+r="R6"[^>]*>[\s\S]*?2026-2027/);
+    expect(sheet5Xml).not.toMatch(/<c\s+r="R6"[^>]*><f>[^<]*F18/);
 
     // Workbook active tab is set to SF9 (index 5)
     const wbXml = await zip.file('xl/workbook.xml')!.async('text');
@@ -265,7 +283,7 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     expect(sheet6Xml).toContain('ROUND(L44/I44,0)'); // General Average Final Grade formula in Row 44
 
     // Remarks formulas and cached results in Column K
-    expect(sheet6Xml).toContain('IF(J36&gt;=75, "Passed", "Failed")'); // Core Subject Remarks formula
+    expect(sheet6Xml).toContain('IF(J36&gt;=75, &quot;Passed&quot;, &quot;Failed&quot;)'); // Core Subject Remarks formula
     expect(sheet6Xml).toContain('MIN(J33,J36:J39,J41:J43)&gt;=85'); // Academic Excellence no grade below 85 check
     expect(sheet6Xml).toContain('Promoted with Academic Excellence Award'); // General Average Academic Excellence Remarks formula
     expect(sheet6Xml).toContain('>Promoted with Academic Excellence Award<'); // General Average cached remarks
@@ -282,7 +300,7 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     expect(sheet6Xml).toContain('SUM(R5:AB6)'); // Attendance sum for Class Days
     expect(sheet6Xml).toContain('SUM(R7:AB8)'); // Attendance sum for Days Present
     expect(sheet6Xml).toContain('ABS(AC5-AC7)'); // Attendance sum for Days Absent
-    expect(sheet6Xml).toContain('IF(R7="","",ABS(R5-R7))'); // Repaired Absent formula in R9
+    expect(sheet6Xml).toContain('IF(R7=&quot;&quot;,&quot;&quot;,ABS(R5-R7))'); // Repaired Absent formula in R9
 
     // Sheet 7: ATTENDANCE RECORD SUMMARY
     const sheet7Xml = await zip.file('xl/worksheets/sheet7.xml')!.async('text');
@@ -313,4 +331,62 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     expect(drawing6Xml).not.toContain('Insert School Logo');
     expect(zip.file('xl/media/school_logo.png')).not.toBeNull();
   }, 30000);
+
+  it('keeps final grades, remarks, and general average blank when term grades are incomplete in G11 Academic', async () => {
+    const templatePath = path.resolve(__dirname, '../../public/templates/G11 Academic School Form 9 (SY 26-27).xlsx');
+    const templateBuf = fs.readFileSync(templatePath);
+
+    const student: Student = {
+      lrn: '100000000001',
+      first_name: 'JUAN',
+      middle_name: 'SANTOS',
+      last_name: 'DELA CRUZ',
+      gender: 'Male',
+      birthday: '2009-05-15',
+      age: 17,
+      address: 'Victoria, Tarlac',
+      grade_level: 'Grade 11',
+      student_section: 'Emerald'
+    };
+
+    // Only Term 1 has grades, Term 2 and Term 3 are empty
+    const partialGrades: Record<string, { q1?: number; q2?: number; q3?: number; final?: number }> = {
+      'Effective Communication': { q1: 88 },
+      'Mabisang Komunikasyon': { q1: 87 },
+      'General Mathematics': { q1: 85 }
+    };
+
+    const subjects: Subject[] = [
+      { id: '1', subject_name: 'Effective Communication', grade_level: '11' },
+      { id: '2', subject_name: 'Mabisang Komunikasyon', grade_level: '11' },
+      { id: '3', subject_name: 'General Mathematics', grade_level: '11' },
+    ];
+
+    const opts: SF9Grade11AcademicExportOptions = {
+      student,
+      schoolYear: '2026-2027',
+      section: 'Emerald',
+      adviser: 'JUAN DELA CRUZ',
+      grades: partialGrades,
+      subjects,
+      gradeLevel: 'Grade 11',
+      learners: [student]
+    };
+
+    const resultBuffer = await populateGrade11AcademicTemplateBuffer(templateBuf, opts);
+    const zip = await JSZip.loadAsync(resultBuffer);
+    const sheet6Xml = await zip.file('xl/worksheets/sheet6.xml')!.async('text');
+
+    // Term 1 is filled
+    expect(sheet6Xml).toContain('r="F34"');
+    // Guarded formulas exist
+    expect(sheet6Xml).toContain('ROUND((F33+H33+G33)*(I33/3)/I33,0)');
+    expect(sheet6Xml).toContain('ROUND(L44/I44,0)');
+
+    // Incomplete final grades and general average should NOT be cached as passed or promoted
+    expect(sheet6Xml).not.toContain('>Passed<');
+    expect(sheet6Xml).not.toContain('>Promoted<');
+    expect(sheet6Xml).not.toContain('>Failed<');
+    expect(sheet6Xml).not.toMatch(/<c\s+r="J44"[^>]*><f[^>]*>[^<]+<\/f><v>\d+<\/v><\/c>/);
+  });
 });

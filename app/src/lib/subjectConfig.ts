@@ -530,12 +530,14 @@ export function getCanonicalSubjectKey(name: string, gradeLevel?: string | numbe
   // 2. Canonical core stems
   if (stripped.startsWith('filipino')) return 'filipino';
   if (stripped.startsWith('english')) return 'english';
+  if (stripped === 'language' || stripped.includes('matataglanguage')) return 'language';
+  if (stripped.includes('readingandliteracy') || stripped.includes('readingliteracy') || (stripped.includes('reading') && stripped.includes('literacy'))) return 'readingandliteracy';
   if (stripped.startsWith('math')) return 'mathematics';
   if (stripped.startsWith('science')) return 'science';
   if (stripped.startsWith('gmrc') || stripped.includes('goodmanners')) return 'gmrc';
   if (stripped.startsWith('makabansa')) return 'makabansa';
   if (stripped === 'ap' || stripped.includes('aralingpanlipunan') || stripped.includes('panlipunan')) return 'aralingpanlipunan';
-  if (stripped.includes('valueseducation') || stripped.includes('esp') || stripped.includes('pagpapakatao')) return 'valueseducation';
+  if ((stripped.includes('valueseducation') || stripped.includes('esp') || stripped.includes('pagpapakatao')) && !stripped.includes('gmrc')) return 'valueseducation';
   if (stripped.startsWith('epp') || stripped.includes('edukasyongpantahanan')) return 'epp';
   if (stripped.startsWith('tle') || stripped.includes('technologyandlivelihood')) return 'tle';
   if (stripped === 'mapeh') return 'mapeh';

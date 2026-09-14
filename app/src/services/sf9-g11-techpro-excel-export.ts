@@ -9,6 +9,7 @@
 import JSZip from 'jszip';
 import type { Student, SchoolProfile, Subject } from '../types';
 import { formatLearnerName } from '../utils/student-name';
+import { parseBirthDateParts, birthDateToExcelSerial } from './sf9-g11-academic-excel-export';
 
 export interface SF9Grade11TechProExportOptions {
   student: Student;
@@ -512,9 +513,10 @@ function updateFormulaValueInSheetXml(
 function escapeFormula(formula: string): string {
   if (!formula) return '';
   return formula
-    .replace(/&/g, '&amp;')
+    .replace(/&(?!(amp|lt|gt|quot|apos);)/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function updateFormulaCellExplicit(
@@ -1013,32 +1015,60 @@ export async function populateGrade11TechProTemplateBuffer(
     };
 
     const inputStyles: Record<string, string> = {};
+    const birthdateFormulas: { cellRef: string; formula: string; serial: number; style?: string }[] = [];
 
     // Male learners: rows 11 to 60 (L: Name, M: LRN, N: Birthdate)
+    // NOTE: Do NOT force styles — preserve the template's native styles (14=name, 133=LRN, 134=birthdate)
     for (let i = 0; i < 50; i++) {
       const row = 11 + i;
       const s = maleStudents[i];
       inputDataCells[`L${row}`] = s ? formatLearnerName(s) : '';
       inputDataCells[`M${row}`] = s ? (s.lrn || '') : '';
-      inputDataCells[`N${row}`] = s ? formatDateToMMDDYYYY(s.birthday) : '';
-      inputStyles[`L${row}`] = '25';
-      inputStyles[`M${row}`] = '26';
-      inputStyles[`N${row}`] = '27';
+      if (s && s.birthday) {
+        const parts = parseBirthDateParts(s.birthday);
+        const serial = birthDateToExcelSerial(s.birthday);
+        if (parts && serial !== null) {
+          birthdateFormulas.push({
+            cellRef: `N${row}`,
+            formula: `DATE(${parts.year},${parts.month},${parts.day})`,
+            serial
+          });
+        } else {
+          inputDataCells[`N${row}`] = formatDateToMMDDYYYY(s.birthday);
+        }
+      } else {
+        inputDataCells[`N${row}`] = '';
+      }
     }
 
     // Female learners: rows 11 to 60 (Q: Name, R: LRN, S: Birthdate)
+    // NOTE: Do NOT force styles — preserve the template's native styles (14=name, 133=LRN, 134=birthdate)
     for (let i = 0; i < 50; i++) {
       const row = 11 + i;
       const s = femaleStudents[i];
       inputDataCells[`Q${row}`] = s ? formatLearnerName(s) : '';
       inputDataCells[`R${row}`] = s ? (s.lrn || '') : '';
-      inputDataCells[`S${row}`] = s ? formatDateToMMDDYYYY(s.birthday) : '';
-      inputStyles[`Q${row}`] = '25';
-      inputStyles[`R${row}`] = '26';
-      inputStyles[`S${row}`] = '27';
+      if (s && s.birthday) {
+        const parts = parseBirthDateParts(s.birthday);
+        const serial = birthDateToExcelSerial(s.birthday);
+        if (parts && serial !== null) {
+          birthdateFormulas.push({
+            cellRef: `S${row}`,
+            formula: `DATE(${parts.year},${parts.month},${parts.day})`,
+            serial
+          });
+        } else {
+          inputDataCells[`S${row}`] = formatDateToMMDDYYYY(s.birthday);
+        }
+      } else {
+        inputDataCells[`S${row}`] = '';
+      }
     }
 
     sheet2Xml = updateCellsBatch(sheet2Xml, inputDataCells, inputStyles);
+    for (const bf of birthdateFormulas) {
+      sheet2Xml = updateFormulaCellExplicit(sheet2Xml, bf.cellRef, bf.formula, bf.serial, bf.style);
+    }
     zip.file(inputSheetPath, sheet2Xml);
   }
 
@@ -1173,13 +1203,16 @@ export async function populateGrade11TechProTemplateBuffer(
     const termCells: Record<string, string | number> = {};
     const termFormulaResults: Record<string, string | number> = {};
 
+    // Clear orphan cells Q6 and R6 (present in Term 2 / Term 3) so school year doesn't appear there
+    sXml = updateFormulaCellExplicit(sXml, 'Q6', '', '');
+    sXml = updateFormulaCellExplicit(sXml, 'R6', '', '');
+
     // Header updates on Summary sheets
     termFormulaResults['E5'] = cleanRegion;
     termFormulaResults['J5'] = cleanDivision;
     termFormulaResults['E6'] = cleanSchoolName;
     termFormulaResults['J6'] = cleanSchoolId;
-    termFormulaResults['Q6'] = cleanSy;
-    termFormulaResults['P6'] = cleanSy;
+    termFormulaResults['O6'] = cleanSy;
     termFormulaResults['G9'] = 'Grade 11';
     termFormulaResults['N9'] = cleanSection;
     termFormulaResults['M9'] = cleanSection;
@@ -1252,7 +1285,7 @@ export async function populateGrade11TechProTemplateBuffer(
 
       if (isModernRow16) {
         // Modern Layout (Row 16 start for males, Row 67 for females):
-        // Col C: Name, Col D: LRN, Col G: Birthday, Col I: Age, Col J: Sex
+        // Col C: Name (merged C:E), Col F: LRN (merged F:G), Col H: Birthday, Col I: Age, Col J: Sex
         // Col K: Combined Term Grade
         // Col L: Effective Communication
         // Col M: Mabisang Komunikasyon
@@ -1263,8 +1296,9 @@ export async function populateGrade11TechProTemplateBuffer(
         // Col R: TechPro Elective 1
         // Col S: General Average
         // Col T: Rank
-        termFormulaResults[`D${row}`] = s.lrn || '';
-        termFormulaResults[`G${row}`] = formatDateToMMDDYYYY(s.birthday);
+        const serial = s?.birthday ? birthDateToExcelSerial(s.birthday) : null;
+        termFormulaResults[`F${row}`] = s.lrn || '';
+        termFormulaResults[`H${row}`] = serial !== null ? serial : (s ? formatDateToMMDDYYYY(s.birthday) : '');
         termFormulaResults[`I${row}`] = parseAge(s.age, s.birthday);
 
         if (comb !== '') termCells[`K${row}`] = Number(comb);
@@ -1283,20 +1317,20 @@ export async function populateGrade11TechProTemplateBuffer(
 
         sXml = updateFormulaCellExplicit(
           sXml,
-          `D${row}`,
+          `F${row}`,
           `IF('INPUT DATA'!${lrnInputCol}${11 + studentIdx}="","",'INPUT DATA'!${lrnInputCol}${11 + studentIdx})`,
           s.lrn || ''
         );
         sXml = updateFormulaCellExplicit(
           sXml,
-          `G${row}`,
+          `H${row}`,
           `IF('INPUT DATA'!${bdayInputCol}${11 + studentIdx}="","",'INPUT DATA'!${bdayInputCol}${11 + studentIdx})`,
-          formatDateToMMDDYYYY(s.birthday)
+          serial !== null ? serial : (s ? formatDateToMMDDYYYY(s.birthday) : '')
         );
         sXml = updateFormulaCellExplicit(
           sXml,
           `I${row}`,
-          `IF(G${row}="","",DATEDIF(G${row},TODAY(),"Y"))`,
+          `IF(H${row}="","",DATEDIF(H${row},TODAY(),"Y"))`,
           parseAge(s.age, s.birthday)
         );
       } else {

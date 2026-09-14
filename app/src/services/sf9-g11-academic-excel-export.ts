@@ -558,9 +558,10 @@ function updateFormulaValueInSheetXml(
 function escapeFormula(formula: string): string {
   if (!formula) return '';
   return formula
-    .replace(/&/g, '&amp;')
+    .replace(/&(?!(amp|lt|gt|quot|apos);)/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function updateFormulaCellExplicit(
@@ -1100,17 +1101,15 @@ export async function populateGrade11AcademicTemplateBuffer(
     };
 
     const inputStyles: Record<string, string> = {};
-    const birthdateFormulas: { cellRef: string; formula: string; serial: number; style: string }[] = [];
+    const birthdateFormulas: { cellRef: string; formula: string; serial: number; style?: string }[] = [];
 
     // Males (1-50): Name in L11:L60, LRN in M11:M60, Birthdate in N11:N60
+    // NOTE: Do NOT force styles — preserve the template's native styles (19=name, 224=LRN, 225=birthdate)
     for (let idx = 0; idx < 50; idx++) {
       const r = 11 + idx;
       const m = males[idx];
       inputDataCells[`L${r}`] = m ? formatLearnerName(m) : '';
       inputDataCells[`M${r}`] = m ? (m.lrn || '') : '';
-      inputStyles[`L${r}`] = '25';
-      inputStyles[`M${r}`] = '26';
-      inputStyles[`N${r}`] = '27';
       if (m && m.birthday) {
         const parts = parseBirthDateParts(m.birthday);
         const serial = birthDateToExcelSerial(m.birthday);
@@ -1118,8 +1117,7 @@ export async function populateGrade11AcademicTemplateBuffer(
           birthdateFormulas.push({
             cellRef: `N${r}`,
             formula: `DATE(${parts.year},${parts.month},${parts.day})`,
-            serial,
-            style: '27'
+            serial
           });
         } else {
           inputDataCells[`N${r}`] = formatDateToMMDDYYYY(m.birthday);
@@ -1129,17 +1127,14 @@ export async function populateGrade11AcademicTemplateBuffer(
       }
     }
 
-    // Females (1-50): Name in Q11:Q60, LRN in R11:R60 & T11:T60, Birthdate in S11:S60
+    // Females (1-50): Name in Q11:Q60, LRN in R11:R60, Birthdate in S11:S60
+    // NOTE: Do NOT force styles — preserve the template's native styles (19=name, 224=LRN, 225=birthdate)
+    // NOTE: Do NOT duplicate LRN to column T — the LRN column for females is R only
     for (let idx = 0; idx < 50; idx++) {
       const r = 11 + idx;
       const f = females[idx];
       inputDataCells[`Q${r}`] = f ? formatLearnerName(f) : '';
       inputDataCells[`R${r}`] = f ? (f.lrn || '') : '';
-      inputDataCells[`T${r}`] = f ? (f.lrn || '') : '';
-      inputStyles[`Q${r}`] = '25';
-      inputStyles[`R${r}`] = '26';
-      inputStyles[`T${r}`] = '26';
-      inputStyles[`S${r}`] = '27';
       if (f && f.birthday) {
         const parts = parseBirthDateParts(f.birthday);
         const serial = birthDateToExcelSerial(f.birthday);
@@ -1147,8 +1142,7 @@ export async function populateGrade11AcademicTemplateBuffer(
           birthdateFormulas.push({
             cellRef: `S${r}`,
             formula: `DATE(${parts.year},${parts.month},${parts.day})`,
-            serial,
-            style: '27'
+            serial
           });
         } else {
           inputDataCells[`S${r}`] = formatDateToMMDDYYYY(f.birthday);
@@ -1164,11 +1158,6 @@ export async function populateGrade11AcademicTemplateBuffer(
     }
     zip.file(inputSheetPath, sheet2Xml);
   }
-
-  const calcFinal = (t1: number | '', t2: number | '', t3: number | '') => {
-    const arr = [t1, t2, t3].filter((n): n is number => typeof n === 'number' && n > 0);
-    return arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : '';
-  };
 
   const calcCombined = (g1: number | '', g2: number | '') => {
     const arr = [g1, g2].filter((n): n is number => typeof n === 'number' && n > 0);
@@ -1252,13 +1241,17 @@ export async function populateGrade11AcademicTemplateBuffer(
     // Expand template shared formulas before replacing cells within their ranges.
     sXml = expandSharedFormulas(sXml);
 
+    // Clear orphan cells Q6 and R6 (present in Term 2 / Term 3) so school year doesn't appear there
+    sXml = updateFormulaCellExplicit(sXml, 'Q6', '', '');
+    sXml = updateFormulaCellExplicit(sXml, 'R6', '', '');
+
+    // NOTE: School year is in O6 (merged O6:P6) via formula =IF('INPUT DATA'!F18="","",'INPUT DATA'!F18)
     const formulaResults: Record<string, string | number> = {
       'E5': cleanRegion,
       'J5': cleanDivision,
       'E6': cleanSchoolName,
       'J6': cleanSchoolId,
-      'Q6': cleanSy,
-      'P6': cleanSy,
+      'O6': cleanSy,
       'G9': 'Grade 11',
       'N9': cleanSection,
       'M9': cleanSection,
@@ -1291,8 +1284,7 @@ export async function populateGrade11AcademicTemplateBuffer(
         sXml,
         `H${r}`,
         `IF('INPUT DATA'!N${11 + idx}="","",'INPUT DATA'!N${11 + idx})`,
-        mSerial !== null ? mSerial : (m ? formatDateToMMDDYYYY(m.birthday) : ''),
-        '27'
+        mSerial !== null ? mSerial : (m ? formatDateToMMDDYYYY(m.birthday) : '')
       );
       sXml = updateFormulaCellExplicit(
         sXml,
@@ -1338,15 +1330,14 @@ export async function populateGrade11AcademicTemplateBuffer(
       sXml = updateFormulaCellExplicit(
         sXml,
         `F${r}`,
-        `IF('INPUT DATA'!T${11 + idx}="","",'INPUT DATA'!T${11 + idx})`,
+        `IF('INPUT DATA'!R${11 + idx}="","",'INPUT DATA'!R${11 + idx})`,
         f ? (f.lrn || '') : ''
       );
       sXml = updateFormulaCellExplicit(
         sXml,
         `H${r}`,
         `IF('INPUT DATA'!S${11 + idx}="","",'INPUT DATA'!S${11 + idx})`,
-        fSerial !== null ? fSerial : (f ? formatDateToMMDDYYYY(f.birthday) : ''),
-        '27'
+        fSerial !== null ? fSerial : (f ? formatDateToMMDDYYYY(f.birthday) : '')
       );
       sXml = updateFormulaCellExplicit(
         sXml,
@@ -1676,7 +1667,7 @@ export async function populateGrade11AcademicTemplateBuffer(
 
     const calcFinal = (t1: number | '', t2: number | '', t3: number | '') => {
       const arr = [t1, t2, t3].filter((n): n is number => typeof n === 'number' && n > 0);
-      return arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : '';
+      return arr.length === 3 ? Math.round(arr.reduce((a, b) => a + b, 0) / 3) : '';
     };
 
     const calcCombined = (g1: number | '', g2: number | '') => {
@@ -1697,7 +1688,7 @@ export async function populateGrade11AcademicTemplateBuffer(
     const commT1 = calcCombined(currentGrades.effectiveComm[0], currentGrades.mabisangKom[0]);
     const commT2 = calcCombined(currentGrades.effectiveComm[1], currentGrades.mabisangKom[1]);
     const commT3 = calcCombined(currentGrades.effectiveComm[2], currentGrades.mabisangKom[2]);
-    const commFinal = calcCombined(ecFinal, mkFinal);
+    const commFinal = (ecFinal !== '' && mkFinal !== '') ? Math.round((ecFinal + mkFinal) / 2) : '';
 
     const ae1Final = numOrEmpty(currentGrades.academicElective1);
     const ae2Final = numOrEmpty(currentGrades.academicElective2);
@@ -1732,17 +1723,17 @@ export async function populateGrade11AcademicTemplateBuffer(
       // - Column L: Weighted Points (J * I guarded against #VALUE!)
 
       // Term Grades in Columns F, G, H with accurate VLOOKUPs to TERM 1, 2, 3 SUMMARY
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'F33', "IF('TERM 1 SUMMARY'!K16=\"\",\"\",VLOOKUP(C17,'TERM 1 SUMMARY'!C16:R116,9,0))", commT1);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'G33', "IF('TERM 2 SUMMARY'!K16=\"\",\"\",VLOOKUP(C17,'TERM 2 SUMMARY'!C16:R116,9,0))", commT2);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'H33', "IF('TERM 3 SUMMARY'!K16=\"\",\"\",VLOOKUP(C17,'TERM 3 SUMMARY'!C16:R116,9,0))", commT3);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'F33', "IF('TERM 1 SUMMARY'!K16=\"\",\"\",IFERROR(IF(VLOOKUP(C17,'TERM 1 SUMMARY'!C16:R116,9,0)=0,\"\",VLOOKUP(C17,'TERM 1 SUMMARY'!C16:R116,9,0)),\"\"))", commT1);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'G33', "IF('TERM 2 SUMMARY'!K16=\"\",\"\",IFERROR(IF(VLOOKUP(C17,'TERM 2 SUMMARY'!C16:R116,9,0)=0,\"\",VLOOKUP(C17,'TERM 2 SUMMARY'!C16:R116,9,0)),\"\"))", commT2);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'H33', "IF('TERM 3 SUMMARY'!K16=\"\",\"\",IFERROR(IF(VLOOKUP(C17,'TERM 3 SUMMARY'!C16:R116,9,0)=0,\"\",VLOOKUP(C17,'TERM 3 SUMMARY'!C16:R116,9,0)),\"\"))", commT3);
 
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'F34', "IF('TERM 1 SUMMARY'!K16=\"\",\"\",VLOOKUP(C17,'TERM 1 SUMMARY'!C16:R116,10,0))", numOrEmpty(currentGrades.effectiveComm[0]));
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'G34', "IF('TERM 2 SUMMARY'!K16=\"\",\"\",VLOOKUP(C17,'TERM 2 SUMMARY'!C16:R116,10,0))", numOrEmpty(currentGrades.effectiveComm[1]));
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'H34', "IF('TERM 3 SUMMARY'!K16=\"\",\"\",VLOOKUP(C17,'TERM 3 SUMMARY'!C16:R116,10,0))", numOrEmpty(currentGrades.effectiveComm[2]));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'F34', "IF('TERM 1 SUMMARY'!K16=\"\",\"\",IFERROR(IF(VLOOKUP(C17,'TERM 1 SUMMARY'!C16:R116,10,0)=0,\"\",VLOOKUP(C17,'TERM 1 SUMMARY'!C16:R116,10,0)),\"\"))", numOrEmpty(currentGrades.effectiveComm[0]));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'G34', "IF('TERM 2 SUMMARY'!K16=\"\",\"\",IFERROR(IF(VLOOKUP(C17,'TERM 2 SUMMARY'!C16:R116,10,0)=0,\"\",VLOOKUP(C17,'TERM 2 SUMMARY'!C16:R116,10,0)),\"\"))", numOrEmpty(currentGrades.effectiveComm[1]));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'H34', "IF('TERM 3 SUMMARY'!K16=\"\",\"\",IFERROR(IF(VLOOKUP(C17,'TERM 3 SUMMARY'!C16:R116,10,0)=0,\"\",VLOOKUP(C17,'TERM 3 SUMMARY'!C16:R116,10,0)),\"\"))", numOrEmpty(currentGrades.effectiveComm[2]));
 
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'F35', "IF('TERM 1 SUMMARY'!K16=\"\",\"\",VLOOKUP(C17,'TERM 1 SUMMARY'!C16:R116,11,0))", numOrEmpty(currentGrades.mabisangKom[0]));
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'G35', "IF('TERM 2 SUMMARY'!K16=\"\",\"\",VLOOKUP(C17,'TERM 2 SUMMARY'!C16:R116,11,0))", numOrEmpty(currentGrades.mabisangKom[1]));
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'H35', "IF('TERM 3 SUMMARY'!K16=\"\",\"\",VLOOKUP(C17,'TERM 3 SUMMARY'!C16:R116,11,0))", numOrEmpty(currentGrades.mabisangKom[2]));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'F35', "IF('TERM 1 SUMMARY'!K16=\"\",\"\",IFERROR(IF(VLOOKUP(C17,'TERM 1 SUMMARY'!C16:R116,11,0)=0,\"\",VLOOKUP(C17,'TERM 1 SUMMARY'!C16:R116,11,0)),\"\"))", numOrEmpty(currentGrades.mabisangKom[0]));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'G35', "IF('TERM 2 SUMMARY'!K16=\"\",\"\",IFERROR(IF(VLOOKUP(C17,'TERM 2 SUMMARY'!C16:R116,11,0)=0,\"\",VLOOKUP(C17,'TERM 2 SUMMARY'!C16:R116,11,0)),\"\"))", numOrEmpty(currentGrades.mabisangKom[1]));
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'H35', "IF('TERM 3 SUMMARY'!K16=\"\",\"\",IFERROR(IF(VLOOKUP(C17,'TERM 3 SUMMARY'!C16:R116,11,0)=0,\"\",VLOOKUP(C17,'TERM 3 SUMMARY'!C16:R116,11,0)),\"\"))", numOrEmpty(currentGrades.mabisangKom[2]));
 
       sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'F36', numOrEmpty(currentGrades.genMath[0]));
       sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'G36', numOrEmpty(currentGrades.genMath[1]));
@@ -1765,14 +1756,14 @@ export async function populateGrade11AcademicTemplateBuffer(
       sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'H43', ae3Final);
 
       // Final Grades (Column J)
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J33', 'IF(SUM(F33:H33)=0, "", ROUND((F33+H33+G33)*(I33/3)/I33,0))', commFinal);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J36', 'IF(SUM(F36:H36)=0, "", ROUND((F36+H36+G36)*(I36/3)/I36,0))', mathFinal);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J37', 'IF(SUM(F37:H37)=0, "", ROUND((F37+H37+G37)*(I37/3)/I37,0))', sciFinal);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J38', 'IF(SUM(F38:H38)=0, "", ROUND((F38+H38+G38)*(I38/3)/I38,0))', lcsFinal);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J39', 'IF(SUM(F39:H39)=0, "", ROUND((F39+H39+G39)*(I39/3)/I39,0))', pklpFinal);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J41', 'IF(SUM(F41:H41)=0, "", ROUND((F41+H41+G41)*I41/I41,0))', ae1Final);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J42', 'IF(SUM(F42:H42)=0, "", ROUND((F42+H42+G42)*I42/I42,0))', ae2Final);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J43', 'IF(SUM(F43:H43)=0, "", ROUND((F43+H43+G43)*I43/I43,0))', ae3Final);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J33', 'IF(COUNT(F33:H33)<3, "", ROUND((F33+H33+G33)*(I33/3)/I33,0))', commFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J36', 'IF(COUNT(F36:H36)<3, "", ROUND((F36+H36+G36)*(I36/3)/I36,0))', mathFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J37', 'IF(COUNT(F37:H37)<3, "", ROUND((F37+H37+G37)*(I37/3)/I37,0))', sciFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J38', 'IF(COUNT(F38:H38)<3, "", ROUND((F38+H38+G38)*(I38/3)/I38,0))', lcsFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J39', 'IF(COUNT(F39:H39)<3, "", ROUND((F39+H39+G39)*(I39/3)/I39,0))', pklpFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J41', 'IF(F41="", "", ROUND((F41+H41+G41)*I41/I41,0))', ae1Final);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J42', 'IF(G42="", "", ROUND((F42+H42+G42)*I42/I42,0))', ae2Final);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J43', 'IF(H43="", "", ROUND((F43+H43+G43)*I43/I43,0))', ae3Final);
 
       // Remarks (Column K)
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K33', 'IF(J33="", "", IF(J33>=75, "Passed", "Failed"))', getRemarks(commFinal));
@@ -1813,7 +1804,7 @@ export async function populateGrade11AcademicTemplateBuffer(
 
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I44', 'SUM(I33:I39,I41:I43)', 39);
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'L44', 'SUM(L33:L43)', totalWeightedPoints !== '' ? totalWeightedPoints : '');
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J44', 'IF(COUNT(J33:J39,J41:J43)=0,"",ROUND(L44/I44,0))', modernGenAvg !== '' ? modernGenAvg : '');
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J44', 'IF(COUNT(J33,J36:J39,J41:J43)<8,"",ROUND(L44/I44,0))', modernGenAvg !== '' ? modernGenAvg : '');
       sf9Xml = updateFormulaCellExplicit(
         sf9Xml,
         'K44',

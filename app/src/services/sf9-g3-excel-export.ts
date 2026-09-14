@@ -29,6 +29,16 @@ export function isGrade3(gradeLevel?: string | number): boolean {
 }
 
 /**
+ * Clean a grade score: returns positive number or empty string (never 0 or negative)
+ */
+export function cleanScore(val: unknown): number | '' {
+  if (val === undefined || val === null || val === '') return '';
+  const num = typeof val === 'number' ? val : Number(val);
+  if (isNaN(num) || num <= 0) return '';
+  return num;
+}
+
+/**
  * Fetch the raw Grade 3 template buffer from public/templates
  */
 export async function fetchGrade3TemplateBuffer(): Promise<ArrayBuffer> {
@@ -181,7 +191,7 @@ function updateFormulaValueInSheetXml(
   if (fullCellRegex.test(sheetXml)) {
     return sheetXml.replace(fullCellRegex, (_match, attrs, body) => {
       const cleanAttrs = attrs.replace(/\s+t="[^"]*"/g, '');
-      const fMatch = body.match(/<f[^>]*>[\s\S]*?<\/f>/);
+      const fMatch = body.match(/<f[^>]*>[\s\S]*?<\/f>|<f[^>]*\/>/);
       const fTag = fMatch ? fMatch[0] : '';
       if (!hasValue) {
         if (fTag) {
@@ -202,9 +212,10 @@ function updateFormulaValueInSheetXml(
 function escapeFormula(formula: string): string {
   if (!formula) return '';
   return formula
-    .replace(/&/g, '&amp;')
+    .replace(/&(?!(amp|lt|gt|quot);)/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 /**
@@ -294,6 +305,55 @@ function formatDateToMMDDYYYY(dateStr?: string | null): string {
   }
 }
 
+export function parseBirthDateParts(birthday?: string): { year: number; month: number; day: number } | null {
+  if (!birthday) return null;
+  const trimmed = String(birthday).trim();
+  const ymdMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (ymdMatch) {
+    return { year: parseInt(ymdMatch[1], 10), month: parseInt(ymdMatch[2], 10), day: parseInt(ymdMatch[3], 10) };
+  }
+  const mdyMatch = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (mdyMatch) {
+    return { year: parseInt(mdyMatch[3], 10), month: parseInt(mdyMatch[1], 10), day: parseInt(mdyMatch[2], 10) };
+  }
+  const d = new Date(trimmed);
+  if (!isNaN(d.getTime())) {
+    return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
+  }
+  return null;
+}
+
+export function birthDateToExcelSerial(birthday?: string): number | null {
+  const parts = parseBirthDateParts(birthday);
+  if (!parts) return null;
+  const epoch = new Date(Date.UTC(1899, 11, 30));
+  const utcDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  return Math.round((utcDate.getTime() - epoch.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+export function parseAge(val: unknown, birthday?: string): number | '' {
+  if (val !== undefined && val !== null && (val as unknown) !== '') {
+    const s = String(val).trim();
+    if (!s.includes('#')) {
+      const num = Number(s);
+      if (!isNaN(num) && num > 0) return num;
+    }
+  }
+  if (birthday) {
+    const parts = parseBirthDateParts(birthday);
+    if (parts) {
+      const today = new Date();
+      let age = today.getFullYear() - parts.year;
+      const m = today.getMonth() + 1 - parts.month;
+      if (m < 0 || (m === 0 && today.getDate() < parts.day)) {
+        age--;
+      }
+      return age > 0 ? age : '';
+    }
+  }
+  return '';
+}
+
 /**
  * Batch update cell values in a worksheet XML string
  */
@@ -359,32 +419,32 @@ function extractGrade3SubjectGrades(
 
   const fil = getGradesFor(['filipino', 'wika']);
   if (fil) {
-    result.filipino = [fil[0] || '', fil[1] || '', fil[2] || ''];
+    result.filipino = [cleanScore(fil[0]), cleanScore(fil[1]), cleanScore(fil[2])];
   }
 
   const eng = getGradesFor(['english']);
   if (eng) {
-    result.english = [eng[0] || '', eng[1] || '', eng[2] || ''];
+    result.english = [cleanScore(eng[0]), cleanScore(eng[1]), cleanScore(eng[2])];
   }
 
   const mat = getGradesFor(['mathematics', 'math']);
   if (mat) {
-    result.math = [mat[0] || '', mat[1] || '', mat[2] || ''];
+    result.math = [cleanScore(mat[0]), cleanScore(mat[1]), cleanScore(mat[2])];
   }
 
   const sci = getGradesFor(['science', 'agham']);
   if (sci) {
-    result.science = [sci[0] || '', sci[1] || '', sci[2] || ''];
+    result.science = [cleanScore(sci[0]), cleanScore(sci[1]), cleanScore(sci[2])];
   }
 
   const gmr = getGradesFor(['gmrc', 'values', 'edukasyon sa pagpapakatao', 'esp']);
   if (gmr) {
-    result.gmrc = [gmr[0] || '', gmr[1] || '', gmr[2] || ''];
+    result.gmrc = [cleanScore(gmr[0]), cleanScore(gmr[1]), cleanScore(gmr[2])];
   }
 
   const mak = getGradesFor(['makabansa', 'sibika', 'heka']);
   if (mak) {
-    result.makabansa = [mak[0] || '', mak[1] || '', mak[2] || ''];
+    result.makabansa = [cleanScore(mak[0]), cleanScore(mak[1]), cleanScore(mak[2])];
   }
 
   return result;
@@ -737,33 +797,60 @@ export async function populateGrade3TemplateBuffer(
       'F28': cleanSection,
     };
 
-    const inputStyles: Record<string, string> = {};
+    const birthdateFormulas: { cellRef: string; formula: string; serial: number }[] = [];
 
     // Males: L11:L60 (Names), M11:M60 (LRN), N11:N60 (Birthdate)
+    // NOTE: Preserve native styles (69=name, 70=LRN, 71=birthdate) - DO NOT force arbitrary styles!
     for (let idx = 0; idx < 50; idx++) {
       const r = 11 + idx;
       const m = males[idx];
       inputCells[`L${r}`] = m ? formatLearnerName(m) : '';
       inputCells[`M${r}`] = m ? (m.lrn || '') : '';
-      inputCells[`N${r}`] = m ? formatDateToMMDDYYYY(m.birthday) : '';
-      inputStyles[`L${r}`] = '26';
-      inputStyles[`M${r}`] = '27';
-      inputStyles[`N${r}`] = '28';
+      if (m && m.birthday) {
+        const parts = parseBirthDateParts(m.birthday);
+        const serial = birthDateToExcelSerial(m.birthday);
+        if (parts && serial !== null) {
+          birthdateFormulas.push({
+            cellRef: `N${r}`,
+            formula: `DATE(${parts.year},${parts.month},${parts.day})`,
+            serial
+          });
+        } else {
+          inputCells[`N${r}`] = formatDateToMMDDYYYY(m.birthday);
+        }
+      } else {
+        inputCells[`N${r}`] = '';
+      }
     }
 
     // Females: Q11:Q60 (Names), R11:R60 (LRN), S11:S60 (Birthdate)
+    // NOTE: Preserve native styles (69=name, 70=LRN, 71=birthdate) - DO NOT force arbitrary styles!
     for (let idx = 0; idx < 50; idx++) {
       const r = 11 + idx;
       const f = females[idx];
       inputCells[`Q${r}`] = f ? formatLearnerName(f) : '';
       inputCells[`R${r}`] = f ? (f.lrn || '') : '';
-      inputCells[`S${r}`] = f ? formatDateToMMDDYYYY(f.birthday) : '';
-      inputStyles[`Q${r}`] = '26';
-      inputStyles[`R${r}`] = '27';
-      inputStyles[`S${r}`] = '28';
+      if (f && f.birthday) {
+        const parts = parseBirthDateParts(f.birthday);
+        const serial = birthDateToExcelSerial(f.birthday);
+        if (parts && serial !== null) {
+          birthdateFormulas.push({
+            cellRef: `S${r}`,
+            formula: `DATE(${parts.year},${parts.month},${parts.day})`,
+            serial
+          });
+        } else {
+          inputCells[`S${r}`] = formatDateToMMDDYYYY(f.birthday);
+        }
+      } else {
+        inputCells[`S${r}`] = '';
+      }
     }
 
-    sheet2Xml = updateCellsBatch(sheet2Xml, inputCells, inputStyles);
+    sheet2Xml = updateCellsBatch(sheet2Xml, inputCells);
+    for (const bf of birthdateFormulas) {
+      sheet2Xml = updateFormulaCellExplicit(sheet2Xml, bf.cellRef, bf.formula, bf.serial);
+    }
     zip.file(inputDataPath, sheet2Xml);
   }
 
@@ -785,13 +872,14 @@ export async function populateGrade3TemplateBuffer(
     if (!sFile) continue;
 
     let sXml = await sFile.async('text');
+    sXml = sXml.replace(/'INPUT DATA'!F155/g, "'INPUT DATA'!F15");
     const termCells: Record<string, string | number> = {};
     const termFormulaResults: Record<string, string | number> = {
       'E5': cleanRegion,
-      'I5': cleanDivision,
+      'K5': cleanDivision,
       'E6': cleanSchoolName,
-      'I6': cleanSchoolId,
-      'N6': cleanSy,
+      'K6': cleanSchoolId,
+      'Q6': cleanSy,
       'G9': 3,
       'L9': cleanAdviser,
       'G10': cleanSection,
@@ -802,25 +890,44 @@ export async function populateGrade3TemplateBuffer(
     for (let idx = 0; idx < 50; idx++) {
       const r = 14 + idx;
       const m = males[idx];
+      const mSerial = m?.birthday ? birthDateToExcelSerial(m.birthday) : null;
       if (m) {
         termFormulaResults[`C${r}`] = formatLearnerName(m);
         termFormulaResults[`F${r}`] = m.lrn || '';
-        termFormulaResults[`H${r}`] = formatDateToMMDDYYYY(m.birthday);
+        termFormulaResults[`H${r}`] = mSerial !== null ? mSerial : formatDateToMMDDYYYY(m.birthday);
+        termFormulaResults[`I${r}`] = parseAge(m.age, m.birthday);
 
         const stGrades = (m.lrn === student.lrn) ? grades : ((m as unknown as StudentWithGrades)?.grades || {});
         const g3Grades = (m.lrn === student.lrn) ? currentGrades : extractGrade3SubjectGrades(stGrades, subjects);
 
         termCells[`J${r}`] = 'M';
-        if (g3Grades.filipino[termIndex] !== '') termCells[`K${r}`] = Number(g3Grades.filipino[termIndex]);
-        if (g3Grades.english[termIndex] !== '')  termCells[`L${r}`] = Number(g3Grades.english[termIndex]);
-        if (g3Grades.math[termIndex] !== '')     termCells[`M${r}`] = Number(g3Grades.math[termIndex]);
-        if (g3Grades.science[termIndex] !== '')  termCells[`N${r}`] = Number(g3Grades.science[termIndex]);
-        if (g3Grades.gmrc[termIndex] !== '')     termCells[`O${r}`] = Number(g3Grades.gmrc[termIndex]);
-        if (g3Grades.makabansa[termIndex] !== '') termCells[`P${r}`] = Number(g3Grades.makabansa[termIndex]);
+        termCells[`K${r}`] = cleanScore(g3Grades.filipino[termIndex]);
+        termCells[`L${r}`] = cleanScore(g3Grades.english[termIndex]);
+        termCells[`M${r}`] = cleanScore(g3Grades.math[termIndex]);
+        termCells[`N${r}`] = cleanScore(g3Grades.science[termIndex]);
+        termCells[`O${r}`] = cleanScore(g3Grades.gmrc[termIndex]);
+        termCells[`P${r}`] = cleanScore(g3Grades.makabansa[termIndex]);
+
+        const termSubjScores = [
+          cleanScore(g3Grades.filipino[termIndex]),
+          cleanScore(g3Grades.english[termIndex]),
+          cleanScore(g3Grades.math[termIndex]),
+          cleanScore(g3Grades.science[termIndex]),
+          cleanScore(g3Grades.gmrc[termIndex]),
+          cleanScore(g3Grades.makabansa[termIndex])
+        ];
+        const hasAllSubjs = termSubjScores.every(s => typeof s === 'number' && s > 0);
+        const termGenAvg = hasAllSubjs
+          ? Math.round((termSubjScores as number[]).reduce((a, b) => a + b, 0) / 6)
+          : '';
+        termFormulaResults[`Q${r}`] = termGenAvg;
       } else {
         termFormulaResults[`C${r}`] = '';
         termFormulaResults[`F${r}`] = '';
         termFormulaResults[`H${r}`] = '';
+        termFormulaResults[`I${r}`] = '';
+        termFormulaResults[`Q${r}`] = '';
+        termFormulaResults[`R${r}`] = '';
         termCells[`J${r}`] = '';
         termCells[`K${r}`] = '';
         termCells[`L${r}`] = '';
@@ -835,25 +942,44 @@ export async function populateGrade3TemplateBuffer(
     for (let idx = 0; idx < 50; idx++) {
       const r = 65 + idx;
       const f = females[idx];
+      const fSerial = f?.birthday ? birthDateToExcelSerial(f.birthday) : null;
       if (f) {
         termFormulaResults[`C${r}`] = formatLearnerName(f);
         termFormulaResults[`F${r}`] = f.lrn || '';
-        termFormulaResults[`H${r}`] = formatDateToMMDDYYYY(f.birthday);
+        termFormulaResults[`H${r}`] = fSerial !== null ? fSerial : formatDateToMMDDYYYY(f.birthday);
+        termFormulaResults[`I${r}`] = parseAge(f.age, f.birthday);
 
         const stGrades = (f.lrn === student.lrn) ? grades : ((f as unknown as StudentWithGrades)?.grades || {});
         const g3Grades = (f.lrn === student.lrn) ? currentGrades : extractGrade3SubjectGrades(stGrades, subjects);
 
         termCells[`J${r}`] = 'F';
-        if (g3Grades.filipino[termIndex] !== '') termCells[`K${r}`] = Number(g3Grades.filipino[termIndex]);
-        if (g3Grades.english[termIndex] !== '')  termCells[`L${r}`] = Number(g3Grades.english[termIndex]);
-        if (g3Grades.math[termIndex] !== '')     termCells[`M${r}`] = Number(g3Grades.math[termIndex]);
-        if (g3Grades.science[termIndex] !== '')  termCells[`N${r}`] = Number(g3Grades.science[termIndex]);
-        if (g3Grades.gmrc[termIndex] !== '')     termCells[`O${r}`] = Number(g3Grades.gmrc[termIndex]);
-        if (g3Grades.makabansa[termIndex] !== '') termCells[`P${r}`] = Number(g3Grades.makabansa[termIndex]);
+        termCells[`K${r}`] = cleanScore(g3Grades.filipino[termIndex]);
+        termCells[`L${r}`] = cleanScore(g3Grades.english[termIndex]);
+        termCells[`M${r}`] = cleanScore(g3Grades.math[termIndex]);
+        termCells[`N${r}`] = cleanScore(g3Grades.science[termIndex]);
+        termCells[`O${r}`] = cleanScore(g3Grades.gmrc[termIndex]);
+        termCells[`P${r}`] = cleanScore(g3Grades.makabansa[termIndex]);
+
+        const termSubjScores = [
+          cleanScore(g3Grades.filipino[termIndex]),
+          cleanScore(g3Grades.english[termIndex]),
+          cleanScore(g3Grades.math[termIndex]),
+          cleanScore(g3Grades.science[termIndex]),
+          cleanScore(g3Grades.gmrc[termIndex]),
+          cleanScore(g3Grades.makabansa[termIndex])
+        ];
+        const hasAllSubjs = termSubjScores.every(s => typeof s === 'number' && s > 0);
+        const termGenAvg = hasAllSubjs
+          ? Math.round((termSubjScores as number[]).reduce((a, b) => a + b, 0) / 6)
+          : '';
+        termFormulaResults[`Q${r}`] = termGenAvg;
       } else {
         termFormulaResults[`C${r}`] = '';
         termFormulaResults[`F${r}`] = '';
         termFormulaResults[`H${r}`] = '';
+        termFormulaResults[`I${r}`] = '';
+        termFormulaResults[`Q${r}`] = '';
+        termFormulaResults[`R${r}`] = '';
         termCells[`J${r}`] = '';
         termCells[`K${r}`] = '';
         termCells[`L${r}`] = '';
@@ -1024,7 +1150,6 @@ export async function populateGrade3TemplateBuffer(
     sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B10', "'INPUT DATA'!F15", cleanSchoolId ? `School ID: ${cleanSchoolId}` : '');
     sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B12', "'INPUT DATA'!F16", cleanSchoolName);
     sf9Xml = updateCellInSheetXml(sf9Xml, 'B15', `School Year ${cleanSy}`);
-    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I39', "IF(COUNT(I33:I38)=0,\"\",AVERAGE((I33:I38)))", "");
     sf9Xml = updateCellInSheetXml(sf9Xml, 'F40', '');
     sf9Xml = updateFormulaCellExplicit(sf9Xml, 'B27', "'INPUT DATA'!F19", cleanHead);
     sf9Xml = updateFormulaCellExplicit(sf9Xml, 'H27', "'INPUT DATA'!F26", cleanAdviser);
@@ -1088,9 +1213,9 @@ export async function populateGrade3TemplateBuffer(
 
     // Pre-compute and cache Final Grades (Column I) and Official DepEd Remarks (Column J)
     const calcFinalAndRemark = (termGrades: (number | '')[]) => {
-      const nums = termGrades.filter((g): g is number => typeof g === 'number' && !isNaN(g));
-      if (nums.length === 0) return { finalGrade: '', remark: '' };
-      const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
+      const nums = termGrades.map(v => cleanScore(v)).filter((g): g is number => typeof g === 'number' && g > 0);
+      if (nums.length < 3) return { finalGrade: '', remark: '' };
+      const avg = nums.reduce((a, b) => a + b, 0) / 3;
       const rounded = Math.round(avg);
       return {
         finalGrade: rounded,
@@ -1105,23 +1230,32 @@ export async function populateGrade3TemplateBuffer(
     const gmrcFinal = calcFinalAndRemark(currentGrades.gmrc);
     const makFinal = calcFinalAndRemark(currentGrades.makabansa);
 
-    if (filFinal.finalGrade !== '') sf9FormulaResults['I33'] = filFinal.finalGrade;
-    if (filFinal.remark !== '') sf9FormulaResults['J33'] = filFinal.remark;
+    const subjectRowData = [
+      { r: 33, col: 9, terms: currentGrades.filipino, final: filFinal.finalGrade, remarks: filFinal.remark },
+      { r: 34, col: 10, terms: currentGrades.english, final: engFinal.finalGrade, remarks: engFinal.remark },
+      { r: 35, col: 11, terms: currentGrades.math, final: mathFinal.finalGrade, remarks: mathFinal.remark },
+      { r: 36, col: 12, terms: currentGrades.science, final: sciFinal.finalGrade, remarks: sciFinal.remark },
+      { r: 37, col: 13, terms: currentGrades.gmrc, final: gmrcFinal.finalGrade, remarks: gmrcFinal.remark },
+      { r: 38, col: 14, terms: currentGrades.makabansa, final: makFinal.finalGrade, remarks: makFinal.remark },
+    ];
 
-    if (engFinal.finalGrade !== '') sf9FormulaResults['I34'] = engFinal.finalGrade;
-    if (engFinal.remark !== '') sf9FormulaResults['J34'] = engFinal.remark;
+    for (const sub of subjectRowData) {
+      const term1Val = cleanScore(sub.terms[0]);
+      const term2Val = cleanScore(sub.terms[1]);
+      const term3Val = cleanScore(sub.terms[2]);
+      const finalVal = cleanScore(sub.final);
+      const remarksVal = (finalVal !== '' && typeof finalVal === 'number' && finalVal > 0) ? (sub.remarks || '') : '';
 
-    if (mathFinal.finalGrade !== '') sf9FormulaResults['I35'] = mathFinal.finalGrade;
-    if (mathFinal.remark !== '') sf9FormulaResults['J35'] = mathFinal.remark;
+      const fFormula = `IF(C17="","",IFERROR(IF(VLOOKUP(C17,'TERM 1 SUMMARY'!$C$14:$Q$114,${sub.col},0)=0,"",VLOOKUP(C17,'TERM 1 SUMMARY'!$C$14:$Q$114,${sub.col},0)),""))`;
+      const gFormula = `IF(C17="","",IFERROR(IF(VLOOKUP(C17,'TERM 2 SUMMARY'!$C$14:$R$114,${sub.col},0)=0,"",VLOOKUP(C17,'TERM 2 SUMMARY'!$C$14:$R$114,${sub.col},0)),""))`;
+      const hFormula = `IF(C17="","",IFERROR(IF(VLOOKUP(C17,'TERM 3 SUMMARY'!$C$14:$R$114,${sub.col},0)=0,"",VLOOKUP(C17,'TERM 3 SUMMARY'!$C$14:$R$114,${sub.col},0)),""))`;
 
-    if (sciFinal.finalGrade !== '') sf9FormulaResults['I36'] = sciFinal.finalGrade;
-    if (sciFinal.remark !== '') sf9FormulaResults['J36'] = sciFinal.remark;
-
-    if (gmrcFinal.finalGrade !== '') sf9FormulaResults['I37'] = gmrcFinal.finalGrade;
-    if (gmrcFinal.remark !== '') sf9FormulaResults['J37'] = gmrcFinal.remark;
-
-    if (makFinal.finalGrade !== '') sf9FormulaResults['I38'] = makFinal.finalGrade;
-    if (makFinal.remark !== '') sf9FormulaResults['J38'] = makFinal.remark;
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, `F${sub.r}`, fFormula, term1Val);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, `G${sub.r}`, gFormula, term2Val);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, `H${sub.r}`, hFormula, term3Val);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, `I${sub.r}`, `IF(COUNT(F${sub.r}:H${sub.r})<3,"",ROUND(AVERAGE(F${sub.r}:H${sub.r}),0))`, finalVal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, `J${sub.r}`, `IF(I${sub.r}="", "", IF(I${sub.r}>=75, "Passed", "Failed"))`, remarksVal);
+    }
 
     const allFinals = [
       filFinal.finalGrade,
@@ -1130,13 +1264,14 @@ export async function populateGrade3TemplateBuffer(
       sciFinal.finalGrade,
       gmrcFinal.finalGrade,
       makFinal.finalGrade
-    ].filter((g): g is number => typeof g === 'number' && !isNaN(g));
+    ];
+    const genAvg = allFinals.every(g => typeof g === 'number' && g > 0)
+      ? Math.round((allFinals as number[]).reduce((a, b) => a + b, 0) / 6)
+      : '';
+    const genAvgRemarks = typeof genAvg === 'number' && genAvg > 0 ? (genAvg >= 75 ? 'Passed' : 'Failed') : '';
 
-    if (allFinals.length > 0) {
-      const genAvg = Math.round(allFinals.reduce((a, b) => a + b, 0) / allFinals.length);
-      sf9FormulaResults['I39'] = genAvg;
-      sf9FormulaResults['J39'] = genAvg >= 75 ? 'Passed' : 'Failed';
-    }
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I39', 'IF(COUNT(I33:I38)<6,"",ROUND(AVERAGE(I33:I38),0))', cleanScore(genAvg));
+    sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J39', 'IF(I39="", "", IF(I39>=75, "Passed", "Failed"))', genAvgRemarks);
 
     const sf9MonthCols = ['R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA', 'AB']; // Jun to Apr (11 columns)
 

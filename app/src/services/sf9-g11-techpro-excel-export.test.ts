@@ -165,24 +165,30 @@ describe('SF9 Grade 11 Technical-Professional (Tech-Pro) Excel Export Service', 
     expect(sheet2Xml).toContain('CALIBUNGAN HIGH SCHOOL');
     expect(sheet2Xml).toContain('307014');
     expect(sheet2Xml).toContain('DELA CRUZ, JUAN SANTOS');
-    expect(sheet2Xml).toContain('r="L11" s="25"');
-    expect(sheet2Xml).toContain('r="M11" s="26"');
-    expect(sheet2Xml).toContain('r="N11" s="27"');
-    expect(sheet2Xml).toContain('r="Q11" s="25"');
-    expect(sheet2Xml).toContain('r="R11" s="26"');
-    expect(sheet2Xml).toContain('r="S11" s="27"');
+    expect(sheet2Xml).toContain('r="L11"');
+    expect(sheet2Xml).toContain('r="M11"');
+    expect(sheet2Xml).toContain('r="N11"');
+    expect(sheet2Xml).toContain('r="Q11"');
+    expect(sheet2Xml).toContain('r="R11"');
+    expect(sheet2Xml).toContain('r="S11"');
+    expect(sheet2Xml).not.toContain('r="L11" s="25"');
+    expect(sheet2Xml).not.toContain('r="M11" s="26"');
+    expect(sheet2Xml).not.toContain('r="N11" s="27"');
+    expect(sheet2Xml).not.toContain('r="Q11" s="25"');
+    expect(sheet2Xml).not.toContain('r="R11" s="26"');
+    expect(sheet2Xml).not.toContain('r="S11" s="27"');
 
     // Verify Sheet 3 (TERM 1 SUMMARY)
     const sheet3Xml = await zip.file('xl/worksheets/sheet3.xml')!.async('text');
     // Male 1 starts at Row 16 (Row 15 is the MALE header bar)
-    expect(sheet3Xml).toContain('r="D16"'); // Male 1 LRN
-    expect(sheet3Xml).toContain('r="G16"'); // Male 1 Birthday
+    expect(sheet3Xml).toContain('r="F16"'); // Male 1 LRN (merged F16:G16)
+    expect(sheet3Xml).toContain('r="H16"'); // Male 1 Birthday
     expect(sheet3Xml).toContain('r="J16"'); // Male 1 Sex ('M')
     expect(sheet3Xml).toContain('r="K16"'); // Male 1 Combined Term Grade
     expect(sheet3Xml).toContain('r="L16"'); // Male 1 Effective Communication T1
     expect(sheet3Xml).toContain('r="M16"'); // Male 1 Mabisang Komunikasyon T1
     expect(sheet3Xml).toContain('r="R16"'); // Male 1 TechPro Elective 1 T1
-    expect(sheet3Xml).toContain('r="D67"'); // Female 1 LRN (Row 66 is the FEMALE header bar)
+    expect(sheet3Xml).toContain('r="F67"'); // Female 1 LRN (Row 66 is the FEMALE header bar, merged F67:G67)
     expect(sheet3Xml).toContain('r="J67"'); // Female 1 Sex ('F')
 
     // Workbook active tab is set to SF9 (index 5)
@@ -226,7 +232,7 @@ describe('SF9 Grade 11 Technical-Professional (Tech-Pro) Excel Export Service', 
     expect(sheet6Xml).toContain('ROUND(L42/I42,0)'); // General Average Final Grade in Row 42
 
     // Remarks formulas and results in Column K
-    expect(sheet6Xml).toContain('IF(J36&gt;=75, "Passed", "Failed")');
+    expect(sheet6Xml).toContain('IF(J36&gt;=75, &quot;Passed&quot;, &quot;Failed&quot;)');
     expect(sheet6Xml).toContain('MIN(J33,J36:J39,J41)&gt;=85'); // DO 15, s. 2026 check across the 6 learning areas
     expect(sheet6Xml).toContain('Promoted with Academic Excellence Award');
     expect(sheet6Xml).toContain('>Promoted with Academic Excellence Award<');
@@ -244,7 +250,7 @@ describe('SF9 Grade 11 Technical-Professional (Tech-Pro) Excel Export Service', 
     expect(sheet6Xml).toContain('SUM(R5:AB6)');
     expect(sheet6Xml).toContain('SUM(R7:AB8)');
     expect(sheet6Xml).toContain('ABS(AC5-AC7)');
-    expect(sheet6Xml).toContain('IF(R7="","",ABS(R5-R7))');
+    expect(sheet6Xml).toContain('IF(R7=&quot;&quot;,&quot;&quot;,ABS(R5-R7))');
 
     // Sheet 7 (ATTENDANCE RECORD SUMMARY)
     const sheet7Xml = await zip.file('xl/worksheets/sheet7.xml')!.async('text');

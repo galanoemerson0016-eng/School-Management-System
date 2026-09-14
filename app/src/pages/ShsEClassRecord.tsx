@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useMemo, useEffect, useCallback, memo } from 'react';
+import { useState, useMemo, useEffect, useCallback, memo, useRef } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, FileSpreadsheet, Bug, ArrowRight, Shield, SlidersHorizontal } from 'lucide-react';
@@ -222,6 +221,12 @@ function DebouncedInput({
     ...props
 }: DebouncedInputProps) {
     const [value, setValue] = useState(initialValue);
+    const valueRef = useRef(value);
+    valueRef.current = value;
+    const initialValueRef = useRef(initialValue);
+    initialValueRef.current = initialValue;
+    const onChangeRef = useRef(onChange);
+    onChangeRef.current = onChange;
 
     useEffect(() => {
         setValue(initialValue);
@@ -236,6 +241,15 @@ function DebouncedInput({
 
         return () => clearTimeout(timeout);
     }, [value, onChange, initialValue, debounceMs]);
+
+    // Flush any pending unsaved edit immediately on unmount
+    useEffect(() => {
+        return () => {
+            if (valueRef.current !== initialValueRef.current) {
+                onChangeRef.current(String(valueRef.current));
+            }
+        };
+    }, []);
 
     const handleBlur = () => {
         if (value !== initialValue) {
@@ -1176,7 +1190,8 @@ export function ShsEClassRecord() {
         const record = classRecords.find(r =>
             r.student_lrn === student.lrn &&
             (r.subject_id === effectiveSubjectId || isSameSubject(r.subject_id, r.subject_name, effectiveSubjectId, subjectName)) &&
-            Number(r.quarter) === quarter
+            Number(r.quarter) === quarter &&
+            (!activeSchoolYear || !r.school_year || r.school_year === activeSchoolYear || r.school_year.includes(activeSchoolYear))
         );
 
         const sGrades: Pick<ClassRecord, 'written_works' | 'performance_tasks' | 'quarterly_exam'> = record || {
@@ -1489,7 +1504,8 @@ export function ShsEClassRecord() {
             const cr = stateClassRecords.find(r =>
                 r.student_lrn === st.lrn &&
                 (r.subject_id === effectiveSubjectId || isSameSubject(r.subject_id, r.subject_name, effectiveSubjectId, subjectName)) &&
-                Number(r.quarter) === Number(quarter)
+                Number(r.quarter) === Number(quarter) &&
+                (!activeSchoolYear || !r.school_year || r.school_year === activeSchoolYear || r.school_year.includes(activeSchoolYear))
             );
             if (!cr) return;
 
@@ -1559,7 +1575,8 @@ export function ShsEClassRecord() {
         const existingRecord = stateClassRecords.find(r =>
             r.student_lrn === lrn &&
             r.subject_id === effectiveSubjectId &&
-            Number(r.quarter) === (quarter as number)
+            Number(r.quarter) === (quarter as number) &&
+            (!activeSchoolYear || !r.school_year || r.school_year === activeSchoolYear || r.school_year.includes(activeSchoolYear))
         );
 
         const record: ClassRecord = existingRecord ? { ...existingRecord } : {
@@ -2865,7 +2882,8 @@ export function ShsEClassRecord() {
                                         const record = classRecords.find(r =>
                                             r.student_lrn === student.lrn &&
                                             (r.subject_id === effectiveSubjectId || isSameSubject(r.subject_id, r.subject_name, effectiveSubjectId, subjectName)) &&
-                                            Number(r.quarter) === quarter
+                                            Number(r.quarter) === quarter &&
+                                            (!activeSchoolYear || !r.school_year || r.school_year === activeSchoolYear || r.school_year.includes(activeSchoolYear))
                                         );
                                         return (
                                             <StudentGradeRow

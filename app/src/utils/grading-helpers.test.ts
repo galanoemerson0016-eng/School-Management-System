@@ -1287,6 +1287,139 @@ describe('Grading Helpers', () => {
       expect(resolveStudentQuarterGrade(studentLrn, 'EPP', 1, '2026-2027', [], updatedGradingSheetRecords, [], 'Grade 5')).toBe(94);
     });
   });
+
+  describe('Subject Isolation: Preventing Cross-Contamination Across Subjects', () => {
+    it('strictly isolates GMRC, Values Education, and Makabansa from matching each other', () => {
+      // isMatchingSubject checks
+      expect(isMatchingSubject('GMRC', undefined, 'Values Education')).toBe(false);
+      expect(isMatchingSubject('GMRC', undefined, 'Makabansa')).toBe(false);
+      expect(isMatchingSubject('Values Education', undefined, 'Makabansa')).toBe(false);
+      expect(isMatchingSubject('Makabansa', undefined, 'GMRC')).toBe(false);
+      expect(isMatchingSubject('Makabansa', undefined, 'Values Education')).toBe(false);
+      expect(isMatchingSubject('Values Education', undefined, 'GMRC')).toBe(false);
+
+      // isSameSubject checks
+      expect(isSameSubject('sub-gmrc', 'GMRC', 'sub-ve', 'Values Education')).toBe(false);
+      expect(isSameSubject('sub-gmrc', 'GMRC', 'sub-maka', 'Makabansa')).toBe(false);
+      expect(isSameSubject('sub-ve', 'Values Education', 'sub-maka', 'Makabansa')).toBe(false);
+      expect(isSameSubject('sub-maka', 'Makabansa', 'sub-gmrc', 'Good Moral and Right Conduct (GMRC)')).toBe(false);
+      expect(isSameSubject('sub-maka', 'Makabansa', 'sub-ve', 'Edukasyon sa Pagpapakatao')).toBe(false);
+    });
+
+    it('strictly isolates Grade 1 Language, Reading & Literacy, and English from matching each other', () => {
+      // isMatchingSubject checks
+      expect(isMatchingSubject('Language', undefined, 'Reading and Literacy')).toBe(false);
+      expect(isMatchingSubject('Reading and Literacy', undefined, 'Language')).toBe(false);
+      expect(isMatchingSubject('Language', undefined, 'English')).toBe(false);
+      expect(isMatchingSubject('English', undefined, 'Language')).toBe(false);
+      expect(isMatchingSubject('Reading and Literacy', undefined, 'English')).toBe(false);
+      expect(isMatchingSubject('English', undefined, 'Reading and Literacy')).toBe(false);
+
+      // isSameSubject checks
+      expect(isSameSubject('sub-lang', 'Language', 'sub-read', 'Reading and Literacy')).toBe(false);
+      expect(isSameSubject('sub-lang', 'Language', 'sub-eng', 'English')).toBe(false);
+      expect(isSameSubject('sub-read', 'Reading and Literacy', 'sub-eng', 'English')).toBe(false);
+    });
+
+    it('strictly isolates EPP, TLE, and TVL from matching each other', () => {
+      expect(isMatchingSubject('EPP', undefined, 'TLE')).toBe(false);
+      expect(isMatchingSubject('TLE', undefined, 'EPP')).toBe(false);
+      expect(isMatchingSubject('EPP', undefined, 'TVL')).toBe(false);
+      expect(isMatchingSubject('TLE', undefined, 'TVL')).toBe(false);
+
+      expect(isSameSubject('sub-epp', 'EPP', 'sub-tle', 'TLE')).toBe(false);
+      expect(isSameSubject('sub-epp', 'Edukasyong Pantahanan at Pangkabuhayan (EPP)', 'sub-tle', 'Technology and Livelihood Education (TLE)')).toBe(false);
+      expect(isSameSubject('sub-tle', 'TLE', 'sub-tvl', 'TVL')).toBe(false);
+    });
+
+    it('strictly isolates Araling Panlipunan and Makabansa', () => {
+      expect(isMatchingSubject('Araling Panlipunan', undefined, 'Makabansa')).toBe(false);
+      expect(isMatchingSubject('Makabansa', undefined, 'Araling Panlipunan')).toBe(false);
+      expect(isSameSubject('sub-ap', 'Araling Panlipunan', 'sub-maka', 'Makabansa')).toBe(false);
+    });
+
+    it('preserves raw scores independently for GMRC, Makabansa, and Values without overwriting or deleting', () => {
+      const studentLrn = '109876543210';
+      const sy = '2026-2027';
+
+      // Simulating database state with records for all three subjects
+      const gmrcRecord: ClassRecord = {
+        id: `grade_${studentLrn}_sub-gmrc_Q1`,
+        student_lrn: studentLrn,
+        subject_id: 'sub-gmrc',
+        subject_name: 'GMRC',
+        quarter: 1,
+        school_year: sy,
+        written_works: [10, 10, 10, 10, 10, 9, 9, 9, 9, 9], // 10 WWs for GMRC
+        performance_tasks: [20, 20, 20, 19, 19, 19, 30, 30, 30], // 9 PTs for GMRC
+        quarterly_exam: 28,
+        final_grade: 93
+      } as unknown as ClassRecord;
+
+      const makabansaRecord: ClassRecord = {
+        id: `grade_${studentLrn}_sub-maka_Q1`,
+        student_lrn: studentLrn,
+        subject_id: 'sub-maka',
+        subject_name: 'Makabansa',
+        quarter: 1,
+        school_year: sy,
+        written_works: [25, 24, 23, 22, 25], // 5 WWs for Makabansa
+        performance_tasks: [48, 47, 49], // 3 PTs for Makabansa
+        quarterly_exam: 45,
+        final_grade: 91
+      } as unknown as ClassRecord;
+
+      const valuesRecord: ClassRecord = {
+        id: `grade_${studentLrn}_sub-ve_Q1`,
+        student_lrn: studentLrn,
+        subject_id: 'sub-ve',
+        subject_name: 'Values Education',
+        quarter: 1,
+        school_year: sy,
+        written_works: [8, 8, 8, 8, 8, 9, 9, 9, 9, 9],
+        performance_tasks: [18, 18, 18, 19, 19, 19, 28, 28, 28],
+        quarterly_exam: 25,
+        final_grade: 89
+      } as unknown as ClassRecord;
+
+      const classRecords: ClassRecord[] = [gmrcRecord, makabansaRecord, valuesRecord];
+
+      // Lookup on GMRC page
+      const foundForGMRC = classRecords.find(r =>
+        r.student_lrn === studentLrn &&
+        (r.subject_id === 'sub-gmrc' || isSameSubject(r.subject_id, r.subject_name, 'sub-gmrc', 'GMRC')) &&
+        Number(r.quarter) === 1 &&
+        (!sy || !r.school_year || r.school_year === sy)
+      );
+      expect(foundForGMRC).toBeDefined();
+      expect(foundForGMRC?.id).toBe(gmrcRecord.id);
+      expect(foundForGMRC?.written_works).toHaveLength(10);
+      expect(foundForGMRC?.performance_tasks).toHaveLength(9);
+
+      // Lookup on Makabansa page
+      const foundForMakabansa = classRecords.find(r =>
+        r.student_lrn === studentLrn &&
+        (r.subject_id === 'sub-maka' || isSameSubject(r.subject_id, r.subject_name, 'sub-maka', 'Makabansa')) &&
+        Number(r.quarter) === 1 &&
+        (!sy || !r.school_year || r.school_year === sy)
+      );
+      expect(foundForMakabansa).toBeDefined();
+      expect(foundForMakabansa?.id).toBe(makabansaRecord.id);
+      expect(foundForMakabansa?.written_works).toHaveLength(5);
+      expect(foundForMakabansa?.performance_tasks).toHaveLength(3);
+
+      // Lookup on Values Education page
+      const foundForValues = classRecords.find(r =>
+        r.student_lrn === studentLrn &&
+        (r.subject_id === 'sub-ve' || isSameSubject(r.subject_id, r.subject_name, 'sub-ve', 'Values Education')) &&
+        Number(r.quarter) === 1 &&
+        (!sy || !r.school_year || r.school_year === sy)
+      );
+      expect(foundForValues).toBeDefined();
+      expect(foundForValues?.id).toBe(valuesRecord.id);
+      expect(foundForValues?.final_grade).toBe(89);
+    });
+  });
 });
 
 

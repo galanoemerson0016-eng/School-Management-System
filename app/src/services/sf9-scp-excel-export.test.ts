@@ -10,7 +10,8 @@ import {
   fetchSCPTemplateBuffer,
   extractSCPSubjectGrades,
   populateSCPTemplateBuffer,
-  type SF9SCPExportOptions
+  type SF9SCPExportOptions,
+  type SF9SCPSubjectItem
 } from './sf9-scp-excel-export';
 import type { Student, SchoolProfile } from '../types';
 
@@ -347,8 +348,18 @@ describe('SF9 Special Curricular Programs (SCP) Excel Export Service', () => {
       expect(zip.file('xl/workbook.xml')).not.toBeNull();
 
       // Read INPUT DATA sheet
-      const inputDataFile = zip.file('xl/worksheets/sheet1.xml') || zip.file('xl/worksheets/sheet2.xml');
+      const inputDataFile = zip.file('xl/worksheets/sheet2.xml');
       expect(inputDataFile).not.toBeNull();
+      const inputXml = await inputDataFile!.async('text');
+      expect(inputXml).toContain('DATE(');
+
+      // Check Term 1 Summary age formula and cached value
+      const term1File = zip.file('xl/worksheets/sheet3.xml');
+      if (term1File) {
+        const term1Xml = await term1File.async('text');
+        expect(term1Xml).toMatch(/<c\s+r="I15"[^>]*>(?:<f[^>]*>[\s\S]*?<\/f>|<f[^>]*\/>)?<v>\d+<\/v><\/c>/);
+        expect(term1Xml).toMatch(/<c\s+r="I66"[^>]*>(?:<f[^>]*>[\s\S]*?<\/f>|<f[^>]*\/>)?<v>\d+<\/v><\/c>/);
+      }
 
       // Check SF9 sheet
       const sf9Xml = await getSF9SheetXml(zip);
@@ -495,6 +506,87 @@ describe('SF9 Special Curricular Programs (SCP) Excel Export Service', () => {
       expect(sf9Xml).not.toContain('#VALUE!');
       expect(sf9Xml).not.toContain('#NAME?');
       expect(sf9Xml).toContain('Passed');
+    });
+
+    it('leaves missing term grades and final grades blank without 0 or premature Failed remarks in SCP', async () => {
+      const templateBuffer = await fetchSCPTemplateBuffer('SPFL', 'Grade 7');
+      const subjects: SF9SCPSubjectItem[] = [
+        { id: 'sub-fil', name: 'Filipino' },
+        { id: 'sub-eng', name: 'English' },
+        { id: 'sub-math', name: 'Mathematics' },
+        { id: 'sub-sci', name: 'Science' },
+        { id: 'sub-ap', name: 'Araling Panlipunan' },
+        { id: 'sub-esp', name: 'Edukasyon sa Pagpapakatao' },
+        { id: 'sub-tle', name: 'Technology and Livelihood Education' },
+        { id: 'sub-ma', name: 'Music and Arts' },
+        { id: 'sub-peh', name: 'Physical Education and Health' },
+        { id: 'sub-fl', name: 'Spanish Language' }
+      ];
+
+      // Only Term 1 has grades
+      const grades: Record<string, number[]> = {
+        'sub-fil': [88],
+        'sub-eng': [89],
+        'sub-math': [90],
+        'sub-sci': [87],
+        'sub-ap': [86],
+        'sub-esp': [85],
+        'sub-tle': [91],
+        'sub-ma': [92],
+        'sub-peh': [94],
+        'sub-fl': [95]
+      };
+
+      const options: SF9SCPExportOptions = {
+        student: mockMaleStudent,
+        schoolProfile: mockSchoolProfile,
+        schoolYear: '2026-2027',
+        section: 'Diamond',
+        program: 'SPFL',
+        adviser: 'MARIA SANTOS',
+        principal: mockSchoolProfile.head_name || '',
+        principalTitle: mockSchoolProfile.head_position || 'Principal IV',
+        grades,
+        subjects,
+        gradeLevel: 'Grade 7',
+        learners: [
+          { ...mockMaleStudent, grades },
+          { ...mockFemaleStudent, grades: {} } // student with no grades yet
+        ]
+      };
+
+      const outputBuffer = await populateSCPTemplateBuffer(templateBuffer, options);
+      const zip = await JSZip.loadAsync(outputBuffer);
+      const sf9Xml = await getSF9SheetXml(zip);
+
+      // Term 1 (F32) has 88
+      expect(sf9Xml).toMatch(/r="F32"[^>]*><f>[^<]*<\/f><v>88<\/v><\/c>/);
+      // Term 2 (G32) and Term 3 (H32) must NOT have 0
+      expect(sf9Xml).not.toMatch(/r="G32"[^>]*><f>[^<]*<\/f><v>0<\/v><\/c>/);
+      expect(sf9Xml).not.toMatch(/r="H32"[^>]*><f>[^<]*<\/f><v>0<\/v><\/c>/);
+      expect(sf9Xml).toMatch(/r="G32"[^>]*><f>[^<]*<\/f><\/c>/);
+      expect(sf9Xml).toMatch(/r="H32"[^>]*><f>[^<]*<\/f><\/c>/);
+
+      // Final Grade (I32) must be blank, not 29 or 0
+      expect(sf9Xml).not.toMatch(/r="I32"[^>]*><f>[^<]*<\/f><v>\d+<\/v><\/c>/);
+      expect(sf9Xml).toMatch(/r="I32"[^>]*><f>[^<]*<\/f><\/c>/);
+
+      // Remarks (J32) must be blank, not Failed
+      expect(sf9Xml).not.toMatch(/r="J32"[^>]*><f>[^<]*<\/f><v>Failed<\/v><\/c>/);
+      expect(sf9Xml).toMatch(/r="J32"[^>]*><f>[^<]*<\/f><\/c>/);
+
+      // General Average (I43) must be blank
+      expect(sf9Xml).not.toMatch(/r="I43"[^>]*><f>[^<]*<\/f><v>\d+<\/v><\/c>/);
+      expect(sf9Xml).toMatch(/r="I43"[^>]*><f>[^<]*<\/f><\/c>/);
+
+      // Sheet 4 (TERM 2 SUMMARY): Male 1 (Row 15) must not have 0 for MAPEH (T15) or Gen Avg (V15)
+      const sheet4Xml = await zip.file('xl/worksheets/sheet4.xml')!.async('text');
+      expect(sheet4Xml).not.toMatch(/r="T15"[^>]*><v>0<\/v>/);
+      expect(sheet4Xml).not.toMatch(/r="V15"[^>]*><v>0<\/v>/);
+
+      // Female 1 (Row 66) has no grades, must not have 0
+      expect(sheet4Xml).not.toMatch(/r="K66"[^>]*><v>0<\/v>/);
+      expect(sheet4Xml).not.toMatch(/r="V66"[^>]*><v>0<\/v>/);
     });
   });
 });

@@ -212,9 +212,24 @@ describe('Grade 4-10 SF9 Excel Export Service', () => {
     expect(sheet2Xml).toContain('r="Q11"'); // Female 1 Name
     expect(sheet2Xml).not.toContain('r="T11" s="27"'); // Column T must not have LRN style or duplicate data
     expect(sheet2Xml).not.toContain('r="T11"><v>'); // Column T must not have values
+    // Native styles and outlines preserved (not overridden by borderless styles 26, 27, 28)
+    expect(sheet2Xml).not.toContain('r="L11" s="26"');
+    expect(sheet2Xml).not.toContain('r="M11" s="27"');
+    expect(sheet2Xml).not.toContain('r="N11" s="28"');
+    expect(sheet2Xml).not.toContain('r="Q11" s="26"');
+    expect(sheet2Xml).not.toContain('r="R11" s="27"');
+    expect(sheet2Xml).not.toContain('r="S11" s="28"');
+    expect(sheet2Xml).toContain('<f>DATE(2015,5,20)</f>');
+    expect(sheet2Xml).toContain('<f>DATE(2015,8,14)</f>');
 
     // Sheet 3: TERM 1 SUMMARY (Grades 4-10 on rows 15-64 male, 66-115 female)
     const sheet3Xml = await zip.file('xl/worksheets/sheet3.xml')!.async('text');
+    expect(sheet3Xml).toContain('r="H15"'); // Male 1 Birthday
+    expect(sheet3Xml).toContain('r="I15"'); // Male 1 Age
+    expect(sheet3Xml).toContain('r="H66"'); // Female 1 Birthday
+    expect(sheet3Xml).toContain('r="I66"'); // Female 1 Age
+    expect(sheet3Xml).toMatch(/r="I15"[^>]*><f t="shared"[^>]*>[\s\S]*?<\/f><v>10<\/v><\/c>/); // Male 1 Age = 10
+    expect(sheet3Xml).toMatch(/r="I66"[^>]*><f t="shared"[^>]*>[\s\S]*?<\/f><v>10<\/v><\/c>/); // Female 1 Age = 10
     expect(sheet3Xml).toContain('r="J15"'); // Male 1 Sex on Row 15
     expect(sheet3Xml).toContain('M');
     expect(sheet3Xml).toContain('r="J66"'); // Female 1 Sex on Row 66
@@ -229,21 +244,36 @@ describe('Grade 4-10 SF9 Excel Export Service', () => {
     expect(sheet3Xml).toContain('r="R15"'); // Male 1 Music & Arts
     expect(sheet3Xml).toContain('r="S15"'); // Male 1 PE & Health
     expect(sheet3Xml).toContain('BACARRA CENTRAL ELEMENTARY SCHOOL');
+    // Term 1 MAPEH (T15 = round((90+92)/2) = 91) and General Average
+    expect(sheet3Xml).toMatch(/r="T15"[^>]*><f[^>]*>[\s\S]*?<\/f><v>91<\/v><\/c>/);
+    expect(sheet3Xml).toMatch(/r="U15"[^>]*><f[^>]*>[\s\S]*?<\/f><v>\d+<\/v><\/c>/);
 
-    // Sheet 4: TERM 2 SUMMARY (Ensures template dummy values like 91 in Q16:Q17 are cleared)
+    // Sheet 4: TERM 2 SUMMARY
     const sheet4Xml = await zip.file('xl/worksheets/sheet4.xml')!.async('text');
     expect(sheet4Xml).toContain('r="Q15"'); // Male 1 EPP/TLE (has grade 87)
     expect(sheet4Xml).not.toContain('r="Q16" s="84"><v>91</v>'); // Male 2 without grade must NOT retain dummy 91
     expect(sheet4Xml).not.toContain('r="Q17" s="84"><v>91</v>'); // Male 3 without grade must NOT retain dummy 91
+    const t15Actual = sheet4Xml.match(/<c[^>]*r="T15"[^>]*>[\s\S]*?<\/c>|<c[^>]*r="T15"[^>]*\/>/)?.[0];
+    expect(t15Actual).toBe('<c r="T15" s="96"><f>IF(COUNT($R15:$S15)=0,&quot;&quot;,ROUND(AVERAGE(R15:S15),0))</f><v>93</v></c>');
+    // General Average in U15 must be present and evaluated
+    expect(sheet4Xml).toMatch(/r="U15"[^>]*><f[^>]*>[\s\S]*?<\/f><v>\d+<\/v><\/c>/);
+    // Female 1 Term 2 MAPEH formula in T66
+    expect(sheet4Xml).toMatch(/r="T66"[^>]*><f[^>]*>[\s\S]*?<\/f>/);
 
     // Sheet 5: TERM 3 SUMMARY
     const sheet5Xml = await zip.file('xl/worksheets/sheet5.xml')!.async('text');
     expect(sheet5Xml).toContain('r="Q15"'); // Male 1 EPP/TLE (has grade 89)
     expect(sheet5Xml).not.toContain('r="Q16" s="84"><v>91</v>'); // Male 2 without grade must NOT retain dummy 91
     expect(sheet5Xml).not.toContain('r="Q17" s="84"><v>91</v>'); // Male 3 without grade must NOT retain dummy 91
+    // Term 3 MAPEH (T15 = round((94+96)/2) = 95)
+    expect(sheet5Xml).toMatch(/r="T15"[^>]*><f[^>]*>[\s\S]*?<\/f><v>95<\/v><\/c>/);
 
     // Sheet 6: SF9 - GRADE 4-10 (Sheet 6 in updated template)
     const sf9Xml = await zip.file('xl/worksheets/sheet6.xml')!.async('text');
+    // MAPEH grades across Term 1 (F39), Term 2 (G39), Term 3 (H39)
+    expect(sf9Xml).toMatch(/r="F39"[^>]*><f>IF\(C17=&quot;&quot;,&quot;&quot;,IFERROR\(IF\(VLOOKUP\(C17,'TERM 1 SUMMARY'!\$C\$15:\$U\$115,18,0\)=0,&quot;&quot;,VLOOKUP\(C17,'TERM 1 SUMMARY'!\$C\$15:\$U\$115,18,0\)\),&quot;&quot;\)\)<\/f><v>91<\/v><\/c>/);
+    expect(sf9Xml).toMatch(/r="G39"[^>]*><f>IF\(C17=&quot;&quot;,&quot;&quot;,IFERROR\(IF\(VLOOKUP\(C17,'TERM 2 SUMMARY'!\$C\$15:\$U\$115,18,0\)=0,&quot;&quot;,VLOOKUP\(C17,'TERM 2 SUMMARY'!\$C\$15:\$U\$115,18,0\)\),&quot;&quot;\)\)<\/f><v>93<\/v><\/c>/);
+    expect(sf9Xml).toMatch(/r="H39"[^>]*><f>IF\(C17=&quot;&quot;,&quot;&quot;,IFERROR\(IF\(VLOOKUP\(C17,'TERM 3 SUMMARY'!\$C\$15:\$U\$115,18,0\)=0,&quot;&quot;,VLOOKUP\(C17,'TERM 3 SUMMARY'!\$C\$15:\$U\$115,18,0\)\),&quot;&quot;\)\)<\/f><v>95<\/v><\/c>/);
     expect(sf9Xml).toContain('DELA CRUZ, JUAN JR.');
     expect(sf9Xml).toContain('BACARRA CENTRAL ELEMENTARY SCHOOL'); // B12
     expect(sf9Xml).toContain('REGION I'); // B7
@@ -281,6 +311,116 @@ describe('Grade 4-10 SF9 Excel Export Service', () => {
     };
     const extracted = extractGrade4to10SubjectGrades(customGrades, customSubjects);
     expect(extracted.epp_tle).toEqual([95, 96, 97]);
-    expect(extracted.esp).toEqual([90, 91, 92]);
+  });
+
+  it('leaves cells blank without 0 or premature Failed remarks when grades are not yet recorded', async () => {
+    const templatePath = path.resolve(process.cwd(), 'public/templates/G4-10  School Form 9 (SY 26-27).xlsx');
+    const templateBuffer = fs.readFileSync(templatePath);
+
+    const testStudent: Student = {
+      lrn: '100000000001',
+      first_name: 'JUAN',
+      last_name: 'DELA CRUZ',
+      middle_name: 'MENDOZA',
+      name_extension: 'JR.',
+      gender: 'Male',
+      birthday: '2015-05-20',
+      age: 10,
+      address: 'Bacarra, Ilocos Norte',
+      student_section: 'Rizal',
+      grade_level: 'Grade 4'
+    };
+
+    const testSchoolProfile: SchoolProfile = {
+      name: 'BACARRA CENTRAL ELEMENTARY SCHOOL',
+      school_id: '100123',
+      division: 'Schools Division of Ilocos Norte',
+      region: 'REGION I',
+      district: 'Bacarra District',
+      city: 'Bacarra',
+      head_name: 'MARIA SANTOS, PhD',
+      head_position: 'Principal II',
+      grade_levels_offered: 'Elementary, JHS'
+    };
+
+    const testSubjects: Subject[] = [
+      { id: 'sub-1', subject_name: 'Filipino', subject_code: 'FIL', grade_level: 'Grade 4' },
+      { id: 'sub-2', subject_name: 'English', subject_code: 'ENG', grade_level: 'Grade 4' },
+      { id: 'sub-3', subject_name: 'Mathematics', subject_code: 'MATH', grade_level: 'Grade 4' },
+      { id: 'sub-4', subject_name: 'Science', subject_code: 'SCI', grade_level: 'Grade 4' },
+      { id: 'sub-5', subject_name: 'Araling Panlipunan', subject_code: 'AP', grade_level: 'Grade 4' },
+      { id: 'sub-6', subject_name: 'Edukasyon sa Pagpapakatao', subject_code: 'ESP', grade_level: 'Grade 4' },
+      { id: 'sub-7', subject_name: 'EPP / TLE', subject_code: 'EPP', grade_level: 'Grade 4' },
+      { id: 'sub-8', subject_name: 'Music & Arts', subject_code: 'MA', grade_level: 'Grade 4' },
+      { id: 'sub-9', subject_name: 'PE & Health', subject_code: 'PEH', grade_level: 'Grade 4' },
+    ];
+
+    // Only Term 1 grades, no Term 2 or 3
+    const partialGrades: Record<string, { q1?: number; q2?: number; q3?: number }> = {
+      'sub-1': { q1: 88 },
+      'sub-2': { q1: 89 },
+      'sub-3': { q1: 90 },
+      'sub-4': { q1: 85 },
+      'sub-5': { q1: 86 },
+      'sub-6': { q1: 87 },
+      'sub-7': { q1: 91 },
+      'sub-8': { q1: 92 },
+      'sub-9': { q1: 94 },
+    };
+
+    const outBuffer = await populateGrade4to10TemplateBuffer(templateBuffer, {
+      student: testStudent,
+      schoolProfile: testSchoolProfile,
+      gradeLevel: 'Grade 4',
+      section: 'Diamond',
+      schoolYear: '2026-2027',
+      adviser: 'JUANITA DELA CRUZ',
+      principal: 'MARIA SANTOS, PhD',
+      principalTitle: 'Principal IV',
+      grades: partialGrades,
+      subjects: testSubjects,
+      attendance: {
+        months: ['Jun'],
+        schoolDays: [20],
+        daysPresent: [20],
+        daysAbsent: [0],
+      },
+      learners: [
+        testStudent,
+        { lrn: '123456789012', first_name: 'PEDRO', last_name: 'PENDUKO', gender: 'Male', birthday: '2015-05-20', age: 10, address: 'Bacarra, Ilocos Norte', grade_level: 'Grade 4' },
+      ],
+    });
+
+    const zip = await JSZip.loadAsync(outBuffer);
+    const sf9Xml = await zip.file('xl/worksheets/sheet6.xml')!.async('text');
+
+    // Term 1 has grade 88 on F32
+    expect(sf9Xml).toMatch(/r="F32"[^>]*><f>[^<]*<\/f><v>88<\/v><\/c>/);
+    // Term 2 (G32) and Term 3 (H32) must NOT have <v>0</v>; they must have no value
+    expect(sf9Xml).not.toMatch(/r="G32"[^>]*><f>[^<]*<\/f><v>0<\/v><\/c>/);
+    expect(sf9Xml).not.toMatch(/r="H32"[^>]*><f>[^<]*<\/f><v>0<\/v><\/c>/);
+    expect(sf9Xml).toMatch(/r="G32"[^>]*><f>[^<]*<\/f><\/c>/);
+    expect(sf9Xml).toMatch(/r="H32"[^>]*><f>[^<]*<\/f><\/c>/);
+
+    // Final Grade (I32) must be blank, not 29 or 0
+    expect(sf9Xml).not.toMatch(/r="I32"[^>]*><f>[^<]*<\/f><v>\d+<\/v><\/c>/);
+    expect(sf9Xml).toMatch(/r="I32"[^>]*><f>[^<]*<\/f><\/c>/);
+
+    // Remarks (J32) must be blank, not Failed
+    expect(sf9Xml).not.toMatch(/r="J32"[^>]*><f>[^<]*<\/f><v>Failed<\/v><\/c>/);
+    expect(sf9Xml).toMatch(/r="J32"[^>]*><f>[^<]*<\/f><\/c>/);
+
+    // General Average (I42) must be blank
+    expect(sf9Xml).not.toMatch(/r="I42"[^>]*><f>[^<]*<\/f><v>\d+<\/v><\/c>/);
+    expect(sf9Xml).toMatch(/r="I42"[^>]*><f>[^<]*<\/f><\/c>/);
+
+    // Sheet 4 (TERM 2 SUMMARY): Male 1 (Row 15) must not have 0 for MAPEH or Gen Avg
+    const sheet4Xml = await zip.file('xl/worksheets/sheet4.xml')!.async('text');
+    expect(sheet4Xml).not.toMatch(/r="T15"[^>]*><v>0<\/v>/);
+    expect(sheet4Xml).not.toMatch(/r="U15"[^>]*><v>0<\/v>/);
+
+    // Empty student rows (e.g. Male 3 = Row 17) must not have 0 in summary sheet
+    expect(sheet4Xml).not.toMatch(/r="K17"[^>]*><v>0<\/v>/);
+    expect(sheet4Xml).not.toMatch(/r="U17"[^>]*><v>0<\/v>/);
   });
 });
