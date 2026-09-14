@@ -1,5 +1,31 @@
 # Version History
 
+## v3.5.5 (2026-09-14)
+
+### 🚀 New Features & Enhancements
+
+- **SF9 Multi-Level Excel Layout Preservation**: Restored native Excel outline groupings, hierarchical collapse controls, and clean XML quote formatting across all grade levels.
+- **Dynamic Age Calculation**: Automatic birthdate-driven age computation in SF9 terms summary sheets using standard DepEd formula references.
+- **DepEd Formula Integrity**: Restored Term 2 MAPEH computation, School ID formula references (F15), and rendered unencoded grades as clean blank cells instead of zero.
+
+### ⚡ Client Data Protection & Self-Healing
+
+- **Raw Score Persistence Engine**: Permanently eliminated score loss and reversion across GMRC, Values Education, Makabansa, Language, Reading & Literacy, English, EPP, and TLE when navigating between pages.
+- **DebouncedInput Safe Flush**: Guaranteed automatic saving of all active cell inputs on component unmount, field blur, and tab/section transitions.
+- **Automated Startup Reconciliation**: Scans local database on app launch, reconnects any orphaned grade records, and restores missing subjects before UI rendering.
+- **Zero Data Loss Guarantee**: 100% preservation of all existing client records, raw scores, student profiles, and section assignments in IndexedDB.
+
+### 🐞 Bug Fixes
+
+- Resolved issue where raw scores typed in E-Class Record for GMRC, Values Education, and Makabansa disappeared upon page navigation.
+- Fixed corrupt workbook repair dialogs in Excel by correctly escaping quotation marks (`&quot;`) in generated OpenXML formulas.
+- Fixed missing Term 2 MAPEH formula in SF9 report cards and restored School ID formula references across terms summary sheets.
+- Fixed unencoded grades displaying as `0` in exported SF9 spreadsheets by outputting clean blank cells.
+
+### 📝 Notes
+
+- 100% backward-compatible update with automated database self-healing on first startup.
+
 ## v3.5.4 (2026-09-14)
 
 ### 🚀 New Features & Enhancements
