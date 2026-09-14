@@ -1,5 +1,31 @@
 # Version History
 
+## v3.5.4 (2026-09-14)
+
+### 🚀 New Features & Enhancements
+
+- **DepEd Order 17 s. 2026 SSHS Electives Classification**: Physical Education 1 & 2 correctly designated as electives (not core), unblocking all 80 Academic and 48 Tech-Pro elective choices during section offering imports.
+- **Grade Management Live Save Persistence**: Input debounce reduced to 400ms with automatic flush on component unmount, field blur, and page navigation, permanently eliminating lost grade entries.
+- **Composite Subject Resolution & ECR Sync Protection**: Precise section ID grouping for Effective Communication and Mabisang Komunikasyon, safeguarding manual Grade Management entries from accidental overwrite during E-Class Record synchronization.
+- **SF9 & SF10 Learning Area Fallbacks**: Enhanced composite and component subject matching across multi-level SF9 report cards and SF10 permanent records.
+
+### ⚡ Client Data Protection & Self-Healing
+
+- **Zero Data Loss Guarantee**: 100% preservation of all existing client records, raw scores, student profiles, and section assignments in IndexedDB.
+- **Automatic Startup Reconciliation**: Scans local database on app launch, reconnects any orphaned grade records, and restores missing subjects before UI rendering.
+- **Guaranteed Subject Visibility**: Permanent visibility enforcement ensuring no subjects or encoded grades are filtered out by term assignment.
+
+### 🐞 Bug Fixes
+
+- Resolved issue where quickly typing grades and switching tabs/sections caused unsaved input values to revert.
+- Fixed elective offerings list in SSHS sections failing to display electives when importing subject catalogs.
+- Fixed manual Grade Management grades being wiped when syncing subjects from E-Class Records.
+- Resolved missing loop brace syntax error and ESLint `useEffect` dependency warnings in `ConsolidatedGradesPage.tsx`.
+
+### 📝 Notes
+
+- 100% backward-compatible update with automated database self-healing on first startup.
+
 ## v3.5.3 (2026-09-14)
 
 ### 🚀 New Features & Enhancements

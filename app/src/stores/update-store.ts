@@ -366,7 +366,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.3';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.4';
       const api = window.electronAPI;
 
       try {
@@ -424,11 +424,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "📊 Summary of Grades Term Shading: Automated visual graying out of unoffered terms for academic electives in SHS Grade 11 with clean em-dash markers and zero false incomplete grade flags.",
-              "📄 Grade 1 PACE Form Master Excel Setup: Complete 17-sheet master workbook generation with strict 4-page print setup and single-subject PACE form isolation.",
-              "🛡️ 3-Tier Ghost & Duplicate Subject Prevention: Intelligent deduplication protecting TVL/SHS parenthetical specializations while preventing duplicate subject entries.",
-              "📖 SF9 Booklet (Template 2) Live Synchronization: Seamless live grade and subject synchronization for Grade 1 MATATAG and SHS Grade 11 in 2-page duplex booklets.",
-              "💾 Master Excel Full Database Backup & Safety Vault: Automated comprehensive workbook backup generation with pre-update safety snapshots and zero data loss guarantee.",
+              "💾 Grade Management Live Save Persistence: Reduced input debounce to 400ms with instant flush on blur, unmount, and page navigation, guaranteeing zero lost grade inputs.",
+              "📚 DepEd Order 17 s. 2026 SSHS Electives Classification: Physical Education 1 & 2 correctly designated as electives, unlocking full Academic (80) and Tech-Pro (48) elective choices during section offering imports.",
+              "🔗 Composite Subject Resolution & ECR Sync Protection: Accurate grouping and ID sync for Effective Communication / Mabisang Komunikasyon, safeguarding manual grades from being overwritten during E-Class Record sync.",
+              "📄 SF9 Multi-Level Learning Area Fallbacks: Enhanced composite and component subject name matching across SF9 report cards and SF10 permanent records.",
               "🛡️ Self-Healing Grade Reconciliation: Automatic startup scanning that detects and unhides all client records, subjects, and PE & Health components.",
               "🔒 100% backward-compatible update with zero risk to student records, grades, and section enrollments."
             ],

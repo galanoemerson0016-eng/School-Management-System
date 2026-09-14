@@ -3776,12 +3776,27 @@ export function SettingsPage() {
                             </div>
 
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 3.5.3 */}
+                                {/* Version 3.5.4 */}
                                 <div className="relative pl-6">
                                     <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.3</span>
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.4</span>
                                         <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 14, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>💾 <strong>Grade Management Live Save Persistence</strong>: Input debounce reduced to 400ms with automatic flush on component unmount, field blur, and page navigation, permanently eliminating lost grade entries.</li>
+                                        <li>📚 <strong>DepEd Order 17 s. 2026 SSHS Electives Classification</strong>: Physical Education 1 & 2 correctly designated as electives, unblocking all 80 Academic and 48 Tech-Pro elective choices during section offering imports.</li>
+                                        <li>🔗 <strong>Composite Subject Resolution & ECR Sync Protection</strong>: Accurate grouping and ID sync for Effective Communication / Mabisang Komunikasyon, safeguarding manual grades from being overwritten during E-Class Record sync.</li>
+                                        <li>📄 <strong>SF9 Multi-Level Learning Area Fallbacks</strong>: Enhanced composite and component subject name matching across SF9 report cards and SF10 permanent records.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 3.5.3 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.3</span>
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 14, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
