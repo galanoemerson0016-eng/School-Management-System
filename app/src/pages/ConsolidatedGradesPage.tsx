@@ -143,17 +143,17 @@ const GradeInput = ({
     const [isSaving, setIsSaving] = useState(false);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const valueRef = useRef(value);
+    const localValueRef = useRef(localValue);
+    const inputRef = useRef<HTMLInputElement | null>(null);
 
     useEffect(() => {
         valueRef.current = value;
-        setLocalValue(value || '');
+        // Do not overwrite what the user is actively typing if the input is currently focused or debouncing
+        if (document.activeElement !== inputRef.current && !timeoutRef.current) {
+            setLocalValue(value || '');
+            localValueRef.current = value || '';
+        }
     }, [value]);
-
-    useEffect(() => {
-        return () => {
-            if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        };
-    }, []);
 
     const saveChanges = async (targetVal: string) => {
         if (targetVal === valueRef.current) return;
@@ -161,6 +161,7 @@ const GradeInput = ({
         if (isLocked) {
             useAppStore.getState().showNotification(`Term ${quarter} is locked. Unlock it in the Lock menu to edit.`, 'error');
             setLocalValue(valueRef.current || '');
+            localValueRef.current = valueRef.current || '';
             return;
         }
 
@@ -168,6 +169,7 @@ const GradeInput = ({
         if (targetVal !== '' && (isNaN(valNum) || valNum < 0 || valNum > 100)) {
             useAppStore.getState().showNotification('Grades must be between 0 and 100.', 'error');
             setLocalValue(valueRef.current || '');
+            localValueRef.current = valueRef.current || '';
             return;
         }
 
@@ -210,28 +212,58 @@ const GradeInput = ({
         }
     };
 
+    const saveChangesRef = useRef(saveChanges);
+    saveChangesRef.current = saveChanges;
+
+    useEffect(() => {
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+                timeoutRef.current = null;
+            }
+            if (localValueRef.current !== valueRef.current) {
+                saveChangesRef.current(localValueRef.current);
+            }
+        };
+    }, []);
+
     const handleBlur = () => {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        saveChanges(localValue);
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+        }
+        saveChanges(localValueRef.current);
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         setLocalValue(val);
+        localValueRef.current = val;
         
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         timeoutRef.current = setTimeout(() => {
+            timeoutRef.current = null;
             saveChanges(val);
-        }, 2000);
+        }, 400);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+                timeoutRef.current = null;
+            }
+            saveChanges(localValueRef.current);
             (e.target as HTMLInputElement).blur();
             return;
         }
 
         if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+                timeoutRef.current = null;
+            }
+            saveChanges(localValueRef.current);
             e.preventDefault();
             e.stopPropagation();
 
@@ -261,6 +293,7 @@ const GradeInput = ({
             title={isLocked ? `Term ${quarter} is locked against editing.` : undefined}
         >
             <input
+                ref={inputRef}
                 type="number"
                 value={localValue}
                 onChange={handleChange}
@@ -523,12 +556,12 @@ const StudentGradeRow = memo(({
                                     const isEcMissing = Boolean(highlightMissingGrades && activeQuarterTerm && (!ecVal && ecVal !== 0));
                                     const mkVal = activeQuarterTerm ? getQuarterGradeDetail(sData[activeQuarterTerm])?.mabisangKom : undefined;
                                     const isMkMissing = Boolean(highlightMissingGrades && activeQuarterTerm && (!mkVal && mkVal !== 0));
-                                    const ecComp = {
-                                        id: `ecmk_ec_${sectionObj?.id || 'sec'}`,
+                                    const ecComp = column.subject._ecmkGroups?.effectiveComm?.[0] || {
+                                        id: `virtual_effective_comm_${sectionObj?.id || 'sec'}`,
                                         subject_name: 'Effective Communication'
                                     };
-                                    const mkComp = {
-                                        id: `ecmk_mk_${sectionObj?.id || 'sec'}`,
+                                    const mkComp = column.subject._ecmkGroups?.mabisangKom?.[0] || {
+                                        id: `virtual_mabisang_kom_${sectionObj?.id || 'sec'}`,
                                         subject_name: 'Mabisang Komunikasyon'
                                     };
                                     return (
@@ -969,20 +1002,15 @@ export function ConsolidatedGradesPage() {
                                         performance_tasks: [],
                                         quarterly_exam: 0
                                     });
-                                } else {
-                                    const oldRec = findExistingGradingRecord(student.lrn, comp.id, comp.subject_name, quarter);
-                                    if (oldRec?.id) recordsToDelete.push(oldRec.id);
                                 }
                             }
                             // Also clear any rogue parent MAPEH record if present
                             const oldParent = findExistingGradingRecord(student.lrn, subject.id, subject.subject_name, quarter);
                             if (oldParent?.id) recordsToDelete.push(oldParent.id);
-                            continue;
-                        }
-
-                        if (subject._ecmkGroups) {
-                            const ecComps = (subject._ecmkGroups.effectiveComm || []).filter(comp => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
-                            const mkComps = (subject._ecmkGroups.mabisangKom || []).filter(comp => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
+                        } else if (isEcmkParent(subject.subject_name) || subject._ecmkGroups) {
+                            const ecmkGroups = (subject as any)._ecmkGroups;
+                            const ecComps = (ecmkGroups?.effectiveComm || []).filter((comp: any) => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
+                            const mkComps = (ecmkGroups?.mabisangKom || []).filter((comp: any) => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
                             for (const comp of [...ecComps, ...mkComps]) {
                                 const compGrade = resolveStudentQuarterGrade(
                                     student.lrn,
@@ -1009,28 +1037,23 @@ export function ConsolidatedGradesPage() {
                                         performance_tasks: [],
                                         quarterly_exam: 0
                                     });
-                                } else {
-                                    const oldRec = findExistingGradingRecord(student.lrn, comp.id, comp.subject_name, quarter);
-                                    if (oldRec?.id) recordsToDelete.push(oldRec.id);
                                 }
                             }
                             // Also clear any rogue parent EC/MK record if present
                             const oldParent = findExistingGradingRecord(student.lrn, subject.id, subject.subject_name, quarter);
                             if (oldParent?.id) recordsToDelete.push(oldParent.id);
-                            continue;
-                        }
-
-                        const finalGrade = resolveStudentQuarterGrade(
-                            student.lrn,
-                            subject.subject_name || subject.id,
-                            quarter,
-                            activeSchoolYear,
-                            classRecords,
-                            [],
-                            hpsRecords,
-                            sectionGradeLevel,
-                            sectionTrack
-                        );
+                        } else {
+                            const finalGrade = resolveStudentQuarterGrade(
+                                student.lrn,
+                                subject.subject_name || subject.id,
+                                quarter,
+                                activeSchoolYear,
+                                classRecords,
+                                [],
+                                hpsRecords,
+                                sectionGradeLevel,
+                                sectionTrack
+                            );
 
                         if (finalGrade > 0) {
                             recordsToSync.push({
@@ -1046,13 +1069,11 @@ export function ConsolidatedGradesPage() {
                                 performance_tasks: [],
                                 quarterly_exam: 0
                             });
-                        } else {
-                            const oldRec = findExistingGradingRecord(student.lrn, subject.id, subject.subject_name, quarter);
-                            if (oldRec?.id) recordsToDelete.push(oldRec.id);
                         }
                     }
                 }
             }
+        }
 
             // 1. Delete stale records for subjects in teaching load with no grades in E-Class Record
             const uniqueDeleteIds = Array.from(new Set(recordsToDelete));
@@ -2786,9 +2807,6 @@ const groupedSections = useMemo(() => {
                                     performance_tasks: [],
                                     quarterly_exam: 0
                                 });
-                            } else {
-                                const oldRec = findExistingGradingRecord(student.lrn, comp.id, comp.subject_name, quarter);
-                                if (oldRec?.id) recordsToDelete.push(oldRec.id);
                             }
                         }
                         // Clear rogue parent MAPEH record if present
@@ -2824,9 +2842,6 @@ const groupedSections = useMemo(() => {
                                     performance_tasks: [],
                                     quarterly_exam: 0
                                 });
-                            } else {
-                                const oldRec = findExistingGradingRecord(student.lrn, comp.id, comp.subject_name, quarter);
-                                if (oldRec?.id) recordsToDelete.push(oldRec.id);
                             }
                         }
                         // Clear rogue parent EC/MK record if present
@@ -2858,9 +2873,6 @@ const groupedSections = useMemo(() => {
                                 performance_tasks: [],
                                 quarterly_exam: 0
                             });
-                        } else {
-                            const oldRec = findExistingGradingRecord(student.lrn, targetSubject.id, targetSubject.subject_name, quarter);
-                            if (oldRec?.id) recordsToDelete.push(oldRec.id);
                         }
                     }
                 }

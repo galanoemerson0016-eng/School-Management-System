@@ -1049,7 +1049,7 @@ export function getDefaultTermForSubject(subjectName: string, gradeLevel: string
  */
 export function resolveSubjectOfferedTerms(
     sub: { subject_name: string; term?: string | number | null; id?: string },
-    sectionObj?: { id?: string; section_grade_level?: string; section_metadata?: Record<string, any> } | null,
+    sectionObj?: { id?: string; section_grade_level?: string; section_metadata?: Record<string, unknown> } | null,
     hasGradesInTerm?: (termNum: number) => boolean
 ): number[] {
     const gradeLevel = sectionObj?.section_grade_level || '';
@@ -1685,6 +1685,23 @@ export const getShsCategoryForSubject = (subjectName: string, gradeLevel: string
             return 'Academic Elective (Field Experience/ Exposure, and Sports and Arts)';
         }
 
+        // Explicit protection for SSHS DO 017 Sports, Health, and Wellness electives:
+        // Physical Education 1 (Fitness and Recreation) and Physical Education 2 (Sports and Dance)
+        // are Academic Track Electives under DepEd Order No. 017, s. 2026, NOT traditional core subjects!
+        if (
+            norm.includes('fitnessandrecreation') || 
+            norm.includes('sportsanddance') ||
+            norm.includes('humanmovement') ||
+            norm.includes('firstaid') ||
+            norm.includes('basiclifesupport') ||
+            norm.includes('sportsactivity') ||
+            norm.includes('sportscoaching') ||
+            norm.includes('sportsofficiating') ||
+            norm.includes('exerciseandsports')
+        ) {
+            return 'Academic Elective (All Other Electives)';
+        }
+
         // Traditional K-12 Core match (e.g. Oral Comm, Reading & Writing, 21st Century Lit, Earth & Life Sci, etc.)
         if (traditionalCores.some(c => {
             const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1724,6 +1741,21 @@ export const getShsCategoryForSubject = (subjectName: string, gradeLevel: string
     }
 
     if (isG12) {
+        // Explicit protection for SSHS DO 017 Sports, Health, and Wellness electives:
+        if (
+            norm.includes('fitnessandrecreation') || 
+            norm.includes('sportsanddance') ||
+            norm.includes('humanmovement') ||
+            norm.includes('firstaid') ||
+            norm.includes('basiclifesupport') ||
+            norm.includes('sportsactivity') ||
+            norm.includes('sportscoaching') ||
+            norm.includes('sportsofficiating') ||
+            norm.includes('exerciseandsports')
+        ) {
+            return 'Academic Track Electives';
+        }
+
         // 1. Core Subjects
         if (traditionalCores.some(c => {
             const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');

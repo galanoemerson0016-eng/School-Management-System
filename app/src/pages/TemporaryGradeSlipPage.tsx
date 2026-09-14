@@ -129,7 +129,7 @@ export function TemporaryGradeSlipPage() {
             } else if (sectionTrack) {
                 candidates = candidates.filter(s => {
                     const unitInfo = getShsSubjectUnitInfo(s.subject_name, selectedSectionObj.section_grade_level);
-                    if (unitInfo.category === 'core' && selectedSectionObj.section_grade_level.includes('11')) return true;
+                    if (unitInfo.category === 'core') return true;
                     if (sectionTrack.includes('acad')) {
                         return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
                     }

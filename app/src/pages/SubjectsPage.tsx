@@ -111,6 +111,8 @@ import {
     classifyJhsSubjectTrack,
     getDepEdStandardWeights,
     type JhsTrackFilter,
+    SSHS_G11_CORE_SUBJECTS,
+    SSHS_G11_ACADEMIC_SUBJECTS,
     SSHS_G12_ACADEMIC_SUBJECTS,
     SSHS_G12_TECHPRO_SUBJECTS,
     SHS_G12_CORE_SUBJECTS,
@@ -301,9 +303,13 @@ export function SubjectsPage() {
         let templates: SpecialSubjectItem[] | { name: string; code: string }[] | undefined;
 
         if (type === 'standard') {
-            templates = STANDARD_SUBJECTS[selectedGrade as keyof typeof STANDARD_SUBJECTS];
+            templates = (selectedGrade || '').includes('11')
+                ? SSHS_G11_ACADEMIC_SUBJECTS
+                : STANDARD_SUBJECTS[selectedGrade as keyof typeof STANDARD_SUBJECTS];
         } else if (type === 'special') {
-            templates = SPECIAL_SUBJECTS[selectedGrade as keyof typeof SPECIAL_SUBJECTS];
+            templates = (selectedGrade || '').includes('11')
+                ? [...SSHS_G11_CORE_SUBJECTS, ...SSHS_G12_TECHPRO_SUBJECTS]
+                : SPECIAL_SUBJECTS[selectedGrade as keyof typeof SPECIAL_SUBJECTS];
         } else if (type === 'sshs_academic') {
             templates = SSHS_G12_ACADEMIC_SUBJECTS;
         } else if (type === 'sshs_techpro') {
@@ -1218,6 +1224,10 @@ export function SubjectsPage() {
                     });
                 } else {
                     // Grade 11 SSHS Cards
+                    const g11AcademicOfferings = SSHS_G11_ACADEMIC_SUBJECTS;
+                    const g11TechProOfferings = [...SSHS_G11_CORE_SUBJECTS, ...SSHS_G12_TECHPRO_SUBJECTS];
+                    const g11CoreOnly = SSHS_G11_CORE_SUBJECTS;
+
                     cards.push({
                         id: 'standard',
                         title: 'Academic Track',
@@ -1231,8 +1241,8 @@ export function SubjectsPage() {
                         hoverBg: 'hover:bg-amber-50 dark:hover:bg-amber-950/30',
                         ringColor: 'ring-amber-200/50',
                         emoji: '🎓',
-                        count: standard.length,
-                        preview: getPreview(standard)
+                        count: g11AcademicOfferings.length,
+                        preview: getPreview(g11AcademicOfferings)
                     });
 
                     cards.push({
@@ -1248,11 +1258,10 @@ export function SubjectsPage() {
                         hoverBg: 'hover:bg-blue-50 dark:hover:bg-blue-950/30',
                         ringColor: 'ring-blue-200/50',
                         emoji: '🛠️',
-                        count: special.length,
-                        preview: getPreview(special)
+                        count: g11TechProOfferings.length,
+                        preview: getPreview(g11TechProOfferings)
                     });
 
-                    const coreOnly = standard.filter(s => getShsCategoryForSubject(s.name, selectedGrade) === 'Core Subject (All Tracks)');
                     cards.push({
                         id: 'core_only',
                         title: 'Core Subjects Only',
@@ -1266,8 +1275,8 @@ export function SubjectsPage() {
                         hoverBg: 'hover:bg-indigo-50 dark:hover:bg-indigo-950/30',
                         ringColor: 'ring-indigo-200/50',
                         emoji: '🧠',
-                        count: coreOnly.length,
-                        preview: getPreview(coreOnly)
+                        count: g11CoreOnly.length,
+                        preview: getPreview(g11CoreOnly)
                     });
                 }
             }

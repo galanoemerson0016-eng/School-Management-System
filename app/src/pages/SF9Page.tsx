@@ -53,7 +53,7 @@ import { computeStudentAttendance } from '../utils/sf9-attendance';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3, FileSpreadsheet, Bug, RefreshCcw } from 'lucide-react';
 import { exportSF9ToExcel, exportSF9BatchToExcel } from '../services/sf9-excel-export';
-import { isGrade1 } from '../services/sf9-g1-excel-export';
+import { isGrade1, getStudentBoSyEoSyAge, formatDateToMMDDYYYY } from '../services/sf9-g1-excel-export';
 import { isGrade11Academic } from '../services/sf9-g11-academic-excel-export';
 import type { SF9ExcelExportOptions } from '../services/sf9-excel-export';
 import { filterSF9Sections } from '../lib/rbac';
@@ -653,7 +653,7 @@ function computeStudentGrades(
         } else if (sectionTrack) {
             candidates = candidates.filter(s => {
                 const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
-                if (unitInfo.category === 'core' && gradeLevelNum === 11) return true;
+                if (unitInfo.category === 'core') return true;
                 if (sectionTrack.includes('acad')) {
                     return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
                 }
@@ -1087,9 +1087,9 @@ function computeStudentGrades(
                 const hpsRecords = useAppStore.getState().hpsRecords;
 
                 matchingSubjects.forEach(subject => {
-                    const gradeVal = resolveStudentQuarterGrade(
+                    let gradeVal = resolveStudentQuarterGrade(
                         student.lrn,
-                        subject.id,
+                        subject.subject_name || subject.id,
                         q,
                         schoolYear,
                         classRecords,
@@ -1098,6 +1098,19 @@ function computeStudentGrades(
                         sectionObj?.section_grade_level,
                         sectionObj?.track
                     );
+                    if (gradeVal === 0 && subject.id && subject.id !== subject.subject_name) {
+                        gradeVal = resolveStudentQuarterGrade(
+                            student.lrn,
+                            subject.id,
+                            q,
+                            schoolYear,
+                            classRecords,
+                            gradingSheetRecords,
+                            hpsRecords,
+                            sectionObj?.section_grade_level,
+                            sectionObj?.track
+                        );
+                    }
                     if (gradeVal > 0) {
                         results.push(gradeVal);
                     }
@@ -1487,17 +1500,43 @@ function SF9Pages({
         'ICT': 'Information and Communications Technology'
     };
 
-    const strandDisplay = student.strand ? (STRAND_MAPPING[student.strand] || student.strand).toUpperCase() : '';
-    const trackDisplay = student.track ? student.track.toUpperCase() : '';
+    const gradeNum = parseInt(student.grade_level?.replace(/\D/g, '') || '0');
+    const isSHS = gradeNum === 11 || gradeNum === 12;
+
+    const isSSHSSectionOrStudent = (): boolean => {
+        if (gradeNum === 11) return true; // All Grade 11 is SSHS
+        if (gradeNum === 12) {
+            const combined = `${student.track || ''} ${student.strand || ''} ${student.cluster || ''} ${section || ''}`.toLowerCase();
+            return combined.includes('sshs') || combined.includes('cluster') || combined.includes('strengthened');
+        }
+        return false;
+    };
+
+    const strandOrClusterLabel = isSSHSSectionOrStudent() ? 'Cluster:' : 'Strand:';
+    const rawStrandOrCluster = (isSSHSSectionOrStudent() ? (student.cluster || student.strand) : student.strand) || '';
+    const strandDisplay = rawStrandOrCluster ? (STRAND_MAPPING[rawStrandOrCluster] || rawStrandOrCluster).toUpperCase() : '';
+
+    const getTrackDisplay = (): string => {
+        if (student.track) return student.track.toUpperCase();
+        if (!isSHS) return '';
+        const strandUpper = (rawStrandOrCluster || '').toUpperCase();
+        if (['STEM', 'ABM', 'HUMSS', 'GAS'].includes(strandUpper) || strandUpper.includes('ACAD')) {
+            return 'ACADEMIC';
+        }
+        if (['ICT', 'TVL', 'HE', 'IA', 'AFA'].includes(strandUpper) || strandUpper.includes('TECH') || strandUpper.includes('VOC')) {
+            return 'TECHNICAL-VOCATIONAL-LIVELIHOOD';
+        }
+        if (strandUpper.includes('ART')) return 'ARTS AND DESIGN';
+        if (strandUpper.includes('SPORT')) return 'SPORTS';
+        return 'ACADEMIC'; // Default fallback for SHS if track is unspecified
+    };
+    const trackDisplay = getTrackDisplay();
 
     // Print mode helpers
     const isValuesOnly = printMode === 'term2' || printMode === 'term3';
     const transparentBorder = '#FFFFFF';
     const borderColor = isValuesOnly ? transparentBorder : '#000';
 
-    // Determine SF9 Label and Alignment
-    const gradeNum = parseInt(student.grade_level?.replace(/\D/g, '') || '0');
-    const isSHS = gradeNum === 11 || gradeNum === 12;
     const isG11Academic = isGrade11Academic(student.grade_level, student.track);
 
     // Determine which term columns to show values for
@@ -1542,13 +1581,16 @@ function SF9Pages({
 
         const isG1 = isGrade1Level(student.grade_level);
         if (isG1) {
+            const childAge = getStudentBoSyEoSyAge(student.birthday, schoolYear, student.age);
+            const formattedBirthday = student.birthday ? formatDateToMMDDYYYY(student.birthday) : '';
+
             return (
                 <Page size={pageSize} orientation="portrait" style={{ padding: 10, fontFamily: 'BookmanOldStyle' }}>
                     <View style={[styles.singleBorderWrapper, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
                         <View style={{ flex: 1, padding: 8 }}>
                             {/* Header spanning full width */}
                             <View style={[styles.singleHeaderContainer, isValuesOnly ? { opacity: 0 } : {}, { marginBottom: 4 }]}>
-                                <Image src={`${import.meta.env.BASE_URL}deped_logo_left.png`} style={[styles.singleLogo, { width: 48, height: 48 }]} />
+                                <Image src={resolveLogoSrc(`${assetBase}deped_logo_left.png`)} style={[styles.singleLogo, { width: 48, height: 48 }]} />
                                 <View style={styles.singleHeaderCenter}>
                                     <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: 7.5 }]}>Republic of the Philippines</Text>
                                     <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: 7.5 }]}>Department of Education</Text>
@@ -1564,7 +1606,7 @@ function SF9Pages({
                                     </Text>
                                     <Text style={[styles.singleHeaderText, { marginTop: 2, fontFamily: 'BookmanOldStyle-Bold', fontSize: 9 }]}>{schoolName || 'RIC CREATIVE NATIONAL HIGH SCHOOL'}</Text>
                                 </View>
-                                <Image src={logoUrl || `${import.meta.env.BASE_URL}school-logo.png`} style={[styles.singleLogo, { width: 48, height: 48 }]} />
+                                <Image src={resolveLogoSrc(logoUrl || `${assetBase}school-logo.png`)} style={[styles.singleLogo, { width: 48, height: 48 }]} />
                             </View>
 
                             <Text style={{ textAlign: 'center', marginBottom: 6, marginTop: 1 }}>
@@ -1572,34 +1614,67 @@ function SF9Pages({
                                 <Text style={[styles.singleSchoolYear, { fontFamily: 'BookmanOldStyle', fontSize: 8 }]}>{"School Year: " + schoolYear}</Text>
                             </Text>
 
-                            {/* Student Info Bar (Full width) */}
-                            <View style={{ marginBottom: 6, borderBottomWidth: 1, borderBottomColor: '#000', paddingBottom: 4 }}>
+                            {/* Student Info Bar (Full width, 3-Row Official DepEd MATATAG Format) */}
+                            <View style={{ marginBottom: 6, paddingBottom: 2 }}>
+                                {/* Row 1: Name, LRN */}
                                 <View style={{ flexDirection: 'row', marginBottom: 3 }}>
-                                    <View style={{ width: '27%', flexDirection: 'row', alignItems: 'center' }}>
-                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 28 }}>LRN:</Text>
-                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{hideLearnerInfo ? ' ' : (student.lrn || ' ')}</Text>
-                                    </View>
-                                    <View style={{ width: '58%', flexDirection: 'row', alignItems: 'center', paddingLeft: 6 }}>
+                                    <View style={{ width: '74%', flexDirection: 'row', alignItems: 'center' }}>
                                         <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 30 }}>Name:</Text>
-                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{hideLearnerInfo ? ' ' : formatLearnerName(student).toUpperCase()}</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'left', paddingLeft: 6, fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>
+                                            {hideLearnerInfo ? ' ' : formatLearnerName(student).toUpperCase()}
+                                        </Text>
                                     </View>
-                                    <View style={{ width: '15%', flexDirection: 'row', alignItems: 'center', paddingLeft: 6 }}>
-                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 22 }}>Sex:</Text>
-                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{hideLearnerInfo ? ' ' : (student.gender || ' ').toUpperCase()}</Text>
+                                    <View style={{ width: '26%', flexDirection: 'row', alignItems: 'center', paddingLeft: 6 }}>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 26 }}>LRN:</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>
+                                            {hideLearnerInfo ? ' ' : (student.lrn || ' ')}
+                                        </Text>
                                     </View>
                                 </View>
-                                <View style={{ flexDirection: 'row' }}>
-                                    <View style={{ width: '27%', flexDirection: 'row', alignItems: 'center' }}>
-                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 66 }}>Grade & Section:</Text>
-                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{hideLearnerInfo ? ' ' : `1 - ${section}`}</Text>
+
+                                {/* Row 2: Section, Teacher, Birthdate */}
+                                <View style={{ flexDirection: 'row', marginBottom: 3 }}>
+                                    <View style={{ width: '32%', flexDirection: 'row', alignItems: 'center' }}>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 34 }}>Section:</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>
+                                            {hideLearnerInfo ? ' ' : (section || ' ')}
+                                        </Text>
                                     </View>
-                                    <View style={{ width: '58%', flexDirection: 'row', alignItems: 'center', paddingLeft: 6 }}>
-                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 36 }}>Adviser:</Text>
-                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{!hideAdviserName && adviser ? adviser.toUpperCase() : ' '}</Text>
+                                    <View style={{ width: '38%', flexDirection: 'row', alignItems: 'center', paddingLeft: 6 }}>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 36 }}>Teacher:</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>
+                                            {!hideAdviserName && adviser ? adviser.toUpperCase() : ' '}
+                                        </Text>
                                     </View>
-                                    <View style={{ width: '15%', flexDirection: 'row', alignItems: 'center', paddingLeft: 6 }}>
-                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 22 }}>Age:</Text>
-                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{hideLearnerInfo ? ' ' : (student.age || ' ')}</Text>
+                                    <View style={{ width: '30%', flexDirection: 'row', alignItems: 'center', paddingLeft: 6 }}>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 44 }}>Birthdate:</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>
+                                            {hideLearnerInfo ? ' ' : (formattedBirthday || ' ')}
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                {/* Row 3: Age of the Child (Beginning of SY) & Age of the Child (End of SY) */}
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <View style={{ width: '50%', flexDirection: 'row', alignItems: 'center', paddingRight: 4 }}>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6.8 }}>Age of the Child (Beginning of SY): Years:</Text>
+                                        <Text style={[styles.singleInfoValue, { width: 22, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.8, marginLeft: 2 }]}>
+                                            {hideLearnerInfo ? ' ' : (childAge.boSy.years !== '' ? String(childAge.boSy.years) : ' ')}
+                                        </Text>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6.8, marginLeft: 4 }}>Months:</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.8, marginLeft: 2 }]}>
+                                            {hideLearnerInfo ? ' ' : (childAge.boSy.months !== '' ? String(childAge.boSy.months) : ' ')}
+                                        </Text>
+                                    </View>
+                                    <View style={{ width: '50%', flexDirection: 'row', alignItems: 'center', paddingLeft: 6 }}>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6.8 }}>Age of the Child (End of SY): Years:</Text>
+                                        <Text style={[styles.singleInfoValue, { width: 22, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.8, marginLeft: 2 }]}>
+                                            {hideLearnerInfo ? ' ' : (childAge.eoSy.years !== '' ? String(childAge.eoSy.years) : ' ')}
+                                        </Text>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6.8, marginLeft: 4 }}>Months:</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.8, marginLeft: 2 }]}>
+                                            {hideLearnerInfo ? ' ' : (childAge.eoSy.months !== '' ? String(childAge.eoSy.months) : ' ')}
+                                        </Text>
                                     </View>
                                 </View>
                             </View>
@@ -1607,7 +1682,7 @@ function SF9Pages({
                             {/* Main Content Area (2 Columns) */}
                             <View style={{ flexDirection: 'row', flex: 1 }}>
                                 {/* Left Column (50% Width) */}
-                                <View style={{ width: '49%', paddingRight: 8, borderRightWidth: 1, borderColor: '#CCC', justifyContent: 'space-between' }}>
+                                <View style={{ width: '49%', paddingRight: 8, justifyContent: 'space-between' }}>
                                     <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6.5, marginBottom: 4, lineHeight: 1.2 }}>
                                         <Text style={{ fontFamily: 'BookmanOldStyle-Bold' }}>{"Dear Parents/Guardians,\n"}</Text>
                                         {"This report provides a descriptive account of your child's learning progress for each term. It highlights what your child can already do, what they are currently developing, and how they can be further supported.\n\nThis report is based on varied evidence of learning including classroom activities, observations, learner outputs, and assessments. It is designed to give a clearer development rather than relying on numerical or letter grades."}
@@ -1863,32 +1938,20 @@ function SF9Pages({
                                         </View>
                                     </View>
                                     <View style={styles.singleInfoRow}>
-                                        {gradeNum === 12 ? (
-                                            <>
-                                                {/* Track Cell — 38% */}
-                                                <View style={{ width: '38%', flexDirection: 'row', alignItems: 'center' }}>
-                                                    <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, marginRight: 4 }}>Track (if SHS only):</Text>
-                                                    <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: trackFontSize }]}>
-                                                        {hideLearnerInfo ? ' ' : (trackDisplay || ' ')}
-                                                    </Text>
-                                                </View>
-                                                {/* Strand Cell — 62% */}
-                                                <View style={{ width: '62%', flexDirection: 'row', alignItems: 'center', paddingLeft: 10 }}>
-                                                    <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, marginRight: 4 }}>Strand:</Text>
-                                                    <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: strandFontSize }]}>
-                                                        {hideLearnerInfo ? ' ' : (strandDisplay || ' ')}
-                                                    </Text>
-                                                </View>
-                                            </>
-                                        ) : (
-                                            /* Grade 11 or other grade levels */
-                                            <View style={{ width: '100%', flexDirection: 'row', alignItems: 'center' }}>
-                                                <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, marginRight: 4 }}>Track (if SHS only):</Text>
-                                                <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'left', fontFamily: 'BookmanOldStyle-Bold', fontSize: trackFontSize, paddingLeft: 4 }]}>
-                                                    {hideLearnerInfo ? ' ' : (isSHS ? trackDisplay : ' ')}
-                                                </Text>
-                                            </View>
-                                        )}
+                                        {/* Track Cell — 45%, matching LRN width */}
+                                        <View style={{ width: '45%', flexDirection: 'row', alignItems: 'center' }}>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, marginRight: 4 }}>Track (if SHS only):</Text>
+                                            <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: trackFontSize }]}>
+                                                {hideLearnerInfo ? ' ' : (isSHS ? (trackDisplay || ' ') : ' ')}
+                                            </Text>
+                                        </View>
+                                        {/* Strand / Cluster Cell — 55% */}
+                                        <View style={{ width: '55%', flexDirection: 'row', alignItems: 'center', paddingLeft: 5 }}>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, marginRight: 4 }}>{strandOrClusterLabel}</Text>
+                                            <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: strandFontSize }]}>
+                                                {hideLearnerInfo ? ' ' : (isSHS ? (strandDisplay || ' ') : ' ')}
+                                            </Text>
+                                        </View>
                                     </View>
                                 </View>
                                 );

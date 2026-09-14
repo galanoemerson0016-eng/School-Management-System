@@ -211,4 +211,82 @@ describe('Grade 11 - Mabisang Komunikasyon Input in Grade Management', () => {
         // Same values should return true
         expect(isQuarterCellEqual(nextQuarter, { ...nextQuarter })).toBe(true);
     });
+
+    it('resolves grades saved with ecmk_mk_ and ecmk_ec_ IDs when queried by SF9 with subject names', () => {
+        const studentLrn = '123456789012';
+        const sy = '2026-2027';
+
+        // Records as saved by ConsolidatedGrades GradeInput with ecmk_ec_ and ecmk_mk_ IDs
+        const gradingSheetRecords: ClassRecord[] = [
+            {
+                id: `${studentLrn}_ecmk_mk_sec-123_1_${sy}`,
+                student_lrn: studentLrn,
+                section_id: 'sec-123',
+                subject_id: 'ecmk_mk_sec-123',
+                subject_name: 'Mabisang Komunikasyon',
+                quarter: 1,
+                school_year: sy,
+                written_works: [],
+                performance_tasks: [],
+                quarterly_exam: 0,
+                final_grade: 95
+            },
+            {
+                id: `${studentLrn}_ecmk_ec_sec-123_1_${sy}`,
+                student_lrn: studentLrn,
+                section_id: 'sec-123',
+                subject_id: 'ecmk_ec_sec-123',
+                subject_name: 'Effective Communication',
+                quarter: 1,
+                school_year: sy,
+                written_works: [],
+                performance_tasks: [],
+                quarterly_exam: 0,
+                final_grade: 99
+            }
+        ];
+
+        // 1. Direct query with subject name (how SF9 resolves subjects)
+        const mkGrade = resolveStudentQuarterGrade(
+            studentLrn,
+            'Mabisang Komunikasyon',
+            1,
+            sy,
+            [],
+            gradingSheetRecords
+        );
+        expect(mkGrade).toBe(95);
+
+        const ecGrade = resolveStudentQuarterGrade(
+            studentLrn,
+            'Effective Communication',
+            1,
+            sy,
+            [],
+            gradingSheetRecords
+        );
+        expect(ecGrade).toBe(99);
+
+        // 2. Query with composite parent name (computes average of 99 and 95 = 97)
+        const compositeGrade = resolveStudentQuarterGrade(
+            studentLrn,
+            'Effective Communication / Mabisang Komunikasyon',
+            1,
+            sy,
+            [],
+            gradingSheetRecords
+        );
+        expect(compositeGrade).toBe(97);
+
+        // 3. Query with virtual subject IDs
+        const mkVirtualGrade = resolveStudentQuarterGrade(
+            studentLrn,
+            'virtual_mabisang_kom_sec-123',
+            1,
+            sy,
+            [],
+            gradingSheetRecords
+        );
+        expect(mkVirtualGrade).toBe(95);
+    });
 });

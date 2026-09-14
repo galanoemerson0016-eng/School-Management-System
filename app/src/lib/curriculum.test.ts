@@ -433,9 +433,16 @@ describe('Grade 12 Curriculum Separation: SSHS (New) vs SHS (Old)', () => {
   it('accurately categorizes SSHS Grade 12 Academic and TechPro electives', () => {
     expect(getShsCategoryForSubject('Art Criticism and Creative Markets', 'Grade 12')).toBe('Academic Track Electives');
     expect(getShsCategoryForSubject('Contemporary Literature 1', 'Grade 12')).toBe('Academic Track Electives');
+    expect(getShsCategoryForSubject('Physical Education 1 (Fitness and Recreation)', 'Grade 12')).toBe('Academic Track Electives');
+    expect(getShsCategoryForSubject('Physical Education 2 (Sports and Dance)', 'Grade 12')).toBe('Academic Track Electives');
     expect(getShsCategoryForSubject('Work Immersion for Academic Track', 'Grade 12')).toBe('Academic Track Electives');
     expect(getShsCategoryForSubject('Bakery Operations', 'Grade 12')).toBe('TechPro Track Electives');
     expect(getShsCategoryForSubject('Work Immersion for Tech-Pro Track (320 hours)', 'Grade 12')).toBe('TechPro Track Electives');
+  });
+
+  it('accurately categorizes SSHS Grade 11 Sports, Health and Wellness electives as electives, not core', () => {
+    expect(getShsCategoryForSubject('Physical Education 1 (Fitness and Recreation)', 'Grade 11')).toBe('Academic Elective (All Other Electives)');
+    expect(getShsCategoryForSubject('Physical Education 2 (Sports and Dance)', 'Grade 11')).toBe('Academic Elective (All Other Electives)');
   });
 
   it('accurately categorizes Traditional SHS Grade 11 Core and Applied subjects', () => {

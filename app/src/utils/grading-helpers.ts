@@ -29,11 +29,25 @@ export function cleanSubjectQuery(input: string): string {
         return '';
     }
 
-    if (str.startsWith('virtual-') || str.startsWith('virtual_')) {
-        str = str.replace(/^virtual[-_]/, '');
-        const lastHyphen = str.lastIndexOf('-');
+    if (str.startsWith('virtual-') || str.startsWith('virtual_') || str.startsWith('ecmk_')) {
+        const stripped = str.replace(/^(?:virtual[-_]|ecmk_)/, '');
+        if (stripped.startsWith('mabisang_kom') || stripped.startsWith('mabisang-kom') || stripped === 'mk' || stripped.startsWith('mk_')) {
+            return 'mabisang komunikasyon';
+        }
+        if (stripped.startsWith('effective_comm') || stripped.startsWith('effective-comm') || stripped === 'ec' || stripped.startsWith('ec_')) {
+            return 'effective communication';
+        }
+        if (stripped.startsWith('music_arts') || stripped.startsWith('music-arts') || stripped.startsWith('musicarts')) {
+            return 'music and arts';
+        }
+        if (stripped.startsWith('pe_health') || stripped.startsWith('pe-health') || stripped.startsWith('pehealth')) {
+            return 'physical education and health';
+        }
+        const lastHyphen = stripped.lastIndexOf('-');
         if (lastHyphen > 0) {
-            str = str.substring(0, lastHyphen);
+            str = stripped.substring(0, lastHyphen);
+        } else {
+            str = stripped;
         }
     }
     return str;
@@ -227,9 +241,9 @@ export function isMatchingSubject(
     if (isKomPan(normTarget) && (isKomPan(normName) || isKomPan(cleanedId))) return true;
 
     // 3.12.2 Effective Communication & Mabisang Komunikasyon (SSHS G11 Core)
-    const isCompositeEcmk = (s: string) => s.includes('effectivecommunication') && s.includes('mabisangkomunikasyon');
-    const isOnlyEffComm = (s: string) => s.includes('effectivecommunication') && !s.includes('mabisang');
-    const isOnlyMabKom = (s: string) => s.includes('mabisangkomunikasyon') && !s.includes('effective');
+    const isCompositeEcmk = (s: string) => (s.includes('effectivecommunication') && s.includes('mabisangkomunikasyon')) || s === 'ecmk';
+    const isOnlyEffComm = (s: string) => (s.includes('effectivecommunication') || s.includes('effectivecomm') || s === 'effcomm' || s === 'ec' || s.startsWith('ecmkec') || s === 'ecmk_ec') && !s.includes('mabisang') && !s.includes('mk');
+    const isOnlyMabKom = (s: string) => (s.includes('mabisangkomunikasyon') || s.includes('mabisangkom') || s === 'mabkom' || s === 'mk' || s.startsWith('ecmkmk') || s === 'ecmk_mk') && !s.includes('effective') && !s.includes('ec');
 
     if (isCompositeEcmk(normTarget) && (isCompositeEcmk(normName) || isCompositeEcmk(cleanedId))) return true;
     if (isOnlyEffComm(normTarget) && (isOnlyEffComm(normName) || isOnlyEffComm(cleanedId))) return true;
