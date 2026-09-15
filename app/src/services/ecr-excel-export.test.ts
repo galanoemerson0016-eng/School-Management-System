@@ -400,9 +400,11 @@ describe('ECR Excel Export Service', () => {
 
       // 3. FINAL GRADES (sheet5.xml)
       const sheet5Xml = await zip.file('xl/worksheets/sheet5.xml')!.async('text');
-      expect(sheet5Xml).toContain(`IF('TERM 1'!AC18="","",'TERM 1'!AC18)`);
-      expect(sheet5Xml).toContain(`IF(COUNT(F14,G14,H14)&lt;3,"",ROUND(AVERAGE(F14,G14,H14),0))`);
+      // Note: The DepEd template encodes " as &quot; in formula XML element content
+      expect(sheet5Xml).toContain(`IF('TERM 1'!AC18=&quot;&quot;,&quot;&quot;,'TERM 1'!AC18)`);
+      expect(sheet5Xml).toContain(`IF(COUNT(F14,G14,H14)&lt;3,&quot;&quot;,ROUND(AVERAGE(F14,G14,H14),0))`);
       expect(sheet5Xml).not.toContain('_xlfn.XLOOKUP');
+
 
       // 4. Workbook calculation property
       const wbXml = await zip.file('xl/workbook.xml')!.async('text');

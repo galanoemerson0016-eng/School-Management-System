@@ -1115,7 +1115,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
     const oldName = oldSubject.subject_name;
     const newName = sanitizedSubject.subject_name;
-    const nameChanged = normalizeSubjectName(oldName) !== normalizeSubjectName(newName);
+    const nameChanged = oldName.trim() !== newName.trim();
 
     try {
       // 1. Update subjects
@@ -1123,7 +1123,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       // that have the same old name (to clean up duplicates)
       const newSubjects = get().subjects.map((s) => {
         if (s.id === subject.id) return subject;
-        if (nameChanged && s.grade_level === subject.grade_level && normalizeSubjectName(s.subject_name) === normalizeSubjectName(oldName)) {
+        if (nameChanged && s.grade_level === subject.grade_level && (normalizeSubjectName(s.subject_name) === normalizeSubjectName(oldName) || s.subject_name.trim().toLowerCase() === oldName.trim().toLowerCase())) {
           return { ...s, subject_name: newName };
         }
         return s;
@@ -1132,15 +1132,33 @@ export const useAppStore = create<AppState>((set, get) => ({
       // 2. Propagate name change to sections if necessary
       let newSections = previousSections;
       if (nameChanged) {
-        newSections = previousSections.map(sec => ({
-          ...sec,
-          taught_subjects: sec.taught_subjects?.map(name => 
-            normalizeSubjectName(name) === normalizeSubjectName(oldName) ? newName : name
-          ) || [],
-          teaching_subjects: sec.teaching_subjects?.map(name =>
-            normalizeSubjectName(name) === normalizeSubjectName(oldName) ? newName : name
-          ) || []
-        }));
+        newSections = previousSections.map(sec => {
+          const oldNorm = normalizeSubjectName(oldName);
+          const metadata = sec.section_metadata ? { ...sec.section_metadata } : undefined;
+          let hidden = metadata?.hiddenConsolidatedSubjects ? [...metadata.hiddenConsolidatedSubjects] : undefined;
+
+          if (hidden && hidden.length > 0) {
+            hidden = hidden.filter(h => {
+              if (h.toLowerCase().trim() === oldName.toLowerCase().trim()) return false;
+              if (normalizeSubjectName(h) === oldNorm) return false;
+              return true;
+            });
+          }
+
+          return {
+            ...sec,
+            taught_subjects: sec.taught_subjects?.map(name => 
+              (name.trim().toLowerCase() === oldName.trim().toLowerCase() || normalizeSubjectName(name) === oldNorm) ? newName : name
+            ) || [],
+            teaching_subjects: sec.teaching_subjects?.map(name =>
+              (name.trim().toLowerCase() === oldName.trim().toLowerCase() || normalizeSubjectName(name) === oldNorm) ? newName : name
+            ) || [],
+            section_metadata: metadata ? {
+              ...metadata,
+              hiddenConsolidatedSubjects: hidden
+            } : undefined
+          };
+        });
       }
 
       set({ subjects: newSubjects, sections: newSections });
@@ -1891,6 +1909,12 @@ export async function initializeAppStore() {
     if (reconciliation.deletedSubjectIds && reconciliation.deletedSubjectIds.length > 0) {
       console.log(`[FormEase Pro] Self-healing purged ${reconciliation.deletedSubjectIds.length} duplicate subject record(s) and re-linked their grades.`);
       await db.deleteRecordsBulk('subjects', reconciliation.deletedSubjectIds);
+    }
+
+    if (reconciliation.sectionsModified && reconciliation.sections) {
+      console.log(`[FormEase Pro] Self-healing updated ${reconciliation.sections.length} section(s) with synchronized subjects.`);
+      await db.putRecordsBulk('sections', reconciliation.sections);
+      finalSections = reconciliation.sections;
     }
 
     useAppStore.setState({

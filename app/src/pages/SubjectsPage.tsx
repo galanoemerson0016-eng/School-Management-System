@@ -1982,17 +1982,33 @@ export function SubjectsPage() {
             const hpsRecordsToUpdate: HPSRecord[] = [];
 
             for (const cluster of duplicateGhostInfo.duplicateClusters) {
-                // Find canonical subject: prefer deterministic ID or cleanly trimmed name
-                const canonical = cluster.find(s => !s.id.startsWith('sub_') && s.subject_name === s.subject_name.trim()) || cluster[0];
-                const duplicates = cluster.filter(s => s.id !== canonical.id);
+                const clusterGrade = cluster[0].grade_level;
+                const gNum = parseInt((clusterGrade || '').replace(/\D/g, '')) || 0;
+                const isElem = (gNum >= 1 && gNum <= 6) || (clusterGrade || '').toLowerCase().includes('elem');
+                const isJhs = (gNum >= 7 && gNum <= 10) || (clusterGrade || '').toLowerCase().includes('jhs');
 
-                if (canonical.subject_name !== canonical.subject_name.trim()) {
-                    await updateSubject({
-                        ...canonical,
-                        subject_name: canonical.subject_name.trim()
-                    });
+                let officialTarget: string | null = null;
+                if (normalizeSubjectLabel(cluster[0].subject_name) === 'gmrc') {
+                    if (isElem) officialTarget = 'GMRC (Good Manners and Right Conduct)';
+                    if (isJhs) officialTarget = 'Values Education';
                 }
 
+                // Find canonical subject: prefer official DepEd template name, deterministic ID, or cleanly trimmed name
+                let canonical = cluster.find(s => officialTarget && s.subject_name === officialTarget)
+                    || cluster.find(s => UNIVERSAL_SUBJECT_ORDER.includes(s.subject_name))
+                    || cluster.find(s => s.subject_name.includes('(') && s.subject_name.includes(')'))
+                    || cluster.find(s => !s.id.startsWith('sub_') && s.subject_name === s.subject_name.trim())
+                    || cluster[0];
+
+                if (officialTarget && canonical.subject_name !== officialTarget) {
+                    canonical = { ...canonical, subject_name: officialTarget };
+                    await updateSubject(canonical);
+                } else if (canonical.subject_name !== canonical.subject_name.trim()) {
+                    canonical = { ...canonical, subject_name: canonical.subject_name.trim() };
+                    await updateSubject(canonical);
+                }
+
+                const duplicates = cluster.filter(s => s.id !== canonical.id);
                 for (const dup of duplicates) {
                     duplicateIdsToDelete.push(dup.id);
                     mergedCount++;
@@ -2062,6 +2078,12 @@ export function SubjectsPage() {
                     } else {
                         await addSubject(s);
                     }
+                }
+            }
+
+            if (recon.sectionsModified && recon.sections) {
+                for (const sec of recon.sections) {
+                    await updateSection(sec);
                 }
             }
 

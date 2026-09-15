@@ -366,7 +366,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.6';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.7';
       const api = window.electronAPI;
 
       try {
@@ -424,10 +424,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "🛡️ Pre-Update Safety Vault Engine: Automated offline backup vault preserving complete Excel & PDF archives of SF2, SF5, SF6, SF9, and ECR class records before any updates.",
-              "🖨️ Grade 1 PACE Form 4-Page Print Fidelity: Exact 4-page print setup preservation and blank-guarded VLOOKUP formulas preventing 0 ratings on unencoded competencies.",
+              "⚡ Automated Startup Grade Reconciliation: Scans local database on app launch, reconnects orphaned records, unhides Elementary/JHS subjects, and restores PE & Health dual components.",
+              "📚 DepEd Curriculum Separation: Strictly enforces 'GMRC (Good Manners and Right Conduct)' for Elementary (Grades 1–6) and 'Values Education' for JHS (Grades 7–10), permanently eliminating ghost duplicate columns.",
+              "📊 Official Excel Template & Formula Preservation: 100% native formula integrity across Senior High School Grade 12, SSHS Pilot, ECR Academic G2–G10, Grade 1 PACE/SF9, and SF9 G11 Academic & Tech-Pro.",
               "🎯 Section-Isolated Highest Possible Score (HPS): Independent HPS management per section ensuring zero cross-contamination between classes.",
-              "⚡ Automated Grade Reconciliation: Scans local database on launch, reconnects orphaned records, guarantees full-year subject visibility, and restores PE & Health.",
               "🔒 100% backward-compatible update with zero data loss guarantee."
             ],
             timestamp: Date.now(),

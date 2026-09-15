@@ -1,6 +1,7 @@
 import type { Section, Subject, User, UserRole } from '../types';
 import { isMatchingSubject } from '../utils/grading-helpers';
 import { isSubjectAllowedForProgram, getDefaultTermForSubject } from './curriculum';
+import { normalizeSubjectName } from './subjectConfig';
 
 export type AppView =
     | 'dashboard'
@@ -292,8 +293,31 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
             }
         }
     }
+    const gNum = parseInt((section.section_grade_level || '').replace(/\D/g, '')) || 0;
+    const isElem = (gNum >= 1 && gNum <= 6) || (section.section_grade_level || '').toLowerCase().includes('elem');
+    const isJhs = (gNum >= 7 && gNum <= 10) || (section.section_grade_level || '').toLowerCase().includes('jhs');
 
-    return unique;
+    const mappedUnique = unique.map(s => {
+        const norm = normalizeSubjectName(s.subject_name);
+        if (isElem && norm === 'gmrc') {
+            return { ...s, subject_name: 'GMRC (Good Manners and Right Conduct)' };
+        }
+        if (isJhs && norm === 'gmrc') {
+            return { ...s, subject_name: 'Values Education' };
+        }
+        return s;
+    });
+
+    const finalUnique: Subject[] = [];
+    const finalSeen = new Set<string>();
+    for (const s of mappedUnique) {
+        const norm = normalizeSubjectName(s.subject_name) || s.subject_name.trim().toLowerCase();
+        if (norm && finalSeen.has(norm)) continue;
+        if (norm) finalSeen.add(norm);
+        finalUnique.push(s);
+    }
+
+    return finalUnique;
 }
 
 export function canAccessSF9Section(user: User | null | undefined, _section: Section): boolean {

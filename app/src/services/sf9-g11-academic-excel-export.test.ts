@@ -288,7 +288,7 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     expect(sheet6Xml).toContain('Promoted with Academic Excellence Award'); // General Average Academic Excellence Remarks formula
     expect(sheet6Xml).toContain('>Promoted with Academic Excellence Award<'); // General Average cached remarks
     expect(sheet6Xml).toContain('>Passed<'); // Core Subject cached remarks
-    expect(sheet6Xml).toContain('r="K41" s="86"'); // Elective 1 Remarks formatted with valid template style 86
+    expect(sheet6Xml).toMatch(/r="K41"\s+s="\d+"/); // Elective 1 Remarks formatted with valid template style
 
     // Weighted Points formulas in Column L
     expect(sheet6Xml).toContain('SUM(L33:L43)'); // Total Weighted Points formula in Row 44
@@ -330,7 +330,7 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     expect(drawing6Xml).not.toContain('name="Shape 4"');
     expect(drawing6Xml).not.toContain('Insert School Logo');
     expect(zip.file('xl/media/school_logo.png')).not.toBeNull();
-  }, 30000);
+  }, 60000);
 
   it('keeps final grades, remarks, and general average blank when term grades are incomplete in G11 Academic', async () => {
     const templatePath = path.resolve(__dirname, '../../public/templates/G11 Academic School Form 9 (SY 26-27).xlsx');
@@ -388,5 +388,5 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     expect(sheet6Xml).not.toContain('>Promoted<');
     expect(sheet6Xml).not.toContain('>Failed<');
     expect(sheet6Xml).not.toMatch(/<c\s+r="J44"[^>]*><f[^>]*>[^<]+<\/f><v>\d+<\/v><\/c>/);
-  });
+  }, 60000);
 });

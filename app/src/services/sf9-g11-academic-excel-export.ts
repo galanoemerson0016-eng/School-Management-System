@@ -1017,7 +1017,13 @@ export async function populateGrade11AcademicTemplateBuffer(
     } else {
       wbXml = wbXml.replace('</workbook>', '<calcPr fullCalcOnLoad="1" forceFullCalc="1"/></workbook>');
     }
-    wbXml = wbXml.replace(/<workbookView[^>]*?\/>/gi, `<workbookView activeTab="${activeTabIndex}"/>`);
+    if (wbXml.includes('<workbookView')) {
+      wbXml = wbXml.replace(/<workbookView\b([^>]*?)\/>/gi, `<workbookView activeTab="${activeTabIndex}"/>`);
+    } else if (wbXml.includes('<bookViews>')) {
+      wbXml = wbXml.replace('<bookViews>', `<bookViews><workbookView activeTab="${activeTabIndex}"/>`);
+    } else if (wbXml.includes('<sheets>')) {
+      wbXml = wbXml.replace('<sheets>', `<bookViews><workbookView activeTab="${activeTabIndex}"/></bookViews><sheets>`);
+    }
     zip.file('xl/workbook.xml', wbXml);
   }
 
@@ -1533,6 +1539,7 @@ export async function populateGrade11AcademicTemplateBuffer(
       }
 
       sheet6Xml = updateFormulaValuesBatch(sheet6Xml, s6FormulaResults);
+      sheet6Xml = sheet6Xml.replace(/<v><\/v>/g, '<v/>');
       zip.file(finalGradesPath, sheet6Xml);
     }
   }
@@ -2015,6 +2022,7 @@ export async function populateGrade11AcademicTemplateBuffer(
       sf9Xml = updateFormulaValuesBatch(sf9Xml, s8FormulaResults);
     }
 
+    sf9Xml = sf9Xml.replace(/<v><\/v>/g, '<v/>');
     zip.file(sf9SheetPath, sf9Xml);
   }
 

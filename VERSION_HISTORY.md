@@ -1,5 +1,31 @@
 # Version History
 
+## v3.5.7 (2026-09-15)
+
+### 🚀 New Features & Enhancements
+
+- **Curriculum-Compliant GMRC & Values Education Separation**: Strict DepEd curriculum distinction ensuring Elementary (Grades 1–6) exclusively uses "GMRC (Good Manners and Right Conduct)" and Junior High School (Grades 7–10) exclusively uses "Values Education".
+- **Official Excel Template & OpenXML Formula Integrity**: Validated and preserved native DepEd formulas across Senior High School Grade 12 3-Term ECR, SSHS Pilot ECR, ECR Academic G2–G10, Grade 1 PACE/SF9, and SF9 Grade 11 Academic & Tech-Pro templates.
+- **Deduplicated Subject Selection & Dropdowns**: Automatically removes duplicate and ghost subject columns from Grade Management, E-Class Record, and Consolidated Grades, guaranteeing a clean and consistent curriculum structure.
+
+### ⚡ Client Data Protection & Self-Healing
+
+- **Self-Healing Grade Reconciliation Engine**: Automatic startup scanning that detects duplicate or legacy GMRC and Values Education entries, consolidates them seamlessly, re-maps associated grades, and unhides all client records with zero data loss.
+- **Grade & Raw Score Preservation**: Guaranteed 100% preservation of all existing student raw scores, HPS, and section allocations during automated database self-healing.
+- **Guaranteed Full-Year Subject Visibility**: Forces `term: 'all'` for all Elementary (Grades 1–6) and JHS (Grades 7–10) subjects, permanently eliminating `term: 'none'` visibility filters.
+- **MAPEH Dual Component Restoration**: Automatic dual-component resolver ensuring both "Music and Arts" and "Physical Education and Health" are always accessible in ECR and grade sheets.
+
+### 🐞 Bug Fixes
+
+- Resolved issue where legacy or duplicate GMRC entries persisted across Grade Management and E-Class Record even after cleaning duplicates.
+- Fixed subject deletion bug where removing duplicate GMRC columns inadvertently removed the official "GMRC (Good Manners and Right Conduct)" subject.
+- Enforced grade level curriculum boundaries preventing Elementary sections from inheriting JHS Values Education and vice versa.
+- Resolved Vitest parallel execution timeouts across Grade 11 SF9 OpenXML inspection suites.
+
+### 📝 Notes
+
+- 100% backward-compatible update with automated database self-healing on first startup.
+
 ## v3.5.6 (2026-09-15)
 
 ### 🚀 New Features & Enhancements

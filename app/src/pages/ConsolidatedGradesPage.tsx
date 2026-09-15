@@ -1639,6 +1639,19 @@ const groupedSections = useMemo(() => {
             }
         }
 
+        const isElemSection = (sectionGradeNum >= 1 && sectionGradeNum <= 6) || (sectionObj.section_grade_level || '').toLowerCase().includes('elem');
+        const isJhsSection = (sectionGradeNum >= 7 && sectionGradeNum <= 10) || (sectionObj.section_grade_level || '').toLowerCase().includes('jhs');
+
+        sectionDbSubjects = sectionDbSubjects.map(s => {
+            if (isElemSection && normalizeSubjectName(s.subject_name) === 'gmrc') {
+                return { ...s, subject_name: 'GMRC (Good Manners and Right Conduct)' };
+            }
+            if (isJhsSection && normalizeSubjectName(s.subject_name) === 'gmrc') {
+                return { ...s, subject_name: 'Values Education' };
+            }
+            return s;
+        });
+
         // Prioritize section-specific subjects over generic ones, then deduplicate by normalized name
         sectionDbSubjects.sort((a, b) => {
             const aDirect = a.section_id === sectionObj.id ? 1 : 0;

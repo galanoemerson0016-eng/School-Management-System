@@ -9,6 +9,7 @@ import { isGrade1 } from '../services/sf9-g1-excel-export';
 import { exportECRToExcel, exportECRBatchToZip, isGrade2To10, isGmrcVeSubject, normalizeSubjectForECR, isMapehSubject, isEppTleSubject, isEppTleComponent } from '../services/ecr-excel-export';
 import { exportDirectDatabaseToExcel } from '../services/database-rescue-export';
 import { isMatchingSubject, isSameSubject, findHpsRecord } from '../utils/grading-helpers';
+import { normalizeSubjectName } from '../lib/subjectConfig';
 
 import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
@@ -878,11 +879,26 @@ export function EClassRecord() {
             return !isComponent;
         });
 
+        const secGradeNum = parseInt((selectedSectionObj.section_grade_level || '').replace(/\D/g, '')) || 0;
+        const isElem = (secGradeNum >= 1 && secGradeNum <= 6) || (selectedSectionObj.section_grade_level || '').toLowerCase().includes('elem');
+        const isJhs = (secGradeNum >= 7 && secGradeNum <= 10) || (selectedSectionObj.section_grade_level || '').toLowerCase().includes('jhs');
+
+        base = base.map(s => {
+            const norm = normalizeSubjectName(s.subject_name);
+            if (isElem && norm === 'gmrc') {
+                return { ...s, subject_name: 'GMRC (Good Manners and Right Conduct)' };
+            }
+            if (isJhs && norm === 'gmrc') {
+                return { ...s, subject_name: 'Values Education' };
+            }
+            return s;
+        });
+
         // Deduplicate base subjects by normalized subject name
         const seenNames = new Set<string>();
         const uniqueBase: Subject[] = [];
         for (const s of base) {
-            const norm = s.subject_name.trim().toLowerCase();
+            const norm = normalizeSubjectName(s.subject_name) || s.subject_name.trim().toLowerCase();
             if (norm && seenNames.has(norm)) continue;
             if (norm) seenNames.add(norm);
             uniqueBase.push(s);

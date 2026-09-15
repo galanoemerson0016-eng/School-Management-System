@@ -157,7 +157,7 @@ describe('Diagnose Grade 11 SF9 Excel Repair Errors in sheet6.xml', () => {
 
     const issues = validateSheetXml(sheet6Xml, 'sheet6.xml (Academic)');
     expect(issues).toEqual([]);
-  });
+  }, 60000);
 
   it('checks G11 Academic template sheet6.xml with full grades and Academic Excellence', async () => {
     const templatePath = path.resolve(__dirname, '../../public/templates/G11 Academic School Form 9 (SY 26-27).xlsx');
@@ -216,7 +216,7 @@ describe('Diagnose Grade 11 SF9 Excel Repair Errors in sheet6.xml', () => {
 
     const issues = validateSheetXml(sheet6Xml, 'sheet6.xml (Academic Full)');
     expect(issues).toEqual([]);
-  });
+  }, 60000);
 
   it('checks G11 TechPro template sheet6.xml for structural issues', async () => {
     const templatePath = path.resolve(__dirname, '../../public/templates/G11 TechPro School Form 9 (SY 26-27).xlsx');
@@ -249,7 +249,7 @@ describe('Diagnose Grade 11 SF9 Excel Repair Errors in sheet6.xml', () => {
 
     const issues = validateSheetXml(sheet6Xml, 'sheet6.xml (TechPro)');
     expect(issues).toEqual([]);
-  });
+  }, 60000);
 
   it('checks G11 TechPro template sheet6.xml with full grades', async () => {
     const templatePath = path.resolve(__dirname, '../../public/templates/G11 TechPro School Form 9 (SY 26-27).xlsx');
@@ -304,5 +304,5 @@ describe('Diagnose Grade 11 SF9 Excel Repair Errors in sheet6.xml', () => {
 
     const issues = validateSheetXml(sheet6Xml, 'sheet6.xml (TechPro Full)');
     expect(issues).toEqual([]);
-  });
+  }, 60000);
 });

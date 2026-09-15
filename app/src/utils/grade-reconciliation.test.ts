@@ -391,5 +391,135 @@ describe('grade-reconciliation', () => {
         expect(healedHps.performance_tasks).toEqual([100, 100, 50]);
         expect(healedHps.quarterly_exam).toBe(30);
     });
+
+    it('auto-heals duplicate GMRC and GMRC (Good Manners and Right Conduct) in Elementary: keeps official name, removes short duplicate, heals section & hidden columns', () => {
+        const subjects: Subject[] = [
+            { id: 'subject-grade4-gmrc', subject_name: 'GMRC', grade_level: 'Grade 4', term: 'all' },
+            { id: 'sub_temp_gmrc_full', subject_name: 'GMRC (Good Manners and Right Conduct)', grade_level: 'Grade 4', term: 'all' }
+        ];
+
+        const sections: Section[] = [
+            {
+                id: 'sec-g4-emerald',
+                section_name: 'Grade 4 - Emerald',
+                section_grade_level: 'Grade 4',
+                is_advisory: true,
+                taught_subjects: ['Filipino', 'English', 'Mathematics', 'Science', 'GMRC', 'Araling Panlipunan (AP)'],
+                teaching_subjects: ['GMRC'],
+                section_metadata: {
+                    hiddenConsolidatedSubjects: ['GMRC']
+                }
+            }
+        ];
+
+        const students: Student[] = [
+            { lrn: '555666777888', first_name: 'Pedro', last_name: 'Penduko', student_section: 'sec-g4-emerald' } as unknown as Student
+        ];
+
+        const classRecords: ClassRecord[] = [
+            {
+                id: 'grade_555666777888_subject-grade4-gmrc_Q1',
+                student_lrn: '555666777888',
+                section_id: 'sec-g4-emerald',
+                subject_id: 'subject-grade4-gmrc',
+                subject_name: 'GMRC',
+                school_year: '2026-2027',
+                quarter: 1,
+                written_works: [20, 20],
+                performance_tasks: [40, 40],
+                quarterly_exam: 20,
+                final_grade: 90
+            }
+        ];
+
+        const hpsRecords: HPSRecord[] = [
+            {
+                id: 'hps_subject-grade4-gmrc_sec-g4-emerald_2026-2027_Q1',
+                subject_id: 'subject-grade4-gmrc',
+                subject_name: 'GMRC',
+                section_id: 'sec-g4-emerald',
+                school_year: '2026-2027',
+                quarter: 1,
+                written_works: [25, 25],
+                performance_tasks: [50, 50],
+                quarterly_exam: 25
+            }
+        ];
+
+        const result = reconcileOrphanedGradesAndSubjects({
+            subjects,
+            sections,
+            students,
+            classRecords,
+            hpsRecords,
+            gradingSheetRecords: []
+        });
+
+        // 1. Should have only 1 subject, and its name MUST be the official full DepEd title
+        expect(result.subjects).toHaveLength(1);
+        expect(result.subjects[0].subject_name).toBe('GMRC (Good Manners and Right Conduct)');
+
+        // 2. Duplicate ID should be flagged for deletion
+        expect(result.deletedSubjectIds).toHaveLength(1);
+
+        // 3. Class record must be updated to official name
+        const cr = result.classRecords[0];
+        expect(cr.subject_name).toBe('GMRC (Good Manners and Right Conduct)');
+        expect(cr.subject_id).toBe(result.subjects[0].id);
+
+        // 4. HPS record must be updated to official name
+        const hps = result.hpsRecords[0];
+        expect(hps.subject_name).toBe('GMRC (Good Manners and Right Conduct)');
+        expect(hps.subject_id).toBe(result.subjects[0].id);
+
+        // 5. Section taught_subjects and teaching_subjects must be upgraded
+        expect(result.sectionsModified).toBe(true);
+        expect(result.sections).toBeDefined();
+        const healedSec = result.sections![0];
+        expect(healedSec.taught_subjects).toContain('GMRC (Good Manners and Right Conduct)');
+        expect(healedSec.taught_subjects).not.toContain('GMRC');
+        expect(healedSec.teaching_subjects).toContain('GMRC (Good Manners and Right Conduct)');
+        expect(healedSec.teaching_subjects).not.toContain('GMRC');
+
+        // 6. GMRC must be unhidden from hiddenConsolidatedSubjects
+        expect(healedSec.section_metadata?.hiddenConsolidatedSubjects).not.toContain('GMRC');
+    });
+
+    it('upgrades standalone GMRC in JHS to Values Education', () => {
+        const subjects: Subject[] = [
+            { id: 'subj-g7-legacy-gmrc', subject_name: 'GMRC', grade_level: 'Grade 7', term: 'all' }
+        ];
+
+        const sections: Section[] = [
+            {
+                id: 'sec-g7-narra',
+                section_name: 'Grade 7 - Narra',
+                section_grade_level: 'Grade 7',
+                taught_subjects: ['Filipino', 'English', 'Mathematics', 'Science', 'GMRC'],
+                teaching_subjects: ['GMRC']
+            }
+        ];
+
+        const result = reconcileOrphanedGradesAndSubjects({
+            subjects,
+            sections,
+            students: [],
+            classRecords: [],
+            hpsRecords: [],
+            gradingSheetRecords: []
+        });
+
+        // Subject should be upgraded to Values Education
+        expect(result.subjects[0].subject_name).toBe('Values Education');
+
+        // Section taught_subjects and teaching_subjects should be upgraded
+        expect(result.sectionsModified).toBe(true);
+        const healedSec = result.sections![0];
+        expect(healedSec.taught_subjects).toContain('Values Education');
+        expect(healedSec.taught_subjects).not.toContain('GMRC');
+        expect(healedSec.teaching_subjects).toContain('Values Education');
+        expect(healedSec.teaching_subjects).not.toContain('GMRC');
+    });
 });
+
 

@@ -253,6 +253,8 @@ describe('SSHS Electronic Class Record Export Service (Grade 11 & Grade 12)', ()
     // Formula cached values are populated: N17 (WW Total), O17 (WW PS), P17 (WW WS)
     expect(sheet3Xml).toMatch(/<c r="N17"[^>]*><f[^>]*>.*?<\/f><v>\d+<\/v><\/c>/);
     expect(sheet3Xml).toMatch(/<c r="AM17"[^>]*><f[^>]*>.*?<\/f><v>\d+<\/v><\/c>/);
+    expect(sheet3Xml).toContain('HELPER!$B$7:$B$47');
+    expect(sheet3Xml).toContain('HELPER!$C$7:$C$47');
 
     // B8 is cleared and never #VALUE!
     expect(sheet3Xml).not.toContain('>#VALUE!<');
