@@ -416,7 +416,7 @@ export function extractGrade12TechProCrossGrades(
   if (allCompleted && typeof generalAverage === 'number' && generalAverage >= 90) {
     const gradesList = items.map(i => i.grade as number);
     const minGrade = Math.min(...gradesList);
-    if (minGrade >= 85) {
+    if (minGrade >= 80) {
       if (generalAverage >= 98) honors = 'With Highest Honors';
       else if (generalAverage >= 95) honors = 'With High Honors';
       else honors = 'With Honors';

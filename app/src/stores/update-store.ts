@@ -331,7 +331,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
           observedValues: await db.getStoreCount('observedValues')
         };
 
-        const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.4';
+        const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.6';
         const stateData = {
           fromVersion: currentVersion,
           toVersion: get().updateInfo?.version || 'Unknown',
@@ -366,7 +366,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.5';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.6';
       const api = window.electronAPI;
 
       try {
@@ -424,11 +424,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "🛡️ Client Data Protection & Score Persistence: Permanently eliminated raw score reversion across GMRC, Values Education, Makabansa, Language, Reading & Literacy, and EPP/TLE on page navigation.",
-              "💾 DebouncedInput Flush Safeguard: Guaranteed automated saving of all active cell inputs on component unmount and section/tab transitions.",
-              "📊 SF9 Multi-Level Excel Outlines: Restored native Excel outline groupings, hierarchical collapse controls, and clean XML quote encoding across all grade levels.",
-              "🎂 Dynamic Birthdate-Driven Age: Automated age derivation on SF9 summary sheets utilizing standard DepEd formula references.",
-              "📈 DepEd Formula Integrity: Restored Term 2 MAPEH formula calculations, School ID formula references (F15), and clean blank cells for unencoded grades.",
+              "🛡️ Pre-Update Safety Vault Engine: Automated offline backup vault preserving complete Excel & PDF archives of SF2, SF5, SF6, SF9, and ECR class records before any updates.",
+              "🖨️ Grade 1 PACE Form 4-Page Print Fidelity: Exact 4-page print setup preservation and blank-guarded VLOOKUP formulas preventing 0 ratings on unencoded competencies.",
+              "🎯 Section-Isolated Highest Possible Score (HPS): Independent HPS management per section ensuring zero cross-contamination between classes.",
+              "⚡ Automated Grade Reconciliation: Scans local database on launch, reconnects orphaned records, guarantees full-year subject visibility, and restores PE & Health.",
               "🔒 100% backward-compatible update with zero data loss guarantee."
             ],
             timestamp: Date.now(),

@@ -77,7 +77,8 @@ export function computeSectionConsolidatedData(
   students: Student[],
   subjects: Subject[],
   classRecords: ClassRecord[],
-  schoolYear?: string
+  schoolYear?: string,
+  term?: 'all' | 1 | 2 | 3 | 4
 ): { 
   males: StudentGradeSummary[]; 
   females: StudentGradeSummary[]; 
@@ -106,7 +107,16 @@ export function computeSectionConsolidatedData(
     const crSy = cr.school_year || cr.schoolYear;
     const studentLrn = cr.student_lrn || cr.studentLrn;
     const subjectId = cr.subject_id || cr.subjectId;
-    const gradeVal = cr.final_grade ?? cr.quarterly_grade ?? cr.quarterlyGrade ?? cr.finalGrade;
+    const crQuarter = cr.quarter !== undefined && cr.quarter !== null ? Number(cr.quarter) : undefined;
+
+    // Filter by quarter if a specific term is requested
+    if (typeof term === 'number' && crQuarter !== undefined && crQuarter !== term) {
+      return;
+    }
+
+    const gradeVal = typeof term === 'number'
+      ? (cr.quarterly_grade ?? cr.quarterlyGrade ?? cr.final_grade ?? cr.finalGrade)
+      : (cr.final_grade ?? cr.quarterly_grade ?? cr.quarterlyGrade ?? cr.finalGrade);
 
     if ((!schoolYear || crSy === schoolYear) && gradeVal !== undefined && gradeVal !== null) {
       const num = typeof gradeVal === 'number' ? gradeVal : parseFloat(String(gradeVal));
@@ -202,15 +212,16 @@ function getNormalizedStudent(student: FlexibleStudent): Student {
  * Generate Consolidated Grades Excel Workbook buffer (.xlsx)
  */
 export async function generateConsolidatedExcelBuffer(params: ConsolidatedExportParams): Promise<Uint8Array> {
-  const { section, students, subjects, classRecords, schoolYear, schoolProfile } = params;
-  const { males, females, sectionAverage } = computeSectionConsolidatedData(students, subjects, classRecords, schoolYear);
+  const { section, students, subjects, classRecords, schoolYear, schoolProfile, term } = params;
+  const { males, females, sectionAverage } = computeSectionConsolidatedData(students, subjects, classRecords, schoolYear, term);
 
   const flexSec = section as FlexibleSection;
   const secName = (flexSec.section_name || flexSec.name || 'Section').toString();
   const secGrade = (flexSec.section_grade_level || flexSec.gradeLevel || '').toString();
+  const termLabel = typeof term === 'number' ? `TERM ${term}` : 'FINAL SUMMARY';
 
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet(`${secName} - Consolidated`, {
+  const ws = wb.addWorksheet(`${secName} - ${termLabel}`, {
     views: [{ state: 'frozen', xSplit: 0, ySplit: 5 }]
   });
 
@@ -221,7 +232,7 @@ export async function generateConsolidatedExcelBuffer(params: ConsolidatedExport
   ws.getCell('A1').alignment = { horizontal: 'center' };
 
   ws.mergeCells('A2:L2');
-  ws.getCell('A2').value = `CONSOLIDATED SUMMARY OF GRADES — S.Y. ${schoolYear}`;
+  ws.getCell('A2').value = `CONSOLIDATED SUMMARY OF GRADES — ${termLabel} — S.Y. ${schoolYear}`;
   ws.getCell('A2').font = { bold: true, size: 11, color: { argb: '334155' } };
   ws.getCell('A2').alignment = { horizontal: 'center' };
 
@@ -323,8 +334,9 @@ export async function generateConsolidatedExcelBuffer(params: ConsolidatedExport
  * Generate Consolidated Grades PDF buffer (.pdf)
  */
 export async function generateConsolidatedPDFBuffer(params: ConsolidatedExportParams): Promise<Uint8Array> {
-  const { section, students, subjects, classRecords, schoolYear, schoolProfile } = params;
-  const { males, females, sectionAverage } = computeSectionConsolidatedData(students, subjects, classRecords, schoolYear);
+  const { section, students, subjects, classRecords, schoolYear, schoolProfile, term } = params;
+  const { males, females, sectionAverage } = computeSectionConsolidatedData(students, subjects, classRecords, schoolYear, term);
+  const termLabel = typeof term === 'number' ? `TERM ${term}` : 'FINAL SUMMARY';
 
   // Landscape Folio / Legal format: [330.2mm x 215.9mm]
   const doc = new jsPDF({
@@ -347,7 +359,7 @@ export async function generateConsolidatedPDFBuffer(params: ConsolidatedExportPa
 
   doc.setFontSize(10);
   doc.setTextColor(51, 65, 85);
-  doc.text(`CONSOLIDATED SUMMARY OF GRADES — S.Y. ${schoolYear}`, pageWidth / 2, currentY, { align: 'center' });
+  doc.text(`CONSOLIDATED SUMMARY OF GRADES — ${termLabel} — S.Y. ${schoolYear}`, pageWidth / 2, currentY, { align: 'center' });
   currentY += 4.5;
 
   doc.setFont('helvetica', 'italic');
@@ -474,3 +486,67 @@ export async function generateConsolidatedPDFBuffer(params: ConsolidatedExportPa
   const arrayBuffer = doc.output('arraybuffer');
   return new Uint8Array(arrayBuffer);
 }
+
+/**
+ * Generates the official blank grading input template (.xlsx) for teachers to input grades,
+ * exactly matching the "Template" button in the Grade Management page.
+ */
+export async function generateGradingTemplateBuffer(
+  section: Section,
+  subjects: Subject[],
+  students: Student[],
+  term: number | string = 1
+): Promise<Uint8Array> {
+  const wb = new ExcelJS.Workbook();
+  const termLabel = typeof term === 'number' ? `Quarter ${term}` : String(term);
+
+  const males = students.filter(s => (s.gender || '').toLowerCase() === 'male');
+  const females = students.filter(s => (s.gender || '').toLowerCase() === 'female');
+
+  const validSubjects = subjects.length > 0 ? subjects : [{ id: 'sub_1', subject_name: 'Subject' } as Subject];
+
+  validSubjects.forEach(subject => {
+    const sheetName = (subject.subject_code || subject.subject_name || 'Subject')
+      .replace(/[:\\/?*[\]]/g, '')
+      .substring(0, 31);
+    const ws = wb.addWorksheet(sheetName);
+
+    // Metadata
+    ws.addRow(['SUBJECT_ID:', subject.id || '']);
+    ws.addRow(['SUBJECT_NAME:', subject.subject_name]);
+    ws.addRow(['SECTION:', section.section_name]);
+    ws.addRow(['TERM:', termLabel]);
+    ws.addRow(['INSTRUCTIONS:', 'PLEASE DO NOT EDIT COLUMNS A & B. INPUT GRADES IN COLUMN C ONLY.']);
+    ws.addRow([]);
+
+    // Header
+    const hRow = ws.addRow(['LRN', 'Learner Name', 'Grade']);
+    hRow.font = { bold: true };
+
+    // Males
+    const mHead = ws.addRow(['MALE', '', '']);
+    mHead.font = { bold: true };
+    males.forEach(st => {
+      ws.addRow([st.lrn, formatLearnerName(st), '']);
+    });
+
+    ws.addRow([]);
+
+    // Females
+    const fHead = ws.addRow(['FEMALE', '', '']);
+    fHead.font = { bold: true };
+    females.forEach(st => {
+      ws.addRow([st.lrn, formatLearnerName(st), '']);
+    });
+
+    ws.columns = [
+      { width: 20 },
+      { width: 35 },
+      { width: 12 }
+    ];
+  });
+
+  const buffer = await wb.xlsx.writeBuffer();
+  return new Uint8Array(buffer as ArrayBuffer);
+}
+

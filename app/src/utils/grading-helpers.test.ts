@@ -27,6 +27,8 @@ import {
   isSameSubject,
   cleanSubjectQuery,
   normalizeGrade12PESubjectName,
+  findHpsRecord,
+  hasHpsScores,
 } from './grading-helpers';
 import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet, HPSRecord } from '../types';
 
@@ -1418,6 +1420,157 @@ describe('Grading Helpers', () => {
       expect(foundForValues).toBeDefined();
       expect(foundForValues?.id).toBe(valuesRecord.id);
       expect(foundForValues?.final_grade).toBe(89);
+    });
+  });
+
+  describe('findHpsRecord and hasHpsScores', () => {
+    it('accurately checks if an HPS record has scores', () => {
+      expect(hasHpsScores(null)).toBe(false);
+      expect(hasHpsScores(undefined)).toBe(false);
+      expect(hasHpsScores({ written_works: ['', ''], performance_tasks: [], quarterly_exam: '' } as unknown as HPSRecord)).toBe(false);
+      expect(hasHpsScores({ written_works: [25, ''], performance_tasks: [], quarterly_exam: '' } as unknown as HPSRecord)).toBe(true);
+      expect(hasHpsScores({ written_works: [], performance_tasks: [50], quarterly_exam: '' } as unknown as HPSRecord)).toBe(true);
+      expect(hasHpsScores({ written_works: [], performance_tasks: [], quarterly_exam: 30 } as unknown as HPSRecord)).toBe(true);
+    });
+
+    it('matches HPS with soft school year formatting (SY 2026-2027 vs 2026-2027)', () => {
+      const records: HPSRecord[] = [
+        {
+          id: 'hps_sci_1',
+          subject_id: 'sub-sci',
+          school_year: 'SY 2026-2027',
+          quarter: 1,
+          section_id: 'sec-diamond',
+          written_works: [25, 25],
+          performance_tasks: [50],
+          quarterly_exam: 30
+        } as unknown as HPSRecord
+      ];
+
+      const found = findHpsRecord(records, {
+        subjectId: 'sub-sci',
+        subjectName: 'Science',
+        sectionId: 'sec-diamond',
+        quarter: 1,
+        schoolYear: '2026-2027'
+      });
+
+      expect(found).toBeDefined();
+      expect(found?.id).toBe('hps_sci_1');
+    });
+
+    it('strictly isolates sections: does NOT leak Section Rizal HPS to Section Bonifacio', () => {
+      // Teacher inputted HPS in Section Rizal (Grade 7)
+      const records: HPSRecord[] = [
+        {
+          id: 'hps_sub-sci_sec-rizal_Q1_2026-2027',
+          subject_id: 'sub-sci',
+          subject_name: 'Science',
+          school_year: '2026-2027',
+          quarter: 1,
+          section_id: 'sec-rizal',
+          written_works: [30, 30],
+          performance_tasks: [50, 50],
+          quarterly_exam: 40
+        } as unknown as HPSRecord
+      ];
+
+      // Teacher opens Section Bonifacio (also Grade 7, Science)
+      const found = findHpsRecord(records, {
+        subjectId: 'sub-sci',
+        subjectName: 'Science',
+        sectionId: 'sec-bonifacio',
+        sectionName: 'Bonifacio',
+        sectionGradeLevel: 'Grade 7',
+        quarter: 1,
+        schoolYear: '2026-2027'
+      });
+
+      // Must be undefined! Each section must have its own unique, isolated HPS!
+      expect(found).toBeUndefined();
+    });
+
+    it('allows different sections to have their own unique, independent HPS records', () => {
+      const records: HPSRecord[] = [
+        {
+          id: 'hps_sub-sci_sec-rizal_Q1_2026-2027',
+          subject_id: 'sub-sci',
+          subject_name: 'Science',
+          school_year: '2026-2027',
+          quarter: 1,
+          section_id: 'sec-rizal',
+          written_works: [25, 25],
+          performance_tasks: [40, 40],
+          quarterly_exam: 30
+        } as unknown as HPSRecord,
+        {
+          id: 'hps_sub-sci_sec-bonifacio_Q1_2026-2027',
+          subject_id: 'sub-sci',
+          subject_name: 'Science',
+          school_year: '2026-2027',
+          quarter: 1,
+          section_id: 'sec-bonifacio',
+          written_works: [35, 40],
+          performance_tasks: [60, 50],
+          quarterly_exam: 50
+        } as unknown as HPSRecord
+      ];
+
+      const rizalHps = findHpsRecord(records, {
+        subjectId: 'sub-sci',
+        subjectName: 'Science',
+        sectionId: 'sec-rizal',
+        quarter: 1,
+        schoolYear: '2026-2027'
+      });
+      expect(rizalHps?.written_works).toEqual([25, 25]);
+
+      const bonifacioHps = findHpsRecord(records, {
+        subjectId: 'sub-sci',
+        subjectName: 'Science',
+        sectionId: 'sec-bonifacio',
+        quarter: 1,
+        schoolYear: '2026-2027'
+      });
+      expect(bonifacioHps?.written_works).toEqual([35, 40]);
+    });
+
+    it('finds HPS when subject ID changed but classRecords has the matching subject name', () => {
+      const records: HPSRecord[] = [
+        {
+          id: 'hps_old-uuid_sec-1_Q1',
+          subject_id: 'old-uuid-12345',
+          school_year: '2026-2027',
+          quarter: 1,
+          section_id: 'sec-1',
+          written_works: [20, 25],
+          performance_tasks: [40, 45],
+          quarterly_exam: 30
+        } as unknown as HPSRecord
+      ];
+
+      const classRecords: ClassRecord[] = [
+        {
+          id: 'cr-1',
+          student_lrn: '123',
+          subject_id: 'old-uuid-12345',
+          subject_name: 'Science',
+          school_year: '2026-2027',
+          quarter: 1
+        } as unknown as ClassRecord
+      ];
+
+      const found = findHpsRecord(records, {
+        subjectId: 'new-canonical-sci-id',
+        subjectName: 'Science',
+        sectionId: 'sec-1',
+        quarter: 1,
+        schoolYear: '2026-2027',
+        classRecords
+      });
+
+      expect(found).toBeDefined();
+      expect(found?.id).toBe('hps_old-uuid_sec-1_Q1');
     });
   });
 });

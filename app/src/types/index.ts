@@ -333,6 +333,8 @@ export interface Subject {
     is_teaching_load?: boolean; // Flag for separate E-Class subjects
     term?: 1 | 2 | 3 | 'all' | 'none'; // The term this subject is offered in
     semester?: 1 | 2 | 'all' | 'none'; // The semester this subject is offered in (for 2-Semester SHS layout)
+    units?: number; // SSHS Units per term (e.g. 2 for Core, 3 for Academic, 4 for Tech-Pro, 12 for Immersion)
+    hours?: number; // Total subject hours (e.g. 80, 160, 320)
     written_weight?: number;
     performance_weight?: number;
     exam_weight?: number;
@@ -436,6 +438,7 @@ export interface ObservedValues {
 export interface HPSRecord {
     id: string;
     subject_id: string; // Unique per section in this system
+    subject_name?: string; // Human-readable subject name for resilient recovery & cross-section matching
     school_year: string;
     quarter: 1 | 2 | 3 | 4; // 1-3 for 3-term, 1-4 for historical
     written_works: (number | string)[];

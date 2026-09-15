@@ -1705,8 +1705,8 @@ export async function populateGrade11AcademicTemplateBuffer(
       if (typeof avg !== 'number' || avg <= 0) return '';
       if (avg >= 75) {
         const validGrades = learningAreas.filter((g): g is number => typeof g === 'number' && g > 0);
-        const hasBelow85 = validGrades.some(g => g < 85);
-        if (avg >= 90 && validGrades.length > 0 && !hasBelow85) {
+        const hasBelow80 = validGrades.some(g => g < 80);
+        if (avg >= 90 && validGrades.length > 0 && !hasBelow80) {
           return 'Promoted with Academic Excellence Award';
         }
         return 'Promoted';
@@ -1808,7 +1808,7 @@ export async function populateGrade11AcademicTemplateBuffer(
       sf9Xml = updateFormulaCellExplicit(
         sf9Xml,
         'K44',
-        'IF(J44="","",IF(J44>=75,IF(AND(J44>=90,MIN(J33,J36:J39,J41:J43)>=85),"Promoted with Academic Excellence Award","Promoted"),"Retained"))',
+        'IF(J44="","",IF(J44>=75,IF(AND(J44>=90,MIN(J33,J36:J39,J41:J43)>=80),"Promoted with Academic Excellence Award","Promoted"),"Retained"))',
         modernGenAvgRemarks,
         k44Style
       );
@@ -1950,7 +1950,7 @@ export async function populateGrade11AcademicTemplateBuffer(
       sf9Xml = updateFormulaCellExplicit(
         sf9Xml,
         'J44',
-        'IF(I44="","",IF(I44>=75,IF(AND(I44>=90,MIN(I33,I36:I39,I41:I43)>=85),"Promoted with Academic Excellence Award","Promoted"),"Retained"))',
+        'IF(I44="","",IF(I44>=75,IF(AND(I44>=90,MIN(I33,I36:I39,I41:I43)>=80),"Promoted with Academic Excellence Award","Promoted"),"Retained"))',
         genAvgRemarks,
         j44Style
       );

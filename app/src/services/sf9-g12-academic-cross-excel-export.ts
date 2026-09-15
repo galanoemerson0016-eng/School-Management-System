@@ -383,7 +383,7 @@ export function extractGrade12AcademicCrossGrades(
     remarks = generalAverage >= 75 && allPassed ? 'Passed' : (generalAverage < 75 ? 'Failed' : 'Passed');
 
     // DO 15, s. 2026 Academic Excellence criteria
-    if (generalAverage >= 90 && minGrade >= 85) {
+    if (generalAverage >= 90 && minGrade >= 80) {
       if (generalAverage >= 98) honors = 'With Highest Honors';
       else if (generalAverage >= 95) honors = 'With High Honors';
       else honors = 'With Honors';

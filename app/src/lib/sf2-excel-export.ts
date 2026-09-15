@@ -14,18 +14,103 @@ export interface SF2ExportParams {
 /**
  * Main export function. It automatically detects whether to use the JHS or SHS template.
  */
-export async function exportSF2Excel(params: SF2ExportParams) {
+export async function populateSF2Workbook(params: SF2ExportParams): Promise<ExcelJS.Workbook> {
     const gl = params.section.section_grade_level?.toLowerCase() || '';
     const isSHS = gl.includes('11') || gl.includes('12');
     const isElem = /\b(1|2|3|4|5|6|kinder|kindergarten|k)\b/.test(gl);
     
     if (isSHS) {
-        await exportSHS(params);
+        return await populateSHS(params);
     } else if (isElem) {
-        await exportJHS(params, './templates/SF2_ELEM.xlsx');
+        return await populateJHS(params, 'SF2_ELEM.xlsx');
     } else {
-        await exportJHS(params, './templates/SF2_JHS.xlsx');
+        return await populateJHS(params, 'SF2_JHS.xlsx');
     }
+}
+
+/**
+ * Headless buffer generator for SF2 Excel report using official DepEd templates
+ */
+export async function generateSF2WorkbookBuffer(params: SF2ExportParams): Promise<Uint8Array> {
+    const workbook = await populateSF2Workbook(params);
+    const buffer = await workbook.xlsx.writeBuffer();
+    return new Uint8Array(buffer as ArrayBuffer);
+}
+
+export async function exportSF2Excel(params: SF2ExportParams) {
+    const workbook = await populateSF2Workbook(params);
+    const gl = params.section.section_grade_level?.toLowerCase() || '';
+    const isSHS = gl.includes('11') || gl.includes('12');
+    const prefix = isSHS ? 'SF2_SHS' : 'SF2_JHS';
+    await downloadWorkbook(workbook, `${prefix}_${params.section.section_name}_${params.selectedMonth}.xlsx`);
+}
+
+/**
+ * Loads official SF2 template binary with browser fetch and Node/Electron filesystem fallback
+ */
+async function fetchSF2TemplateBuffer(templateFilename: string): Promise<ArrayBuffer> {
+    const cleanFilename = templateFilename.replace(/^\.?\/?templates\//, '');
+    const cleanBase = (import.meta.env.BASE_URL || './').endsWith('/') 
+        ? (import.meta.env.BASE_URL || './') 
+        : `${import.meta.env.BASE_URL || './'}/`;
+    const timestamp = Date.now();
+
+    const candidateUrls = [
+        `${cleanBase}templates/${cleanFilename}?t=${timestamp}`,
+        `/templates/${cleanFilename}?t=${timestamp}`,
+        `templates/${cleanFilename}?t=${timestamp}`,
+        `./templates/${cleanFilename}?t=${timestamp}`
+    ];
+
+    for (const url of candidateUrls) {
+        try {
+            const res = await fetch(url);
+            if (res.ok) {
+                const ab = await res.arrayBuffer();
+                const bytes = new Uint8Array(ab);
+                if (bytes.length >= 1000 && bytes[0] === 0x50 && bytes[1] === 0x4b) {
+                    return ab;
+                }
+            }
+        } catch {
+            // Try next candidate
+        }
+    }
+
+    // Node / Electron filesystem fallback
+    if (typeof process !== 'undefined' && process.versions?.node) {
+        try {
+            const fs = await import('fs');
+            const nodePath = await import('path');
+            const possibleDirs = [
+                nodePath.resolve(process.cwd(), 'app', 'public', 'templates'),
+                nodePath.resolve(process.cwd(), 'public', 'templates'),
+                ...(typeof __dirname !== 'undefined' ? [
+                    nodePath.resolve(__dirname, '../../public/templates'),
+                    nodePath.resolve(__dirname, '../public/templates')
+                ] : []),
+                ...(typeof (process as unknown as { resourcesPath?: string }).resourcesPath !== 'undefined' ? [
+                    nodePath.resolve((process as unknown as { resourcesPath: string }).resourcesPath, 'templates'),
+                    nodePath.resolve((process as unknown as { resourcesPath: string }).resourcesPath, 'app', 'public', 'templates')
+                ] : [])
+            ];
+            for (const d of possibleDirs) {
+                const p = nodePath.join(d, cleanFilename);
+                if (fs.existsSync(p)) {
+                    const buf = fs.readFileSync(p);
+                    if (buf.length >= 1000 && buf[0] === 0x50 && buf[1] === 0x4b) {
+                        const u8 = new Uint8Array(buf.byteLength);
+                        for (let i = 0; i < buf.byteLength; i++) u8[i] = buf[i];
+                        return u8.buffer;
+                    }
+                }
+            }
+        } catch {
+            // Ignore
+        }
+    }
+
+    throw new Error(`Failed to load SF2 template: ${cleanFilename}. Ensure file exists in public/templates.`);
 }
 
 /**
@@ -49,12 +134,10 @@ async function downloadWorkbook(workbook: ExcelJS.Workbook, filename: string) {
 /**
  * Junior High School SF2 Export
  */
-async function exportJHS(params: SF2ExportParams, templatePath = './templates/SF2_JHS.xlsx') {
+async function populateJHS(params: SF2ExportParams, templatePath = 'SF2_JHS.xlsx'): Promise<ExcelJS.Workbook> {
     const { schoolProfile, section, students, activeSchoolYear, selectedMonth, attendanceData, dateLabels } = params;
     
-    const response = await fetch(templatePath);
-    if (!response.ok) throw new Error(`Failed to load Template. Ensure ${templatePath} is in the public/templates/ folder.`);
-    const arrayBuffer = await response.arrayBuffer();
+    const arrayBuffer = await fetchSF2TemplateBuffer(templatePath);
     
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(arrayBuffer);
@@ -148,18 +231,16 @@ async function exportJHS(params: SF2ExportParams, templatePath = './templates/SF
         });
     });
 
-    await downloadWorkbook(workbook, `SF2_JHS_${section.section_name}_${selectedMonth}.xlsx`);
+    return workbook;
 }
 
 /**
  * Senior High School SF2 Export
  */
-async function exportSHS(params: SF2ExportParams) {
+async function populateSHS(params: SF2ExportParams): Promise<ExcelJS.Workbook> {
     const { schoolProfile, section, students, activeSchoolYear, selectedMonth, attendanceData, dateLabels } = params;
     
-    const response = await fetch('./templates/SF2_SHS.xlsx');
-    if (!response.ok) throw new Error("Failed to load SHS Template. Ensure SF2_SHS.xlsx is in the public/templates/ folder.");
-    const arrayBuffer = await response.arrayBuffer();
+    const arrayBuffer = await fetchSF2TemplateBuffer('SF2_SHS.xlsx');
     
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(arrayBuffer);
@@ -262,7 +343,7 @@ async function exportSHS(params: SF2ExportParams) {
         });
     });
 
-    await downloadWorkbook(workbook, `SF2_SHS_${section.section_name}_${selectedMonth}.xlsx`);
+    return workbook;
 }
 
 /**

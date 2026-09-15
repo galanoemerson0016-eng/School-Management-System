@@ -507,7 +507,9 @@ export async function fetchGrade4to10TemplateBuffer(): Promise<ArrayBuffer> {
         if (fs.existsSync(lp)) {
           const buf = fs.readFileSync(lp);
           if (buf.length >= 1000 && buf[0] === 0x50 && buf[1] === 0x4b) {
-            return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+            const u8 = new Uint8Array(buf.byteLength);
+            for (let i = 0; i < buf.byteLength; i++) u8[i] = buf[i];
+            return u8.buffer;
           }
         }
       }

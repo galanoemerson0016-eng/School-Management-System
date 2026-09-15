@@ -346,6 +346,152 @@ export function isSameSubject(
 }
 
 /**
+ * Helper to check if an HPS record has any recorded scores
+ */
+export function hasHpsScores(hps?: HPSRecord | null): boolean {
+    if (!hps) return false;
+    const isValid = (v: unknown) => v !== '' && v !== null && v !== undefined && !isNaN(Number(v)) && Number(v) > 0;
+    const wwHas = Array.isArray(hps.written_works) && hps.written_works.some(isValid);
+    const ptHas = Array.isArray(hps.performance_tasks) && hps.performance_tasks.some(isValid);
+    const rawQa = (hps as HPSRecord & { summative_tests?: (number | string)[] }).summative_tests;
+    const qaHas = (Array.isArray(rawQa) && rawQa.some(isValid)) || isValid(hps.quarterly_exam);
+    return wwHas || ptHas || qaHas;
+}
+
+export interface FindHpsQuery {
+    subjectId: string;
+    subjectName?: string;
+    sectionId?: string;
+    sectionName?: string;
+    sectionGradeLevel?: string;
+    quarter?: number | string;
+    schoolYear?: string;
+    subjects?: Subject[];
+    classRecords?: ClassRecord[];
+}
+
+/**
+ * Resolves the matching HPS record for a given subject, section, quarter, and school year.
+ * Performs resilient matching while strictly keeping sections isolated:
+ * 1. School Year: soft matching (supports "2026-2027", "SY 2026-2027", or empty)
+ * 2. Quarter: flexible quarter matching (1, '1', 'Q1', 'T1', etc.)
+ * 3. Subject: checks direct ID, stored hps.subject_name, subjects lookup, classRecords lookup, and fuzzy aliases
+ * 4. Section:
+ *    - Strict section match (ID, name, full name, or ID inclusion for THIS section)
+ *    - Global / unassigned section (!h.section_id or 'all')
+ *    - Strictly isolates sections: never leaks or copies HPS across different sections,
+ *      allowing teachers to assign unique HPS to each class independently.
+ */
+export function findHpsRecord(
+    hpsRecords: HPSRecord[],
+    query: FindHpsQuery
+): HPSRecord | undefined {
+    const {
+        subjectId,
+        subjectName,
+        sectionId,
+        sectionName,
+        sectionGradeLevel,
+        quarter,
+        schoolYear,
+        subjects,
+        classRecords
+    } = query;
+
+    if (!hpsRecords || hpsRecords.length === 0 || (!subjectId && !subjectName)) {
+        return undefined;
+    }
+
+    const cleanSubId = (subjectId || '').trim();
+    const cleanSubName = (subjectName || '').trim();
+
+    // Section tokens
+    const secTokens = new Set<string>();
+    if (sectionId) secTokens.add(sectionId.trim().toLowerCase());
+    if (sectionName) secTokens.add(sectionName.trim().toLowerCase());
+    if (sectionGradeLevel && sectionName) {
+        secTokens.add(`${sectionGradeLevel} - ${sectionName}`.trim().toLowerCase());
+    }
+
+    // School Year matcher
+    const isSyMatch = (sy?: string) => {
+        if (!schoolYear || !sy) return true;
+        const cleanA = schoolYear.replace(/[^0-9-]/g, '').trim();
+        const cleanB = sy.replace(/[^0-9-]/g, '').trim();
+        if (cleanA && cleanB && (cleanA === cleanB || cleanA.includes(cleanB) || cleanB.includes(cleanA))) return true;
+        return sy === schoolYear || sy.includes(schoolYear) || schoolYear.includes(sy);
+    };
+
+    // Quarter matcher
+    const isQMatch = (q: unknown) => {
+        if (quarter === undefined || quarter === null || quarter === '' || (typeof quarter === 'string' && quarter.startsWith('summary'))) {
+            return true;
+        }
+        return isQuarterMatch(q, Number(quarter) || 1);
+    };
+
+    // Subject matcher
+    const isSubMatch = (h: HPSRecord) => {
+        if (cleanSubId && h.subject_id === cleanSubId) return true;
+        
+        // Check stored subject_name
+        const hName = h.subject_name;
+        if (hName && isSameSubject(cleanSubId, cleanSubName, h.subject_id, hName)) return true;
+
+        // Check against subjects list
+        if (subjects && subjects.length > 0) {
+            const hSub = subjects.find(s => s.id === h.subject_id);
+            if (hSub && isSameSubject(cleanSubId, cleanSubName, h.subject_id, hSub.subject_name)) return true;
+        }
+
+        // Check against classRecords
+        if (classRecords && classRecords.length > 0) {
+            const crMatch = classRecords.find(cr => cr.subject_id === h.subject_id && cr.subject_name);
+            if (crMatch && isSameSubject(cleanSubId, cleanSubName, h.subject_id, crMatch.subject_name)) return true;
+        }
+
+        // Fuzzy match by name or query
+        if (cleanSubName && isMatchingSubject(cleanSubName, h.subject_id, hName)) return true;
+        if (cleanSubId && isMatchingSubject(cleanSubId, h.subject_id, hName)) return true;
+
+        return false;
+    };
+
+    // Filter candidates matching subject, quarter, and school year
+    const candidates = hpsRecords.filter(h => isSubMatch(h) && isQMatch(h.quarter) && isSyMatch(h.school_year));
+    if (candidates.length === 0) return undefined;
+
+    // Section matching:
+    // If a specific section is queried, strictly isolate sections.
+    // Teachers are free to assign different HPS to different sections;
+    // one section's HPS must never leak to or overwrite another section's HPS.
+    if (secTokens.size > 0) {
+        // 1. Strict Section Match (matches current section ID, section name, or full section title)
+        const isExactSec = (h: HPSRecord) => {
+            if (!h.section_id) return false;
+            const hSec = h.section_id.trim().toLowerCase();
+            if (secTokens.has(hSec)) return true;
+            return Array.from(secTokens).some(tok => tok.length >= 3 && (hSec.includes(tok) || h.id.toLowerCase().includes(tok)));
+        };
+        const exactSecMatch = candidates.find(isExactSec);
+        if (exactSecMatch) return exactSecMatch;
+
+        // 2. Global / unassigned section (only if record has no section_id or 'all')
+        const globalMatch = candidates.find(h => !h.section_id || h.section_id === 'all');
+        if (globalMatch) return globalMatch;
+
+        // Strictly do NOT return records belonging to other sections!
+        return undefined;
+    }
+
+    // If query did not specify any section:
+    const globalMatch = candidates.find(h => !h.section_id || h.section_id === 'all');
+    if (globalMatch) return globalMatch;
+
+    return candidates[0];
+}
+
+/**
  * Determines whether a subject is part of the teacher's active teaching load in a given section.
  * - If section.teaching_subjects is defined and has subjects, only those subjects (and subcomponents for MAPEH/ECMK)
  *   are in the teacher's personal teaching load.

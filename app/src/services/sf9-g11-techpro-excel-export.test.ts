@@ -233,7 +233,7 @@ describe('SF9 Grade 11 Technical-Professional (Tech-Pro) Excel Export Service', 
 
     // Remarks formulas and results in Column K
     expect(sheet6Xml).toContain('IF(J36&gt;=75, &quot;Passed&quot;, &quot;Failed&quot;)');
-    expect(sheet6Xml).toContain('MIN(J33,J36:J39,J41)&gt;=85'); // DO 15, s. 2026 check across the 6 learning areas
+    expect(sheet6Xml).toContain('MIN(J33,J36:J39,J41)&gt;=80'); // DO 15, s. 2026 check across the 6 learning areas
     expect(sheet6Xml).toContain('Promoted with Academic Excellence Award');
     expect(sheet6Xml).toContain('>Promoted with Academic Excellence Award<');
     expect(sheet6Xml).toContain('>Passed<');

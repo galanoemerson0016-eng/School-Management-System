@@ -1,5 +1,33 @@
 # Version History
 
+## v3.5.6 (2026-09-15)
+
+### 🚀 New Features & Enhancements
+
+- **Pre-Update Safety Vault Engine**: Automated comprehensive offline backup vault generated before updates or on demand, exporting official Excel & PDF archives of SF2, SF5, SF6, SF9, and ECR class records packaged into a secure ZIP archive.
+- **Grade 1 PACE Form 4-Page Print Fidelity**: Exact 4-page print setup preservation (print scale 62%, margins 0.25", fitToPage 1) ensuring printed documents align with DepEd standards.
+- **Competency VLOOKUP Blank-Guarding**: Native formula blank-guarding (`IF(VLOOKUP(...)="","",VLOOKUP(...))`) across PACE Form rating cells, displaying unencoded competencies as clean blank cells instead of zero.
+- **Section-Isolated Highest Possible Score (HPS)**: Independent HPS assignment per section, giving teachers complete flexibility to assign distinct HPS across sections with zero cross-contamination.
+- **Senior High School Multi-Term & Cross Exports**: High-fidelity Academic and Tech-Pro cross exports, SSHS pilot integration, and complete SCP program coverage (SPFL, SPJ, SPA, SPS, SPTVE, SSES/SPSTEM).
+
+### ⚡ Client Data Protection & Self-Healing
+
+- **Zero Data Loss Guarantee**: 100% preservation of all existing client records, raw scores, student profiles, and section assignments in IndexedDB.
+- **Automated Startup Reconciliation**: Scans local database on app launch, reconnects any orphaned grade records, and restores missing subjects before UI rendering.
+- **Guaranteed Full-Year Subject Visibility**: Forces `term: 'all'` for all Elementary (Grades 1–6) and JHS (Grades 7–10) subjects, permanently eliminating `term: 'none'` visibility filters.
+- **MAPEH Dual Component Restoration**: Automatic dual-component resolver ensuring both "Music and Arts" and "Physical Education and Health" are always accessible in ECR and grade sheets.
+
+### 🐞 Bug Fixes
+
+- Resolved issue where teachers entering HPS in one section caused unintended cross-sharing of HPS to other sections of the same subject.
+- Fixed Grade 1 PACE Form printing beyond 4 pages by locking exact print scale (62%) and margins (0.25 in).
+- Fixed Grade 1 PACE Form displaying `0` for unrated competencies by wrapping VLOOKUP references with blank-guard checks.
+- Resolved TypeScript strict type checking warnings in `school-forms-vault-service.ts`.
+
+### 📝 Notes
+
+- 100% backward-compatible update with automated database self-healing on first startup.
+
 ## v3.5.5 (2026-09-14)
 
 ### 🚀 New Features & Enhancements

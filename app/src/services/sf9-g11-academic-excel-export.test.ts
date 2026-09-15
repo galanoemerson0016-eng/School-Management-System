@@ -284,7 +284,7 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
 
     // Remarks formulas and cached results in Column K
     expect(sheet6Xml).toContain('IF(J36&gt;=75, &quot;Passed&quot;, &quot;Failed&quot;)'); // Core Subject Remarks formula
-    expect(sheet6Xml).toContain('MIN(J33,J36:J39,J41:J43)&gt;=85'); // Academic Excellence no grade below 85 check
+    expect(sheet6Xml).toContain('MIN(J33,J36:J39,J41:J43)&gt;=80'); // Academic Excellence no grade below 80 check
     expect(sheet6Xml).toContain('Promoted with Academic Excellence Award'); // General Average Academic Excellence Remarks formula
     expect(sheet6Xml).toContain('>Promoted with Academic Excellence Award<'); // General Average cached remarks
     expect(sheet6Xml).toContain('>Passed<'); // Core Subject cached remarks

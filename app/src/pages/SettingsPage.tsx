@@ -3776,12 +3776,27 @@ export function SettingsPage() {
                             </div>
 
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 3.5.5 */}
+                                {/* Version 3.5.6 */}
                                 <div className="relative pl-6">
                                     <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.5</span>
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.6</span>
                                         <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 15, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>🛡️ <strong>Pre-Update Safety Vault Engine</strong>: Automated comprehensive offline backup vault preserving complete Excel & PDF archives of SF2, SF5, SF6, SF9, and ECR class records before any updates.</li>
+                                        <li>🖨️ <strong>Grade 1 PACE Form 4-Page Print Fidelity</strong>: Exact 4-page print setup preservation and blank-guarded VLOOKUP formulas preventing 0 ratings on unencoded competencies.</li>
+                                        <li>🎯 <strong>Section-Isolated Highest Possible Score (HPS)</strong>: Independent HPS assignment per section, ensuring complete flexibility across classes without cross-contamination.</li>
+                                        <li>⚡ <strong>Automated Grade Reconciliation</strong>: Startup reconciliation engine scanning local databases on app launch, reconnecting orphaned records, unhiding Elementary/JHS subjects, and restoring PE & Health dual components.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 3.5.5 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.5</span>
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 14, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">

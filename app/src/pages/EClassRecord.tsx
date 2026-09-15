@@ -8,7 +8,7 @@ import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollment
 import { isGrade1 } from '../services/sf9-g1-excel-export';
 import { exportECRToExcel, exportECRBatchToZip, isGrade2To10, isGmrcVeSubject, normalizeSubjectForECR, isMapehSubject, isEppTleSubject, isEppTleComponent } from '../services/ecr-excel-export';
 import { exportDirectDatabaseToExcel } from '../services/database-rescue-export';
-import { isMatchingSubject, isSameSubject } from '../utils/grading-helpers';
+import { isMatchingSubject, isSameSubject, findHpsRecord } from '../utils/grading-helpers';
 
 import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
@@ -1038,26 +1038,18 @@ export function EClassRecord() {
 
         const secId = selectedSectionObj?.id || selectedSection;
         const secName = selectedSectionObj?.section_name || selectedSection;
-        const fullSecName = selectedSectionObj ? `${selectedSectionObj.section_grade_level} - ${selectedSectionObj.section_name}` : selectedSection;
 
-        const record = hpsRecords.find(r =>
-            (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id))) &&
-            r.school_year === activeSchoolYear &&
-            Number(r.quarter) === quarter &&
-            (
-                r.section_id === secId ||
-                r.section_id === secName ||
-                r.section_id === fullSecName ||
-                r.section_id === selectedSection ||
-                (secId && r.id.includes(secId)) ||
-                (secName && r.id.includes(secName))
-            )
-        ) || hpsRecords.find(r =>
-            (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id))) &&
-            r.school_year === activeSchoolYear &&
-            Number(r.quarter) === quarter &&
-            !r.section_id
-        );
+        const record = findHpsRecord(hpsRecords, {
+            subjectId: effectiveSubjectId,
+            subjectName: subjectName || selectedSubjectObj?.subject_name,
+            sectionId: secId,
+            sectionName: secName,
+            sectionGradeLevel: selectedSectionObj?.section_grade_level,
+            quarter,
+            schoolYear: activeSchoolYear,
+            subjects,
+            classRecords
+        });
 
         const rawQa = (record as (HPSRecord & { summative_tests?: (number | string)[] }) | undefined)?.summative_tests;
 
@@ -1076,7 +1068,7 @@ export function EClassRecord() {
             pt: hps_pt,
             qa: hps_qa
         };
-    }, [hpsRecords, effectiveSubjectId, subjectName, activeSchoolYear, quarter, selectedSection, selectedSectionObj, isGMRCSubject]);
+    }, [hpsRecords, effectiveSubjectId, subjectName, selectedSubjectObj, activeSchoolYear, quarter, selectedSection, selectedSectionObj, isGMRCSubject, subjects, classRecords]);
 
     const isTermExamHpsMissing = useMemo(() => {
         if (!hps || !hps.qa) return false;
@@ -1587,52 +1579,46 @@ export function EClassRecord() {
 
         const secId = selectedSectionObj?.id || sections.find(s => s.id === selectedSection || s.section_name === selectedSection)?.id || selectedSection;
         const secName = selectedSectionObj?.section_name || selectedSection;
-        const fullSecName = selectedSectionObj ? `${selectedSectionObj.section_grade_level} - ${selectedSectionObj.section_name}` : selectedSection;
 
         const stateHpsRecords = useAppStore.getState().hpsRecords;
-        const existingRecord = stateHpsRecords.find(r =>
-            r.subject_id === effectiveSubjectId &&
-            r.school_year === activeSchoolYear &&
-            Number(r.quarter) === (quarter as number) &&
-            (
-                r.section_id === secId ||
-                r.section_id === secName ||
-                r.section_id === fullSecName ||
-                r.section_id === selectedSection ||
-                (secId && r.id.includes(secId)) ||
-                (secName && r.id.includes(secName))
-            )
-        );
+        const currentSubjects = useAppStore.getState().subjects;
+        const currentClassRecords = useAppStore.getState().classRecords;
+        const currentSubName = subjectName || selectedSubjectObj?.subject_name || currentSubjects.find(s => s.id === effectiveSubjectId)?.subject_name || '';
 
-        const legacyRecord = !existingRecord ? stateHpsRecords.find(r =>
-            r.subject_id === effectiveSubjectId &&
-            r.school_year === activeSchoolYear &&
-            Number(r.quarter) === (quarter as number) &&
-            !r.section_id
-        ) : null;
+        const existingRecord = findHpsRecord(stateHpsRecords, {
+            subjectId: effectiveSubjectId,
+            subjectName: currentSubName,
+            sectionId: secId,
+            sectionName: secName,
+            sectionGradeLevel: selectedSectionObj?.section_grade_level,
+            quarter,
+            schoolYear: activeSchoolYear,
+            subjects: currentSubjects,
+            classRecords: currentClassRecords
+        });
 
         const activeWwCount = isGMRCSubject ? GMRC_WW_COUNT : WW_COUNT;
         const activePtCount = isGMRCSubject ? GMRC_PT_COUNT : PT_COUNT;
 
-        const newRecord: HPSRecord = existingRecord ? { ...existingRecord, section_id: secId } : {
+        const newRecord: HPSRecord = existingRecord ? {
+            ...existingRecord,
+            subject_id: effectiveSubjectId,
+            subject_name: currentSubName || existingRecord.subject_name,
+            school_year: activeSchoolYear || existingRecord.school_year,
+            section_id: secId
+        } : {
             id: `hps_${effectiveSubjectId}_${secId}_Q${quarter}_${activeSchoolYear}`,
             subject_id: effectiveSubjectId,
+            subject_name: currentSubName,
             school_year: activeSchoolYear,
             quarter: quarter as any,
-            written_works: legacyRecord ? [...legacyRecord.written_works] : Array(activeWwCount).fill(''),
-            performance_tasks: legacyRecord ? [...legacyRecord.performance_tasks] : Array(activePtCount).fill(''),
-            quarterly_exam: legacyRecord ? legacyRecord.quarterly_exam : '',
+            written_works: Array(activeWwCount).fill(''),
+            performance_tasks: Array(activePtCount).fill(''),
+            quarterly_exam: '',
             section_id: secId
         };
 
         const hpsWithSummative = newRecord as HPSRecord & { summative_tests?: (number | string)[] };
-        
-        if (legacyRecord) {
-            const legacyWithSummative = legacyRecord as HPSRecord & { summative_tests?: (number | string)[] };
-            if (legacyWithSummative.summative_tests) {
-                hpsWithSummative.summative_tests = [...legacyWithSummative.summative_tests];
-            }
-        }
 
         const currentQa = normalizeScores(hpsWithSummative.summative_tests, ST_COUNT);
         

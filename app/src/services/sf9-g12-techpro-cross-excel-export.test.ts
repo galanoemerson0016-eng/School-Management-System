@@ -95,11 +95,11 @@ describe('SF9 Grade 12 TechPro with Cross-Specialization Excel Export', () => {
       expect(res.wi).toBe(94);
       expect(res.generalAverage).toBe(92);
       expect(res.generalAverageRemarks).toBe('Passed');
-      expect(res.honors).toBe('With Honors'); // min grade is 89 (>= 85), avg 92
+      expect(res.honors).toBe('With Honors'); // min grade is 89 (>= 80), avg 92
     });
 
     it('evaluates DO 15, s. 2026 Academic Excellence criteria correctly', () => {
-      // Highest Honors: Gen Avg >= 98, all >= 85
+      // Highest Honors: Gen Avg >= 98, all >= 80
       const highestGrades: Record<string, unknown> = {
         'TechPro Elective 2': { q1: 98 },
         'Academic Elective 1': { q2: 98 },
@@ -112,12 +112,12 @@ describe('SF9 Grade 12 TechPro with Cross-Specialization Excel Export', () => {
       expect(highRes.generalAverage).toBeGreaterThanOrEqual(98);
       expect(highRes.honors).toBe('With Highest Honors');
 
-      // Disqualified if any grade < 85
+      // Disqualified if any grade < 80
       const disqualifiedGrades: Record<string, unknown> = {
         'TechPro Elective 2': { q1: 96 },
         'Academic Elective 1': { q2: 96 },
         'Academic Elective 2': { q2: 96 },
-        'Academic Elective 3': { q2: 84 }, // < 85
+        'Academic Elective 3': { q2: 79 }, // < 80
         'Academic Elective 4': { q2: 96 },
         'Work Immersion for TechPro Track': { q3: 98 },
       };

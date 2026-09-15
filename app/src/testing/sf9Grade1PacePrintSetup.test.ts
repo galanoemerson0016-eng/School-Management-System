@@ -53,7 +53,7 @@ describe('Grade 1 Master ECR, PACE, and SF9 Export - PACE Form Print Setup', () 
     }
   };
 
-  it('populates the 17-sheet master workbook and sets strictly 4-page print configuration for PACE - GRADE 1', async () => {
+  it('populates the 17-sheet master workbook and preserves native 4-page print configuration for PACE - GRADE 1', async () => {
     const templateBuffer = fs.readFileSync(templatePath);
     const arrayBuffer = templateBuffer.buffer.slice(
       templateBuffer.byteOffset,
@@ -64,42 +64,38 @@ describe('Grade 1 Master ECR, PACE, and SF9 Export - PACE Form Print Setup', () 
     expect(outBuffer.byteLength).toBeGreaterThan(1000);
     const zip = await JSZip.loadAsync(outBuffer);
 
-    // 1. Verify xl/workbook.xml contains _xlnm.Print_Area for PACE - GRADE 1 (localSheetId=6)
+    // 1. Verify xl/workbook.xml does NOT inject artificial Print_Area in full workbook export
     const wbXml = await zip.file('xl/workbook.xml')!.async('string');
-    expect(wbXml).toContain('<definedName name="_xlnm.Print_Area" localSheetId="6">\'PACE - GRADE 1\'!$A$1:$T$311</definedName>');
+    expect(wbXml).not.toContain('<definedName name="_xlnm.Print_Area" localSheetId="6">\'PACE - GRADE 1\'!$A$1:$T$311</definedName>');
 
-    // 2. Verify sheet7.xml has correct print configuration
+    // 2. Verify sheet7.xml preserves official DepEd template print configuration (strictly 4 pages)
     const paceXml = await zip.file('xl/worksheets/sheet7.xml')!.async('string');
 
-    // Dimension must end at row 311
-    expect(paceXml).toContain('<dimension ref="A1:T311"/>');
+    // sheetPr must preserve fitToPage="1" so Excel fits width to 1 page
+    expect(paceXml).toContain('fitToPage="1"');
 
-    // sheetPr must contain fitToPage="0" so Excel scales explicitly at 53%
-    expect(paceXml).toContain('fitToPage="0"');
+    // pageMargins must preserve template margins (0.25" all around)
+    expect(paceXml).toContain('<pageMargins left="0.25" right="0.25" top="0.25" bottom="0.25" header="0" footer="0"/>');
 
-    // pageMargins must reserve bottom="0.55" for Epson hardware margins
-    expect(paceXml).toContain('bottom="0.55"');
+    // pageSetup must preserve paperSize="9" (A4), scale="62", fitToHeight="0"
+    expect(paceXml).toContain('<pageSetup paperSize="9" scale="62" fitToHeight="0" orientation="portrait"');
 
-    // pageSetup must use paperSize="9" (A4), scale="53"
-    expect(paceXml).toContain('<pageSetup paperSize="9" scale="53" orientation="portrait"');
+    // printOptions must preserve horizontal centering
+    expect(paceXml).toContain('<printOptions horizontalCentered="1"/>');
 
-    // rowBreaks must contain exact manual breaks after rows 86, 163, and 245
-    expect(paceXml).toContain('<rowBreaks count="3" manualBreakCount="3">');
-    expect(paceXml).toContain('<brk id="86" max="19" man="1"/>');
-    expect(paceXml).toContain('<brk id="163" max="19" man="1"/>');
-    expect(paceXml).toContain('<brk id="245" max="19" man="1"/>');
+    // No manual rowBreaks (which fragment pages across printers)
+    expect(paceXml).not.toContain('<rowBreaks');
 
-    // printOptions must be centered
-    expect(paceXml).toContain('<printOptions horizontalCentered="1" verticalCentered="1"/>');
+    // 3. Verify SF9 (sheet3.xml) formulas and values are intact
+    const sf9Xml = await zip.file('xl/worksheets/sheet3.xml')!.async('string');
+    expect(sf9Xml).toContain('<c r="D15"');
+    expect(sf9Xml).toContain('DELA CRUZ, JUAN');
+    expect(sf9Xml).toContain('VLOOKUP(D15,\'TERM 1 SUMMARY\'!C14:S114,4,0)');
+    expect(sf9Xml).toContain('<pageSetup paperSize="9" scale="65" orientation="portrait"');
 
-    // Must not have rows beyond 311
-    const row312Match = paceXml.match(/<row\s+r="(\d+)"/g);
-    if (row312Match) {
-      for (const rm of row312Match) {
-        const rNum = parseInt(rm.replace(/[^0-9]/g, ''), 10);
-        expect(rNum).toBeLessThanOrEqual(311);
-      }
-    }
+    // 4. Verify PACE rating formulas are guarded so unrated cells stay blank instead of resulting in 0
+    expect(paceXml).toContain('IF(VLOOKUP(G6,\'TERM 1 READING &amp; LITERACY\'!C15:DG115,9,0)="","",VLOOKUP(G6,\'TERM 1 READING &amp; LITERACY\'!C15:DG115,9,0))');
+    expect(paceXml).not.toContain('<v>0</v>');
   });
 
   it('handles single-subject PACE form isolation correctly (1 page)', async () => {

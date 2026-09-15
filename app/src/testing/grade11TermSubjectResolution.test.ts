@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { getSubjectsForGrade, normalizeSubjectName, getCanonicalSubjectKey } from '../lib/subjectConfig';
-import { getDefaultTermForSubject, getCurriculumTemplatesForSection, isGrade11CoreSubject } from '../lib/curriculum';
+import { getDefaultTermForSubject, getCurriculumTemplatesForSection, isGrade11CoreSubject, getShsSubjectUnitInfo, resolveSubjectOfferedTerms } from '../lib/curriculum';
+import { resolveSSHSMetadata } from '../services/sshs-excel-export';
 import { isMatchingSubject, isSameSubject, extractSubjectSequence, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
 import type { Subject, Section } from '../types';
 
@@ -396,5 +397,63 @@ describe('Grade 11 Subject & Term Resolution in Grade Management', () => {
 
         expect(term2Names).toContain('Chemistry 2');
         expect(term2Names).not.toContain('Chemistry 1');
+    });
+
+    it('accurately resolves units and terms for SSHS Grade 11 Biology 1 and Core subjects (DO 015 & 017 s. 2026)', () => {
+        // 1. Biology 1 in STEM Academic Cluster: 80 hours per term = 3 units per term, 3 units per year (1 term)
+        const bio1Unit = getShsSubjectUnitInfo('Biology 1', 'Grade 11');
+        expect(bio1Unit.unitsPerTerm).toBe(3);
+        expect(bio1Unit.yearUnits).toBe(3);
+        expect(bio1Unit.category).toBe('academic_elective');
+
+        const bioSubject: Subject = {
+            id: 'sub-bio1',
+            subject_name: 'BIOLOGY 1',
+            grade_level: 'Grade 11',
+            term: 1
+        };
+        const bioMeta = resolveSSHSMetadata(bioSubject, 11);
+        expect(bioMeta.category).toBe('SSHS - ACADEMIC');
+        expect(bioMeta.cluster).toBe('SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS');
+        expect(bioMeta.unitsPerTerm).toBe(3);
+        expect(bioMeta.terms).toBe(1);
+        expect(bioMeta.unitsPerYear).toBe(3);
+
+        // 2. Biology 1 offered across 2 terms (override: '1,2')
+        const offeredTerms = resolveSubjectOfferedTerms(
+            { subject_name: 'BIOLOGY 1', term: '1,2' },
+            { section_grade_level: 'Grade 11' }
+        );
+        expect(offeredTerms).toEqual([1, 2]);
+
+        // 3. Core Subject (General Mathematics): 160 hours across 3 terms = 2 units per term, 6 units per year
+        const genMathUnit = getShsSubjectUnitInfo('General Mathematics', 'Grade 11');
+        expect(genMathUnit.unitsPerTerm).toBe(2);
+        expect(genMathUnit.yearUnits).toBe(6);
+        expect(genMathUnit.category).toBe('core');
+
+        const mathSubject: Subject = {
+            id: 'sub-math',
+            subject_name: 'GENERAL MATHEMATICS',
+            grade_level: 'Grade 11',
+            term: 'all'
+        };
+        const mathMeta = resolveSSHSMetadata(mathSubject, 11);
+        expect(mathMeta.category).toBe('SSHS - CORE');
+        expect(mathMeta.unitsPerTerm).toBe(2);
+        expect(mathMeta.terms).toBe(3);
+        expect(mathMeta.unitsPerYear).toBe(6);
+
+        // 4. Custom units override on Subject model (e.g. user set custom 4 units)
+        const customSubject: Subject = {
+            id: 'sub-custom',
+            subject_name: 'BIOLOGY 1',
+            grade_level: 'Grade 11',
+            units: 4 as any,
+            term: 1
+        };
+        const customMeta = resolveSSHSMetadata(customSubject, 11);
+        expect(customMeta.unitsPerTerm).toBe(4);
+        expect(customMeta.unitsPerYear).toBe(4);
     });
 });

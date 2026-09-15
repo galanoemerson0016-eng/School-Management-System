@@ -3250,7 +3250,7 @@ export function ReportsPage() {
                                     Academic Excellence Awards
                                 </h3>
                                 <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 font-medium leading-relaxed">
-                                    Certified qualifiers for With Honors (90–94), High Honors (95–97), and Highest Honors (98–100) per Term.
+                                    Certified qualifiers for Academic Excellence Award (GA ≥ 90 with no grade below 80) per Term.
                                 </p>
                             </div>
                         </div>

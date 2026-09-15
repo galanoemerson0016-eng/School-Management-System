@@ -1370,6 +1370,42 @@ export async function fetchSHSG12TemplateBuffer(layout: SHSG12TemplateLayout = '
     }
   }
 
+  // Node / Electron filesystem fallback
+  if (typeof process !== 'undefined' && process.versions?.node) {
+    try {
+      const fs = await import('fs');
+      const nodePath = await import('path');
+      const possibleDirs = [
+        nodePath.resolve(process.cwd(), 'app', 'public', 'templates'),
+        nodePath.resolve(process.cwd(), 'public', 'templates'),
+        ...(typeof __dirname !== 'undefined' ? [
+          nodePath.resolve(__dirname, '../../public/templates'),
+          nodePath.resolve(__dirname, '../public/templates')
+        ] : []),
+        ...(typeof (process as unknown as { resourcesPath?: string }).resourcesPath !== 'undefined' ? [
+          nodePath.resolve((process as unknown as { resourcesPath: string }).resourcesPath, 'templates'),
+          nodePath.resolve((process as unknown as { resourcesPath: string }).resourcesPath, 'app', 'public', 'templates')
+        ] : [])
+      ];
+
+      for (const dir of possibleDirs) {
+        for (const f of [templateName, TEMPLATE_SHS_G12_UPDATED, TEMPLATE_SHS_G12]) {
+          const fullPath = nodePath.join(dir, f);
+          if (fs.existsSync(fullPath)) {
+            const buf = fs.readFileSync(fullPath);
+            if (buf.length >= 1000 && buf[0] === 0x50 && buf[1] === 0x4b) {
+              const u8 = new Uint8Array(buf.byteLength);
+              for (let i = 0; i < buf.byteLength; i++) u8[i] = buf[i];
+              return u8;
+            }
+          }
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
   throw new Error(`Failed to load valid SHS Grade 12 template: ${templateName}. Please ensure the template file exists in public/templates.`);
 }
 

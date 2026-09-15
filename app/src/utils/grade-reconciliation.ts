@@ -342,6 +342,12 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
 
     // 3. Reconcile HPSRecords
     const updatedHpsRecords = hpsRecords.map((hps) => {
+        // Derive known subject name from any available source (hps.subject_name, classRecords, gradingSheetRecords, workingSubjects)
+        const relatedCr = classRecords.find(cr => cr.subject_id === hps.subject_id && cr.subject_name);
+        const relatedGs = gradingSheetRecords.find(gs => gs.subject_id === hps.subject_id && gs.subject_name);
+        const relatedSub = workingSubjects.find(s => s.id === hps.subject_id);
+        const knownSubName = hps.subject_name || relatedCr?.subject_name || relatedGs?.subject_name || relatedSub?.subject_name;
+
         if (duplicateIdToCanonicalMap.has(hps.subject_id)) {
             const canonical = duplicateIdToCanonicalMap.get(hps.subject_id)!;
             ensureSubjectActive(canonical);
@@ -350,20 +356,30 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
             return {
                 ...hps,
                 subject_id: canonical.id,
+                subject_name: hps.subject_name || canonical.subject_name,
                 id: `hps_${canonical.id}_${hps.section_id || 'all'}_${hps.school_year || ''}_Q${hps.quarter}`
             };
         }
 
         if (currentSubjectIds.has(hps.subject_id)) {
             const existingSub = workingSubjects.find(s => s.id === hps.subject_id);
-            if (existingSub) ensureSubjectActive(existingSub);
+            if (existingSub) {
+                ensureSubjectActive(existingSub);
+                if (!hps.subject_name) {
+                    modified = true;
+                    return {
+                        ...hps,
+                        subject_name: existingSub.subject_name
+                    };
+                }
+            }
             return hps;
         }
 
         const gradeHint = hps.section_id ? sectionGradeMap.get(hps.section_id) : undefined;
-        let matchedSub = findMatchingSubject(hps.subject_id, undefined, gradeHint);
+        let matchedSub = findMatchingSubject(hps.subject_id, knownSubName, gradeHint);
         if (!matchedSub) {
-            matchedSub = resurrectMissingSubject(hps.subject_id, undefined, gradeHint);
+            matchedSub = resurrectMissingSubject(hps.subject_id, knownSubName, gradeHint);
         }
 
         repairedCount++;
@@ -371,6 +387,7 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
         return {
             ...hps,
             subject_id: matchedSub.id,
+            subject_name: matchedSub.subject_name,
             id: `hps_${matchedSub.id}_${hps.section_id || 'all'}_${hps.school_year || ''}_Q${hps.quarter}`
         };
     });

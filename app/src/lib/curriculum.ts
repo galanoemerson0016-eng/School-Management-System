@@ -1067,6 +1067,9 @@ export function resolveSubjectOfferedTerms(
         const override = subjectTermsMeta[sub.subject_name];
         if (override !== undefined) {
             if (override === 'all') return [1, 2, 3];
+            if (typeof override === 'string' && override.includes(',')) {
+                return override.split(',').map(n => Number(n.trim())).filter(n => n >= 1 && n <= 3);
+            }
             const num = Number(override);
             if (num === 1) return [1];
             if (num === 2) return [2];
@@ -1080,6 +1083,9 @@ export function resolveSubjectOfferedTerms(
     if (sTerm === 1 || sTerm === '1') return [1];
     if (sTerm === 2 || sTerm === '2') return [2];
     if (sTerm === 3 || sTerm === '3') return [3];
+    if (typeof sTerm === 'string' && sTerm.includes(',')) {
+        return (sTerm as string).split(',').map(n => Number(n.trim())).filter(n => n >= 1 && n <= 3);
+    }
 
     // 3. For Grade 11 Core subjects: DO 017 s. 2026 mandates all 3 terms
     if (gradeNum === 11 && isGrade11CoreSubject(sub.subject_name)) {

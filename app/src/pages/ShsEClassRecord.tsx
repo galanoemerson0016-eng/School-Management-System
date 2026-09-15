@@ -8,8 +8,8 @@ import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollment
 import { exportSSHSEClassRecord, resolveSSHSMetadata, SSHS_GRADE11_CATALOG } from '../services/sshs-excel-export';
 import { exportSHSG12EClassRecord, resolveSHSG12Terms } from '../services/shs-g12-excel-export';
 import { exportDirectDatabaseToExcel } from '../services/database-rescue-export';
-import { isGrade11CoreSubject, SSHS_ELECTIVE_CATALOG } from '../lib/curriculum';
-import { isMatchingSubject, isSameSubject } from '../utils/grading-helpers';
+import { isGrade11CoreSubject, getDefaultTermForSubject, getShsSubjectUnitInfo, SSHS_ELECTIVE_CATALOG } from '../lib/curriculum';
+import { isMatchingSubject, isSameSubject, findHpsRecord } from '../utils/grading-helpers';
 
 import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
@@ -594,20 +594,33 @@ export function ShsEClassRecord() {
         }
     }, [globalSubject, selectedSubject]);
 
-    // Reset offered terms override on subject switch
-    useEffect(() => {
-        setOfferedTermsOverride('auto');
-    }, [selectedSubject]);
-
-    // Get the selected section's grade level
+    // Get the selected section's grade level and selected subject
     const selectedSectionObj = useMemo(() => {
         return sections.find(s => s.id === selectedSection || s.section_name === selectedSection);
     }, [sections, selectedSection]);
 
     const sectionGradeLevel = selectedSectionObj?.section_grade_level || '';
+    const isSectionG11 = (sectionGradeLevel || '').includes('11');
+
     const selectedSubjectObj = useMemo(() => {
         return subjects.find(s => s.id === selectedSubject);
     }, [subjects, selectedSubject]);
+
+    const sshsMeta = useMemo(() => {
+        if (!selectedSubjectObj) return null;
+        return resolveSSHSMetadata(selectedSubjectObj, isSectionG11 ? 11 : 12);
+    }, [selectedSubjectObj, isSectionG11]);
+
+    // Sync offered terms override with saved subject / section configuration
+    useEffect(() => {
+        const subjectTermsMeta = (selectedSectionObj?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, unknown> | undefined;
+        const savedTerm = (selectedSubjectObj ? subjectTermsMeta?.[selectedSubjectObj.subject_name] : undefined) ?? selectedSubjectObj?.term;
+        if (savedTerm !== undefined && savedTerm !== null && savedTerm !== 'auto') {
+            setOfferedTermsOverride(String(savedTerm));
+        } else {
+            setOfferedTermsOverride('auto');
+        }
+    }, [selectedSubject, selectedSubjectObj, selectedSectionObj]);
 
     const sectionStudents = useMemo(() => {
         if (!selectedSection) return [];
@@ -669,29 +682,45 @@ export function ShsEClassRecord() {
             return offeredTermsOverride.split(',').map(n => Number(n.trim())).filter(n => n >= 1 && n <= 3);
         }
 
-        const subjectTermsMeta = (selectedSectionObj?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, 1 | 2 | 3 | 'all' | 'none'> | undefined;
-        const effTerm = (selectedSubjectObj ? subjectTermsMeta?.[selectedSubjectObj.subject_name] : undefined) ?? selectedSubjectObj?.term;
+        if (!selectedSubjectObj) return [1, 2, 3];
 
-        if (effTerm === 1) return [1];
-        if (effTerm === 2) return [2];
-        if (effTerm === 3) return [3];
+        const subjectTermsMeta = (selectedSectionObj?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, 1 | 2 | 3 | 'all' | 'none' | string> | undefined;
+        const effTerm = subjectTermsMeta?.[selectedSubjectObj.subject_name] ?? selectedSubjectObj.term;
+
+        if (effTerm === 'all') return [1, 2, 3];
+        if (effTerm === 1 || effTerm === '1') return [1];
+        if (effTerm === 2 || effTerm === '2') return [2];
+        if (effTerm === 3 || effTerm === '3') return [3];
+        if (typeof effTerm === 'string' && effTerm.includes(',')) {
+            return effTerm.split(',').map(n => Number(n.trim())).filter(n => n >= 1 && n <= 3);
+        }
         if (effTerm === 'none') return [];
 
-        // Smart Auto-detection: If grades ONLY exist in a single term (e.g. only Term 1),
-        // or a specific subset of terms, collapse to those terms so unoffered terms don't render blank columns!
-        if (activeTermsWithGrades.length > 0 && activeTermsWithGrades.length < 3) {
+        // Grade 11 Core Subjects: DO 017, s. 2026 mandates all 3 terms
+        const isG11 = (sectionGradeLevel || '').includes('11');
+        if (isG11 && isGrade11CoreSubject(selectedSubjectObj.subject_name)) {
+            return [1, 2, 3];
+        }
+
+        // Default catalog term based on curriculum sequence (e.g. Bio 1 = Term 1, Bio 2 = Term 2)
+        const defTerm = getDefaultTermForSubject(selectedSubjectObj.subject_name, sectionGradeLevel);
+        if (defTerm === 1) return [1];
+        if (defTerm === 2) return [2];
+        if (defTerm === 3) return [3];
+        if (defTerm === 'all') return [1, 2, 3];
+
+        // Smart check: If grades exist in a subset of terms, use those
+        if (activeTermsWithGrades.length > 0) {
             return activeTermsWithGrades;
         }
 
-        // For SSHS Grade 11, subjects are modular single-term offerings (80 hours per term).
-        // If no grades exist across other terms, default to the current active term (e.g. Term 1).
-        const isG11 = (sectionGradeLevel || '').includes('11');
-        if (isG11) {
-            return [lastNumericTerm || 1];
+        // If in SSHS catalog: check sshsMeta.terms
+        if (sshsMeta?.terms === 1) {
+            return [1];
         }
 
         return [1, 2, 3];
-    }, [offeredTermsOverride, selectedSectionObj, selectedSubjectObj, activeTermsWithGrades, sectionGradeLevel, lastNumericTerm]);
+    }, [offeredTermsOverride, selectedSectionObj, selectedSubjectObj, sectionGradeLevel, activeTermsWithGrades, sshsMeta?.terms]);
 
     const isSingleTerm = offeredTerms.length === 1;
     const singleTermNum = isSingleTerm ? offeredTerms[0] : (lastNumericTerm || 1);
@@ -699,16 +728,17 @@ export function ShsEClassRecord() {
     const handleSetOfferedTerms = async (val: string) => {
         setOfferedTermsOverride(val);
         if (selectedSubjectObj) {
-            const newTerm: 1 | 2 | 3 | 'all' = val === 'auto'
+            const newTerm: 1 | 2 | 3 | 'all' | string = val === 'auto'
                 ? (activeTermsWithGrades.length === 1 ? (activeTermsWithGrades[0] as 1 | 2 | 3) : 'all')
                 : val === '1' ? 1
                 : val === '2' ? 2
                 : val === '3' ? 3
-                : 'all';
+                : val === 'all' ? 'all'
+                : val;
 
             await updateSubject({
                 ...selectedSubjectObj,
-                term: newTerm
+                term: (typeof newTerm === 'string' && newTerm.includes(',')) ? 'all' : (newTerm as any)
             });
 
             if (selectedSectionObj) {
@@ -726,6 +756,16 @@ export function ShsEClassRecord() {
                 });
             }
             showNotification(`Updated ${selectedSubjectObj.subject_name} offering to ${val === '1' ? 'Term 1 Only' : val === '2' ? 'Term 2 Only' : val === '3' ? 'Term 3 Only' : val === '1,2' ? 'Terms 1 & 2' : val === '2,3' ? 'Terms 2 & 3' : 'All Terms'}.`, 'success');
+        }
+    };
+
+    const handleSetSubjectUnits = async (val: number) => {
+        if (selectedSubjectObj) {
+            await updateSubject({
+                ...selectedSubjectObj,
+                units: val
+            });
+            showNotification(`Updated ${selectedSubjectObj.subject_name} to ${val} units per term.`, 'success');
         }
     };
 
@@ -1051,26 +1091,18 @@ export function ShsEClassRecord() {
 
         const secId = selectedSectionObj?.id || selectedSection;
         const secName = selectedSectionObj?.section_name || selectedSection;
-        const fullSecName = selectedSectionObj ? `${selectedSectionObj.section_grade_level} - ${selectedSectionObj.section_name}` : selectedSection;
 
-        const record = hpsRecords.find(r =>
-            (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id))) &&
-            r.school_year === activeSchoolYear &&
-            Number(r.quarter) === quarter &&
-            (
-                r.section_id === secId ||
-                r.section_id === secName ||
-                r.section_id === fullSecName ||
-                r.section_id === selectedSection ||
-                (secId && r.id.includes(secId)) ||
-                (secName && r.id.includes(secName))
-            )
-        ) || hpsRecords.find(r =>
-            (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id))) &&
-            r.school_year === activeSchoolYear &&
-            Number(r.quarter) === quarter &&
-            !r.section_id
-        );
+        const record = findHpsRecord(hpsRecords, {
+            subjectId: effectiveSubjectId,
+            subjectName: subjectName || selectedSubjectObj?.subject_name,
+            sectionId: secId,
+            sectionName: secName,
+            sectionGradeLevel: selectedSectionObj?.section_grade_level,
+            quarter,
+            schoolYear: activeSchoolYear,
+            subjects,
+            classRecords
+        });
 
         const rawQa = (record as (HPSRecord & { summative_tests?: (number | string)[] }) | undefined)?.summative_tests;
 
@@ -1099,7 +1131,7 @@ export function ShsEClassRecord() {
             pt: hps_pt,
             qa: hps_qa
         };
-    }, [hpsRecords, effectiveSubjectId, subjectName, activeSchoolYear, quarter, selectedSection, selectedSectionObj, activeWwCount, activePtCount, useThreeExamLayout]);
+    }, [hpsRecords, effectiveSubjectId, subjectName, selectedSubjectObj, activeSchoolYear, quarter, selectedSection, selectedSectionObj, activeWwCount, activePtCount, useThreeExamLayout, subjects, classRecords]);
 
     const isTermExamHpsMissing = useMemo(() => {
         if (!hps || !hps.qa) return false;
@@ -1161,11 +1193,6 @@ export function ShsEClassRecord() {
         return Math.max(145, Math.ceil(maxLearnerNameLength * 6.0 + 14));
     }, [maxLearnerNameLength]);
 
-    const sshsMeta = useMemo(() => {
-        if (!selectedSubjectObj) return null;
-        return resolveSSHSMetadata(selectedSubjectObj, isGrade11 ? 11 : 12);
-    }, [selectedSubjectObj, isGrade11]);
-
     const displayGradeNum = sectionGradeLevel.match(/\d+/)?.[0] || (isGrade11 ? '11' : '12');
     const displaySectionClean = (selectedSectionObj?.section_name || selectedSection)
         .replace(new RegExp(`Grade\\s*${displayGradeNum}`, 'i'), '')
@@ -1173,8 +1200,32 @@ export function ShsEClassRecord() {
         .trim();
     const displaySubjectName = (isSSHS ? (sshsMeta?.subject || selectedSubjectObj?.subject_name || subjectName || '') : (selectedSubjectObj?.subject_name || subjectName || '')).toUpperCase();
     const displayCluster = (isSSHS ? (sshsMeta?.cluster || currentCluster || 'CORE') : (sectionTrack || currentCluster || 'CORE')).toUpperCase();
-    const unitsPerTerm = (sshsMeta?.terms === 3 ? 2 : ((selectedSubjectObj as any)?.hours ? Math.round((selectedSubjectObj as any).hours / 40) : 2)) || 2;
-    const unitsPerYear = (sshsMeta ? (sshsMeta.terms * unitsPerTerm) : 6) || 6;
+    const unitsPerTerm = useMemo(() => {
+        // 1. Explicit units override on Subject model
+        const explicitUnits = Number((selectedSubjectObj as any)?.units);
+        if (!isNaN(explicitUnits) && explicitUnits > 0) return explicitUnits;
+
+        // 2. Explicit hours on Subject model
+        const explicitHours = Number((selectedSubjectObj as any)?.hours);
+        if (!isNaN(explicitHours) && explicitHours > 0) {
+            if (explicitHours >= 320) return isGrade11 ? 4 : 12;
+            if (explicitHours >= 160) return offeredTerms.length === 3 ? 2 : 6;
+            if (explicitHours >= 80) return 3;
+            return Math.max(1, Math.round((explicitHours / 80) * 3));
+        }
+
+        // 3. SSHS metadata from catalog
+        if (sshsMeta?.unitsPerTerm) return sshsMeta.unitsPerTerm;
+
+        // 4. Fallback to official unit info helper
+        const info = getShsSubjectUnitInfo(displaySubjectName, sectionGradeLevel);
+        return info.unitsPerTerm || (isGrade11CoreSubject(displaySubjectName) ? 2 : 3);
+    }, [selectedSubjectObj, sshsMeta, displaySubjectName, sectionGradeLevel, isGrade11, offeredTerms.length]);
+
+    const unitsPerYear = useMemo(() => {
+        const numTerms = offeredTerms.length > 0 ? offeredTerms.length : (sshsMeta?.terms || 1);
+        return unitsPerTerm * numTerms;
+    }, [unitsPerTerm, offeredTerms.length, sshsMeta?.terms]);
 
     const subjectType = useMemo(() => {
         return getSubjectCategory(selectedSubjectObj?.subject_name || subjectName || '', sectionGradeLevel).toUpperCase();
@@ -1429,49 +1480,43 @@ export function ShsEClassRecord() {
 
         const secId = selectedSectionObj?.id || sections.find(s => s.id === selectedSection || s.section_name === selectedSection)?.id || selectedSection;
         const secName = selectedSectionObj?.section_name || selectedSection;
-        const fullSecName = selectedSectionObj ? `${selectedSectionObj.section_grade_level} - ${selectedSectionObj.section_name}` : selectedSection;
 
         const stateHpsRecords = useAppStore.getState().hpsRecords;
-        const existingRecord = stateHpsRecords.find(r =>
-            r.subject_id === effectiveSubjectId &&
-            r.school_year === activeSchoolYear &&
-            Number(r.quarter) === (quarter as number) &&
-            (
-                r.section_id === secId ||
-                r.section_id === secName ||
-                r.section_id === fullSecName ||
-                r.section_id === selectedSection ||
-                (secId && r.id.includes(secId)) ||
-                (secName && r.id.includes(secName))
-            )
-        );
+        const currentSubjects = useAppStore.getState().subjects;
+        const currentClassRecords = useAppStore.getState().classRecords;
+        const currentSubName = subjectName || selectedSubjectObj?.subject_name || currentSubjects.find(s => s.id === effectiveSubjectId)?.subject_name || '';
 
-        const legacyRecord = !existingRecord ? stateHpsRecords.find(r =>
-            r.subject_id === effectiveSubjectId &&
-            r.school_year === activeSchoolYear &&
-            Number(r.quarter) === (quarter as number) &&
-            !r.section_id
-        ) : null;
+        const existingRecord = findHpsRecord(stateHpsRecords, {
+            subjectId: effectiveSubjectId,
+            subjectName: currentSubName,
+            sectionId: secId,
+            sectionName: secName,
+            sectionGradeLevel: selectedSectionObj?.section_grade_level,
+            quarter,
+            schoolYear: activeSchoolYear,
+            subjects: currentSubjects,
+            classRecords: currentClassRecords
+        });
 
-        const newRecord: HPSRecord = existingRecord ? { ...existingRecord, section_id: secId } : {
+        const newRecord: HPSRecord = existingRecord ? {
+            ...existingRecord,
+            subject_id: effectiveSubjectId,
+            subject_name: currentSubName || existingRecord.subject_name,
+            school_year: activeSchoolYear || existingRecord.school_year,
+            section_id: secId
+        } : {
             id: `hps_${effectiveSubjectId}_${secId}_Q${quarter}_${activeSchoolYear}`,
             subject_id: effectiveSubjectId,
+            subject_name: currentSubName,
             school_year: activeSchoolYear,
             quarter: quarter as any,
-            written_works: legacyRecord ? [...legacyRecord.written_works] : Array(activeWwCount).fill(''),
-            performance_tasks: legacyRecord ? [...legacyRecord.performance_tasks] : Array(activePtCount).fill(''),
-            quarterly_exam: legacyRecord ? legacyRecord.quarterly_exam : '',
+            written_works: Array(activeWwCount).fill(''),
+            performance_tasks: Array(activePtCount).fill(''),
+            quarterly_exam: '',
             section_id: secId
         };
 
         const hpsWithSummative = newRecord as HPSRecord & { summative_tests?: (number | string)[] };
-        
-        if (legacyRecord) {
-            const legacyWithSummative = legacyRecord as HPSRecord & { summative_tests?: (number | string)[] };
-            if (legacyWithSummative.summative_tests) {
-                hpsWithSummative.summative_tests = [...legacyWithSummative.summative_tests];
-            }
-        }
 
         const currentQa = normalizeScores(hpsWithSummative.summative_tests, ST_COUNT);
         
@@ -2027,6 +2072,27 @@ export function ShsEClassRecord() {
                             <option value="all">All Terms (1, 2, 3)</option>
                         </select>
                     </div>
+
+                    {isSSHS && (
+                        <div className="w-full sm:w-22 lg:w-26 shrink-0">
+                            <label className="block text-[9.5px] font-bold mb-0.5 text-deped-blue whitespace-nowrap">Units / Term</label>
+                            <select
+                                value={unitsPerTerm}
+                                onChange={(e) => handleSetSubjectUnits(Number(e.target.value))}
+                                className="form-input h-7.5 py-0.5 px-1.5 text-[10px] rounded-lg font-medium"
+                                title="Configure units earned per term"
+                            >
+                                <option value={2}>2 Units (Core)</option>
+                                <option value={3}>3 Units (Academic)</option>
+                                <option value={4}>4 Units (Tech-Pro G11)</option>
+                                <option value={6}>6 Units (Arts / 160h)</option>
+                                <option value={12}>12 Units (Immersion / 320h)</option>
+                                {![2, 3, 4, 6, 12].includes(unitsPerTerm) && (
+                                    <option value={unitsPerTerm}>{unitsPerTerm} Units</option>
+                                )}
+                            </select>
+                        </div>
+                    )}
                     <div className="w-full sm:w-20 lg:w-20 shrink-0">
                         <label className="text-[9.5px] font-bold mb-0.5 text-deped-blue flex items-center gap-1 whitespace-nowrap">
                             <FileText className="w-3 h-3" /> Paper Size
@@ -2715,16 +2781,16 @@ export function ShsEClassRecord() {
                                                          <th colSpan={2} className="border border-black text-center font-bold text-[8px] bg-white px-0.5">
                                                              UNITS
                                                          </th>
-                                                         <th colSpan={1} className="border border-black text-center font-black text-[8px] bg-white px-0.5">
+                                                         <th colSpan={1} className="border border-black text-center font-black text-[8.5px] text-blue-800 bg-white px-0.5">
                                                              {unitsPerTerm}
                                                          </th>
-                                                         <th colSpan={2} className="border border-black text-center text-[7px] italic text-gray-600 font-medium bg-white px-0.5 whitespace-nowrap">
+                                                         <th colSpan={2} className="border border-black text-center text-[7px] font-bold text-gray-700 bg-white px-0.5 whitespace-nowrap">
                                                              / TERM
                                                          </th>
-                                                         <th colSpan={1} className="border border-black text-center font-black text-[8px] bg-white px-0.5">
+                                                         <th colSpan={1} className="border border-black text-center font-black text-[8.5px] text-blue-800 bg-white px-0.5">
                                                              {unitsPerYear}
                                                          </th>
-                                                         <th colSpan={2} className="border border-black text-center text-[7px] italic text-gray-600 font-medium bg-white px-0.5 whitespace-nowrap">
+                                                         <th colSpan={2} className="border border-black text-center text-[7px] font-bold text-gray-700 bg-white px-0.5 whitespace-nowrap">
                                                              / YEAR
                                                          </th>
                                                      </>

@@ -326,5 +326,70 @@ describe('grade-reconciliation', () => {
         expect(scienceRecord?.subject_id).toBe('subject-grade9-science');
         expect(scienceRecord?.final_grade).toBe(89);
     });
+
+    it('heals orphaned HPS records by deducing subject name from classRecords and populates subject_name', () => {
+        const subjects: Subject[] = [
+            { id: 'subj-active-sci', subject_name: 'Science', grade_level: 'Grade 7' },
+        ];
+
+        const sections: Section[] = [
+            { id: 'sec-g7', section_name: 'Diamond', section_grade_level: 'Grade 7' }
+        ];
+
+        const students: Student[] = [
+            { lrn: '123456789012', first_name: 'Juan', last_name: 'Dela Cruz', gender: 'Male', birthday: '2010-01-01', student_section: 'sec-g7' } as unknown as Student
+        ];
+
+        // Arbitrary unknown UUID for old deleted/re-templated subject
+        const orphanedSubjId = 'random-uuid-987654';
+
+        const classRecords: ClassRecord[] = [
+            {
+                id: `grade_123456789012_${orphanedSubjId}_Q1`,
+                student_lrn: '123456789012',
+                section_id: 'sec-g7',
+                subject_id: orphanedSubjId,
+                subject_name: 'Science', // class record kept the subject_name!
+                school_year: '2026-2027',
+                quarter: 1,
+                written_works: [25, 23, 40],
+                performance_tasks: [89, 95, 48],
+                quarterly_exam: 28,
+                final_grade: 93
+            }
+        ];
+
+        // HPS record only had orphanedSubjId and NO subject_name originally
+        const hpsRecords: HPSRecord[] = [
+            {
+                id: `hps_${orphanedSubjId}_sec-g7_2026-2027_Q1`,
+                subject_id: orphanedSubjId,
+                section_id: 'sec-g7',
+                school_year: '2026-2027',
+                quarter: 1,
+                written_works: [25, 25, 50],
+                performance_tasks: [100, 100, 50],
+                quarterly_exam: 30
+            }
+        ];
+
+        const result = reconcileOrphanedGradesAndSubjects({
+            subjects,
+            sections,
+            students,
+            classRecords,
+            hpsRecords,
+            gradingSheetRecords: []
+        });
+
+        expect(result.modified).toBe(true);
+        // HPS record should now be re-linked to subj-active-sci!
+        const healedHps = result.hpsRecords[0];
+        expect(healedHps.subject_id).toBe('subj-active-sci');
+        expect(healedHps.subject_name).toBe('Science');
+        expect(healedHps.written_works).toEqual([25, 25, 50]);
+        expect(healedHps.performance_tasks).toEqual([100, 100, 50]);
+        expect(healedHps.quarterly_exam).toBe(30);
+    });
 });
 
