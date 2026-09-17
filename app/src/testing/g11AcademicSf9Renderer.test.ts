@@ -241,7 +241,7 @@ describe('Grade 11 SSHS Academic SF9 Renderer & Layout Specifications', () => {
         });
       }
 
-      const blob = await pdf(docElement as any).toBlob();
+      const blob = await (pdf as (doc: unknown) => { toBlob: () => Promise<Blob> })(docElement).toBlob();
       const arrayBuffer = await blobToArrayBuffer(blob);
       expect(arrayBuffer.byteLength).toBeGreaterThan(1000);
 

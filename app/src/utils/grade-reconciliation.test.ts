@@ -520,6 +520,78 @@ describe('grade-reconciliation', () => {
         expect(healedSec.teaching_subjects).toContain('Values Education');
         expect(healedSec.teaching_subjects).not.toContain('GMRC');
     });
+
+    it('auto-heals duplicate PE & Health clusters, re-links grades, and sanitizes section taught_subjects', () => {
+        const subjects: Subject[] = [
+            {
+                id: 'sub_pe_health_clean',
+                subject_name: 'Physical Education and Health',
+                grade_level: 'Grade 7',
+                term: 'all'
+            },
+            {
+                id: 'sub_pe_health_dup',
+                subject_name: 'PE and HEALTH',
+                grade_level: 'Grade 7',
+                term: 'all'
+            }
+        ];
+
+        const sections: Section[] = [
+            {
+                id: 'sec_g7_diamond',
+                section_name: 'Diamond',
+                section_grade_level: 'Grade 7',
+                taught_subjects: ['English', 'Physical Education and Health', 'PE and HEALTH'],
+                teaching_subjects: ['PE and HEALTH']
+            }
+        ];
+
+        const gradingSheetRecords: ClassRecord[] = [
+            {
+                id: 'lrn123_sub_pe_health_dup_1_2026-2027',
+                student_lrn: '123456789012',
+                subject_id: 'sub_pe_health_dup',
+                subject_name: 'PE and HEALTH',
+                quarter: 1,
+                written_works: [],
+                performance_tasks: [],
+                quarterly_exam: 0,
+                final_grade: 89,
+                section_id: 'sec_g7_diamond',
+                school_year: '2026-2027'
+            }
+        ];
+
+        const result = reconcileOrphanedGradesAndSubjects({
+            subjects,
+            sections,
+            students: [],
+            classRecords: [],
+            hpsRecords: [],
+            gradingSheetRecords
+        });
+
+        // 1. Subjects: Deduplicated into one canonical Physical Education and Health
+        expect(result.subjectsModified).toBe(true);
+        expect(result.subjects.length).toBe(1);
+        expect(result.subjects[0].subject_name).toBe('Physical Education and Health');
+        expect(result.subjects[0].id).toBe('sub_pe_health_clean');
+        expect(result.deletedSubjectIds).toContain('sub_pe_health_dup');
+
+        // 2. Section taught_subjects: "PE and HEALTH" duplicate removed
+        expect(result.sectionsModified).toBe(true);
+        const sec = result.sections![0];
+        expect(sec.taught_subjects).toEqual(['English', 'Physical Education and Health']);
+        expect(sec.teaching_subjects).toEqual(['Physical Education and Health']);
+
+        // 3. Grading records: Grades from "sub_pe_health_dup" re-linked to canonical "sub_pe_health_clean"
+        expect(result.modified).toBe(true);
+        const gs = result.gradingSheetRecords[0];
+        expect(gs.subject_id).toBe('sub_pe_health_clean');
+        expect(gs.subject_name).toBe('Physical Education and Health');
+        expect(gs.final_grade).toBe(89);
+    });
 });
 
 

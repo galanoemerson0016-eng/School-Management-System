@@ -1,10 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useAppStore } from '../stores';
-import { ArrowLeft, Printer, Layout, Plus, Minus, Bug } from 'lucide-react';
+import { ArrowLeft, Printer, Layout, Plus, Minus, Bug, RefreshCcw } from 'lucide-react';
 import { sortSubjects, normalizeSubjectName, getCanonicalSubjectKey, getSubjectsForGrade } from '../lib/subjectConfig';
-import { getShsSubjectUnitInfo } from '../lib/curriculum';
+import { getShsSubjectUnitInfo, getDefaultTermForSubject, isGrade11CoreSubject } from '../lib/curriculum';
 import type { Section, Student, Subject, ClassRecord, SchoolProfile } from '../types';
 import { resolveStudentQuarterGrade, isMatchingSubject, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
+import { db } from '../services/database';
+import { reconcileOrphanedGradesAndSubjects } from '../utils/grade-reconciliation';
 
 type PaperSize = 'a4' | 'letter' | 'folio';
 
@@ -22,6 +24,7 @@ export function TemporaryGradeSlipPage() {
     } = useAppStore();
     const [paperSize, setPaperSize] = useState<PaperSize>('letter');
     const [zoom, setZoom] = useState(1);
+    const [isSyncingFromGrading, setIsSyncingFromGrading] = useState(false);
 
     const sortedSections = useMemo(() => {
         if (!sections || sections.length === 0) return [];
@@ -92,18 +95,23 @@ export function TemporaryGradeSlipPage() {
 
         // 3. For SHS (Grades 11 & 12): filter electives based on taughtSet or sectionTrack, keeping Core subjects
         if (isSHS) {
+            const subjectTermsMeta = (selectedSectionObj.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, 1 | 2 | 3 | 'all' | 'none'> | undefined;
+
             if (taughtSet.length > 0) {
                 // Ensure all explicitly taught subjects are present
                 for (const tName of taughtSet) {
                     const alreadyHas = candidates.some(s => isMatchingSubject(tName, s.id, s.subject_name));
                     if (!alreadyHas) {
+                        const resolvedTerm = subjectTermsMeta?.[tName] || 
+                            (sectionGradeNum === 11 && isGrade11CoreSubject(tName) ? 'all' : getDefaultTermForSubject(tName, selectedSectionObj.section_grade_level));
+
                         candidates.push({
                             id: `virtual_${tName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
                             subject_name: tName,
                             subject_code: '',
                             grade_level: selectedSectionObj.section_grade_level,
                             section_id: selectedSectionObj.id,
-                            term: 'all'
+                            term: resolvedTerm
                         });
                     }
                 }
@@ -121,10 +129,11 @@ export function TemporaryGradeSlipPage() {
                     if (isG12 && !isExplicitSSHS) {
                         name = normalizeGrade12PESubjectName(name, false);
                     }
-                    if (name !== s.subject_name) {
-                        return { ...s, subject_name: name };
-                    }
-                    return s;
+                    const termOverride = subjectTermsMeta?.[name] || subjectTermsMeta?.[s.subject_name];
+                    const effTerm = termOverride || 
+                        (s.term !== undefined && s.term !== null && s.term !== 'all' ? s.term : 
+                         (sectionGradeNum === 11 && isGrade11CoreSubject(name) ? 'all' : getDefaultTermForSubject(name, selectedSectionObj.section_grade_level)));
+                    return { ...s, subject_name: name, term: effTerm };
                 });
             } else if (sectionTrack) {
                 candidates = candidates.filter(s => {
@@ -137,6 +146,13 @@ export function TemporaryGradeSlipPage() {
                         return unitInfo.category === 'techpro_elective' || unitInfo.category === 'work_immersion';
                     }
                     return true;
+                });
+                candidates = candidates.map(s => {
+                    const termOverride = subjectTermsMeta?.[s.subject_name];
+                    const effTerm = termOverride || 
+                        (s.term !== undefined && s.term !== null && s.term !== 'all' ? s.term : 
+                         (sectionGradeNum === 11 && isGrade11CoreSubject(s.subject_name) ? 'all' : getDefaultTermForSubject(s.subject_name, selectedSectionObj.section_grade_level)));
+                    return { ...s, term: effTerm };
                 });
             }
         } else {
@@ -230,6 +246,118 @@ export function TemporaryGradeSlipPage() {
         return sortSubjects(uniqueSubjects, s => s.subject_name);
     }, [subjects, selectedSectionObj, schoolProfile?.curriculum]);
 
+    const handleSyncFromGradeManagement = useCallback(async () => {
+        if (!selectedSectionObj) {
+            useAppStore.getState().showNotification('Please select a section to sync.', 'info');
+            return;
+        }
+
+        setIsSyncingFromGrading(true);
+        try {
+            // 1. Fetch fresh IndexedDB records directly into app state
+            const [freshGradingRecords, freshClassRecords, freshSections, freshRawSubjects] = await Promise.all([
+                db.getAllRecords<ClassRecord>('gradingSheetRecords'),
+                db.getAllRecords<ClassRecord>('classRecords'),
+                db.getAllRecords<Section>('sections'),
+                db.getAllRecords<Subject>('subjects')
+            ]);
+
+            const freshSubjects: Subject[] = (freshRawSubjects || []).map((s: Subject) => ({
+                ...s,
+                term: s.term !== undefined && s.term !== null ? s.term : getDefaultTermForSubject(s.subject_name, s.grade_level)
+            }));
+
+            // 2. Run reconciliation to auto-heal duplicate subjects & consolidate grades
+            const recon = reconcileOrphanedGradesAndSubjects({
+                subjects: freshSubjects,
+                sections: freshSections || [],
+                students: useAppStore.getState().students,
+                classRecords: freshClassRecords || [],
+                hpsRecords: useAppStore.getState().hpsRecords,
+                gradingSheetRecords: freshGradingRecords || []
+            });
+
+            if (recon.subjectsModified && recon.subjects) {
+                await db.putRecordsBulk('subjects', recon.subjects);
+            }
+            if (recon.deletedSubjectIds.length > 0) {
+                await db.deleteRecordsBulk('subjects', recon.deletedSubjectIds);
+            }
+            if (recon.modified) {
+                if (recon.classRecords) await db.putRecordsBulk('classRecords', recon.classRecords);
+                if (recon.hpsRecords) await db.putRecordsBulk('hpsRecords', recon.hpsRecords);
+                if (recon.gradingSheetRecords) await db.putRecordsBulk('gradingSheetRecords', recon.gradingSheetRecords);
+            }
+
+            const reconciledSubjects = recon.subjects || freshSubjects;
+            const reconciledSections = recon.sections || freshSections || [];
+            const reconciledGradingRecords = recon.gradingSheetRecords || freshGradingRecords || [];
+            const reconciledClassRecords = recon.classRecords || freshClassRecords || [];
+
+            // 3. Find current section from reconciled sections
+            const baseSection = reconciledSections.find((s: Section) => s.id === selectedSectionObj.id) || selectedSectionObj;
+
+            // 4. Sanitize and deduplicate taught_subjects & teaching_subjects
+            const sanitizeSubjectList = (list?: string[]): string[] | undefined => {
+                if (!list) return undefined;
+                const mapped = list.map(t => {
+                    const trimmed = t.trim();
+                    const matchedDb = reconciledSubjects.find(s => isMatchingSubject(trimmed, s.id, s.subject_name));
+                    if (matchedDb && matchedDb.subject_name) {
+                        return matchedDb.subject_name;
+                    }
+                    return trimmed;
+                });
+                const seenKeys = new Set<string>();
+                const deduped: string[] = [];
+                for (const item of mapped) {
+                    const k = getCanonicalSubjectKey(item, baseSection.section_grade_level) || normalizeSubjectName(item);
+                    if (k && seenKeys.has(k)) continue;
+                    if (k) seenKeys.add(k);
+                    deduped.push(item);
+                }
+                return deduped;
+            };
+
+            const cleanTaught = sanitizeSubjectList(baseSection.taught_subjects) || [];
+            const cleanTeaching = sanitizeSubjectList(baseSection.teaching_subjects);
+
+            const updatedSection = {
+                ...baseSection,
+                taught_subjects: cleanTaught,
+                ...(cleanTeaching !== undefined ? { teaching_subjects: cleanTeaching } : {})
+            };
+            await useAppStore.getState().updateSection(updatedSection);
+
+            // Update app store state so all components immediately have the latest records
+            useAppStore.setState({
+                gradingSheetRecords: reconciledGradingRecords,
+                classRecords: reconciledClassRecords,
+                sections: reconciledSections.map((s: Section) => s.id === updatedSection.id ? updatedSection : s),
+                subjects: reconciledSubjects
+            });
+
+            // 5. Count total synchronized grades for this section
+            const sectionGradesCount = reconciledGradingRecords.filter((r: ClassRecord) =>
+                (r.section_id === updatedSection.id || r.section_id === updatedSection.section_name) &&
+                (!activeSchoolYear || !r.school_year || r.school_year === activeSchoolYear) &&
+                Number(r.final_grade) > 0
+            ).length;
+
+            const subjectCount = cleanTaught.length > 0 ? cleanTaught.length : 'curriculum';
+
+            useAppStore.getState().showNotification(
+                `Successfully synced subjects and grades from Grade Management! (${subjectCount} subjects, ${sectionGradesCount} grades loaded)`,
+                'success'
+            );
+        } catch (error) {
+            console.error('Failed to sync Temporary Grade Slip from Grade Management:', error);
+            useAppStore.getState().showNotification('Failed to sync from Grade Management. Please try again.', 'error');
+        } finally {
+            setIsSyncingFromGrading(false);
+        }
+    }, [selectedSectionObj, activeSchoolYear]);
+
     const handlePrint = () => {
         window.print();
     };
@@ -242,7 +370,7 @@ export function TemporaryGradeSlipPage() {
     };
     
     return (
-        <div className="h-full bg-slate-50 dark:bg-[#080d1a] flex flex-col overflow-hidden font-sans print:bg-white print:h-auto print:overflow-visible">
+        <div className="h-full min-h-0 bg-slate-50 dark:bg-[#080d1a] flex flex-col overflow-hidden font-sans print:bg-white print:h-auto print:overflow-visible">
             <style>{`
                 .print-page {
                     width: ${printDimensions[paperSize].width};
@@ -397,7 +525,7 @@ export function TemporaryGradeSlipPage() {
             `}</style>
 
             {/* Header Toolbar */}
-            <div className="h-20 px-8 flex items-center justify-between bg-white dark:bg-[#0d1225]/95 border-b border-slate-200 dark:border-white/10 sticky top-0 z-100 shadow-sm print:hidden">
+            <div className="min-h-16 py-2 px-4 sm:px-8 flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-[#0d1225]/95 border-b border-slate-200 dark:border-white/10 sticky top-0 z-100 shadow-sm print:hidden">
                 <div className="flex items-center gap-6">
                     <button 
                         onClick={() => setCurrentView('school-forms')}
@@ -462,6 +590,16 @@ export function TemporaryGradeSlipPage() {
                     </div>
 
                     <div className="h-8 w-px bg-slate-200 dark:bg-white/10" />
+
+                    <button
+                        onClick={handleSyncFromGradeManagement}
+                        disabled={isSyncingFromGrading || !selectedSectionObj}
+                        className="h-11 px-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 font-black text-[11px] uppercase tracking-widest hover:bg-emerald-100 dark:hover:bg-emerald-500/20 active:scale-95 disabled:opacity-50 transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+                        title="Sync subjects and grades from Grade Management"
+                    >
+                        <RefreshCcw className={`w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ${isSyncingFromGrading ? 'animate-spin' : ''}`} />
+                        <span className="hidden sm:inline">{isSyncingFromGrading ? 'Syncing...' : 'Sync'}</span>
+                    </button>
 
                     <button
                         onClick={() => {
@@ -637,6 +775,7 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
             );
 
             const isExcludedFromAverage = isComponent || 
+                subj.counts_in_general_average === false ||
                 subj.subject_name.startsWith('*') || 
                 subj.subject_name.toLowerCase().includes('arabic language') || 
                 subj.subject_name.toLowerCase().includes('islamic values');
@@ -764,7 +903,8 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
                 return;
             }
 
-            if (s.subject_name.startsWith('*') || 
+            if (s.counts_in_general_average === false ||
+                s.subject_name.startsWith('*') || 
                 s.subject_name.toLowerCase().includes('arabic language') || 
                 s.subject_name.toLowerCase().includes('islamic values')) {
                 return;
@@ -773,15 +913,20 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
             expectedSubjCount++;
         });
 
-        // 3 terms are complete only if every expected subject has all 3 terms graded
+        // Term completeness checks: a term is complete if all expected subjects have a grade for that term
+        const isT1Complete = expectedSubjCount > 0 && termCounts.t1 === expectedSubjCount;
+        const isT2Complete = expectedSubjCount > 0 && termCounts.t2 === expectedSubjCount;
+        const isT3Complete = expectedSubjCount > 0 && termCounts.t3 === expectedSubjCount;
+
+        // All 3 terms are complete only if every expected subject has all 3 terms graded
         const areAll3TermsComplete = expectedSubjCount > 0 && 
             finalCount === expectedSubjCount &&
-            termCounts.t1 === expectedSubjCount &&
-            termCounts.t2 === expectedSubjCount &&
-            termCounts.t3 === expectedSubjCount;
+            isT1Complete &&
+            isT2Complete &&
+            isT3Complete;
 
         // If the 3 terms are not complete yet:
-        // Do not compute or show final grade yet, as well as general average per term and remarks
+        // Do not compute or show final grade yet, nor final remarks
         if (!areAll3TermsComplete) {
             Object.keys(subjectGrades).forEach(id => {
                 subjectGrades[id].final = '';
@@ -792,9 +937,10 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
         const genAvg = areAll3TermsComplete && finalCount > 0 ? Math.round(finalTotal / finalCount).toString() : '';
         const genRemarks = areAll3TermsComplete && genAvg ? (Number(genAvg) >= 75 ? 'Passed' : 'Failed') : '';
 
-        const genT1 = areAll3TermsComplete && termCounts.t1 > 0 ? Math.round(termTotals.t1 / termCounts.t1).toString() : '';
-        const genT2 = areAll3TermsComplete && termCounts.t2 > 0 ? Math.round(termTotals.t2 / termCounts.t2).toString() : '';
-        const genT3 = areAll3TermsComplete && termCounts.t3 > 0 ? Math.round(termTotals.t3 / termCounts.t3).toString() : '';
+        // Show General Average for each term if that term's grades are complete
+        const genT1 = isT1Complete && termCounts.t1 > 0 ? Math.round(termTotals.t1 / termCounts.t1).toString() : '';
+        const genT2 = isT2Complete && termCounts.t2 > 0 ? Math.round(termTotals.t2 / termCounts.t2).toString() : '';
+        const genT3 = isT3Complete && termCounts.t3 > 0 ? Math.round(termTotals.t3 / termCounts.t3).toString() : '';
 
         return { subjectGrades, genAvg, genRemarks, genT1, genT2, genT3 };
     }, [dedupedSubjects, records, student.lrn, activeSchoolYear, section?.section_grade_level, section?.track]);
@@ -1012,6 +1158,36 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
     const logoUrl = schoolProfile.logo_url || 'school-logo.png';
     const depedLogo = `${baseUrl}deped_logo_left.png`;
 
+    const resolveShsTerm = useCallback((subj: Subject | { subject_name: string; id?: string; term?: Subject['term'] }): 1 | 2 | 3 | 'all' | 'none' => {
+        const subjectTermsMeta = (section?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, 1 | 2 | 3 | 'all' | 'none'> | undefined;
+        if (subjectTermsMeta) {
+            if (subjectTermsMeta[subj.subject_name] !== undefined) return subjectTermsMeta[subj.subject_name];
+            const norm = normalizeSubjectName(subj.subject_name);
+            for (const [k, v] of Object.entries(subjectTermsMeta)) {
+                if (normalizeSubjectName(k) === norm || (subj.id && isMatchingSubject(k, subj.id, subj.subject_name))) {
+                    return v;
+                }
+            }
+        }
+        const gradeLevel = section?.section_grade_level || 'Grade 11';
+        const gradeNum = parseInt(gradeLevel.replace(/\D/g, '')) || 0;
+        if (gradeNum === 11 && isGrade11CoreSubject(subj.subject_name)) {
+            return 'all';
+        }
+        const rawTerm = subj.term as string | number | undefined;
+        if (rawTerm === 1 || rawTerm === 2 || rawTerm === 3 || rawTerm === '1' || rawTerm === '2' || rawTerm === '3') {
+            return Number(rawTerm) as 1 | 2 | 3;
+        }
+        if (subj.term === 'all') {
+            const def = getDefaultTermForSubject(subj.subject_name, gradeLevel);
+            if (def === 1 || def === 2 || def === 3) return def;
+            return 'all';
+        }
+        const defTerm = getDefaultTermForSubject(subj.subject_name, gradeLevel);
+        if (defTerm === 1 || defTerm === 2 || defTerm === 3 || defTerm === 'all') return defTerm;
+        return 'none';
+    }, [section?.section_metadata, section?.section_grade_level]);
+
     // Deduplicate incoming subjects as safeguard
     const dedupedSubjects = useMemo(() => {
         const seen = new Set<string>();
@@ -1051,7 +1227,7 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
                 }
             }
             
-            const term = subj.term;
+            const term = resolveShsTerm(subj);
             let final = 0;
             if (term === 1 || Number(term) === 1) {
                 final = q1;
@@ -1158,6 +1334,12 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
 
         dedupedSubjects.forEach((subj) => {
             if (isComponentId(subj.id)) return;
+            if (subj.counts_in_general_average === false ||
+                subj.subject_name.startsWith('*') || 
+                subj.subject_name.toLowerCase().includes('arabic language') || 
+                subj.subject_name.toLowerCase().includes('islamic values')) {
+                return;
+            }
 
             const rg = rawGrades[subj.id];
             const unitInfo = getShsSubjectUnitInfo(subj.subject_name, gradeLevel);
@@ -1215,10 +1397,14 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
             }
         }
 
+        const isT1CompleteShs = expectedT1Units > 0 && genAvgQ1Units >= expectedT1Units;
+        const isT2CompleteShs = expectedT2Units > 0 && genAvgQ2Units >= expectedT2Units;
+        const isT3CompleteShs = expectedT3Units > 0 && genAvgQ3Units >= expectedT3Units;
+
         const areAll3TermsCompleteShs = 
-            expectedT1Units > 0 && genAvgQ1Units >= expectedT1Units &&
-            expectedT2Units > 0 && genAvgQ2Units >= expectedT2Units &&
-            expectedT3Units > 0 && genAvgQ3Units >= expectedT3Units &&
+            isT1CompleteShs &&
+            isT2CompleteShs &&
+            isT3CompleteShs &&
             expectedYearUnits > 0 && genAvgFinalUnits >= expectedYearUnits;
 
         const gradesLookup: Record<string, { q1: string; q2: string; q3: string; final: string; remarks: string; term?: Subject['term'] }> = {};
@@ -1227,31 +1413,37 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
             q1: parentQ1 > 0 ? parentQ1.toString() : '',
             q2: parentQ2 > 0 ? parentQ2.toString() : '',
             q3: parentQ3 > 0 ? parentQ3.toString() : '',
-            final: areAll3TermsCompleteShs && parentFinal > 0 ? parentFinal.toString() : '',
-            remarks: areAll3TermsCompleteShs && parentFinal > 0 ? (parentFinal >= 75 ? 'Passed' : 'Failed') : '',
+            final: ((parentTerm === 1 || Number(parentTerm) === 1 || parentTerm === 2 || Number(parentTerm) === 2 || parentTerm === 3 || Number(parentTerm) === 3) ? parentFinal > 0 : (areAll3TermsCompleteShs && parentFinal > 0)) ? parentFinal.toString() : '',
+            remarks: ((parentTerm === 1 || Number(parentTerm) === 1 || parentTerm === 2 || Number(parentTerm) === 2 || parentTerm === 3 || Number(parentTerm) === 3) ? parentFinal > 0 : (areAll3TermsCompleteShs && parentFinal > 0)) ? (parentFinal >= 75 ? 'Passed' : 'Failed') : '',
             term: parentTerm
         };
 
         dedupedSubjects.forEach((subj) => {
             const rg = rawGrades[subj.id];
+            const isSingleTerm = rg.term === 1 || Number(rg.term) === 1 || rg.term === 2 || Number(rg.term) === 2 || rg.term === 3 || Number(rg.term) === 3;
+            const hasSingleTermFinal = isSingleTerm && rg.final > 0;
+            const hasMultiTermFinal = areAll3TermsCompleteShs && rg.final > 0;
+            const showFinal = hasSingleTermFinal || hasMultiTermFinal;
+
             gradesLookup[subj.id] = {
                 q1: rg.q1 > 0 ? rg.q1.toString() : '',
                 q2: rg.q2 > 0 ? rg.q2.toString() : '',
                 q3: rg.q3 > 0 ? rg.q3.toString() : '',
-                final: areAll3TermsCompleteShs && rg.final > 0 ? rg.final.toString() : '',
-                remarks: areAll3TermsCompleteShs && rg.final > 0 ? (rg.final >= 75 ? 'Passed' : 'Failed') : '',
+                final: showFinal ? rg.final.toString() : '',
+                remarks: showFinal ? (rg.final >= 75 ? 'Passed' : 'Failed') : '',
                 term: rg.term
             };
         });
 
-        const genT1 = areAll3TermsCompleteShs && genAvgQ1Units > 0 ? Math.round(genAvgQ1Total / genAvgQ1Units).toString() : '';
-        const genT2 = areAll3TermsCompleteShs && genAvgQ2Units > 0 ? Math.round(genAvgQ2Total / genAvgQ2Units).toString() : '';
-        const genT3 = areAll3TermsCompleteShs && genAvgQ3Units > 0 ? Math.round(genAvgQ3Total / genAvgQ3Units).toString() : '';
+        // Show General Average for each term if that term's units/grades are complete
+        const genT1 = isT1CompleteShs && genAvgQ1Units > 0 ? Math.round(genAvgQ1Total / genAvgQ1Units).toString() : '';
+        const genT2 = isT2CompleteShs && genAvgQ2Units > 0 ? Math.round(genAvgQ2Total / genAvgQ2Units).toString() : '';
+        const genT3 = isT3CompleteShs && genAvgQ3Units > 0 ? Math.round(genAvgQ3Total / genAvgQ3Units).toString() : '';
         const genAvg = areAll3TermsCompleteShs && genAvgFinalUnits > 0 ? Math.round(genAvgFinalTotal / genAvgFinalUnits).toString() : '';
         const genRemarks = areAll3TermsCompleteShs && genAvg ? (Number(genAvg) >= 75 ? 'Passed' : 'Failed') : '';
 
         return { subjectGrades: gradesLookup, genAvg, genRemarks, genT1, genT2, genT3 };
-    }, [dedupedSubjects, records, student.lrn, activeSchoolYear, section?.section_grade_level, section?.track]);
+    }, [dedupedSubjects, records, student.lrn, activeSchoolYear, section?.section_grade_level, section?.track, resolveShsTerm]);
 
     const studentFullName = `${student.last_name}, ${student.first_name} ${student.middle_name ? student.middle_name[0] + '.' : ''}`.trim();
     
@@ -1372,13 +1564,13 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
                     type: 'subject',
                     name: s.subject_name,
                     id: s.id,
-                    term: s.term
+                    term: resolveShsTerm(s)
                 });
             });
         }
 
         return finalRows;
-    }, [dedupedSubjects]);
+    }, [dedupedSubjects, resolveShsTerm]);
 
     return (
         <div className="grade-slip-card font-serif text-[9px] relative text-black leading-tight">

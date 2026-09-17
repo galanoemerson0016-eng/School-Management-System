@@ -1,56 +1,11 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { obfuscate } from 'javascript-obfuscator'
-import type { ObfuscatorOptions } from 'javascript-obfuscator'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { networkInterfaces } from 'os'
 
 const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf-8'))
-
-// Light obfuscation only: identifier renaming + plain string array.
-// controlFlowFlattening, deadCodeInjection, debugProtection, selfDefending,
-// RC4 string encoding, numbersToExpressions, and splitStrings are deliberately
-// OFF — they execute on every render and made the production app severely
-// laggy (including a blocking debugger-trap every 2.5s from debugProtection).
-const obfuscatorOptions: ObfuscatorOptions = {
-  compact: true,
-  controlFlowFlattening: false,
-  deadCodeInjection: false,
-  debugProtection: false,
-  disableConsoleOutput: true,
-  identifierNamesGenerator: 'hexadecimal',
-  log: false,
-  numbersToExpressions: false,
-  renameGlobals: false,
-  selfDefending: false,
-  simplify: true,
-  splitStrings: false,
-  stringArray: true,
-  stringArrayCallsTransform: false,
-  stringArrayEncoding: [],
-  stringArrayThreshold: 0.75,
-  unicodeEscapeSequence: false
-};
-
-function bundleObfuscator(options: ObfuscatorOptions) {
-  return {
-    name: 'vite-plugin-bundle-obfuscator',
-    enforce: 'post' as const,
-    renderChunk(code: string, chunk: { fileName: string }) {
-      // Skip obfuscating third-party vendor code for performance and stability
-      if (chunk.fileName.includes('vendor')) {
-        return null;
-      }
-      const result = obfuscate(code, options);
-      return {
-        code: result.getObfuscatedCode(),
-        map: options.sourceMap ? result.getSourceMap() : null
-      };
-    }
-  };
-}
 
 function attendanceApiPlugin() {
   let activeAttendanceSession: {
@@ -207,7 +162,7 @@ function attendanceApiPlugin() {
 }
 
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig(() => ({
   base: './',
   define: {
     __APP_VERSION__: JSON.stringify(packageJson.version),
@@ -216,8 +171,9 @@ export default defineConfig(({ mode }) => ({
     react(), 
     !process.env.VITEST ? tailwindcss() : null,
     attendanceApiPlugin(),
-    // Only obfuscate in production to keep dev fast
-    mode === 'production' ? bundleObfuscator(obfuscatorOptions) : null
+    // Frontend bundle obfuscator is disabled because React runtime JIT and V8 inline caches
+    // are severely degraded by string array lookups on every render and calculation.
+    // Electron main/preload/license are protected via scripts/obfuscate-electron.cjs.
   ].filter(Boolean),
   esbuild: {
     target: 'es2022',

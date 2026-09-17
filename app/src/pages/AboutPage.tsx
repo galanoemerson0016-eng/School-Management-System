@@ -497,7 +497,7 @@ export function AboutPage() {
                                         onClick={() => setSelectedCert(cert)}
                                         className="bg-[#1e293b]/40 border border-white/5 p-6 rounded-2xl flex flex-col items-center text-center space-y-4 group hover:border-blue-500/40 hover:bg-[#1e293b]/60 transition-all cursor-pointer relative overflow-hidden"
                                     >
-                                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="absolute top-2 right-2 opacity-60 group-hover:opacity-100 transition-opacity">
                                             <ExternalLink className="w-3 h-3 text-blue-400" />
                                         </div>
                                         <div className="w-16 h-16 relative grayscale group-hover:grayscale-0 transition-all duration-500 group-hover:scale-105">

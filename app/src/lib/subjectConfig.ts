@@ -490,8 +490,14 @@ export function getCanonicalSubjectKey(name: string, gradeLevel?: string | numbe
     return `healthoptimizingphysicaleducation${num}`;
   }
 
-  // If it is SHS PE and Health 1-4 / Physical Education 1-4
-  if ((norm.includes('physicaleducation') || norm.includes('peandhealth') || norm.includes('pehealth') || /^pe[1-4]$/.test(norm)) && norm.match(/[1-4]$/)) {
+  // PE and Health / Physical Education and Health (all grade levels, with or without 1-4)
+  if (
+    norm.includes('physicaleducationandhealth') ||
+    norm.includes('peandhealth') ||
+    norm.includes('pehealth') ||
+    ((norm.includes('physicaleducation') || norm.startsWith('pe')) && norm.includes('health')) ||
+    /^pe[1-4]$/.test(norm)
+  ) {
     const num = norm.match(/[1-4]$/)?.[0] || '';
     return `physicaleducationandhealth${num}`;
   }
@@ -513,7 +519,7 @@ export function getCanonicalSubjectKey(name: string, gradeLevel?: string | numbe
   // In SHS (Grades 11-12) and sequential electives (Chemistry 1/2, Biology 1/2, Physics 1/2, PR 1/2, etc.),
   // trailing digits indicate distinct sequential offerings and must never be stripped
   const isSequentialStem = norm.includes('chemistry') || norm.includes('biology') || norm.includes('physics') || 
-                           norm.includes('research') || norm.startsWith('hope') || norm.startsWith('pe') || 
+                           norm.includes('research') || norm.startsWith('hope') || /^pe[1-4]$/.test(norm) || 
                            norm.includes('creativeindustries') || norm.includes('literature') ||
                            norm.includes('finitemath') || norm.includes('advancedmath') ||
                            norm.startsWith('filipino1') || norm.startsWith('filipino2') ||

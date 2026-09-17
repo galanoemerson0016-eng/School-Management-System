@@ -228,4 +228,75 @@ describe('Section Curriculum Filtering & Sanitization', () => {
         expect(getClustersForGrade11Track('Sports')).toEqual([]);
         expect(getClustersForGrade11Track('Arts and Design')).toEqual([]);
     });
+
+    it('strictly limits Grade 12 Academic ABM subjects to Core, Applied, and ABM Specialized subjects (eliminating all 105 subject pollution)', async () => {
+        const { isSubjectMatchingSectionTrackAndStrand } = await import('../lib/curriculum');
+        const { getCurriculumPreset } = await import('../lib/curriculumPresets');
+
+        // Verify detected preset for Grade 12 ABM is exactly 12 subjects
+        const abmPreset = getCurriculumPreset('Grade 12', 'Academic', 'ABM', 'Regular');
+        expect(abmPreset).toBeDefined();
+        expect(abmPreset?.subjects.length).toBe(12);
+
+        // Core subjects allowed
+        expect(isSubjectMatchingSectionTrackAndStrand('General Mathematics', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('21st Century Literature from the Philippines and the World', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('Media and Information Literacy', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('Understanding Culture, Society and Politics', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('Physical Education and Health 3', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+
+        // Applied subjects allowed
+        expect(isSubjectMatchingSectionTrackAndStrand('English for Academic and Professional Purposes', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('Practical Research 2', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('Empowerment Technologies', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('Inquiries, Investigations and Immersion', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+
+        // ABM specialized subjects allowed
+        expect(isSubjectMatchingSectionTrackAndStrand('Fundamentals of Accountancy, Business, and Management 1', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('Fundamentals of Accountancy, Business, and Management 2', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('Business Finance', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('Business Math', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('Principles of Marketing', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('Applied Economics', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('Organization and Management', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('Business Ethics and Social Responsibility', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('Business Enterprise Simulation', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('Work Immersion', 'Grade 12', 'Academic', 'ABM')).toBe(true);
+
+        // UNRELATED STEM subjects MUST BE REJECTED
+        expect(isSubjectMatchingSectionTrackAndStrand('Basic Calculus', 'Grade 12', 'Academic', 'ABM')).toBe(false);
+        expect(isSubjectMatchingSectionTrackAndStrand('Pre-Calculus', 'Grade 12', 'Academic', 'ABM')).toBe(false);
+        expect(isSubjectMatchingSectionTrackAndStrand('General Biology 1', 'Grade 12', 'Academic', 'ABM')).toBe(false);
+        expect(isSubjectMatchingSectionTrackAndStrand('General Chemistry 1', 'Grade 12', 'Academic', 'ABM')).toBe(false);
+        expect(isSubjectMatchingSectionTrackAndStrand('General Physics 1', 'Grade 12', 'Academic', 'ABM')).toBe(false);
+
+        // UNRELATED TVL subjects MUST BE REJECTED
+        expect(isSubjectMatchingSectionTrackAndStrand('Automotive Servicing', 'Grade 12', 'Academic', 'ABM')).toBe(false);
+        expect(isSubjectMatchingSectionTrackAndStrand('Bread and Pastry Production', 'Grade 12', 'Academic', 'ABM')).toBe(false);
+        expect(isSubjectMatchingSectionTrackAndStrand('Shielded Metal Arc Welding (SMAW)', 'Grade 12', 'Academic', 'ABM')).toBe(false);
+        expect(isSubjectMatchingSectionTrackAndStrand('Electrical Installation and Maintenance', 'Grade 12', 'Academic', 'ABM')).toBe(false);
+        expect(isSubjectMatchingSectionTrackAndStrand('Caregiving', 'Grade 12', 'Academic', 'ABM')).toBe(false);
+
+        // UNRELATED Sports & Arts subjects MUST BE REJECTED
+        expect(isSubjectMatchingSectionTrackAndStrand('Biomechanical Analysis of Human Movement', 'Grade 12', 'Academic', 'ABM')).toBe(false);
+        expect(isSubjectMatchingSectionTrackAndStrand('Sports Officiating', 'Grade 12', 'Academic', 'ABM')).toBe(false);
+        expect(isSubjectMatchingSectionTrackAndStrand('Creative Writing', 'Grade 12', 'Academic', 'ABM')).toBe(false);
+    });
+
+    it('strictly limits Grade 11 SSHS to Core and chosen cluster electives', async () => {
+        const { isSubjectMatchingSectionTrackAndStrand } = await import('../lib/curriculum');
+
+        // SSHS Core subjects always allowed for Grade 11
+        expect(isSubjectMatchingSectionTrackAndStrand('General Mathematics', 'Grade 11', 'Academic', 'Science, Technology, Engineering, and Mathematics')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('General Science', 'Grade 11', 'Academic', 'Science, Technology, Engineering, and Mathematics')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('Life and Career Skills', 'Grade 11', 'Academic', 'Science, Technology, Engineering, and Mathematics')).toBe(true);
+
+        // Chosen cluster subjects allowed
+        expect(isSubjectMatchingSectionTrackAndStrand('Advanced Mathematics', 'Grade 11', 'Academic', 'Science, Technology, Engineering, and Mathematics')).toBe(true);
+        expect(isSubjectMatchingSectionTrackAndStrand('Biology 1', 'Grade 11', 'Academic', 'Science, Technology, Engineering, and Mathematics')).toBe(true);
+
+        // TechPro cluster subjects REJECTED when Academic cluster is chosen
+        expect(isSubjectMatchingSectionTrackAndStrand('Automotive Servicing', 'Grade 11', 'Academic', 'Science, Technology, Engineering, and Mathematics')).toBe(false);
+        expect(isSubjectMatchingSectionTrackAndStrand('Shielded Metal Arc Welding (SMAW)', 'Grade 11', 'Academic', 'Science, Technology, Engineering, and Mathematics')).toBe(false);
+    });
 });

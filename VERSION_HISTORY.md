@@ -1,5 +1,103 @@
 # Version History
 
+## v3.5.14 (2026-09-17)
+
+### ⚡ Client Data Protection & Self-Healing
+
+- **Automated Startup Database Healing**: FormEase Pro automatically scans local IndexedDB on startup, recalculates any unnormalized legacy weights (`> 120`), and restores genuine DepEd grades with zero manual re-encoding required from teachers.
+- **Weight Normalization Engine**: Converted whole weights (`40`, `60`, `20`) to standard fractions (`0.40`, `0.60`, `0.20`) and display percentages (`40%`), eliminating thousands-scale weighted scores and the `4000%` header bug.
+- **Ghost Record Suppression**: Implemented score container verification in `resolveStudentQuarterGrade` ensuring empty score arrays never output phantom grades in SF9, SF10, or Consolidated Grades.
+- **Unified Subject Canonicalization & Deduplication**: Unified normalization for PE & Health and GMRC/Values Education across Grade Management, SF9, SF10, and Temporary Grade Slips.
+
+### 🚀 Enhancements & Export Resilience
+
+- **Grade 11 SF9 Excel & PDF Export Resilience**: Fixed style index boundaries and shared formulas in `sheet6.xml`, eliminating Excel file repair prompts.
+- **Database Rescue Export Tool**: Added direct offline JSON & Excel database extraction and repair in `database-rescue-export.ts`.
+- **Pre-Update Safety Vault**: Automated local database snapshot and school forms packaging in `pre-update-safety.ts`.
+
+### 🐞 Bug Fixes
+
+- Resolved issue where table headers displayed `4000%` / `6000%` and weighted scores multiplied into the thousands.
+- Fixed term grades clamping to 100 on subjects with custom or legacy weights.
+- Fixed `prefer-const` and explicit `any` lint violations in grading helpers and reconciliation services.
+
+### 📝 Notes
+
+- 100% backward-compatible update with automatic local database self-healing on first launch.
+
+## v3.5.13 (2026-09-16)
+
+### 🚀 Fixes & Enhancements
+
+- **Comprehensive Subject Sync, Deduplication, and Normalization Across SF9, SF10, & Temporary Grade Slip**:
+  - Unified canonical subject normalization in `subjectConfig.ts`: All variants of Physical Education and Health (`"PE and HEALTH"`, `"Physical Education and Health"`, `"PE & HEALTH"`, `"PE HEALTH"`, with or without sequential suffix 1-4) now resolve cleanly to the same canonical key (`physicaleducationandhealth${num}`).
+  - Fixed a regression in sequential stem matching where `'pe'` prefix prevented `"peandhealth"` from matching `"physicaleducationandhealth"`, which previously caused resurrected "virtual" duplicate subjects in SF9.
+  - Upgraded "Remove Duplicate" in Subjects Page (`duplicateGhostInfo` & `handleMergeAndCleanDuplicates`) to cluster subjects by canonical key and automatically sanitize `sections.taught_subjects` and `sections.teaching_subjects`, merging duplicate IDs and canonicalizing subject labels.
+  - Enhanced Sync action in SF9 (`handleSyncFromGradeManagement`), SF10, and Temporary Grade Slip (TGS) with automatic grade reconciliation (`reconcileOrphanedGradesAndSubjects`), database purging of duplicate subject records, and consolidation of student grades under canonical subject names without data loss.
+  - Added 1-click "Sync" button to Temporary Grade Slip (TGS) matching SF9 and SF10.
+- **Restored SF9 Layout & Options Subject Arrangement Dropdowns**:
+  - Fixed the empty dropdown issue across all 13 SF9 layout slots by providing a comprehensive candidate list (`layoutModalCandidates`) composed of section-assigned subjects, grade-level subjects, and taught subjects, deduplicated by canonical key and ordered by DepEd priority.
+
+## v3.5.12 (2026-09-16)
+
+### 🚀 Fixes & Enhancements
+
+- **Resolved Grade 12 Examination 3-Component Calculation Discrepancy**:
+  - Identified and fixed the root cause of the calculation discrepancy between the UI and the exported Excel workbook for Grade 12 subjects (such as *Physical Science* in *Grade 12 Archimedes*).
+  - In `grading.ts`, `g12_core` and related Grade 12 clusters were previously listed in `EXS_TE_ONLY_CLUSTERS`, causing the UI to calculate examination percentage scores using Term Exam only (`TE / TE_HPS * 100`) and discarding Summative Tests 1 and 2, even when the 3-exam layout (`useThreeExamLayout`) was active and ST1/ST2 scores were encoded.
+  - Removed `g12_core`, `g12_academic_other`, `g12_academic_immersion_research`, and `g12_tvl_all` from `EXS_TE_ONLY_CLUSTERS`. The UI now computes Exam Percentage Score using the official formula: $(ST1\% \times 30\%) + (ST2\% \times 30\%) + (TE\% \times 40\%)$, matching the columns `WS ST1`, `WS ST2`, and `WS TE` in the UI table, and aligning 100% with the official DepEd Excel formula `=SUM(AG17:AI17)`.
+  - For Bonilla, Jade Cyrus Sandoval: Exam PS is now accurately $80.00$ (instead of $100.00$), Exam WS is $20.00$, Initial Grade is $87.60$, and Transmuted Quarterly Grade is $89$ across both the UI and the Excel export.
+
+## v3.5.11 (2026-09-16)
+
+### 🚀 Fixes & Enhancements
+
+- **Senior High School Grade 12 Summative Tests 1 & 2 HPS Registration**:
+  - Resolved an issue in the updated DepEd Grade 12 ECR template where Summative Tests 1 and 2 Highest Possible Scores (HPS) in row 14 (`AD14` and `AE14`) were left blank. Both cells are now correctly populated from `hpsRecord.summative_tests` (or fallback WW6/7).
+  - Fixed division-by-blank formula evaluation in columns `AG` (WS ST1), `AH` (WS ST2), `AI` (WS TE), `AJ` (Exam PS), `AK` (Exam WS), and `AL` (Initial Grade).
+- **Synchronized Final Grades Calculation & Headers**:
+  - Added row 9 header population in `FINAL GRADES` sheet (`D9` for Grade Level 12 and `G9` for Subject Name), eliminating previous uncalculated `"0"` placeholder.
+  - Aligned Term 1 student grades on `FINAL GRADES` (`E17:E117`) with the live transmuted score from `Term 1` cell `AM`, eliminating the discrepancy where 100 was displayed due to cross-section HPS pollution.
+  - Implemented section-scoped and subject-scoped HPS record lookup (`findSHSG12HPSRecordForTerm`) to ensure calculations always use the active class's exact benchmarks.
+- **HELPER Sheet Dropdown & Formula Integrity**:
+  - Cleared `#N/A` error cache on cell `F10` in the `HELPER` sheet, ensuring 100% clean OpenXML structure with zero Excel repair warnings.
+
+## v3.5.10 (2026-09-15)
+
+### 🚀 Fixes & Enhancements
+
+- **Senior High School SSHS E-Class Record Term Block Auto-Detection**: Fixed an issue where single-term subjects (such as *Chemistry 1*, *Pre-Calculus*, *Basic Calculus*, *Physics*) were defaulting to the 3rd Term or generic 3-term block when exported. The system now dynamically determines the correct term offering by evaluating:
+  1. Universal Core status (DO 017, s. 2026 universal 3 terms).
+  2. Section metadata term offerings (`section_metadata.subjectTerms`).
+  3. Individual subject term configuration (`subject.term`).
+  4. Encoded scores in class records and HPS records (e.g. grades encoded in Quarter/Term 1).
+  5. Official curriculum sequence defaults (e.g. *Chemistry 1* $\rightarrow$ Term 1, *Chemistry 2* $\rightarrow$ Term 2).
+- **Restored Raw Scores and Final Grades on SSHS Excel Export**: Resolved the missing scores and grades issue on single-term subjects where inactive term warning formulas (`"INCORRECT SHEET. Do not use this sheet to input data."`) were erroneously suppressing Term 1 data. All 26 student scores, HPS benchmarks, weighted scores, and final grades now cleanly populate on the correct active term worksheet and the *FINAL GRADES* sheet.
+- **Robust Subject & School Year Matching**: Enhanced record matching to handle varying subject ID and name permutations as well as school year formatting differences (such as en-dashes vs. hyphens), ensuring complete grade recovery during export.
+
+## v3.5.9 (2026-09-15)
+
+### 🚀 New Features & Enhancements
+
+- **Official DepEd DO 8, s. 2015 Grade 12 Categorization**: Fully aligned traditional Senior High School subject categories into Core Subjects (Universal), Applied Subjects, Strand-Specific Specialized Subjects (GAS, ABM, STEM, HUMSS, TVL, Sports, Arts), and Work Immersion / Culminating Activity based on official DepEd curriculum reference infographics.
+- **Eliminated Misapplied SSHS Clusters from Grade 12**: Completely removed incorrect SSHS cluster categories (such as *"General Academic Elective"*, *"Arts, Social Sciences, and Humanities"*, *"Field Experience"*, *"Business and Entrepreneurship"*) from Grade 12 Traditional K-12 section creation, Catalog checklist, and Teaching Load panels.
+- **Grade 12 GAS & TVL 3-Term Official Presets**: Added official DepEd 12-subject trimester presets for General Academic Strand (GAS) and Technical-Vocational-Livelihood (TVL) tracks with balanced 4-subject per term distributions.
+- **Universal Core Subject Accuracy**: Robust recognition of all 18 DepEd Core subjects (including HOPE 1–4, PE & Health 1–4, DRRR, Earth & Life, Philosophy variations) preventing accidental misclassification into electives.
+
+## v3.5.8 (2026-09-15)
+
+### 🚀 New Features & Enhancements
+
+- **Senior High School Track & Strand Scoping**: Eliminated the 105-subject overload in section creation. Selecting Grade 12 (e.g. ABM, STEM, HUMSS, TVL) automatically presents only relevant Core, Applied, and Strand-specific specialized subjects.
+- **Official DepEd 12-Subject Preset Auto-Application**: Creating or configuring Grade 12 advisory sections automatically loads the official DepEd 12-subject trimester model (T1, T2, T3) with zero database pollution.
+- **Dedicated "Clear All" & Quick Selection Controls**: Added a 1-click Clear All button in the curriculum header and a quick toolbar (Select All / Clear All) in the Catalog Checklist, backed by an explicit cleared state flag (`hasExplicitlyClearedTaught`) to prevent unwanted default subject resets.
+- **Grade 11 SSHS DepEd Order No. 017, s. 2026 Strict Compliance**: Grade 11 strictly presents the universal 6 Core Learning Areas and Academic/TechPro cluster electives, completely isolating old K-12 SHS choices.
+- **Refined Grade 12 Catalog Categorization**: Grouped Grade 12 subjects cleanly into Core Subjects (Universal), Applied Subjects, Strand Specialized Subjects, and Work Immersion / Culminating Activity.
+
+### ⚡ Client Data Protection & Self-Healing
+
+- **Clean Setup & Local Protection**: Purged un-graded hardcoded sample section and learner records from fresh installations while safeguarding all existing user grades and active classes.
+
 ## v3.5.7 (2026-09-15)
 
 ### 🚀 New Features & Enhancements

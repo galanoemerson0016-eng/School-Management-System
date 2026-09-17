@@ -4,7 +4,7 @@
  * Features frosted glass navigation, iOS segmented controls, grouped inset cards, live camera QR scanner, and real-time PC sync.
  */
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import type { AttendanceRecord, Student } from '../types';
 import { extractLrnFromScan } from '../utils/scan-utils';
 import { formatLearnerName } from '../utils/student-name';

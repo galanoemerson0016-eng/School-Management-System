@@ -125,11 +125,7 @@ export const EXS_SUBWEIGHTS = {
 } as const;
 
 export const EXS_TE_ONLY_CLUSTERS: SubjectCluster[] = [
-    'shs_field_exposure',
-    'g12_core',
-    'g12_academic_other',
-    'g12_academic_immersion_research',
-    'g12_tvl_all'
+    'shs_field_exposure'
 ];
 
 /**
@@ -413,17 +409,39 @@ export function getSubjectCluster(subjectName: string, gradeLevel?: string, trac
     return 'languages_ap_esp';
 }
 
+// Normalizes weight to a decimal fraction (0.0 to 1.0)
+// If weight is given as a whole percentage (> 1, e.g. 20, 25, 30, 40, 50, 60), converts to fraction (0.20, 0.40, etc.)
+export function normalizeWeightFraction(weight: number | null | undefined): number {
+    if (typeof weight !== 'number' || isNaN(weight) || weight <= 0) return 0;
+    return weight > 1 ? weight / 100 : weight;
+}
+
+// Normalizes weight to a whole percentage number (0 to 100)
+// If weight is given as a decimal fraction (<= 1.0, e.g. 0.20, 0.40), converts to percentage (20, 40)
+export function normalizeWeightPercent(weight: number | null | undefined): number {
+    if (typeof weight !== 'number' || isNaN(weight) || weight <= 0) return 0;
+    return weight > 1 ? Math.round(weight) : Math.round(weight * 100);
+}
+
 // Get weights based on subject cluster
 export function getWeights(cluster: SubjectCluster, subject?: { written_weight?: number; performance_weight?: number; exam_weight?: number }) {
     if (subject && 
         typeof subject.written_weight === 'number' && 
         typeof subject.performance_weight === 'number' && 
         typeof subject.exam_weight === 'number') {
-        return {
-            written_works: subject.written_weight,
-            performance_tasks: subject.performance_weight,
-            quarterly_exam: subject.exam_weight
-        };
+        const ww = normalizeWeightFraction(subject.written_weight);
+        const pt = normalizeWeightFraction(subject.performance_weight);
+        const qa = normalizeWeightFraction(subject.exam_weight);
+
+        // Sanity check: sum of weights should be approximately 1.0 (100%)
+        const sum = ww + pt + qa;
+        if (sum > 0.90 && sum < 1.10) {
+            return {
+                written_works: ww,
+                performance_tasks: pt,
+                quarterly_exam: qa
+            };
+        }
     }
     switch (cluster) {
         case 'science_math':
@@ -458,7 +476,13 @@ export function getWeights(cluster: SubjectCluster, subject?: { written_weight?:
 
 // Transmutation table (DepEd Order 15 s. 2026 / Adjusted for SY 2026-2027)
 export function transmuteGrade(initialGrade: number, schoolYear?: string): number {
-    const roundedGrade = Math.round(initialGrade * 100) / 100;
+    // Self-healing safety guard: if initialGrade was computed with 100x unnormalized weights (e.g. 7153.94 or 3004.60),
+    // rescale back to standard 0-100 initial grade range.
+    let normalizedInitial = initialGrade;
+    if (normalizedInitial > 120 && normalizedInitial <= 10000) {
+        normalizedInitial = normalizedInitial / 100;
+    }
+    const roundedGrade = Math.round(normalizedInitial * 100) / 100;
     const score = Math.min(100, Math.max(0, roundedGrade)); // Clamp 0-100
     
     // Parse the school year, defaulting to the store's activeSchoolYear

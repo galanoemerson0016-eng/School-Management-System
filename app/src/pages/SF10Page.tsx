@@ -6,6 +6,9 @@ import { useSF10Store } from '../stores/sf10-store';
 import { db } from '../services/database';
 import type { Student, Section, Subject, ClassRecord } from '../types';
 import { getDefaultTermForSubject } from '../lib/curriculum';
+import { getCanonicalSubjectKey, normalizeSubjectName } from '../lib/subjectConfig';
+import { reconcileOrphanedGradesAndSubjects } from '../utils/grade-reconciliation';
+import { isMatchingSubject } from '../utils/grading-helpers';
 import SF10SpecRenderer from '../components/SF10SpecRenderer';
 import SF10JHSRenderer from '../components/SF10JHSRenderer';
 import { mapStudentToSpecData } from '../utils/sf10Mapper';
@@ -94,6 +97,8 @@ export function SF10Page() {
                 groups['JUNIOR HIGH SCHOOL'].push(s);
             } else if (num >= 11 && num <= 12) {
                 groups['SENIOR HIGH SCHOOL'].push(s);
+            } else {
+                groups['ELEMENTARY'].push(s);
             }
         });
         
@@ -241,36 +246,94 @@ export function SF10Page() {
                 subjects: freshSubjects
             });
 
-            // 2. Find the current section from fresh sections
-            const latestSection = (freshSections || []).find((s: Section) => s.id === selectedSectionObj.id) || selectedSectionObj;
+            // 2. Run reconciliation to auto-heal duplicate subjects & consolidate grades
+            const recon = reconcileOrphanedGradesAndSubjects({
+                subjects: freshSubjects,
+                sections: freshSections || [],
+                students: useAppStore.getState().students,
+                classRecords: freshClassRecords || [],
+                hpsRecords: useAppStore.getState().hpsRecords,
+                gradingSheetRecords: freshGradingRecords || []
+            });
 
-            // 3. Synchronize subject order & custom layout:
-            // Reset static slot overrides so SF10 dynamically adopts Grade Management's taught_subjects and ordering
-            const currentTaught = latestSection.taught_subjects || [];
-
-            if (latestSection.section_metadata?.sf10SubjectSelections) {
-                const updatedSection = {
-                    ...latestSection,
-                    section_metadata: {
-                        ...latestSection.section_metadata,
-                        sf10SubjectSelections: undefined
-                    }
-                };
-                await useAppStore.getState().updateSection(updatedSection);
+            if (recon.subjectsModified && recon.subjects) {
+                await db.putRecordsBulk('subjects', recon.subjects);
+            }
+            if (recon.deletedSubjectIds.length > 0) {
+                await db.deleteRecordsBulk('subjects', recon.deletedSubjectIds);
+            }
+            if (recon.modified) {
+                if (recon.classRecords) await db.putRecordsBulk('classRecords', recon.classRecords);
+                if (recon.hpsRecords) await db.putRecordsBulk('hpsRecords', recon.hpsRecords);
+                if (recon.gradingSheetRecords) await db.putRecordsBulk('gradingSheetRecords', recon.gradingSheetRecords);
             }
 
-            // 4. Force re-calculation by incrementing syncVersion
+            const reconciledSubjects = recon.subjects || freshSubjects;
+            const reconciledSections = recon.sections || freshSections || [];
+            const reconciledGradingRecords = recon.gradingSheetRecords || freshGradingRecords || [];
+            const reconciledClassRecords = recon.classRecords || freshClassRecords || [];
+
+            // 3. Find current section from reconciled sections
+            const baseSection = reconciledSections.find((s: Section) => s.id === selectedSectionObj.id) || selectedSectionObj;
+
+            // 4. Sanitize and deduplicate taught_subjects & teaching_subjects
+            const sanitizeSubjectList = (list?: string[]): string[] | undefined => {
+                if (!list) return undefined;
+                const mapped = list.map(t => {
+                    const trimmed = t.trim();
+                    const matchedDb = reconciledSubjects.find(s => isMatchingSubject(trimmed, s.id, s.subject_name));
+                    if (matchedDb && matchedDb.subject_name) {
+                        return matchedDb.subject_name;
+                    }
+                    return trimmed;
+                });
+                const seenKeys = new Set<string>();
+                const deduped: string[] = [];
+                for (const item of mapped) {
+                    const k = getCanonicalSubjectKey(item, baseSection.section_grade_level) || normalizeSubjectName(item);
+                    if (k && seenKeys.has(k)) continue;
+                    if (k) seenKeys.add(k);
+                    deduped.push(item);
+                }
+                return deduped;
+            };
+
+            const cleanTaught = sanitizeSubjectList(baseSection.taught_subjects) || [];
+            const cleanTeaching = sanitizeSubjectList(baseSection.teaching_subjects);
+
+            const updatedSection = {
+                ...baseSection,
+                taught_subjects: cleanTaught,
+                ...(cleanTeaching !== undefined ? { teaching_subjects: cleanTeaching } : {}),
+                section_metadata: {
+                    ...baseSection.section_metadata,
+                    sf10SubjectSelections: undefined
+                }
+            };
+            await useAppStore.getState().updateSection(updatedSection);
+
+            // Update app store state so all components immediately have the latest records
+            useAppStore.setState({
+                gradingSheetRecords: reconciledGradingRecords,
+                classRecords: reconciledClassRecords,
+                sections: reconciledSections.map((s: Section) => s.id === updatedSection.id ? updatedSection : s),
+                subjects: reconciledSubjects
+            });
+
+            // 5. Force re-calculation by incrementing syncVersion
             setSyncVersion(v => v + 1);
 
-            // 5. Count total synchronized grades for this section
-            const sectionGradesCount = (freshGradingRecords || []).filter((r: ClassRecord) =>
-                (r.section_id === latestSection.id || r.section_id === latestSection.section_name) &&
+            // 6. Count total synchronized grades for this section
+            const sectionGradesCount = reconciledGradingRecords.filter((r: ClassRecord) =>
+                (r.section_id === updatedSection.id || r.section_id === updatedSection.section_name) &&
                 (!activeSchoolYear || !r.school_year || r.school_year === activeSchoolYear) &&
                 Number(r.final_grade) > 0
             ).length;
 
+            const currentTaught = cleanTaught;
+
             // 6. Calculate official learning areas count (combining MAPEH components into 1 official subject for Grades 1-10)
-            const sectionGradeNum = parseInt((latestSection.section_grade_level || '').replace(/\D/g, '')) || 0;
+            const sectionGradeNum = parseInt((updatedSection.section_grade_level || '').replace(/\D/g, '')) || 0;
             const isSHS = sectionGradeNum === 11 || sectionGradeNum === 12;
 
             const isMapehComp = (name: string) => {
@@ -304,7 +367,7 @@ export function SF10Page() {
     }, [selectedSectionObj, activeSchoolYear]);
 
     return (
-        <div className="sf10-print-root flex flex-col h-full bg-linear-to-br from-slate-50 via-blue-50/40 to-indigo-50/30 dark:from-[#080d1a] dark:via-[#0b1329] dark:to-[#0d1630] relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
+        <div className="sf10-print-root flex flex-col h-full min-h-0 bg-linear-to-br from-slate-50 via-blue-50/40 to-indigo-50/30 dark:from-[#080d1a] dark:via-[#0b1329] dark:to-[#0d1630] relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
              {/* Sticky Premium Top Toolbar */}
              <div className="z-20 bg-white/80 dark:bg-[#0d1225]/90 backdrop-blur-2xl border-b border-slate-200/70 dark:border-white/10 shadow-[0_4px_20px_rgba(15,23,42,0.04)] relative print:hidden shrink-0 w-full">
                 <div className="absolute top-0 left-0 right-0 h-0.5 bg-linear-to-r from-blue-500 via-indigo-500 to-cyan-500 z-30" />

@@ -21,15 +21,20 @@ import {
     getSshsCategoryForSubject,
     getSshsClusterForSubject,
     getTraditionalShsTrackForSubject,
-    getTraditionalShsStrandForSubject,
     isSubjectAllowedForProgram,
     getDefaultTermForSubject,
-    isGrade11CoreSubject
+    isGrade11CoreSubject,
+    isSubjectMatchingSectionTrackAndStrand,
+    SSHS_G12_TECHPRO_SUBJECTS,
+    isTraditionalCoreSubject,
+    isTraditionalAppliedSubject,
+    isTraditionalImmersionSubject,
+    getTvlComponentForSubject
 } from '../../lib/curriculum';
 import { normalizeGrade12PESubjectName } from '../../utils/grading-helpers';
 import { normalizeSubjectName, sortSubjects } from '../../lib/subjectConfig';
 import { motion } from 'framer-motion';
-import { X, Save, Shield, BookOpen, AlertCircle, ChevronRight, Check, RotateCcw, RefreshCw, Search, Copy, Plus, Sparkles, Calendar, Layers, CheckCircle2 } from 'lucide-react';
+import { X, Save, Shield, BookOpen, AlertCircle, ChevronRight, Check, RotateCcw, RefreshCw, Search, Copy, Plus, Sparkles, Calendar, Layers, CheckCircle2, Trash2, CheckSquare } from 'lucide-react';
 import { getCurriculumPreset, getDepEdWeightsForSubject } from '../../lib/curriculumPresets';
 import { generateUUID } from '../../utils/idGenerator';
 
@@ -154,6 +159,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
     const [customSubjName, setCustomSubjName] = useState('');
     const [customSubjTerm, setCustomSubjTerm] = useState<1 | 2 | 3 | 'all'>(1);
     const [curriculumViewMode, setCurriculumViewMode] = useState<'matrix' | 'catalog'>('matrix');
+    const [hasExplicitlyClearedTaught, setHasExplicitlyClearedTaught] = useState(false);
 
     const detectedPreset = useMemo(() => {
         return getCurriculumPreset(
@@ -172,6 +178,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
 
     const applyDetectedPreset = () => {
         if (!detectedPreset) return;
+        setHasExplicitlyClearedTaught(false);
         const names = detectedPreset.subjects.map(s => s.name);
         const newTerms: Record<string, 1 | 2 | 3 | 'all'> = {};
         detectedPreset.subjects.forEach(s => {
@@ -200,6 +207,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                 taught_subjects: [],
                 teaching_subjects: []
             }));
+            setHasExplicitlyClearedTaught(false);
         }
     }, [section]);
 
@@ -243,25 +251,21 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             sectionSubjects.forEach(s => addToList(s.subject_name, s.subject_code || ''));
         }
 
-        // 2. Grade-level generic subjects in database
+        // 2. Grade-level generic subjects in database (filtered strictly by section track & strand/cluster)
         const genericSubjects = subjects.filter(s => 
             s.grade_level === grade && 
             !s.is_teaching_load && 
             !s.section_id
         );
         genericSubjects.forEach(s => {
-            if (grade === 'Grade 11') {
-                if (isGrade11CoreSubject(s.subject_name)) {
-                    addToList(s.subject_name, s.subject_code || '');
-                }
-            } else {
+            if (isSubjectMatchingSectionTrackAndStrand(s.subject_name, grade, formData.track, formData.strand || formData.cluster)) {
                 addToList(s.subject_name, s.subject_code || '');
             }
         });
 
-        // 3. Standard curriculum templates (Core Subjects)
+        // 3. Standard curriculum templates (Core & Track-specific subjects)
         if (grade === 'Grade 11') {
-            // Always add the 6 universal Core Learning Areas
+            // Always add the universal 6 Core Learning Areas
             SSHS_G11_CORE_SUBJECTS.forEach(s => addToList(s.name, s.code || ''));
 
             const isTechPro = formData.track === 'TechPro';
@@ -271,26 +275,76 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                 const clusterKey = formData.cluster || formData.strand;
                 if (clusterKey && SSHS_ACADEMIC_CLUSTERS[clusterKey]) {
                     SSHS_ACADEMIC_CLUSTERS[clusterKey].forEach(name => addToList(name, ''));
+                } else {
+                    // If no cluster selected yet, provide academic cluster choices
+                    Object.values(SSHS_ACADEMIC_CLUSTERS).flat().forEach(name => addToList(name, ''));
                 }
-                // Provide all academic cluster choices so teachers can choose electives
-                Object.values(SSHS_ACADEMIC_CLUSTERS).flat().forEach(name => addToList(name, ''));
             }
 
             if (isTechPro || !formData.track) {
-                const techPro11 = SPECIAL_SUBJECTS['Grade 11'] || [];
-                techPro11.forEach(s => addToList(s.name, s.code || ''));
+                const clusterKey = formData.cluster || formData.strand;
+                if (clusterKey && (SSHS_TECHPRO_CLUSTERS_LIST as readonly string[]).includes(clusterKey)) {
+                    const techProList = SPECIAL_SUBJECTS['Grade 11'] || [];
+                    techProList.forEach(s => {
+                        if (isSubjectMatchingSectionTrackAndStrand(s.name, grade, 'TechPro', clusterKey)) {
+                            addToList(s.name, s.code || '');
+                        }
+                    });
+                } else {
+                    const techPro11 = SPECIAL_SUBJECTS['Grade 11'] || [];
+                    techPro11.forEach(s => addToList(s.name, s.code || ''));
+                }
             }
         } else if (grade === 'Grade 12') {
-            const standard = STANDARD_SUBJECTS[grade] || [];
-            standard.forEach(s => addToList(s.name, s.code || ''));
+            const isExplicitSSHS = (formData.track || '').toLowerCase().includes('techpro') ||
+                                   (formData.track || '').toLowerCase().includes('sshs') ||
+                                   Boolean(formData.cluster && (SSHS_TECHPRO_CLUSTERS_LIST as readonly string[]).includes(formData.cluster));
 
-            const techPro12 = SPECIAL_SUBJECTS['Grade 12'] || [];
-            techPro12.forEach(s => addToList(s.name, s.code || ''));
+            if (isExplicitSSHS) {
+                // Grade 12 SSHS Curriculum (DO 017, s. 2026)
+                SSHS_G11_CORE_SUBJECTS.forEach(s => addToList(s.name, s.code || ''));
+                SHS_G12_CORE_SUBJECTS.forEach(s => addToList(s.name, s.code || ''));
 
-            SSHS_G12_ACADEMIC_SUBJECTS.forEach(s => addToList(s.name, s.code || ''));
-            SHS_G12_CORE_SUBJECTS.forEach(s => addToList(s.name, s.code || ''));
-            SHS_G12_APPLIED_SUBJECTS.forEach(s => addToList(s.name, s.code || ''));
-            Object.values(SHS_OLD_STRAND_SUBJECTS).flat().forEach(s => addToList(s.name, s.code || ''));
+                if (formData.track === 'TechPro') {
+                    SSHS_G12_TECHPRO_SUBJECTS.forEach(s => {
+                        if (isSubjectMatchingSectionTrackAndStrand(s.name, grade, formData.track, formData.strand || formData.cluster)) {
+                            addToList(s.name, s.code || '');
+                        }
+                    });
+                } else {
+                    SSHS_G12_ACADEMIC_SUBJECTS.forEach(s => {
+                        if (isSubjectMatchingSectionTrackAndStrand(s.name, grade, formData.track, formData.strand || formData.cluster)) {
+                            addToList(s.name, s.code || '');
+                        }
+                    });
+                }
+            } else {
+                // Traditional SHS Grade 12 Curriculum (DO 8, s. 2015)
+                // 1. Core Subjects (All Tracks)
+                SHS_G12_CORE_SUBJECTS.forEach(s => addToList(s.name, s.code || ''));
+
+                // 2. Applied Subjects (Universal for Academic/TVL tracks)
+                SHS_G12_APPLIED_SUBJECTS.forEach(s => addToList(s.name, s.code || ''));
+
+                // 3. Specialized subjects for chosen track and strand
+                const strandKey = formData.strand;
+                if (strandKey && SHS_OLD_STRAND_SUBJECTS[strandKey]) {
+                    SHS_OLD_STRAND_SUBJECTS[strandKey].forEach(s => addToList(s.name, s.code || ''));
+                } else if (formData.track === 'Academic') {
+                    (SHS_OLD_STRAND_SUBJECTS.ABM || []).forEach(s => addToList(s.name, s.code || ''));
+                    (SHS_OLD_STRAND_SUBJECTS.STEM || []).forEach(s => addToList(s.name, s.code || ''));
+                    (SHS_OLD_STRAND_SUBJECTS.HUMSS || []).forEach(s => addToList(s.name, s.code || ''));
+                    (SHS_OLD_STRAND_SUBJECTS.GAS || []).forEach(s => addToList(s.name, s.code || ''));
+                } else if (formData.track === 'TVL') {
+                    (SHS_OLD_STRAND_SUBJECTS.TVL || []).forEach(s => addToList(s.name, s.code || ''));
+                } else if (formData.track === 'Sports') {
+                    (SHS_OLD_STRAND_SUBJECTS.Sports || []).forEach(s => addToList(s.name, s.code || ''));
+                } else if (formData.track === 'Arts and Design') {
+                    (SHS_OLD_STRAND_SUBJECTS['Arts and Design'] || []).forEach(s => addToList(s.name, s.code || ''));
+                } else {
+                    Object.values(SHS_OLD_STRAND_SUBJECTS).flat().forEach(s => addToList(s.name, s.code || ''));
+                }
+            }
         } else {
             const standard = STANDARD_SUBJECTS[grade] || [];
             standard.forEach(s => addToList(s.name, s.code || ''));
@@ -307,8 +361,15 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             }
         }
 
-        // 5. Any custom or section-specific subjects already in taught_subjects
+        // 5. Retain any custom or section-specific subjects already chosen in taught_subjects
         (formData.taught_subjects || []).forEach(name => addToList(name, ''));
+
+        // Filter through isSubjectMatchingSectionTrackAndStrand (except custom active subjects)
+        const activeTaughtSet = new Set((formData.taught_subjects || []).map(s => s.toLowerCase()));
+        const filteredList = uniqueList.filter(s => 
+            activeTaughtSet.has(s.name.toLowerCase()) || 
+            isSubjectMatchingSectionTrackAndStrand(s.name, grade, formData.track, formData.strand || formData.cluster)
+        );
 
         // Sort them according to standard DepEd order if possible, otherwise alphabetical
         const standardOrder = [
@@ -319,7 +380,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             'Music and Arts', 'Physical Education and Health'
         ];
 
-        return uniqueList.sort((a, b) => {
+        return filteredList.sort((a, b) => {
             const indexA = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(a.name));
             const indexB = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(b.name));
 
@@ -343,13 +404,14 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
         return filtered;
     }, [formData.section_grade_level, formData.program, formData.spa_majors]);
 
-    // Subjects in database configured for this grade level (customized on Subjects Page)
+    // Subjects in database configured for this grade level and track/strand (customized on Subjects Page)
     const existingDbSubjects = useMemo(() => {
         const grade = formData.section_grade_level as GradeLevel;
         const list = subjects.filter(s => 
             s.grade_level === grade && 
             !s.is_teaching_load && 
             isSubjectAllowedForProgram(s.subject_name, grade, formData.program) &&
+            isSubjectMatchingSectionTrackAndStrand(s.subject_name, grade, formData.track, formData.strand || formData.cluster) &&
             (!s.section_id || (formData.id && s.section_id === formData.id))
         ).map(s => s.subject_name);
         if (grade === 'Grade 11' || (grade || '').includes('11')) {
@@ -358,21 +420,27 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             return list.filter(name => isGrade11CoreSubject(name));
         }
         return list;
-    }, [subjects, formData.section_grade_level, formData.id, formData.program]);
+    }, [subjects, formData.section_grade_level, formData.id, formData.program, formData.track, formData.strand, formData.cluster]);
 
-    // Default advisory curriculum: Prioritize existing DB subjects, fall back to standard template
+    // Default advisory curriculum: Prioritize official DepEd preset if detected, then DB subjects, then standard templates
     const defaultCurriculumSubjectNames = useMemo(() => {
+        if (detectedPreset && detectedPreset.subjects.length > 0) {
+            return detectedPreset.subjects.map(s => s.name);
+        }
         return existingDbSubjects.length > 0 ? existingDbSubjects : standardCurriculumSubjectNames;
-    }, [existingDbSubjects, standardCurriculumSubjectNames]);
+    }, [detectedPreset, existingDbSubjects, standardCurriculumSubjectNames]);
 
     const activeTaughtList = useMemo(() => {
         const grade = (formData.section_grade_level || 'Grade 7') as GradeLevel;
         const program = formData.program || 'Regular';
+        if (hasExplicitlyClearedTaught) {
+            return (formData.taught_subjects || []).filter(name => isSubjectAllowedForProgram(name, grade, program));
+        }
         const raw = (formData.taught_subjects && formData.taught_subjects.length > 0)
             ? formData.taught_subjects
             : defaultCurriculumSubjectNames;
         return raw.filter(name => isSubjectAllowedForProgram(name, grade, program));
-    }, [formData.taught_subjects, defaultCurriculumSubjectNames, formData.section_grade_level, formData.program]);
+    }, [formData.taught_subjects, hasExplicitlyClearedTaught, defaultCurriculumSubjectNames, formData.section_grade_level, formData.program]);
 
     const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
     const [subjectSearchFilter, setSubjectSearchFilter] = useState('');
@@ -402,6 +470,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
     };
 
     const selectAllInAdvisoryCategory = (categorySubjects: { name: string }[]) => {
+        setHasExplicitlyClearedTaught(false);
         const current = activeTaughtList;
         const toAdd = categorySubjects.map(s => s.name);
         const next = Array.from(new Set([...current, ...toAdd]));
@@ -412,6 +481,9 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
         const current = activeTaughtList;
         const toRemove = new Set(categorySubjects.map(s => s.name));
         const next = current.filter(name => !toRemove.has(name));
+        if (next.length === 0) {
+            setHasExplicitlyClearedTaught(true);
+        }
         setFormData({ ...formData, taught_subjects: next });
     };
 
@@ -425,8 +497,8 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             ? availableSubjects.filter(s => s.name.toLowerCase().includes(searchLower))
             : availableSubjects;
 
-        // Case 1: SSHS (Grade 11, or Grade 12 when SSHS track or cluster is selected)
-        const isExplicitSSHS = gradeNum === 11 || (gradeNum === 12 && ((formData.track || '').toLowerCase().includes('sshs') || (formData.track || '').toLowerCase().includes('cluster') || Boolean(formData.cluster)));
+        // Case 1: SSHS (Grade 11, or Grade 12 when TechPro or explicit SSHS track/cluster is selected)
+        const isExplicitSSHS = gradeNum === 11 || (gradeNum === 12 && ((formData.track || '').toLowerCase().includes('techpro') || (formData.track || '').toLowerCase().includes('sshs') || Boolean(formData.cluster && (SSHS_TECHPRO_CLUSTERS_LIST as readonly string[]).includes(formData.cluster))));
 
         if (isExplicitSSHS) {
             const catOrder = ['SSHS - CORE', 'SSHS - ACADEMIC', 'SSHS - TECH-PRO'];
@@ -450,21 +522,33 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             return filtered;
         }
 
-        // Case 2: Traditional SHS Grade 12 (from ECR_3Term - SHS G12 - SY2026-2027 - Updated_3.xlsx)
+        // Case 2: Traditional SHS Grade 12 (DO 8, s. 2015)
         if (gradeNum === 12) {
+            const strandLabel = formData.strand 
+                ? `${formData.strand} Specialized Subjects` 
+                : (formData.track ? `${formData.track} Specialized Subjects` : 'Specialized Track Subjects');
             const catOrder = [
-                'CORE SUBJECT (ALL TRACKS)',
-                'ACADEMIC TRACK (EXCEPT IMMERSION)',
-                'WORK IMMERSION/ CULMINATING ACTIVITY (FOR ACADEMIC TRACK)',
-                'TVL/ SPORTS/ ARTS AND DESIGN TRACK'
+                'Core Subjects (Universal)',
+                'Applied Subjects',
+                strandLabel,
+                'Work Immersion / Culminating Activity',
+                'TVL / Sports / Arts & Design'
             ];
             const groups: Record<string, typeof availableSubjects> = {};
             catOrder.forEach(cat => { groups[cat] = []; });
 
             filteredSubjects.forEach((subject) => {
-                const track = getTraditionalShsTrackForSubject(subject.name);
-                if (!groups[track]) groups[track] = [];
-                groups[track].push(subject);
+                if (isTraditionalImmersionSubject(subject.name)) {
+                    groups['Work Immersion / Culminating Activity'].push(subject);
+                } else if (isTraditionalCoreSubject(subject.name)) {
+                    groups['Core Subjects (Universal)'].push(subject);
+                } else if (isTraditionalAppliedSubject(subject.name)) {
+                    groups['Applied Subjects'].push(subject);
+                } else if (getTraditionalShsTrackForSubject(subject.name) === 'TVL/ SPORTS/ ARTS AND DESIGN TRACK' && formData.track !== 'TVL') {
+                    groups['TVL / Sports / Arts & Design'].push(subject);
+                } else {
+                    groups[strandLabel].push(subject);
+                }
             });
 
             const filtered: Record<string, typeof availableSubjects> = {};
@@ -518,34 +602,56 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
         });
 
         const filtered: Record<string, typeof availableSubjects> = {};
+        catOrder.forEach(cat => {
+            if (groups[cat] && groups[cat].length > 0) {
+                filtered[cat] = groups[cat];
+            }
+        });
+
         Object.entries(groups).forEach(([cat, list]) => {
-            if (list.length > 0) {
+            if (list.length > 0 && !filtered[cat]) {
                 filtered[cat] = list;
             }
         });
 
         return filtered;
-    }, [availableSubjects, formData.section_grade_level, formData.track, formData.cluster, subjectSearchFilter]);
+    }, [availableSubjects, formData.section_grade_level, formData.track, formData.strand, formData.cluster, subjectSearchFilter]);
 
     const groupSubjectsByCluster = (subList: typeof availableSubjects) => {
         const grade = formData.section_grade_level || 'Grade 7';
         const gradeNum = parseInt(grade.replace(/\D/g, '')) || 0;
         const isSHS = gradeNum === 11 || gradeNum === 12;
-        const isExplicitSSHS = gradeNum === 11 || (gradeNum === 12 && ((formData.track || '').toLowerCase().includes('sshs') || (formData.track || '').toLowerCase().includes('cluster') || Boolean(formData.cluster)));
+        const isExplicitSSHS = gradeNum === 11 || (gradeNum === 12 && ((formData.track || '').toLowerCase().includes('techpro') || (formData.track || '').toLowerCase().includes('sshs') || Boolean(formData.cluster && (SSHS_TECHPRO_CLUSTERS_LIST as readonly string[]).includes(formData.cluster))));
 
         if (!isSHS) {
             return { '': subList };
         }
 
-        const clusters: Record<string, typeof availableSubjects> = {};
-        subList.forEach((s) => {
-            const clusterName = isExplicitSSHS 
-                ? getSshsClusterForSubject(s.name) 
-                : getTraditionalShsStrandForSubject(s.name);
-            if (!clusters[clusterName]) clusters[clusterName] = [];
-            clusters[clusterName].push(s);
-        });
-        return clusters;
+        if (isExplicitSSHS) {
+            const clusters: Record<string, typeof availableSubjects> = {};
+            subList.forEach((s) => {
+                const clusterName = getSshsClusterForSubject(s.name);
+                if (!clusters[clusterName]) clusters[clusterName] = [];
+                clusters[clusterName].push(s);
+            });
+            return clusters;
+        }
+
+        // Traditional SHS Grade 12 (DO 8, s. 2015)
+        // If TVL track, group by TVL component sector
+        if (formData.track === 'TVL') {
+            const tvlClusters: Record<string, typeof availableSubjects> = {};
+            subList.forEach((s) => {
+                const tvlSec = getTvlComponentForSubject(s.name);
+                if (!tvlClusters[tvlSec]) tvlClusters[tvlSec] = [];
+                tvlClusters[tvlSec].push(s);
+            });
+            return tvlClusters;
+        }
+
+        // For Academic Track (ABM, STEM, HUMSS, GAS), Sports, Arts & Design:
+        // Render cleanly in the category grid without redundant sub-cluster headings
+        return { '': subList };
     };
 
     const isElementary = useMemo(() => {
@@ -609,6 +715,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             showNotification('Please enter a subject name.', 'error');
             return;
         }
+        setHasExplicitlyClearedTaught(false);
         const current = activeTaughtList;
         if (current.map(s => s.toLowerCase()).includes(trimmed.toLowerCase())) {
             showNotification('This subject is already in the section curriculum.', 'info');
@@ -628,19 +735,29 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
     };
 
     const handleTrackChange = (newTrack: string) => {
+        setHasExplicitlyClearedTaught(false);
         const isG11 = formData.section_grade_level?.includes('Grade 11');
         const isG12 = formData.section_grade_level?.includes('Grade 12');
         const grade = (formData.section_grade_level || 'Grade 11') as GradeLevel;
 
-        let nextTaught = formData.taught_subjects || [];
-        if (isG11 || isG12) {
+        const preset = getCurriculumPreset(grade, newTrack, '', formData.program);
+        let nextTaught: string[] = [];
+        const newTerms: Record<string, 1 | 2 | 3 | 'all'> = {};
+
+        if (preset && preset.subjects.length > 0) {
+            nextTaught = preset.subjects.map(s => s.name);
+            preset.subjects.forEach(s => { newTerms[s.name] = s.term; });
+        } else if (isG11) {
+            nextTaught = SSHS_G11_CORE_SUBJECTS.map(s => s.name);
+        } else if (isG12) {
             const templates = getCurriculumTemplatesForSection(grade, formData.program, formData.spa_majors, newTrack, '');
-            const cleanNames = templates
+            nextTaught = templates
                 .map(t => t.name)
-                .filter(name => isSubjectAllowedForProgram(name, grade, formData.program));
-            if (cleanNames.length > 0) {
-                nextTaught = cleanNames;
-            }
+                .filter(name => isSubjectAllowedForProgram(name, grade, formData.program) && isSubjectMatchingSectionTrackAndStrand(name, grade, newTrack, ''));
+        }
+
+        if (Object.keys(newTerms).length > 0) {
+            setSubjectTerms(prev => ({ ...prev, ...newTerms }));
         }
 
         setFormData(prev => ({
@@ -648,55 +765,58 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             track: newTrack,
             strand: '',
             cluster: '',
-            taught_subjects: nextTaught
+            taught_subjects: nextTaught,
+            section_metadata: {
+                ...(prev.section_metadata || {}),
+                subjectTerms: Object.keys(newTerms).length > 0 ? { ...(prev.section_metadata?.subjectTerms || {}), ...newTerms } : prev.section_metadata?.subjectTerms
+            }
         }));
     };
 
     const handleStrandChange = (newStrand: string) => {
+        setHasExplicitlyClearedTaught(false);
         const isG11 = formData.section_grade_level?.includes('Grade 11');
         const isG12 = formData.section_grade_level?.includes('Grade 12');
         const grade = (formData.section_grade_level || 'Grade 11') as GradeLevel;
 
-        let nextTaught = formData.taught_subjects || [];
-        if (isG11 || isG12) {
+        const preset = getCurriculumPreset(grade, formData.track, newStrand, formData.program);
+        let nextTaught: string[] = [];
+        const newTerms: Record<string, 1 | 2 | 3 | 'all'> = {};
+
+        if (preset && preset.subjects.length > 0) {
+            nextTaught = preset.subjects.map(s => s.name);
+            preset.subjects.forEach(s => { newTerms[s.name] = s.term; });
+        } else if (isG11 || isG12) {
             const templates = getCurriculumTemplatesForSection(grade, formData.program, formData.spa_majors, formData.track, newStrand);
-            const cleanNames = templates
+            nextTaught = templates
                 .map(t => t.name)
-                .filter(name => isSubjectAllowedForProgram(name, grade, formData.program));
-            if (cleanNames.length > 0) {
-                nextTaught = cleanNames;
-            }
+                .filter(name => isSubjectAllowedForProgram(name, grade, formData.program) && isSubjectMatchingSectionTrackAndStrand(name, grade, formData.track, newStrand));
+        }
+
+        if (Object.keys(newTerms).length > 0) {
+            setSubjectTerms(prev => ({ ...prev, ...newTerms }));
         }
 
         setFormData(prev => ({
             ...prev,
             strand: newStrand,
-            cluster: newStrand,
-            taught_subjects: nextTaught
+            cluster: isG11 || formData.track === 'TechPro' ? newStrand : '',
+            taught_subjects: nextTaught,
+            section_metadata: {
+                ...(prev.section_metadata || {}),
+                subjectTerms: Object.keys(newTerms).length > 0 ? { ...(prev.section_metadata?.subjectTerms || {}), ...newTerms } : prev.section_metadata?.subjectTerms
+            }
         }));
     };
 
     const handleGradeLevelChange = (newGrade: string) => {
+        setHasExplicitlyClearedTaught(false);
         const isNewElem = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'].includes(newGrade);
         let newProgram = formData.program || 'Regular';
         if (isNewElem && ['STE', 'SPA', 'SPJ', 'SPS', 'SPFL', 'SPTVE'].includes(newProgram)) {
             newProgram = 'Regular';
         } else if (!isNewElem && newProgram === 'SSES') {
             newProgram = 'Regular';
-        }
-
-        let newTaught = formData.taught_subjects;
-        if (!section && formData.is_advisory) {
-            const newGradeDbSubjects = subjects.filter(s => 
-                s.grade_level === newGrade && 
-                !s.is_teaching_load && 
-                !s.section_id
-            ).map(s => s.subject_name);
-            let standardSubjs = (STANDARD_SUBJECTS[newGrade as GradeLevel] || []).map(s => s.name);
-            if (newGrade === 'Grade 11' || newGrade.includes('11')) {
-                standardSubjs = standardSubjs.filter(name => isGrade11CoreSubject(name));
-            }
-            newTaught = newGradeDbSubjects.length > 0 ? newGradeDbSubjects : standardSubjs;
         }
 
         let newTrack = formData.track || '';
@@ -707,29 +827,55 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
         const isG12 = newGrade.includes('Grade 12') || newGrade === '12';
 
         if (isG11) {
-            // For Grade 11: Only Academic and TechPro are allowed under SSHS (no old K-12 SHS tracks)
+            // For Grade 11: Only Academic and TechPro are allowed under SSHS (DO 017, s. 2026)
             if (newTrack !== 'Academic' && newTrack !== 'TechPro') {
-                if (newTrack === 'TVL') {
-                    newTrack = 'TechPro';
-                } else {
-                    newTrack = '';
-                }
+                newTrack = newTrack === 'TVL' ? 'TechPro' : 'Academic';
             }
-            // Validate strand / cluster against allowed Grade 11 clusters
             const validClusters = getStrandsForTrack(newTrack, 'Grade 11');
             const currentSelected = newCluster || newStrand;
             if (!validClusters.includes(currentSelected)) {
-                newStrand = '';
-                newCluster = '';
+                newStrand = validClusters[0] || '';
+                newCluster = newStrand;
             } else {
                 newStrand = currentSelected;
                 newCluster = currentSelected;
             }
-        } else if (!isG12) {
+        } else if (isG12) {
+            // Traditional K-12 Grade 12 (DO 8, s. 2015)
+            if (newTrack !== 'TechPro') {
+                newCluster = '';
+            }
+        } else {
             // Non-SHS (Elementary / JHS)
             newTrack = '';
             newStrand = '';
             newCluster = '';
+        }
+
+        let newTaught = formData.taught_subjects;
+        const newTerms: Record<string, 1 | 2 | 3 | 'all'> = {};
+        if (!section && formData.is_advisory) {
+            const preset = getCurriculumPreset(newGrade, newTrack, newStrand || newCluster, newProgram);
+            if (preset && preset.subjects.length > 0) {
+                newTaught = preset.subjects.map(s => s.name);
+                preset.subjects.forEach(s => { newTerms[s.name] = s.term; });
+            } else {
+                const newGradeDbSubjects = subjects.filter(s => 
+                    s.grade_level === newGrade && 
+                    !s.is_teaching_load && 
+                    !s.section_id &&
+                    isSubjectMatchingSectionTrackAndStrand(s.subject_name, newGrade, newTrack, newStrand || newCluster)
+                ).map(s => s.subject_name);
+                let standardSubjs = (STANDARD_SUBJECTS[newGrade as GradeLevel] || []).map(s => s.name);
+                if (isG11) {
+                    standardSubjs = SSHS_G11_CORE_SUBJECTS.map(s => s.name);
+                }
+                newTaught = newGradeDbSubjects.length > 0 ? newGradeDbSubjects : standardSubjs;
+            }
+        }
+
+        if (Object.keys(newTerms).length > 0) {
+            setSubjectTerms(prev => ({ ...prev, ...newTerms }));
         }
 
         setFormData({
@@ -740,22 +886,28 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             taught_subjects: newTaught,
             track: newTrack,
             strand: newStrand,
-            cluster: newCluster
+            cluster: newCluster,
+            section_metadata: {
+                ...(formData.section_metadata || {}),
+                subjectTerms: Object.keys(newTerms).length > 0 ? { ...(formData.section_metadata?.subjectTerms || {}), ...newTerms } : formData.section_metadata?.subjectTerms
+            }
         });
     };
 
     const handleAdvisoryChange = (checked: boolean) => {
+        setHasExplicitlyClearedTaught(false);
         setFormData(prev => ({ 
             ...prev, 
             is_advisory: checked,
             adviser_name: checked ? (schoolProfile?.adviser_name || user?.displayName || '') : '',
-            taught_subjects: checked && (!prev.taught_subjects || prev.taught_subjects.length <= 1)
+            taught_subjects: checked && (!prev.taught_subjects || prev.taught_subjects.length === 0)
                 ? defaultCurriculumSubjectNames
                 : (prev.taught_subjects || [])
         }));
     };
 
     const syncTaughtSubjectsWithDb = () => {
+        setHasExplicitlyClearedTaught(false);
         if (existingDbSubjects.length > 0) {
             setFormData(prev => ({
                 ...prev,
@@ -763,11 +915,16 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             }));
             showNotification(`Synced ${existingDbSubjects.length} subjects from Subjects Page.`, 'success');
         } else {
-            showNotification('No subjects found in Subjects Page for this grade level.', 'info');
+            showNotification('No matching subjects found in Subjects Page for this section.', 'info');
         }
     };
 
     const resetTaughtSubjectsToStandard = () => {
+        setHasExplicitlyClearedTaught(false);
+        if (detectedPreset && detectedPreset.subjects.length > 0) {
+            applyDetectedPreset();
+            return;
+        }
         setFormData(prev => ({
             ...prev,
             taught_subjects: [...standardCurriculumSubjectNames]
@@ -775,10 +932,34 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
         showNotification('Advisory curriculum reset to standard DepEd subjects.', 'info');
     };
 
+    const clearAllTaughtSubjects = () => {
+        setHasExplicitlyClearedTaught(true);
+        setFormData(prev => ({
+            ...prev,
+            taught_subjects: []
+        }));
+        showNotification('Cleared all official curriculum subjects.', 'info');
+    };
+
+    const selectAllAvailableSubjects = () => {
+        setHasExplicitlyClearedTaught(false);
+        const allNames = availableSubjects.map(s => s.name);
+        setFormData(prev => ({
+            ...prev,
+            taught_subjects: allNames
+        }));
+        showNotification(`Selected all ${allNames.length} available subjects.`, 'success');
+    };
+
     const toggleTaughtSubject = (subjectName: string) => {
+        setHasExplicitlyClearedTaught(false);
         const current = activeTaughtList;
         if (current.includes(subjectName)) {
-            setFormData({ ...formData, taught_subjects: current.filter(s => s !== subjectName) });
+            const next = current.filter(s => s !== subjectName);
+            if (next.length === 0) {
+                setHasExplicitlyClearedTaught(true);
+            }
+            setFormData({ ...formData, taught_subjects: next });
         } else {
             setFormData({ ...formData, taught_subjects: [...current, subjectName] });
         }
@@ -920,9 +1101,11 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
 
             if (isAdvisory) {
                 const currentTaught = formData.taught_subjects || [];
-                if (currentTaught.length > 1) {
+                if (hasExplicitlyClearedTaught && currentTaught.length === 0) {
+                    finalTaughtSubjects = [];
+                } else if (currentTaught.length > 0) {
                     finalTaughtSubjects = currentTaught;
-                } else if (section?.taught_subjects && section.taught_subjects.length > 1) {
+                } else if (section?.taught_subjects && section.taught_subjects.length > 0) {
                     finalTaughtSubjects = section.taught_subjects;
                 } else {
                     finalTaughtSubjects = defaultCurriculumSubjectNames;
@@ -1372,9 +1555,20 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                 type="button"
                                                 onClick={resetTaughtSubjectsToStandard}
                                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40 hover:bg-indigo-100 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer shadow-xs"
+                                                title="Reset to official DepEd standard preset"
                                             >
                                                 <RotateCcw className="w-3 h-3" />
                                                 Reset
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={clearAllTaughtSubjects}
+                                                disabled={activeTaughtList.length === 0}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                                                title="Uncheck all subjects in one click"
+                                            >
+                                                <Trash2 className="w-3 h-3" />
+                                                Clear All
                                             </button>
                                         </div>
                                     </div>
@@ -1428,7 +1622,31 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                     {/* 3. Visual Term Matrix View */}
                                     {curriculumViewMode === 'matrix' && (
                                         <div className="space-y-4">
-                                            {!isSHS ? (
+                                            {activeTaughtList.length === 0 ? (
+                                                <div className="text-center py-12 px-4 bg-white/70 dark:bg-[#0d1225]/70 border-2 border-dashed border-slate-200/80 dark:border-white/10 rounded-2xl">
+                                                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-500 flex items-center justify-center mx-auto mb-3">
+                                                        <BookOpen className="w-6 h-6" />
+                                                    </div>
+                                                    <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wide mb-1">
+                                                        No Subjects Assigned to Curriculum
+                                                    </h4>
+                                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 max-w-sm mx-auto mb-4">
+                                                        {detectedPreset 
+                                                            ? `All subjects have been cleared. Click below to load the official ${detectedPreset.label} (${detectedPreset.subjects.length} subjects), or switch to "Catalog Checklist" to pick specific subjects.` 
+                                                            : 'All subjects have been cleared. Switch to "Catalog Checklist" above to select subjects for this section or add custom electives.'}
+                                                    </p>
+                                                    {detectedPreset && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={applyDetectedPreset}
+                                                            className="inline-flex items-center gap-2 px-4 py-2 bg-linear-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
+                                                        >
+                                                            <Sparkles className="w-3.5 h-3.5" />
+                                                            Apply {detectedPreset.label} ({detectedPreset.subjects.length} Subjects)
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ) : !isSHS ? (
                                                 /* Elementary & JHS Whole-Year Curriculum Matrix */
                                                 <div className="bg-white/80 dark:bg-[#0d1225]/80 border border-slate-200/70 dark:border-white/10 rounded-2xl p-4 shadow-xs">
                                                     <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/10 mb-3">
@@ -1664,16 +1882,43 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                     {/* 4. Catalog Checklist View */}
                                     {curriculumViewMode === 'catalog' && (
                                         <div>
-                                            {/* Search filter */}
-                                            <div className="relative mb-3">
-                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                                                <input
-                                                    type="text"
-                                                    placeholder="Search subjects in catalog..."
-                                                    value={subjectSearchFilter}
-                                                    onChange={(e) => setSubjectSearchFilter(e.target.value)}
-                                                    className="w-full pl-9 pr-3 py-2 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-[10px] font-semibold text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-400/40 focus:border-indigo-300"
-                                                />
+                                            {/* Search filter & Quick Actions Toolbar */}
+                                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 mb-3">
+                                                <div className="relative flex-1">
+                                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search subjects in catalog..."
+                                                        value={subjectSearchFilter}
+                                                        onChange={(e) => setSubjectSearchFilter(e.target.value)}
+                                                        className="w-full pl-9 pr-3 py-2 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-[10px] font-semibold text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-400/40 focus:border-indigo-300"
+                                                    />
+                                                </div>
+
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 px-2 py-1 bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200/50 dark:border-white/5">
+                                                        {availableSubjects.length} relevant subject{availableSubjects.length === 1 ? '' : 's'}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={selectAllAvailableSubjects}
+                                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40 rounded-xl text-[9px] font-bold transition-all cursor-pointer shadow-xs"
+                                                        title="Select all relevant subjects for this section"
+                                                    >
+                                                        <CheckSquare className="w-3 h-3" />
+                                                        Select All
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={clearAllTaughtSubjects}
+                                                        disabled={activeTaughtList.length === 0}
+                                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40 rounded-xl text-[9px] font-bold transition-all cursor-pointer shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                                                        title="Uncheck all subjects"
+                                                    >
+                                                        <Trash2 className="w-3 h-3" />
+                                                        Clear All
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             <div className="space-y-3">

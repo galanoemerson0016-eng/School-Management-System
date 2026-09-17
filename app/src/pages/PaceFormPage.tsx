@@ -436,106 +436,106 @@ export function PaceFormPage() {
   return (
     <div className="h-full w-full overflow-y-auto custom-scrollbar bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-white flex flex-col font-sans">
       {/* Modern Redesigned Top Header Bar */}
-      <div className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 px-4 py-2.5 shadow-xs space-y-2.5">
+      <div className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 px-3.5 py-2 shadow-xs space-y-2">
         
         {/* ROW 1: Branding Header & Subject Segment Switcher */}
-        <div className="w-full flex flex-wrap items-center justify-between gap-3">
+        <div className="w-full flex items-center justify-between gap-2.5">
           {/* Left Title & Grade 1 Badge */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 shrink-0">
             <button
               onClick={() => setCurrentView('school-forms')}
-              className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all text-slate-600 dark:text-slate-300 hover:scale-105 active:scale-95 shadow-xs"
+              className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all text-slate-600 dark:text-slate-300 hover:scale-105 active:scale-95 shadow-xs"
               title="Back to School Forms"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
             
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-base font-black tracking-tight text-slate-900 dark:text-white">
+            <div className="flex items-center gap-2">
+              <h1 className="text-sm font-black tracking-tight text-slate-900 dark:text-white">
                 PACE Form
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[10.5px] font-black uppercase tracking-wider shadow-xs">
+              <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[10px] font-black uppercase tracking-wider shadow-xs">
                 Grade 1 Only
               </span>
             </div>
           </div>
 
           {/* Subject Switcher Segment Control */}
-          <div className="flex items-center bg-slate-100/90 dark:bg-slate-800/90 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-inner gap-1 text-xs font-bold flex-wrap">
+          <div className="flex items-center bg-slate-100/90 dark:bg-slate-800/90 p-0.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-inner gap-0.5 text-[11px] font-bold overflow-x-auto custom-scrollbar shrink-0">
             <button
               onClick={() => handleFormTypeChange('reading')}
-              className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-2 font-bold ${
+              className={`px-3 py-1 rounded-xl transition-all flex items-center gap-1.5 font-bold ${
                 formType === 'reading'
                   ? 'bg-amber-500 text-white shadow-md shadow-amber-500/25 scale-[1.02]'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/60'
               }`}
             >
-              <BookOpen className="w-4 h-4" />
+              <BookOpen className="w-3.5 h-3.5" />
               <span>Reading & Literacy</span>
             </button>
 
             <button
               onClick={() => handleFormTypeChange('language')}
-              className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-2 font-bold ${
+              className={`px-3 py-1 rounded-xl transition-all flex items-center gap-1.5 font-bold ${
                 formType === 'language'
                   ? 'bg-sky-600 text-white shadow-md shadow-sky-600/25 scale-[1.02]'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/60'
               }`}
             >
-              <Languages className="w-4 h-4" />
+              <Languages className="w-3.5 h-3.5" />
               <span>Language</span>
             </button>
 
             <button
               onClick={() => handleFormTypeChange('math')}
-              className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-2 font-bold ${
+              className={`px-3 py-1 rounded-xl transition-all flex items-center gap-1.5 font-bold ${
                 formType === 'math'
                   ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25 scale-[1.02]'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/60'
               }`}
             >
-              <Calculator className="w-4 h-4" />
+              <Calculator className="w-3.5 h-3.5" />
               <span>Mathematics</span>
             </button>
 
             <button
               onClick={() => handleFormTypeChange('gmrc-makabansa')}
-              className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-2 font-bold ${
+              className={`px-3 py-1 rounded-xl transition-all flex items-center gap-1.5 font-bold ${
                 formType === 'gmrc-makabansa'
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-600/25 scale-[1.02]'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/60'
               }`}
             >
-              <HeartHandshake className="w-4 h-4" />
+              <HeartHandshake className="w-3.5 h-3.5" />
               <span>GMRC & MAKABANSA</span>
             </button>
 
             <button
               onClick={() => handleFormTypeChange('sf9')}
-              className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-2 font-bold ${
+              className={`px-3 py-1 rounded-xl transition-all flex items-center gap-1.5 font-bold ${
                 formType === 'sf9'
                   ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25 scale-[1.02]'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/60'
               }`}
             >
-              <FileText className="w-4 h-4" />
+              <FileText className="w-3.5 h-3.5" />
               <span>School Form 9 (SF9)</span>
             </button>
           </div>
         </div>
 
         {/* ROW 2: Section Picker, Learner Navigator, and Primary Actions Toolbar */}
-        <div className="w-full flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100 dark:border-slate-800/60">
+        <div className="w-full flex items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/60 overflow-x-auto custom-scrollbar">
           
           {/* Section & Learner Navigation Control Group */}
-          <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Section Picker Card */}
-            <div className="flex items-center gap-2 bg-slate-100/90 dark:bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
-              <Users className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+            <div className="flex items-center gap-1.5 bg-slate-100/90 dark:bg-slate-800/90 px-2.5 py-1 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
+              <Users className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
               <select
                 value={selectedSectionId}
                 onChange={(e) => setSelectedSectionId(e.target.value)}
-                className="bg-transparent text-xs font-bold text-slate-800 dark:text-white focus:outline-none cursor-pointer"
+                className="bg-transparent text-[11px] font-bold text-slate-800 dark:text-white focus:outline-none cursor-pointer"
               >
                 {grade1Sections.length === 0 ? (
                   <option value="">No Grade 1 Sections</option>
@@ -550,24 +550,24 @@ export function PaceFormPage() {
             </div>
 
             {/* Learner Roster Selector Card with Prev/Next Buttons */}
-            <div className="flex items-center bg-slate-100/90 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
+            <div className="flex items-center bg-slate-100/90 dark:bg-slate-800/90 p-0.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
               <button
                 onClick={handlePrevStudent}
                 disabled={selectedStudentIndex <= 0}
                 className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 text-slate-700 dark:text-slate-200 transition-colors"
                 title="Previous Student"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-3.5 h-3.5" />
               </button>
 
-              <div className="flex items-center gap-2 px-2">
-                <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[10px] font-black">
+              <div className="flex items-center gap-1.5 px-1.5">
+                <span className="px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[9.5px] font-black shrink-0">
                   {sectionStudents.length > 0 ? `${selectedStudentIndex + 1} of ${sectionStudents.length}` : '0'}
                 </span>
                 <select
                   value={selectedLrn}
                   onChange={(e) => setSelectedLrn(e.target.value)}
-                  className="bg-transparent text-xs font-extrabold text-slate-900 dark:text-white focus:outline-none max-w-72 truncate cursor-pointer"
+                  className="bg-transparent text-[11px] font-bold text-slate-900 dark:text-white focus:outline-none max-w-36 sm:max-w-44 md:max-w-56 lg:max-w-64 truncate cursor-pointer"
                 >
                   {sectionStudents.length === 0 ? (
                     <option value="">No Students Enrolled</option>
@@ -587,23 +587,23 @@ export function PaceFormPage() {
                 className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 text-slate-700 dark:text-slate-200 transition-colors"
                 title="Next Student"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
 
           {/* Action Buttons Toolbar */}
-          <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="flex items-center gap-1.5 shrink-0">
             {/* Live Auto-Save Status Badge */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-black shadow-xs transition-all">
+            <div className="flex items-center gap-1 px-2 py-1 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-[10.5px] font-bold shadow-xs transition-all shrink-0">
               {isSaving ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                  <Loader2 className="w-3 h-3 animate-spin text-amber-500" />
                   <span className="text-amber-600 dark:text-amber-400">Saving...</span>
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
+                  <CheckCircle2 className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />
                   <span>Auto-saved</span>
                 </>
               )}
@@ -617,20 +617,20 @@ export function PaceFormPage() {
                     setIsG1ModalOpen(true);
                   }}
                   disabled={!selectedStudent}
-                  className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs shadow-purple-500/20 disabled:opacity-50"
+                  className="px-2.5 py-1 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-[11px] font-bold transition-all flex items-center gap-1 shadow-xs shadow-purple-500/20 disabled:opacity-50 shrink-0"
                   title="Edit Grade 1 Learner Progress"
                 >
-                  <Edit3 className="w-3.5 h-3.5" />
+                  <Edit3 className="w-3 h-3" />
                   <span>Progress</span>
                 </button>
 
                 <button
                   onClick={handlePrint}
                   disabled={!selectedStudent || !singleDocument}
-                  className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs shadow-blue-500/20 disabled:opacity-50"
+                  className="px-2.5 py-1 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-[11px] font-bold transition-all flex items-center gap-1 shadow-xs shadow-blue-500/20 disabled:opacity-50 shrink-0"
                   title="Print official Grade 1 SF9"
                 >
-                  <Printer className="w-3.5 h-3.5" />
+                  <Printer className="w-3 h-3" />
                   <span>Print SF9</span>
                 </button>
 
@@ -638,10 +638,10 @@ export function PaceFormPage() {
                   <PDFDownloadLink
                     document={singleDocument}
                     fileName={`SF9_${selectedSection?.section_name || 'Record'}_${selectedStudent?.last_name || 'Student'}_${activeSchoolYear}.pdf`}
-                    className="px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-800 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                    className="px-2.5 py-1 rounded-xl bg-slate-700 hover:bg-slate-800 active:scale-95 text-white text-[11px] font-bold transition-all flex items-center gap-1 shadow-xs disabled:opacity-50 shrink-0"
                     title="Download Grade 1 SF9 PDF"
                   >
-                    <Download className="w-3.5 h-3.5" />
+                    <Download className="w-3 h-3" />
                     <span>Download PDF</span>
                   </PDFDownloadLink>
                 )}
@@ -651,11 +651,11 @@ export function PaceFormPage() {
             <button
               onClick={handleSectionMasterExcelExport}
               disabled={sectionStudents.length === 0}
-              className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs shadow-indigo-600/20 disabled:opacity-50"
+              className="px-2.5 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-xs shadow-indigo-600/20 disabled:opacity-50 shrink-0"
               title="Export official DepEd 17-sheet unified master workbook with all section learners, ECRs, attendance, and PACE forms"
             >
-              <FileSpreadsheet className="w-4 h-4 text-indigo-200" />
-              <span>Export Section Master (.xlsx)</span>
+              <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-200" />
+              <span>Export Master (.xlsx)</span>
             </button>
           </div>
 

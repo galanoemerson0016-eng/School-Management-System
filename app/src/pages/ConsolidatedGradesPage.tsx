@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo, Fragment, useEffect, useCallback, memo, useRef } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
-import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus, Download, Bug, AlertTriangle, CheckCircle2, Lock, Unlock, ChevronLeft, ChevronRight, RefreshCw, X, Search, RotateCcw, Sparkles } from 'lucide-react';
+import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus, Download, Bug, AlertTriangle, CheckCircle2, Lock, Unlock, ChevronLeft, ChevronRight, RefreshCw, X, Search, RotateCcw, Sparkles, Crosshair } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
@@ -10,6 +10,7 @@ import { getDefaultTermForSubject, getShsSubjectUnitInfo, getCurriculumTemplates
 import { resolveStudentQuarterGrade, isMatchingSubject, isSameSubject, normalizeGrade12PESubjectName, cleanSubjectQuery, isQuarterMatch, isSubjectInTeachingLoad, extractSubjectSequence } from '../utils/grading-helpers';
 import { autoRepairSectionCurriculum } from '../services/curriculumSync';
 import type { Subject, ClassRecord, Section } from '../types';
+import { useTableCrosshair } from '../hooks/useTableCrosshair';
 
 type QuarterGrades = {
     q1?: QuarterGradeCell;
@@ -478,8 +479,8 @@ const StudentGradeRow = memo(({
     }, [subjectColumns, selectedTerm]);
 
     return (
-        <tr className="hover:bg-blue-50/20">
-            <td className={`consolidated-learner-name border border-black ${isElementary ? 'p-0.5 pl-1.5' : 'p-1 pl-2'} font-medium truncate whitespace-nowrap uppercase`} style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px` }}>
+        <tr className="hover:bg-blue-50/20 grade-row" data-row-key={student.lrn}>
+            <td className={`consolidated-learner-name student-name-cell border border-black ${isElementary ? 'p-0.5 pl-1.5' : 'p-1 pl-2'} font-medium truncate whitespace-nowrap uppercase`} data-col-key="learner-name" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px` }}>
                 <span className="inline-block w-4 text-gray-500 mr-1 text-[7px] text-center font-bold tracking-tighter">
                     {studentRow + 1}
                 </span> 
@@ -508,7 +509,7 @@ const StudentGradeRow = memo(({
                                     };
                                     return (
                                         <>
-                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isMaMissing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isMaMissing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} data-col-key={`sub-${column.subject.id}-ma`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
                                                 {activeQuarterTerm ? (
                                                     <GradeInput 
                                                         studentLrn={student.lrn} 
@@ -526,7 +527,7 @@ const StudentGradeRow = memo(({
                                                     />
                                                 ) : ''}
                                             </td>
-                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isPhMissing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isPhMissing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} data-col-key={`sub-${column.subject.id}-ph`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
                                                 {activeQuarterTerm ? (
                                                     <GradeInput 
                                                         studentLrn={student.lrn} 
@@ -544,7 +545,7 @@ const StudentGradeRow = memo(({
                                                     />
                                                 ) : ''}
                                             </td>
-                                            <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold bg-gray-200" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
+                                            <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold bg-gray-200" data-col-key={`sub-${column.subject.id}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
                                         </>
                                     );
                                 })()}
@@ -566,7 +567,7 @@ const StudentGradeRow = memo(({
                                     };
                                     return (
                                         <>
-                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isEcMissing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isEcMissing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} data-col-key={`sub-${column.subject.id}-ec`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
                                                 {activeQuarterTerm ? (
                                                     <GradeInput 
                                                         studentLrn={student.lrn} 
@@ -584,7 +585,7 @@ const StudentGradeRow = memo(({
                                                     />
                                                 ) : ''}
                                             </td>
-                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isMkMissing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                            <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isMkMissing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} data-col-key={`sub-${column.subject.id}-mk`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
                                                 {activeQuarterTerm ? (
                                                     <GradeInput 
                                                         studentLrn={student.lrn} 
@@ -602,7 +603,7 @@ const StudentGradeRow = memo(({
                                                     />
                                                 ) : ''}
                                             </td>
-                                            <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold bg-gray-200" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
+                                            <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold bg-gray-200" data-col-key={`sub-${column.subject.id}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
                                         </>
                                     );
                                 })()}
@@ -647,6 +648,7 @@ const StudentGradeRow = memo(({
                                                 {isT1 ? (
                                                     <td
                                                         className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isQ1Missing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`}
+                                                        data-col-key={`sub-${column.subject.id}-q1`}
                                                         style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
                                                     >
                                                         {formatGradeForDisplay(q1Val, sectionObj?.section_grade_level || '') || ''}
@@ -654,6 +656,7 @@ const StudentGradeRow = memo(({
                                                 ) : (
                                                     <td
                                                         className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-normal bg-gray-200/90 dark:bg-slate-800 text-gray-400 dark:text-slate-500 select-none cursor-not-allowed"
+                                                        data-col-key={`sub-${column.subject.id}-q1`}
                                                         style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
                                                         title="Not offered in Term 1"
                                                     >
@@ -664,6 +667,7 @@ const StudentGradeRow = memo(({
                                                 {isT2 ? (
                                                     <td
                                                         className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isQ2Missing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`}
+                                                        data-col-key={`sub-${column.subject.id}-q2`}
                                                         style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
                                                     >
                                                         {formatGradeForDisplay(q2Val, sectionObj?.section_grade_level || '') || ''}
@@ -671,6 +675,7 @@ const StudentGradeRow = memo(({
                                                 ) : (
                                                     <td
                                                         className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-normal bg-gray-200/90 dark:bg-slate-800 text-gray-400 dark:text-slate-500 select-none cursor-not-allowed"
+                                                        data-col-key={`sub-${column.subject.id}-q2`}
                                                         style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
                                                         title="Not offered in Term 2"
                                                     >
@@ -681,6 +686,7 @@ const StudentGradeRow = memo(({
                                                 {isT3 ? (
                                                     <td
                                                         className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isQ3Missing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`}
+                                                        data-col-key={`sub-${column.subject.id}-q3`}
                                                         style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
                                                     >
                                                         {formatGradeForDisplay(q3Val, sectionObj?.section_grade_level || '') || ''}
@@ -688,6 +694,7 @@ const StudentGradeRow = memo(({
                                                 ) : (
                                                     <td
                                                         className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-normal bg-gray-200/90 dark:bg-slate-800 text-gray-400 dark:text-slate-500 select-none cursor-not-allowed"
+                                                        data-col-key={`sub-${column.subject.id}-q3`}
                                                         style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
                                                         title="Not offered in Term 3"
                                                     >
@@ -697,6 +704,7 @@ const StudentGradeRow = memo(({
 
                                                 <td
                                                     className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-bold bg-gray-200"
+                                                    data-col-key={`sub-${column.subject.id}-final`}
                                                     style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
                                                 >
                                                     {formatGradeForDisplay(finalVal, sectionObj?.section_grade_level || '') || ''}
@@ -712,6 +720,7 @@ const StudentGradeRow = memo(({
                                         return (
                                             <td
                                                 className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-normal bg-gray-200/90 dark:bg-slate-800 text-gray-400 dark:text-slate-500 select-none cursor-not-allowed"
+                                                data-col-key={`sub-${column.subject.id}`}
                                                 style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
                                                 title={`Not offered in ${TERM_LABELS[selectedTerm as keyof typeof TERM_LABELS] || 'this term'}`}
                                             >
@@ -723,7 +732,7 @@ const StudentGradeRow = memo(({
                                     return (
                                         <>
                                             {selectedTerm === 'q1' && (
-                                                <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isQ1Missing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                                <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isQ1Missing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} data-col-key={`sub-${column.subject.id}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
                                                     <GradeInput 
                                                         studentLrn={student.lrn} 
                                                         subjectId={column.subject.id} 
@@ -741,7 +750,7 @@ const StudentGradeRow = memo(({
                                                 </td>
                                             )}
                                             {selectedTerm === 'q2' && (
-                                                <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isQ2Missing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                                <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isQ2Missing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} data-col-key={`sub-${column.subject.id}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
                                                     <GradeInput 
                                                         studentLrn={student.lrn} 
                                                         subjectId={column.subject.id} 
@@ -759,7 +768,7 @@ const StudentGradeRow = memo(({
                                                 </td>
                                             )}
                                             {selectedTerm === 'q3' && (
-                                                <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isQ3Missing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                                <td className={`consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium ${isQ3Missing ? 'bg-amber-100/70 dark:bg-amber-950/40 ring-1 ring-inset ring-amber-400' : ''}`} data-col-key={`sub-${column.subject.id}`} style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
                                                     <GradeInput 
                                                         studentLrn={student.lrn} 
                                                         subjectId={column.subject.id} 
@@ -786,10 +795,10 @@ const StudentGradeRow = memo(({
             })}
             {showGenAvg && (
                 <>
-                    <td className={`consolidated-average-col border border-black ${isElementary ? 'p-0.5' : 'p-1'} text-center font-bold bg-gray-50/50 tabular-nums`} style={{ width: `${averageColWidth || 65}px`, minWidth: `${averageColWidth || 65}px` }}>{data.termAverage || ''}</td>
-                    <td className={`consolidated-general-average-col border border-black ${isElementary ? 'p-0.5' : 'p-1'} text-center font-bold bg-gray-100/50 tabular-nums`} style={{ width: `${generalAvgColWidth || 75}px`, minWidth: `${generalAvgColWidth || 75}px` }}>{data.generalAverage || ''}</td>
+                    <td className={`consolidated-average-col border border-black ${isElementary ? 'p-0.5' : 'p-1'} text-center font-bold bg-gray-50/50 tabular-nums`} data-col-key="col-average" style={{ width: `${averageColWidth || 65}px`, minWidth: `${averageColWidth || 65}px` }}>{data.termAverage || ''}</td>
+                    <td className={`consolidated-general-average-col border border-black ${isElementary ? 'p-0.5' : 'p-1'} text-center font-bold bg-gray-100/50 tabular-nums`} data-col-key="col-generalAverage" style={{ width: `${generalAvgColWidth || 75}px`, minWidth: `${generalAvgColWidth || 75}px` }}>{data.generalAverage || ''}</td>
                     {showDescriptor && (
-                        <td className="consolidated-descriptor-col border border-black p-1 text-center font-bold bg-gray-200 text-[6px] leading-tight uppercase" style={{ width: `${descriptorColWidth || 100}px`, minWidth: `${descriptorColWidth || 100}px` }}>
+                        <td className="consolidated-descriptor-col border border-black p-1 text-center font-bold bg-gray-200 text-[6px] leading-tight uppercase" data-col-key="col-descriptor" style={{ width: `${descriptorColWidth || 100}px`, minWidth: `${descriptorColWidth || 100}px` }}>
                             {data.generalAverage ? getDescriptor(Number(data.generalAverage), descriptorGradeLevel || "") : ''}
                         </td>
                     )}
@@ -820,7 +829,7 @@ export function ConsolidatedGradesPage() {
     const [addSubjectSearchQuery, setAddSubjectSearchQuery] = useState('');
     const [customSubjectName, setCustomSubjectName] = useState('');
     const [zoom, setZoom] = useState(0.9);
-    const containerRef = useRef<HTMLDivElement>(null);
+    const { containerRef, isCrosshairEnabled, toggleCrosshair } = useTableCrosshair();
     const showGenAvg = selectedTerm !== 'all';
 
     // Derived State
@@ -852,13 +861,14 @@ export function ConsolidatedGradesPage() {
         };
         try {
             await useAppStore.getState().updateSection(updatedSection);
+            const termNum = qKey.replace('q', '');
             showNotification(
-                exists ? `Unlocked Quarter ${qKey.replace('q', '')}` : `Locked Quarter ${qKey.replace('q', '')} against accidental edits`,
+                exists ? `Unlocked Term ${termNum}` : `Locked Term ${termNum} against accidental edits`,
                 'success'
             );
         } catch (err) {
-            console.error('Failed to update quarter lock:', err);
-            showNotification('Failed to update quarter lock status.', 'error');
+            console.error('Failed to update term lock:', err);
+            showNotification('Failed to update term lock status.', 'error');
         }
     };
 
@@ -874,12 +884,12 @@ export function ConsolidatedGradesPage() {
         try {
             await useAppStore.getState().updateSection(updatedSection);
             showNotification(
-                quarters.length > 0 ? 'All quarters locked.' : 'All quarters unlocked.',
+                quarters.length > 0 ? 'All terms locked.' : 'All terms unlocked.',
                 'success'
             );
         } catch (err) {
-            console.error('Failed to batch update quarter locks:', err);
-            showNotification('Failed to update quarter locks.', 'error');
+            console.error('Failed to batch update term locks:', err);
+            showNotification('Failed to update term locks.', 'error');
         }
     };
 
@@ -912,11 +922,11 @@ export function ConsolidatedGradesPage() {
         const quartersToSync = baseQuarters.filter(q => !isQuarterLocked(q));
 
         if (quartersToSync.length === 0) {
-            showNotification('Selected quarter(s) are locked against syncing. Unlock them in the Lock menu first.', 'error');
+            showNotification('Selected term(s) are locked against syncing. Unlock them in the Lock menu first.', 'error');
             return;
         }
         if (quartersToSync.length < baseQuarters.length) {
-            showNotification('Skipped locked quarter(s) during sync.', 'info');
+            showNotification('Skipped locked term(s) during sync.', 'info');
         }
         const sectionGradeLevel = sectionObj.section_grade_level || '';
         let sectionTrack = 'Academic Track';
@@ -1203,7 +1213,7 @@ export function ConsolidatedGradesPage() {
 
         const quarter = parseInt(selectedTerm.replace('q', '')) as 1 | 2 | 3;
         if (isQuarterLocked(quarter)) {
-            showNotification(`Cannot import: Quarter ${quarter} is locked against edits. Unlock it in the Lock menu first.`, 'error');
+            showNotification(`Cannot import: Term ${quarter} is locked against edits. Unlock it in the Lock menu first.`, 'error');
             return;
         }
         const reader = new FileReader();
@@ -1327,6 +1337,8 @@ const groupedSections = useMemo(() => {
                 groups['JUNIOR HIGH SCHOOL'].push(s);
             } else if (num >= 11 && num <= 12) {
                 groups['SENIOR HIGH SCHOOL'].push(s);
+            } else {
+                groups['ELEMENTARY'].push(s);
             }
         });
         
@@ -1662,9 +1674,9 @@ const groupedSections = useMemo(() => {
         const seenSubjectNames = new Set<string>();
         const uniqueDbSubjects: Subject[] = [];
         for (const s of sectionDbSubjects) {
-            const norm = normalizeSubjectName(s.subject_name);
-            if (norm && seenSubjectNames.has(norm)) continue;
-            if (norm) seenSubjectNames.add(norm);
+            const canon = getCanonicalSubjectKey(s.subject_name, sectionGradeNum) || normalizeSubjectName(s.subject_name);
+            if (canon && seenSubjectNames.has(canon)) continue;
+            if (canon) seenSubjectNames.add(canon);
             uniqueDbSubjects.push(s);
         }
         sectionDbSubjects = uniqueDbSubjects;
@@ -2748,7 +2760,7 @@ const groupedSections = useMemo(() => {
         const quartersToSync = baseQuarters.filter(q => !isQuarterLocked(q));
 
         if (quartersToSync.length === 0) {
-            showNotification('Selected quarter(s) are locked against syncing. Unlock them in the Lock menu first.', 'error');
+            showNotification('Selected term(s) are locked against syncing. Unlock them in the Lock menu first.', 'error');
             return;
         }
 
@@ -3876,7 +3888,7 @@ const groupedSections = useMemo(() => {
 
         return (
             <table
-                className={`consolidated-print-table consolidated-grades-table w-full border-collapse border border-black ${isElementary ? 'text-[7px]' : 'text-[8px]'}`}
+                className={`crosshair-table consolidated-print-table consolidated-grades-table w-full border-collapse border border-black ${isElementary ? 'text-[7px]' : 'text-[8px]'}`}
                 style={{
                     width: `${usableTableWidth}px`,
                     minWidth: `${usableTableWidth}px`,
@@ -3937,7 +3949,7 @@ const groupedSections = useMemo(() => {
                         <>
                             {/* Row 1: SHS Categories */}
                             <tr className="text-center font-bold text-[8px] uppercase tracking-wider h-8">
-                                <th rowSpan={3} className="consolidated-name-col border border-black p-2 font-bold text-center bg-gray-100 relative group" style={{ width: `${learnerNameWidth}px`, minWidth: `${learnerNameWidth}px` }}>
+                                <th rowSpan={3} data-col-key="learner-name" className="consolidated-name-col border border-black p-2 font-bold text-center bg-gray-100 relative group" style={{ width: `${learnerNameWidth}px`, minWidth: `${learnerNameWidth}px` }}>
                                     <span>NAME OF LEARNERS</span>
                                     <ColumnResizeHandle colKey="name" currentWidth={learnerNameWidth} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
                                 </th>
@@ -3961,16 +3973,16 @@ const groupedSections = useMemo(() => {
                                 })}
                                 {showGenAvg && (
                                     <>
-                                        <th rowSpan={3} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100 relative group" style={{ width: `${averageColWidth}px`, minWidth: `${averageColWidth}px` }}>
+                                        <th rowSpan={3} data-col-key="col-average" className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100 relative group" style={{ width: `${averageColWidth}px`, minWidth: `${averageColWidth}px` }}>
                                             <span>AVERAGE</span>
                                             <ColumnResizeHandle colKey="average" currentWidth={averageColWidth} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
                                         </th>
-                                        <th rowSpan={3} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100 relative group" style={{ width: `${generalAvgColWidth}px`, minWidth: `${generalAvgColWidth}px` }}>
+                                        <th rowSpan={3} data-col-key="col-generalAverage" className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100 relative group" style={{ width: `${generalAvgColWidth}px`, minWidth: `${generalAvgColWidth}px` }}>
                                             <span>GENERAL AVERAGE</span>
                                             <ColumnResizeHandle colKey="generalAverage" currentWidth={generalAvgColWidth} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
                                         </th>
                                         {showDescriptor && (
-                                            <th rowSpan={3} className="consolidated-descriptor-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100 relative group" style={{ width: `${descriptorColWidth}px`, minWidth: `${descriptorColWidth}px` }}>
+                                            <th rowSpan={3} data-col-key="col-descriptor" className="consolidated-descriptor-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100 relative group" style={{ width: `${descriptorColWidth}px`, minWidth: `${descriptorColWidth}px` }}>
                                                 <span>DESCRIPTOR</span>
                                                 <ColumnResizeHandle colKey="descriptor" currentWidth={descriptorColWidth} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
                                             </th>
@@ -3984,6 +3996,7 @@ const groupedSections = useMemo(() => {
                                     selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() !== 'MAPEH' && !isEcmkParent(column.subject.subject_name) ? (
                                         <th
                                             key={`subject-column-${column.baseId}-${index}`}
+                                            data-col-key={`sub-${column.subject.id}`}
                                             rowSpan={2}
                                             className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50 group relative"
                                             title={column.subject.subject_name}
@@ -3994,7 +4007,7 @@ const groupedSections = useMemo(() => {
                                             <ColumnResizeHandle colKey={column.subject.id} currentWidth={getSubjectSubColWidth(column.subject.id)} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
                                         </th>
                                     ) : (
-                                        <th key={`subject-column-${column.baseId}-${index}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50 group relative" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
+                                        <th key={`subject-column-${column.baseId}-${index}`} data-col-key={`sub-${column.subject.id}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50 group relative" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
                                             {renderHeaderHoverActions(column, index)}
                                             {renderSubjectHeaderCellInner(column)}
                                             <ColumnResizeHandle colKey={column.subject.id} currentWidth={getSubjectSubColWidth(column.subject.id)} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
@@ -4006,7 +4019,7 @@ const groupedSections = useMemo(() => {
                     ) : (
                         /* Row 1: JHS/Elementary Subject Names (Categories omitted) */
                         <tr className="text-center font-bold text-[8px] uppercase tracking-wider h-8">
-                            <th rowSpan={2} className="consolidated-name-col border border-black p-2 font-bold text-center bg-gray-100 relative group" style={{ width: `${learnerNameWidth}px`, minWidth: `${learnerNameWidth}px` }}>
+                            <th rowSpan={2} data-col-key="learner-name" className="consolidated-name-col border border-black p-2 font-bold text-center bg-gray-100 relative group" style={{ width: `${learnerNameWidth}px`, minWidth: `${learnerNameWidth}px` }}>
                                 <span>NAME OF LEARNERS</span>
                                 <ColumnResizeHandle colKey="name" currentWidth={learnerNameWidth} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
                             </th>
@@ -4014,6 +4027,7 @@ const groupedSections = useMemo(() => {
                                 selectedTerm !== 'all' && !(column.subject as any)._mapehGroups && !isEcmkParent(column.subject.subject_name) ? (
                                     <th
                                         key={`subject-column-${column.baseId}-${index}`}
+                                        data-col-key={`sub-${column.subject.id}`}
                                         rowSpan={2}
                                         className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50 group relative"
                                         title={column.subject.subject_name}
@@ -4024,7 +4038,7 @@ const groupedSections = useMemo(() => {
                                         <ColumnResizeHandle colKey={column.subject.id} currentWidth={getSubjectSubColWidth(column.subject.id)} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
                                     </th>
                                 ) : (
-                                    <th key={`subject-column-${column.baseId}-${index}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50 group relative" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
+                                    <th key={`subject-column-${column.baseId}-${index}`} data-col-key={`sub-${column.subject.id}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50 group relative" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
                                         {renderHeaderHoverActions(column, index)}
                                         {renderSubjectHeaderCellInner(column)}
                                         <ColumnResizeHandle colKey={column.subject.id} currentWidth={getSubjectSubColWidth(column.subject.id)} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
@@ -4033,16 +4047,16 @@ const groupedSections = useMemo(() => {
                             ))}
                             {showGenAvg && (
                                 <>
-                                    <th rowSpan={2} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100 relative group" style={{ width: `${averageColWidth}px`, minWidth: `${averageColWidth}px` }}>
+                                    <th rowSpan={2} data-col-key="col-average" className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100 relative group" style={{ width: `${averageColWidth}px`, minWidth: `${averageColWidth}px` }}>
                                         <span>AVERAGE</span>
                                         <ColumnResizeHandle colKey="average" currentWidth={averageColWidth} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
                                     </th>
-                                    <th rowSpan={2} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100 relative group" style={{ width: `${generalAvgColWidth}px`, minWidth: `${generalAvgColWidth}px` }}>
+                                    <th rowSpan={2} data-col-key="col-generalAverage" className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100 relative group" style={{ width: `${generalAvgColWidth}px`, minWidth: `${generalAvgColWidth}px` }}>
                                         <span>GENERAL AVERAGE</span>
                                         <ColumnResizeHandle colKey="generalAverage" currentWidth={generalAvgColWidth} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
                                     </th>
                                     {showDescriptor && (
-                                        <th rowSpan={2} className="consolidated-descriptor-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100 relative group" style={{ width: `${descriptorColWidth}px`, minWidth: `${descriptorColWidth}px` }}>
+                                        <th rowSpan={2} data-col-key="col-descriptor" className="consolidated-descriptor-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100 relative group" style={{ width: `${descriptorColWidth}px`, minWidth: `${descriptorColWidth}px` }}>
                                             <span>DESCRIPTOR</span>
                                             <ColumnResizeHandle colKey="descriptor" currentWidth={descriptorColWidth} onResizeStart={handleResizeStart} onAutoFit={handleAutoFit} />
                                         </th>
@@ -4060,7 +4074,7 @@ const groupedSections = useMemo(() => {
                                 <Fragment key={`subject-subheader-${column.baseId}-${index}`}>
                                     {selectedTerm !== 'all' && (column.subject as any)._mapehGroups && (
                                         <>
-                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                            <th data-col-key={`sub-${column.subject.id}-ma`} className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
                                                 Music &<br/>Arts
                                                 <span className={`no-print block text-[4.5px] font-bold uppercase mt-0.5 ${
                                                     isSubjectInTeachingLoad({ id: 'music_arts', subject_name: 'Music and Arts' }, sectionObj, classRecords)
@@ -4070,7 +4084,7 @@ const groupedSections = useMemo(() => {
                                                     {isSubjectInTeachingLoad({ id: 'music_arts', subject_name: 'Music and Arts' }, sectionObj, classRecords) ? 'E-Class' : 'Manual'}
                                                 </span>
                                             </th>
-                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                            <th data-col-key={`sub-${column.subject.id}-ph`} className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
                                                 PE &<br/>Health
                                                 <span className={`no-print block text-[4.5px] font-bold uppercase mt-0.5 ${
                                                     isSubjectInTeachingLoad({ id: 'pe_health', subject_name: 'Physical Education and Health' }, sectionObj, classRecords)
@@ -4080,12 +4094,12 @@ const groupedSections = useMemo(() => {
                                                     {isSubjectInTeachingLoad({ id: 'pe_health', subject_name: 'Physical Education and Health' }, sectionObj, classRecords) ? 'E-Class' : 'Manual'}
                                                 </span>
                                             </th>
-                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>FINAL<br/>GRADE</th>
+                                            <th data-col-key={`sub-${column.subject.id}`} className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>FINAL<br/>GRADE</th>
                                         </>
                                     )}
                                     {selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name) && (
                                         <>
-                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                            <th data-col-key={`sub-${column.subject.id}-ec`} className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
                                                 Effective<br/>Communication
                                                 <span className={`no-print block text-[4.5px] font-bold uppercase mt-0.5 ${
                                                     isSubjectInTeachingLoad({ id: 'effective_comm', subject_name: 'Effective Communication' }, sectionObj, classRecords)
@@ -4095,7 +4109,7 @@ const groupedSections = useMemo(() => {
                                                     {isSubjectInTeachingLoad({ id: 'effective_comm', subject_name: 'Effective Communication' }, sectionObj, classRecords) ? 'E-Class' : 'Manual'}
                                                 </span>
                                             </th>
-                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
+                                            <th data-col-key={`sub-${column.subject.id}-mk`} className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>
                                                 Mabisang<br/>Komunikasyon
                                                 <span className={`no-print block text-[4.5px] font-bold uppercase mt-0.5 ${
                                                     isSubjectInTeachingLoad({ id: 'mabisang_kom', subject_name: 'Mabisang Komunikasyon' }, sectionObj, classRecords)
@@ -4105,7 +4119,7 @@ const groupedSections = useMemo(() => {
                                                     {isSubjectInTeachingLoad({ id: 'mabisang_kom', subject_name: 'Mabisang Komunikasyon' }, sectionObj, classRecords) ? 'E-Class' : 'Manual'}
                                                 </span>
                                             </th>
-                                            <th className="consolidated-subject-col border border-black p-0.5 text-center font-bold text-[6px] leading-[1.1] bg-gray-200" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>FINAL<br/>GRADE</th>
+                                            <th data-col-key={`sub-${column.subject.id}`} className="consolidated-subject-col border border-black p-0.5 text-center font-bold text-[6px] leading-[1.1] bg-gray-200" style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}>FINAL<br/>GRADE</th>
                                         </>
                                     )}
                                     
@@ -4117,6 +4131,7 @@ const groupedSections = useMemo(() => {
                                         return (
                                             <>
                                                 <th
+                                                    data-col-key={`sub-${column.subject.id}-q1`}
                                                     className={`consolidated-subject-col border border-black p-0.5 text-center font-normal ${
                                                         isT1 
                                                             ? 'bg-gray-50 text-slate-800' 
@@ -4128,6 +4143,7 @@ const groupedSections = useMemo(() => {
                                                     T1
                                                 </th>
                                                 <th
+                                                    data-col-key={`sub-${column.subject.id}-q2`}
                                                     className={`consolidated-subject-col border border-black p-0.5 text-center font-normal ${
                                                         isT2 
                                                             ? 'bg-gray-50 text-slate-800' 
@@ -4139,6 +4155,7 @@ const groupedSections = useMemo(() => {
                                                     T2
                                                 </th>
                                                 <th
+                                                    data-col-key={`sub-${column.subject.id}-q3`}
                                                     className={`consolidated-subject-col border border-black p-0.5 text-center font-normal ${
                                                         isT3 
                                                             ? 'bg-gray-50 text-slate-800' 
@@ -4150,6 +4167,7 @@ const groupedSections = useMemo(() => {
                                                     T3
                                                 </th>
                                                 <th
+                                                    data-col-key={`sub-${column.subject.id}-final`}
                                                     className="consolidated-subject-col border border-black p-0.5 text-center font-bold bg-gray-200 text-slate-900"
                                                     style={{ width: `${subWidth}px`, minWidth: `${subWidth}px` }}
                                                 >
@@ -4217,7 +4235,7 @@ const groupedSections = useMemo(() => {
     };
 
     return (
-        <div className="h-full flex flex-col space-y-4">
+        <div className="h-full min-h-0 flex flex-col space-y-4">
             <style>{`
                 input::-webkit-outer-spin-button,
                 input::-webkit-inner-spin-button {
@@ -4385,6 +4403,21 @@ const groupedSections = useMemo(() => {
                                 <Plus className="w-2.5 h-2.5" />
                             </button>
                         </div>
+                    )}
+                    {selectedSection && (
+                        <button
+                            type="button"
+                            onClick={toggleCrosshair}
+                            className={`h-7.5 px-2 rounded-md border text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer ${
+                                isCrosshairEnabled
+                                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700/60 shadow-xs'
+                                    : 'bg-white dark:bg-[#0B1121] text-slate-500 dark:text-slate-400 border-slate-200 dark:border-white/10 hover:text-slate-700'
+                            }`}
+                            title={isCrosshairEnabled ? 'Turn off Crosshair Guide' : 'Turn on Crosshair Guide'}
+                        >
+                            <Crosshair className={`w-3 h-3 ${isCrosshairEnabled ? 'text-blue-600 dark:text-blue-400' : ''}`} />
+                            <span>Guide</span>
+                        </button>
                     )}
                     {selectedSection && isAdviser && selectedTerm !== 'all' && (
                         <>
@@ -4587,7 +4620,7 @@ const groupedSections = useMemo(() => {
                                 )}
                             </div>
 
-                            {/* Quarter Lock Dropdown Button */}
+                            {/* Term Lock Dropdown Button */}
                             <div className="relative shrink-0">
                                 <button
                                     onClick={() => setIsLockPopoverOpen(prev => !prev)}
@@ -4596,10 +4629,10 @@ const groupedSections = useMemo(() => {
                                             ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800/60'
                                             : 'bg-white dark:bg-[#0B1121] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:bg-slate-50'
                                     }`}
-                                    title="Lock or unlock quarter grades to prevent accidental modifications"
+                                    title="Lock or unlock term grades to prevent accidental modifications"
                                 >
                                     <Lock className={`w-3 h-3 ${lockedQuarters.length > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`} />
-                                    <span className="hidden 2xl:inline">Lock</span>
+                                    <span className="hidden 2xl:inline">Term Lock</span>
                                     {lockedQuarters.length > 0 && (
                                         <span className="px-1 py-0.2 rounded-full text-[8.5px] bg-rose-200 dark:bg-rose-900/60 font-black text-rose-900 dark:text-rose-100">
                                             {lockedQuarters.length}
@@ -4613,7 +4646,7 @@ const groupedSections = useMemo(() => {
                                         <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 font-bold text-[11px] text-slate-800 dark:text-slate-100">
                                             <div className="flex items-center gap-1.5">
                                                 <Lock className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-                                                <span>Quarter Lock Controls</span>
+                                                <span>Term Lock Controls</span>
                                             </div>
                                             <button
                                                 type="button"
@@ -4625,17 +4658,17 @@ const groupedSections = useMemo(() => {
                                         </div>
 
                                         <p className="text-[10.5px] text-slate-500 dark:text-slate-400 py-2 leading-relaxed">
-                                            Locked quarters disable manual editing and protect against sync/import overwrites.
+                                            Locked terms disable manual editing and protect against sync/import overwrites.
                                         </p>
 
                                         <div className="space-y-1.5 py-1">
-                                            {(['q1', 'q2', 'q3', 'q4'] as const).map((qKey) => {
+                                            {(['q1', 'q2', 'q3'] as const).map((qKey) => {
                                                 const isLocked = lockedQuarters.includes(qKey);
                                                 const qNum = qKey.replace('q', '');
                                                 return (
                                                     <div key={qKey} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-slate-800">
                                                         <span className="font-bold text-[11px] text-slate-700 dark:text-slate-200">
-                                                            Quarter {qNum}
+                                                            Term {qNum}
                                                         </span>
                                                         <button
                                                             type="button"
@@ -4666,7 +4699,7 @@ const groupedSections = useMemo(() => {
                                         <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 flex gap-2">
                                             <button
                                                 type="button"
-                                                onClick={() => handleBatchLockQuarters(['q1', 'q2', 'q3', 'q4'])}
+                                                onClick={() => handleBatchLockQuarters(['q1', 'q2', 'q3'])}
                                                 className="flex-1 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-[10px] font-bold cursor-pointer transition text-center"
                                             >
                                                 Lock All

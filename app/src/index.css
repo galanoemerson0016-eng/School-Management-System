@@ -1202,3 +1202,84 @@
   animation-iteration-count: infinite !important;
   animation-name: spin !important;
 }
+
+/* ==========================================================================
+   CROSSHAIR HIGHLIGHTER (E-Class Record & Grade Management)
+   Screen-only interactive guides for effortless learner & column identification.
+   ========================================================================== */
+@media screen {
+  /* 1. Horizontal Row Highlighting - Strictly driven by unified active state (.crosshair-row-active) */
+  .crosshair-table tbody tr.crosshair-row-active > td {
+    box-shadow: inset 0 1.5px 0 0 #3b82f6, inset 0 -1.5px 0 0 #3b82f6, inset 0 0 0 9999px rgba(59, 130, 246, 0.08) !important;
+  }
+
+  /* 2. Prominent Learner Name Identification */
+  .crosshair-table tbody tr.crosshair-row-active > td.student-name-cell,
+  .crosshair-table tbody tr.crosshair-row-active > td.consolidated-learner-name {
+    background-color: #dbeafe !important;
+    color: #1e3a8a !important;
+    font-weight: 800 !important;
+    box-shadow: inset 5px 0 0 0 #1d4ed8, inset 0 2px 0 0 #2563eb, inset 0 -2px 0 0 #2563eb, inset 0 0 0 9999px #dbeafe !important;
+    transition: background-color 0.12s ease, color 0.12s ease;
+  }
+
+  /* 3. Vertical Column Highlighting */
+  .crosshair-table td.crosshair-col-active {
+    box-shadow: inset 1.5px 0 0 0 #3b82f6, inset -1.5px 0 0 0 #3b82f6, inset 0 0 0 9999px rgba(59, 130, 246, 0.09) !important;
+  }
+
+  /* 4. Active Column Header (TH) Highlighting */
+  .crosshair-table th.crosshair-th-active {
+    background-color: #bfdbfe !important;
+    color: #1e3a8a !important;
+    font-weight: 900 !important;
+    box-shadow: inset 0 3.5px 0 0 #1d4ed8, inset 1.5px 0 0 0 #3b82f6, inset -1.5px 0 0 0 #3b82f6, inset 0 0 0 9999px #bfdbfe !important;
+    transition: background-color 0.12s ease, color 0.12s ease;
+  }
+
+  /* 5. Crosshair Intersection Cell (Active Row x Active Column Reticle) */
+  .crosshair-table tbody tr.crosshair-row-active > td.crosshair-col-active {
+    box-shadow: inset 0 0 0 2px #2563eb, inset 0 0 0 9999px rgba(37, 99, 235, 0.18) !important;
+    position: relative;
+    z-index: 10;
+  }
+
+  /* Input inside active cell */
+  .crosshair-table td.crosshair-col-active input:focus {
+    background-color: #ffffff !important;
+    box-shadow: 0 0 0 2.5px #2563eb, 0 2px 4px rgba(0, 0, 0, 0.12) !important;
+    position: relative;
+    z-index: 20;
+  }
+
+  /* Dark mode crosshair enhancements */
+  .dark .crosshair-table tbody tr.crosshair-row-active > td {
+    box-shadow: inset 0 1.5px 0 0 #60a5fa, inset 0 -1.5px 0 0 #60a5fa, inset 0 0 0 9999px rgba(59, 130, 246, 0.16) !important;
+  }
+
+  .dark .crosshair-table tbody tr.crosshair-row-active > td.student-name-cell,
+  .dark .crosshair-table tbody tr.crosshair-row-active > td.consolidated-learner-name {
+    background-color: #1e293b !important;
+    color: #93c5fd !important;
+    box-shadow: inset 5px 0 0 0 #60a5fa, inset 0 2px 0 0 #3b82f6, inset 0 -2px 0 0 #3b82f6, inset 0 0 0 9999px #1e293b !important;
+  }
+
+  .dark .crosshair-table td.crosshair-col-active {
+    box-shadow: inset 1.5px 0 0 0 #60a5fa, inset -1.5px 0 0 0 #60a5fa, inset 0 0 0 9999px rgba(59, 130, 246, 0.16) !important;
+  }
+
+  .dark .crosshair-table th.crosshair-th-active {
+    background-color: #1e3a8a !important;
+    color: #eff6ff !important;
+    box-shadow: inset 0 3.5px 0 0 #60a5fa, inset 1.5px 0 0 0 #60a5fa, inset -1.5px 0 0 0 #60a5fa, inset 0 0 0 9999px #1e3a8a !important;
+  }
+
+  .dark .crosshair-table tbody tr.crosshair-row-active > td.crosshair-col-active {
+    box-shadow: inset 0 0 0 2px #60a5fa, inset 0 0 0 9999px rgba(59, 130, 246, 0.28) !important;
+  }
+
+  .dark .crosshair-table td.crosshair-col-active input:focus {
+    background-color: #0f172a !important;
+    box-shadow: 0 0 0 2.5px #60a5fa, 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+  }
+}

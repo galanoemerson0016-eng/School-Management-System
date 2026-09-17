@@ -7,6 +7,7 @@ import {
   getSSHSCategory,
   getSSHSCluster,
   resolveSSHSMetadata,
+  resolveSSHSTerms,
   populateSSHSWorkbookZip
 } from './sshs-excel-export';
 import type { Section, Subject, Student, SchoolProfile, ClassRecord, HPSRecord } from '../types';
@@ -442,5 +443,170 @@ describe('SSHS Electronic Class Record Export Service (Grade 11 & Grade 12)', ()
     expect(danceMeta.weights.pt).toBe(60);
     expect(danceMeta.weights.ex).toBe(20);
   });
+
+  it('accurately resolves SSHS terms based on core status, section metadata, class records, and curriculum defaults', () => {
+    // 1. Grade 11 Core subjects are ALWAYS 3 terms
+    const coreSubj = { id: 'c1', subject_name: 'General Mathematics' } as Subject;
+    expect(resolveSSHSTerms(coreSubj, undefined, undefined, undefined, '2026-2027')).toEqual({
+      numTerms: 3,
+      termBlock: '',
+      termDesc: '1ST, 2ND, 3RD',
+      code: 33
+    });
+
+    // 2. Section metadata subjectTerms takes precedence for electives
+    const chemSubj = { id: 'chem-1', subject_name: 'Chemistry 1' } as Subject;
+    const sectionWithMeta = {
+      id: 'sec-acad-a',
+      section_name: 'Academic A',
+      section_grade_level: 'Grade 11',
+      section_metadata: {
+        subjectTerms: {
+          'Chemistry 1': 1
+        }
+      }
+    } as Section;
+    expect(resolveSSHSTerms(chemSubj, sectionWithMeta, undefined, undefined, '2026-2027')).toEqual({
+      numTerms: 1,
+      termBlock: 'FIRST TERM',
+      termDesc: '1ST',
+      code: 11
+    });
+
+    // 3. Subject term field
+    const chemWithTerm2 = { id: 'chem-2', subject_name: 'Chemistry 2', term: 2 } as Subject;
+    expect(resolveSSHSTerms(chemWithTerm2, undefined, undefined, undefined, '2026-2027')).toEqual({
+      numTerms: 1,
+      termBlock: 'SECOND TERM',
+      termDesc: '2ND',
+      code: 12
+    });
+
+    // 4. Encoded grades in classRecords (e.g. quarter 1 has scores)
+    const mockClassRecords: ClassRecord[] = [
+      {
+        id: 'cr-chem-1',
+        student_lrn: '100000000001',
+        subject_id: 'chem-1',
+        quarter: 1,
+        school_year: '2026-2027',
+        written_works: [16, 12, 48]
+      } as any
+    ];
+    expect(resolveSSHSTerms(chemSubj, undefined, mockClassRecords, undefined, '2026-2027')).toEqual({
+      numTerms: 1,
+      termBlock: 'FIRST TERM',
+      termDesc: '1ST',
+      code: 11
+    });
+
+    // 5. Default curriculum sequence (Chemistry 1 -> Term 1, Chemistry 2 -> Term 2)
+    expect(resolveSSHSTerms({ subject_name: 'Chemistry 1' } as Subject, undefined, undefined, undefined, '2026-2027')).toEqual({
+      numTerms: 1,
+      termBlock: 'FIRST TERM',
+      termDesc: '1ST',
+      code: 11
+    });
+    expect(resolveSSHSTerms({ subject_name: 'Chemistry 2' } as Subject, undefined, undefined, undefined, '2026-2027')).toEqual({
+      numTerms: 1,
+      termBlock: 'SECOND TERM',
+      termDesc: '2ND',
+      code: 12
+    });
+  });
+
+  it('correctly exports a 1-term Grade 11 subject (Chemistry 1 in First Term) with scores, active Term 1, and no INCORRECT SHEET on Term 1', async () => {
+    if (!fs.existsSync(templatePath)) return;
+    const templateBuffer = new Uint8Array(fs.readFileSync(templatePath));
+
+    const chem1Subj: Subject = {
+      id: 'sub-chem-1',
+      subject_name: 'Chemistry 1',
+      grade_level: 'Grade 11',
+      term: 1
+    } as any;
+
+    const acadASection: Section = {
+      id: 'sec-acad-a',
+      section_name: 'Academic A',
+      section_grade_level: 'Grade 11',
+      section_metadata: {
+        subjectTerms: {
+          'Chemistry 1': 1
+        }
+      }
+    } as any;
+
+    const classRecords: ClassRecord[] = [
+      {
+        id: 'cr-chem-1',
+        student_lrn: '100000000001',
+        subject_id: 'sub-chem-1',
+        quarter: 1,
+        school_year: '2026-2027',
+        written_works: [16, 12, 48, 8, 19],
+        performance_tasks: [88],
+        summative_tests: [17, 13, 46],
+        quarterly_exam: 46,
+        final_grade: 82
+      } as any
+    ];
+
+    const hpsRecords: HPSRecord[] = [
+      {
+        id: 'hps-chem-1',
+        subject_id: 'sub-chem-1',
+        quarter: 1,
+        school_year: '2026-2027',
+        written_works: [20, 12, 55, 10, 30],
+        performance_tasks: [100],
+        summative_tests: [30, 30, 60],
+        quarterly_exam: 50
+      } as any
+    ];
+
+    const zip = await populateSSHSWorkbookZip(templateBuffer, {
+      schoolProfile: mockSchoolProfile,
+      schoolYear: '2026-2027',
+      section: acadASection,
+      subject: chem1Subj,
+      students: mockStudents,
+      classRecords,
+      hpsRecords,
+      teacherName: 'EMERSON M. GALANO'
+    });
+
+    // 1. INPUT DATA (sheet2.xml) H33 is 'FIRST TERM'
+    const sheet2Xml = await zip.file('xl/worksheets/sheet2.xml')!.async('text');
+    expect(sheet2Xml).toContain('FIRST TERM');
+    expect(sheet2Xml).not.toContain('>THIRD TERM<');
+
+    // 2. HELPER (sheet7.xml) F23 is 11, G23 is '1ST'
+    const sheet7Xml = await zip.file('xl/worksheets/sheet7.xml')!.async('text');
+    expect(sheet7Xml).toMatch(/<c r="F23"[^>]*>[\s\S]*?<v>11<\/v><\/c>/);
+    expect(sheet7Xml).toMatch(/<c r="G23"[^>]*>[\s\S]*?<v>1ST<\/v><\/c>/);
+
+    // 3. Term 1 (sheet3.xml) is ACTIVE: B8 cached value is empty (<v/>), scores populated
+    const sheet3Xml = await zip.file('xl/worksheets/sheet3.xml')!.async('text');
+    const b8InSheet3 = sheet3Xml.match(/<c r="B8"[^>]*>[\s\S]*?<\/c>/)?.[0] || '';
+    expect(b8InSheet3).not.toContain('<v>INCORRECT SHEET');
+    expect(b8InSheet3).toContain('<v/>');
+    expect(sheet3Xml).toContain('r="D14"'); // HPS WW1
+    expect(sheet3Xml).toContain('r="D17"'); // Student WW1 (16)
+
+    // 4. Term 2 & Term 3 (sheet4.xml, sheet5.xml) are INACTIVE: B8 warns INCORRECT SHEET
+    const sheet4Xml = await zip.file('xl/worksheets/sheet4.xml')!.async('text');
+    const b8InSheet4 = sheet4Xml.match(/<c r="B8"[^>]*>[\s\S]*?<\/c>/)?.[0] || '';
+    expect(b8InSheet4).toContain('INCORRECT SHEET. Do not use this sheet to input data.');
+
+    const sheet5Xml = await zip.file('xl/worksheets/sheet5.xml')!.async('text');
+    const b8InSheet5 = sheet5Xml.match(/<c r="B8"[^>]*>[\s\S]*?<\/c>/)?.[0] || '';
+    expect(b8InSheet5).toContain('INCORRECT SHEET. Do not use this sheet to input data.');
+
+    // 5. FINAL GRADES (sheet6.xml) has Term 1 grade pre-computed in column E
+    const sheet6Xml = await zip.file('xl/worksheets/sheet6.xml')!.async('text');
+    expect(sheet6Xml).toMatch(/<c r="E17"[^>]*><f[^>]*>.*?<\/f><v>\d+<\/v><\/c>/);
+  });
 });
+
 

@@ -449,7 +449,7 @@ describe('Grade 11 Subject & Term Resolution in Grade Management', () => {
             id: 'sub-custom',
             subject_name: 'BIOLOGY 1',
             grade_level: 'Grade 11',
-            units: 4 as any,
+            units: 4,
             term: 1
         };
         const customMeta = resolveSSHSMetadata(customSubject, 11);

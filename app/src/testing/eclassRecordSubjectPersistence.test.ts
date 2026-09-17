@@ -41,7 +41,7 @@ describe('E-Class Record Subject Persistence Workflow', () => {
         subject_id: subjectId,
         subject_name: subjectName,
         school_year: schoolYear,
-        quarter: quarter as any,
+        quarter: quarter as 1 | 2 | 3 | 4,
         written_works: Array(activeWwCount).fill(''),
         performance_tasks: Array(activePtCount).fill(''),
         quarterly_exam: '',

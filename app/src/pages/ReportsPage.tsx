@@ -644,7 +644,7 @@ export function ReportsPage() {
                                                             setSelectedDetailMetric(null);
                                                         }
                                                     }}
-                                                    className="opacity-0 group-hover:opacity-100 p-2 text-deped-blue dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-white/10 rounded-lg transition-all"
+                                                    className="opacity-70 group-hover:opacity-100 p-2 text-deped-blue dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-white/10 rounded-lg transition-all"
                                                 >
                                                     <ArrowRight className="w-4 h-4" />
                                                 </button>

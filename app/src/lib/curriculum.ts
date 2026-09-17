@@ -1414,6 +1414,139 @@ export function getSshsClusterForSubject(subjectName: string): string {
 }
 
 /**
+ * Checks if a subject is a traditional DepEd K to 12 SHS Core Subject (Universal across all tracks).
+ * Governed by DepEd Order No. 8, s. 2015 / DepEd official SHS curriculum guides.
+ */
+export function isTraditionalCoreSubject(subjectName: string): boolean {
+    const raw = (subjectName || '').trim().toLowerCase();
+    const norm = raw.replace(/[^a-z0-9]/g, '');
+
+    // Exclude SSHS DO 017 Sports electives that have 'physical education 1 (fitness...)'
+    if (norm.includes('fitnessandrecreation') || norm.includes('sportsanddance')) {
+        return false;
+    }
+
+    const cores = [
+        "21stcenturyliteraturefromthephilippinesandtheworld",
+        "21stcenturyliterature",
+        "contemporaryphilippineartsfromtheregions",
+        "contemporaryphilippinearts",
+        "disasterreadinessandriskreduction",
+        "earthandlifescience",
+        "earthscience",
+        "generalmathematics",
+        "introductiontophilosophyofthehumanperson",
+        "introductiontothephilosophyofthehumanperson",
+        "philosophy",
+        "komunikasyonatpananaliksiksawikaatkulturangpilipino",
+        "komunikasyonatpananaliksik",
+        "mediainformationliteracy",
+        "mediaandinformationliteracy",
+        "oralcommunicationincontext",
+        "oralcommunication",
+        "pagbasaatpagsusuringibatibangtekstotungosapananaliksik",
+        "pagbasaatpagsusuri",
+        "personaldevelopment",
+        "physicaleducationandhealth",
+        "physicaleducationandhealth1",
+        "physicaleducationandhealth2",
+        "physicaleducationandhealth3",
+        "physicaleducationandhealth4",
+        "physicaleducationandhealthgrade11",
+        "physicaleducationandhealthgrade12",
+        "healthoptimizingphysicaleducationandhealth1",
+        "healthoptimizingphysicaleducationandhealth2",
+        "healthoptimizingphysicaleducationandhealth3",
+        "healthoptimizingphysicaleducationandhealth4",
+        "healthoptimizingphysicaleducation1",
+        "healthoptimizingphysicaleducation2",
+        "healthoptimizingphysicaleducation3",
+        "healthoptimizingphysicaleducation4",
+        "peandhealth1",
+        "peandhealth2",
+        "peandhealth3",
+        "peandhealth4",
+        "peandhealth",
+        "hope1",
+        "hope2",
+        "hope3",
+        "hope4",
+        "physicalscience",
+        "readingandwritingskills",
+        "statisticsandprobability",
+        "understandingculturesocietyandpolitics"
+    ];
+
+    return cores.some(c => norm === c || norm.includes(c) || c.includes(norm));
+}
+
+/**
+ * Checks if a subject is a traditional DepEd K to 12 SHS Contextualized / Applied Subject.
+ */
+export function isTraditionalAppliedSubject(subjectName: string): boolean {
+    const raw = (subjectName || '').trim().toLowerCase();
+    const norm = raw.replace(/[^a-z0-9]/g, '');
+    const applied = [
+        "empowermenttechnologies",
+        "englishforacademicandprofessionalpurposes",
+        "eapp",
+        "entrepreneurship",
+        "filipinosapilinglarangakademik",
+        "filipinosapilinglarangakademiko",
+        "filipinosapilinglarangisports",
+        "filipinosapilinglarangsiningatdisenyo",
+        "filipinosapilinglarangteknikalbokasyunal",
+        "filipinosapilinglarang",
+        "inquiriesinvestigationsandimmersion",
+        "inquiriesinvestigationandimmersion",
+        "practicalresearch1",
+        "practicalresearch2"
+    ];
+    return applied.some(a => norm === a || norm.includes(a) || a.includes(norm));
+}
+
+/**
+ * Checks if a subject is a Culminating / Work Immersion / Capstone subject.
+ */
+export function isTraditionalImmersionSubject(subjectName: string): boolean {
+    const raw = (subjectName || '').trim().toLowerCase();
+    const norm = raw.replace(/[^a-z0-9]/g, '');
+    return norm.includes('workimmersion') ||
+           norm.includes('culminatingactivity') ||
+           norm.includes('capstone') ||
+           norm.includes('researchoutput') ||
+           norm.includes('businessenterprisesimulation') ||
+           norm.includes('practicum') ||
+           norm.includes('apprenticeship');
+}
+
+/**
+ * Maps a TVL subject to its DepEd TVL component/sector
+ */
+export function getTvlComponentForSubject(subjectName: string): string {
+    const norm = (subjectName || '').trim().toLowerCase();
+    if (norm.includes('cookery') || norm.includes('bread') || norm.includes('pastry') || norm.includes('food and beverage') || norm.includes('front office') || norm.includes('housekeeping') || norm.includes('tourism') || norm.includes('caregiving') || norm.includes('hairdressing') || norm.includes('beauty') || norm.includes('wellness') || norm.includes('dressmaking') || norm.includes('tailoring') || norm.includes('garments')) {
+        return 'Home Economics (HE)';
+    }
+    if (norm.includes('computer') || norm.includes('programming') || norm.includes('broadband') || norm.includes('contact center') || norm.includes('animation') || norm.includes('illustration') || norm.includes('drafting') || norm.includes('graphic design') || norm.includes('transcription') || norm.includes('cybersecurity')) {
+        return 'Information and Communications Technology (ICT)';
+    }
+    if (norm.includes('welding') || norm.includes('smaw') || norm.includes('electrical installation') || norm.includes('eim') || norm.includes('automotive') || norm.includes('carpentry') || norm.includes('refrigeration') || norm.includes('rac') || norm.includes('electronics') || norm.includes('epas') || norm.includes('mechatronics') || norm.includes('photovoltaic') || norm.includes('machining') || norm.includes('plumbing')) {
+        return 'Industrial Arts (IA)';
+    }
+    if (norm.includes('agricultural') || norm.includes('animal production') || norm.includes('organic agriculture') || norm.includes('aquaculture') || norm.includes('fish capture') || norm.includes('food processing') || norm.includes('agro-entrepreneurship')) {
+        return 'Agri-Fishery Arts (AFA)';
+    }
+    if (norm.includes('marine') || norm.includes('ships')) {
+        return 'Maritime Specialization';
+    }
+    if (norm.includes('immersion')) {
+        return 'Work Immersion';
+    }
+    return 'TVL Track Specialization';
+}
+
+/**
  * Traditional SHS Grade 12 Track Lookup
  * Maps a course title to the 4 official tracks from ECR_3Term - SHS G12 - SY2026-2027 - Updated_3.xlsx
  */
@@ -1421,20 +1554,12 @@ export function getTraditionalShsTrackForSubject(subjectName: string): string {
     const norm = (subjectName || '').trim().toLowerCase();
 
     // 1. Immersion / Culminating Activity
-    if (norm.includes('immersion') || norm.includes('culminating activity') || norm.includes('research output') || norm.includes('capstone')) {
+    if (isTraditionalImmersionSubject(subjectName)) {
         return 'WORK IMMERSION/ CULMINATING ACTIVITY (FOR ACADEMIC TRACK)';
     }
 
     // 2. Core Subjects (All Tracks)
-    const cores = [
-        "21st century literature", "contemporary philippine arts", "disaster readiness and risk reduction",
-        "earth and life science", "earth science", "general mathematics", "introduction to philosophy of the human person",
-        "philosophy", "komunikasyon at pananaliksik", "media and information literacy", "oral communication in context",
-        "pagbasa at pagsusuri", "personal development", "physical education and health", "health optimizing physical education",
-        "hope 1", "hope 2", "hope 3", "hope 4", "pe and health", "physical science", "reading and writing skills",
-        "statistics and probability", "understanding culture, society and politics", "understanding culture society and politics"
-    ];
-    if (cores.some(c => norm.includes(c))) {
+    if (isTraditionalCoreSubject(subjectName)) {
         return 'CORE SUBJECT (ALL TRACKS)';
     }
 
@@ -1457,18 +1582,142 @@ export function getTraditionalShsTrackForSubject(subjectName: string): string {
  * Traditional SHS Grade 12 Strand / Sub-classification
  */
 export function getTraditionalShsStrandForSubject(subjectName: string): string {
+    if (isTraditionalCoreSubject(subjectName)) return 'Core Subjects';
+    if (isTraditionalAppliedSubject(subjectName)) return 'Applied Subjects';
+    if (isTraditionalImmersionSubject(subjectName)) return 'Work Immersion / Culminating Activity';
+
     const norm = (subjectName || '').trim().toLowerCase();
-    const applied = [
-        "empowerment technologies", "english for academic and professional purposes", "eapp", "entrepreneurship",
-        "filipino sa piling larang", "inquiries investigations and immersion", "inquiries, investigations and immersion",
-        "practical research 1", "practical research 2"
-    ];
-    if (applied.some(a => norm.includes(a))) return 'Applied Subjects';
     if (norm.includes('calculus') || norm.includes('biology') || norm.includes('physics') || norm.includes('chemistry')) return 'STEM Specialized Strand';
     if (norm.includes('accountancy') || norm.includes('business') || norm.includes('marketing') || norm.includes('fabm') || norm.includes('economics')) return 'ABM Specialized Strand';
-    if (norm.includes('creative writing') || norm.includes('creative nonfiction') || norm.includes('politics') || norm.includes('community engagement') || norm.includes('trends')) return 'HUMSS Specialized Strand';
-    if (norm.includes('immersion') || norm.includes('culminating')) return 'Work Immersion / Culminating Activity';
+    if (norm.includes('creative writing') || norm.includes('creative nonfiction') || norm.includes('politics') || norm.includes('community engagement') || norm.includes('trends') || norm.includes('disciplines and ideas') || norm.includes('world religions')) return 'HUMSS Specialized Strand';
+    if (norm.includes('humanities') || norm.includes('social science') || norm.includes('gas elective')) return 'GAS Specialized Strand';
     return 'Specialized Track Subject';
+}
+
+/**
+ * Determines whether an SHS or secondary subject is appropriate for a given section's configuration.
+ * Used to filter available subjects in SectionForm so teachers only see relevant curriculum choices.
+ */
+export function isSubjectMatchingSectionTrackAndStrand(
+    subjectName: string,
+    gradeLevel: string,
+    track?: string,
+    strandOrCluster?: string
+): boolean {
+    const gradeNum = parseInt(gradeLevel.replace(/\D/g, '')) || 0;
+    const norm = (subjectName || '').trim().toLowerCase();
+    const cleanTrack = (track || '').trim();
+    const cleanStrand = (strandOrCluster || '').trim();
+
+    // Grades 1 to 10 don't have tracks/strands
+    if (gradeNum < 11) return true;
+
+    // Grade 11: Strictly SSHS (DO 017, s. 2026)
+    if (gradeNum === 11) {
+        // Universal SSHS Core Learning Areas are always available
+        if (isGrade11CoreSubject(subjectName)) return true;
+
+        if (cleanTrack === 'TechPro') {
+            // If cluster is selected, only allow subjects from that TechPro cluster or TechPro immersion
+            if (cleanStrand && SSHS_TECHPRO_CLUSTERS[cleanStrand]) {
+                const clusterSubjects = SSHS_TECHPRO_CLUSTERS[cleanStrand];
+                return clusterSubjects.some(s => s.toLowerCase() === norm) || norm.includes('tech-pro');
+            }
+            // If TechPro but no cluster selected yet, allow any TechPro cluster subject
+            return (SPECIAL_SUBJECTS['Grade 11'] || []).some(s => s.name.toLowerCase() === norm) ||
+                   Object.values(SSHS_TECHPRO_CLUSTERS).flat().some(s => s.toLowerCase() === norm);
+        }
+
+        // Academic Track (or default if track is empty/Academic)
+        if (cleanTrack === 'Academic' || !cleanTrack) {
+            // If cluster is selected (e.g. STEM, ABM, HUMSS, GAS)
+            if (cleanStrand && SSHS_ACADEMIC_CLUSTERS[cleanStrand]) {
+                const clusterSubjects = SSHS_ACADEMIC_CLUSTERS[cleanStrand];
+                const isClusterSubject = clusterSubjects.some(s => s.toLowerCase() === norm);
+                const isCommonAcademicElective = norm.includes('practical research') || 
+                                                norm.includes('inquiries') || 
+                                                norm.includes('immersion for academic') ||
+                                                norm.includes('empowerment tech') ||
+                                                norm.includes('entrepreneurship');
+                return isClusterSubject || isCommonAcademicElective;
+            }
+            // If no cluster selected yet, allow academic cluster electives
+            return Object.values(SSHS_ACADEMIC_CLUSTERS).flat().some(s => s.toLowerCase() === norm) ||
+                   norm.includes('practical research') || norm.includes('inquiries');
+        }
+
+        return false;
+    }
+
+    // Grade 12: Can be SSHS or Traditional K-12
+    if (gradeNum === 12) {
+        const isExplicitSSHS = (cleanTrack.toLowerCase().includes('techpro') || 
+                               cleanTrack.toLowerCase().includes('sshs') ||
+                               (cleanStrand && Object.keys(SSHS_TECHPRO_CLUSTERS).some(c => c.toLowerCase() === cleanStrand.toLowerCase())));
+
+        if (isExplicitSSHS) {
+            // SSHS Grade 12
+            if (isGrade11CoreSubject(subjectName) || SHS_G12_CORE_SUBJECTS.some(s => s.name.toLowerCase() === norm)) return true;
+            if (cleanTrack === 'TechPro') {
+                if (cleanStrand && SSHS_TECHPRO_CLUSTERS[cleanStrand]) {
+                    return SSHS_TECHPRO_CLUSTERS[cleanStrand].some(s => s.toLowerCase() === norm) || norm.includes('tech-pro');
+                }
+                return SSHS_G12_TECHPRO_SUBJECTS.some(s => s.name.toLowerCase() === norm);
+            }
+            if (cleanStrand && SSHS_ACADEMIC_CLUSTERS[cleanStrand]) {
+                return SSHS_ACADEMIC_CLUSTERS[cleanStrand].some(s => s.toLowerCase() === norm);
+            }
+            return SSHS_G12_ACADEMIC_SUBJECTS.some(s => s.name.toLowerCase() === norm);
+        }
+
+        // Traditional K-12 (DO 8, s. 2015)
+        // Core & Applied subjects are universal for all traditional SHS sections
+        if (isTraditionalCoreSubject(subjectName) || isTraditionalAppliedSubject(subjectName)) {
+            return true;
+        }
+
+        if (cleanTrack === 'Academic' || !cleanTrack) {
+            // Work immersion, culminating activities, and capstone are universal immersion options for Academic track
+            if (isTraditionalImmersionSubject(subjectName)) {
+                return true;
+            }
+
+            // If strand is selected (e.g. ABM, STEM, HUMSS, GAS)
+            if (cleanStrand && SHS_OLD_STRAND_SUBJECTS[cleanStrand]) {
+                const matchesStrand = SHS_OLD_STRAND_SUBJECTS[cleanStrand].some(s => s.name.toLowerCase() === norm);
+                if (matchesStrand) return true;
+                // For GAS: Students may take specialized subjects from other Academic strands as GAS Elective 1 & 2
+                if (cleanStrand === 'GAS') {
+                    const isAcademicStrandSubject = (SHS_OLD_STRAND_SUBJECTS.ABM || []).some(s => s.name.toLowerCase() === norm) ||
+                                                    (SHS_OLD_STRAND_SUBJECTS.STEM || []).some(s => s.name.toLowerCase() === norm) ||
+                                                    (SHS_OLD_STRAND_SUBJECTS.HUMSS || []).some(s => s.name.toLowerCase() === norm);
+                    if (isAcademicStrandSubject) return true;
+                }
+                return false;
+            }
+            // If Academic but no strand selected yet, allow subjects from academic strands
+            return (SHS_OLD_STRAND_SUBJECTS.ABM || []).some(s => s.name.toLowerCase() === norm) ||
+                   (SHS_OLD_STRAND_SUBJECTS.STEM || []).some(s => s.name.toLowerCase() === norm) ||
+                   (SHS_OLD_STRAND_SUBJECTS.HUMSS || []).some(s => s.name.toLowerCase() === norm) ||
+                   (SHS_OLD_STRAND_SUBJECTS.GAS || []).some(s => s.name.toLowerCase() === norm);
+        }
+
+        if (cleanTrack === 'TVL') {
+            return (SHS_OLD_STRAND_SUBJECTS.TVL || []).some(s => s.name.toLowerCase() === norm) || isTraditionalImmersionSubject(subjectName);
+        }
+
+        if (cleanTrack === 'Sports') {
+            return (SHS_OLD_STRAND_SUBJECTS.Sports || []).some(s => s.name.toLowerCase() === norm) || isTraditionalImmersionSubject(subjectName);
+        }
+
+        if (cleanTrack.includes('Arts')) {
+            return (SHS_OLD_STRAND_SUBJECTS['Arts and Design'] || []).some(s => s.name.toLowerCase() === norm) || isTraditionalImmersionSubject(subjectName);
+        }
+
+        return false;
+    }
+
+    return true;
 }
 
 /**
@@ -1763,10 +2012,7 @@ export const getShsCategoryForSubject = (subjectName: string, gradeLevel: string
         }
 
         // 1. Core Subjects
-        if (traditionalCores.some(c => {
-            const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return norm === cNorm || norm.includes(cNorm) || cNorm.includes(norm);
-        })) {
+        if (isTraditionalCoreSubject(subjectName)) {
             return 'Core Subjects';
         }
 
@@ -1816,10 +2062,7 @@ export const getShsCategoryForSubject = (subjectName: string, gradeLevel: string
         }
 
         // 4. Applied Subjects
-        if (traditionalApplied.some(a => {
-            const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return norm === aNorm || norm.includes(aNorm) || aNorm.includes(norm);
-        })) {
+        if (isTraditionalAppliedSubject(subjectName)) {
             return 'Applied Subjects';
         }
 

@@ -468,6 +468,66 @@ export const SHS_G12_HUMSS_PRESET: CurriculumPreset = {
     ]
 };
 
+export const SHS_G12_GAS_PRESET: CurriculumPreset = {
+    id: 'shs-g12-gas-3term',
+    label: 'Grade 12 GAS (Universal 3-Term Model)',
+    description: 'Balanced 3-Term distribution of Core, Applied, and Specialized GAS subjects',
+    gradeLevel: 'Grade 12',
+    curriculumType: 'K-12',
+    track: 'Academic',
+    strandOrCluster: 'GAS',
+    program: 'Regular',
+    subjects: [
+        // Term 1
+        { name: '21st Century Literature from the Philippines and the World', term: 1, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
+        { name: 'Practical Research 2', term: 1, category: 'Applied', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
+        { name: 'Humanities 1', term: 1, category: 'Specialized', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
+        { name: 'Physical Education and Health 3', term: 1, category: 'Core', weightCategory: 'MAPEH', ...DEPED_WEIGHT_PROFILES.MAPEH },
+
+        // Term 2
+        { name: 'Contemporary Philippine Arts from the Regions', term: 2, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
+        { name: 'English for Academic and Professional Purposes', term: 2, category: 'Applied', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
+        { name: 'Social Science 1', term: 2, category: 'Specialized', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
+        { name: 'Applied Economics', term: 2, category: 'Specialized', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
+
+        // Term 3
+        { name: 'Introduction to the Philosophy of the Human Person', term: 3, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
+        { name: 'Inquiries, Investigations, and Immersion', term: 3, category: 'Applied', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
+        { name: 'Organization and Management', term: 3, category: 'Specialized', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
+        { name: 'Physical Education and Health 4', term: 3, category: 'Core', weightCategory: 'MAPEH', ...DEPED_WEIGHT_PROFILES.MAPEH }
+    ]
+};
+
+export const SHS_G12_TVL_PRESET: CurriculumPreset = {
+    id: 'shs-g12-tvl-3term',
+    label: 'Grade 12 TVL (Universal 3-Term Model)',
+    description: 'Balanced 3-Term distribution of Core, Applied, and TVL track subjects',
+    gradeLevel: 'Grade 12',
+    curriculumType: 'K-12',
+    track: 'TVL',
+    strandOrCluster: 'TVL',
+    program: 'Regular',
+    subjects: [
+        // Term 1
+        { name: '21st Century Literature from the Philippines and the World', term: 1, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
+        { name: 'Practical Research 2', term: 1, category: 'Applied', weightCategory: 'SHSTVL', ...DEPED_WEIGHT_PROFILES.SHSTVL },
+        { name: 'Empowerment Technologies', term: 1, category: 'Applied', weightCategory: 'SHSTVL', ...DEPED_WEIGHT_PROFILES.SHSTVL },
+        { name: 'Physical Education and Health 3', term: 1, category: 'Core', weightCategory: 'MAPEH', ...DEPED_WEIGHT_PROFILES.MAPEH },
+
+        // Term 2
+        { name: 'Contemporary Philippine Arts from the Regions', term: 2, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
+        { name: 'English for Academic and Professional Purposes', term: 2, category: 'Applied', weightCategory: 'SHSTVL', ...DEPED_WEIGHT_PROFILES.SHSTVL },
+        { name: 'Entrepreneurship', term: 2, category: 'Applied', weightCategory: 'SHSTVL', ...DEPED_WEIGHT_PROFILES.SHSTVL },
+        { name: 'Filipino sa Piling Larang (Teknikal-Bokasyunal)', term: 2, category: 'Applied', weightCategory: 'SHSTVL', ...DEPED_WEIGHT_PROFILES.SHSTVL },
+
+        // Term 3
+        { name: 'Introduction to the Philosophy of the Human Person', term: 3, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
+        { name: 'Inquiries, Investigations, and Immersion', term: 3, category: 'Applied', weightCategory: 'SHSTVL', ...DEPED_WEIGHT_PROFILES.SHSTVL },
+        { name: 'Work Immersion (TVL)', term: 3, category: 'Specialized', weightCategory: 'SHSTVL', ...DEPED_WEIGHT_PROFILES.SHSTVL },
+        { name: 'Physical Education and Health 4', term: 3, category: 'Core', weightCategory: 'MAPEH', ...DEPED_WEIGHT_PROFILES.MAPEH }
+    ]
+};
+
 // ---------------------------------------------------------------------------
 // MASTER PRESETS REPOSITORY & QUERY ENGINES
 // ---------------------------------------------------------------------------
@@ -496,7 +556,9 @@ export const ALL_CURRICULUM_PRESETS: CurriculumPreset[] = [
     SSHS_G11_TECHPRO_HOSPITALITY_PRESET,
     SHS_G12_STEM_PRESET,
     SHS_G12_ABM_PRESET,
-    SHS_G12_HUMSS_PRESET
+    SHS_G12_HUMSS_PRESET,
+    SHS_G12_GAS_PRESET,
+    SHS_G12_TVL_PRESET
 ];
 
 /**
@@ -535,12 +597,16 @@ export function getCurriculumPreset(
         return SSHS_G11_STEM_PRESET; // Default fallback for G11 Academic
     }
 
-    // 2. Grade 12 SHS Matching
+    // 2. Grade 12 SHS Matching (DO 8, s. 2015)
     if (isG12) {
         const strandNorm = (strandOrCluster || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const trackNorm = (track || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (strandNorm.includes('gas') || strandNorm.includes('generalacademic')) return SHS_G12_GAS_PRESET;
         if (strandNorm.includes('abm') || strandNorm.includes('business')) return SHS_G12_ABM_PRESET;
         if (strandNorm.includes('humss') || strandNorm.includes('humanities')) return SHS_G12_HUMSS_PRESET;
-        return SHS_G12_STEM_PRESET;
+        if (trackNorm.includes('tvl') || trackNorm.includes('technicalvocational')) return SHS_G12_TVL_PRESET;
+        if (strandNorm.includes('stem') || strandNorm.includes('science')) return SHS_G12_STEM_PRESET;
+        return SHS_G12_GAS_PRESET;
     }
 
     // 3. Junior High School Matching (Grades 7 to 10)

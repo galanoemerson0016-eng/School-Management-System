@@ -109,13 +109,14 @@ export function Sidebar() {
     }, [isResizing, isCollapsed]);
 
     useEffect(() => {
+        if (!isResizing) return;
         window.addEventListener('mousemove', resize);
         window.addEventListener('mouseup', stopResizing);
         return () => {
             window.removeEventListener('mousemove', resize);
             window.removeEventListener('mouseup', stopResizing);
         };
-    }, [resize, stopResizing]);
+    }, [isResizing, resize, stopResizing]);
 
     const navGroups: NavGroup[] = [
         {

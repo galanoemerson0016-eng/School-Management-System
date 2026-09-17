@@ -7,12 +7,13 @@
 
 import { create } from 'zustand';
 import type { SchoolProfile, Student, Section, Subject, Announcement, ClassRecord, Enrollment, SchoolYear, ObservedValues, HPSRecord, SF2Sheet, User, AttendanceRecord } from '../types';
-import { db, onDatabaseWriteChange } from '../services/database';
+import { db } from '../services/database';
 import { backup } from '../services/backup';
 import { normalizeSubjectName } from '../lib/subjectConfig';
 import { STANDARD_SUBJECTS, getDefaultTermForSubject, isGrade11CoreSubject } from '../lib/curriculum';
 import { normalizeGrade12PESubjectName } from '../utils/grading-helpers';
 import { reconcileOrphanedGradesAndSubjects, generateDeterministicSubjectId } from '../utils/grade-reconciliation';
+import { purgeGhostEinsteinData } from '../utils/ghost-data-purge';
 import {
   buildAttendanceRecordsFromSf2Sheet,
   buildAutoFilledDateLabels,
@@ -22,7 +23,6 @@ import {
 import { createGradingSlice, type GradingSlice } from './slices/grading-slice';
 import { createAttendanceSlice, type AttendanceSlice } from './slices/attendance-slice';
 import { createAnnouncementsSlice, type AnnouncementsSlice } from './slices/announcements-slice';
-import { EINSTEIN_SECTION, RECOVERED_EINSTEIN_STUDENTS } from '../data/recovered-students';
 
 export interface ProfileDiffItem {
   fieldName: string;
@@ -1553,10 +1553,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 }));
 
-onDatabaseWriteChange((count) => {
-  useAppStore.setState({ dbWritePendingCount: count });
-});
-
 /**
  * Initialize app store by loading all data from local database
  */
@@ -1825,55 +1821,35 @@ export async function initializeAppStore() {
     }
 
 
-    // Client Safety Isolation: Only recover Calibungan High School data on Emerson's installation
-    const isEmersonEnvironment = !!(
-      schoolProfile?.school_id === '307014' ||
-      (schoolProfile?.adviser_name || '').toLowerCase().includes('emerson') ||
-      (schoolProfile?.name || '').toLowerCase().includes('calibungan')
-    );
-
-    const alreadyRestored = localStorage.getItem('formease-einstein-restored-v1') === 'true';
-    const hardResetExecuted = localStorage.getItem('formease-hard-reset-executed') === 'true';
-
-    // If Einstein students already exist in the DB, mark the one-time restoration flag
-    if (isEmersonEnvironment && students.some(s => s.lrn === '104528180011')) {
-      localStorage.setItem('formease-einstein-restored-v1', 'true');
-    }
-
+    // Comprehensive Purge: Unconditionally purge ghost "Einstein" section, mock students, and orphan records
     let finalStudents = students;
-    if (isEmersonEnvironment && !alreadyRestored && !hardResetExecuted) {
-      // Ensure primary advisory section (Einstein) exists on Emerson's deployment
-      const targetSectionName = (schoolProfile?.section || 'Einstein').trim();
-      const hasTargetSection = finalSections.some(
-        s => s.id === 'section_1777547467815' || s.section_name.toLowerCase() === targetSectionName.toLowerCase()
-      );
-      if (!hasTargetSection) {
-        console.log(`[FormEase Pro] Restoring primary advisory section ${targetSectionName}...`);
-        const primarySec: Section = {
-          ...EINSTEIN_SECTION,
-          section_name: targetSectionName,
-          section_grade_level: schoolProfile?.grade_level || 'Grade 7',
-          adviser_name: activeProfileAdviser || 'Emerson M. Galano'
-        };
-        finalSections = [primarySec, ...finalSections];
-        void db.putRecord('sections', primarySec).catch(e => console.error('Failed to persist primary section:', e));
-      }
+    const ghostPurge = await purgeGhostEinsteinData(db, {
+      sections: finalSections,
+      students: finalStudents,
+      classRecords,
+      gradingSheetRecords,
+      attendanceRecords: repaired.attendanceRecords,
+      sf2Sheets: repaired.sf2Sheets,
+      enrollments,
+    });
 
-      // Ensure user's real class students are restored if missing on Emerson's deployment
-      const hasEinsteinStudents = students.some(
-        s => s.lrn === '104528180011' || s.student_section === 'Einstein' || s.student_section === 'section_1777547467815'
-      );
-      if (!hasEinsteinStudents && RECOVERED_EINSTEIN_STUDENTS.length > 0) {
-        console.log(`[FormEase Pro] Restoring ${RECOVERED_EINSTEIN_STUDENTS.length} learners for section Einstein...`);
-        finalStudents = [...RECOVERED_EINSTEIN_STUDENTS, ...students];
-        void db.putRecordsBulk('students', RECOVERED_EINSTEIN_STUDENTS).catch(e => console.error('Failed to persist recovered students:', e));
-      }
+    finalSections = ghostPurge.sections;
+    finalStudents = ghostPurge.students;
+    const finalClassRecords = ghostPurge.classRecords;
+    const finalGradingSheetRecords = ghostPurge.gradingSheetRecords;
+    const finalAttendanceRecords = ghostPurge.attendanceRecords;
+    const finalSf2Sheets = ghostPurge.sf2Sheets;
+    const finalEnrollments = ghostPurge.enrollments;
 
-      localStorage.setItem('formease-einstein-restored-v1', 'true');
+    // Ensure schoolProfile does not cling to ghost Einstein section
+    let finalSchoolProfile = schoolProfile;
+    if (finalSchoolProfile && (finalSchoolProfile.section || '').trim().toLowerCase() === 'einstein') {
+      finalSchoolProfile = { ...finalSchoolProfile, section: '' };
+      void db.putRecord('schoolProfile', finalSchoolProfile).catch(() => {});
     }
 
     // Re-resolve selectedSection ensuring configured section or advisory class has priority
-    const configuredSectionName = (schoolProfile?.section || '').trim();
+    const configuredSectionName = (finalSchoolProfile?.section || '').trim();
     const primarySectionObj = configuredSectionName
       ? finalSections.find(s => s.section_name.toLowerCase() === configuredSectionName.toLowerCase())
       : null;
@@ -1887,9 +1863,9 @@ export async function initializeAppStore() {
       subjects: finalSubjectsWithMigration,
       sections: finalSections,
       students: finalStudents,
-      classRecords,
+      classRecords: finalClassRecords,
       hpsRecords,
-      gradingSheetRecords
+      gradingSheetRecords: finalGradingSheetRecords
     });
 
     if (reconciliation.modified) {
@@ -1925,12 +1901,12 @@ export async function initializeAppStore() {
       classRecords: reconciliation.classRecords,
       gradingSheetRecords: reconciliation.gradingSheetRecords,
       hpsRecords: reconciliation.hpsRecords,
-      enrollments,
+      enrollments: finalEnrollments,
       announcements,
-      attendanceRecords: repaired.attendanceRecords,
-      sf2Sheets: repaired.sf2Sheets,
+      attendanceRecords: finalAttendanceRecords,
+      sf2Sheets: finalSf2Sheets,
       observedValues,
-      schoolProfile: schoolProfile ? { ...schoolProfile, division: (schoolProfile.division || '').replace(/schools division office of/i, '').replace(/schools division of/i, '').replace(/division of/i, '').trim() } : defaultSchoolProfile,
+      schoolProfile: finalSchoolProfile ? { ...finalSchoolProfile, division: (finalSchoolProfile.division || '').replace(/schools division office of/i, '').replace(/schools division of/i, '').replace(/division of/i, '').trim() } : defaultSchoolProfile,
       isSyncReady: true,
       selectedSection: resolvedActiveSection
     });

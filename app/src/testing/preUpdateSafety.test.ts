@@ -1,9 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { generateMasterExcelWorkbook, getMasterExcelBackupBuffer } from '../services/master-excel-backup';
 import { computeSectionConsolidatedData, generateConsolidatedExcelBuffer, generateConsolidatedPDFBuffer } from '../services/consolidated-export-service';
 import { generatePreUpdateSafetyVault } from '../services/pre-update-safety';
 import type { ComprehensiveBackup } from '../utils/backup-restore';
-import type { Student, Section, Subject, ClassRecord } from '../types';
+import type { Student, Section, Subject, ClassRecord, SchoolProfile } from '../types';
 import JSZip from 'jszip';
 
 describe('Pre-Update Safety Vault & Master Excel Backup System', () => {
@@ -139,6 +139,7 @@ describe('Pre-Update Safety Vault & Master Excel Backup System', () => {
       attendanceRecords: [],
     },
   } as unknown as ComprehensiveBackup;
+  const mockSchoolProfile = mockBackup.payload.schoolProfile as unknown as SchoolProfile;
 
   it('generates a multi-tab Master Excel backup with DepEd styling', async () => {
     const workbook = await generateMasterExcelWorkbook(mockBackup);
@@ -230,7 +231,7 @@ describe('Pre-Update Safety Vault & Master Excel Backup System', () => {
       students: mockStudents,
       classRecords: mockClassRecords,
       schoolYear: '2026-2027',
-      schoolProfile: mockBackup.payload.schoolProfile as any,
+      schoolProfile: mockSchoolProfile,
       quarter: 1
     });
 
@@ -258,7 +259,7 @@ describe('Pre-Update Safety Vault & Master Excel Backup System', () => {
       students: mockStudents,
       schoolYear: '2026-2027',
       month: 'August',
-      schoolProfile: mockBackup.payload.schoolProfile as any
+      schoolProfile: mockSchoolProfile
     });
     expect(sf2Pdf).toBeDefined();
     expect(String.fromCharCode(...new Uint8Array(sf2Pdf).slice(0, 5))).toBe('%PDF-');
@@ -268,7 +269,7 @@ describe('Pre-Update Safety Vault & Master Excel Backup System', () => {
       students: mockStudents,
       schoolYear: '2026-2027',
       month: 'August',
-      schoolProfile: mockBackup.payload.schoolProfile as any
+      schoolProfile: mockSchoolProfile
     });
     expect(sf2Xlsx).toBeDefined();
     expect(sf2Xlsx.byteLength).toBeGreaterThan(500);
@@ -280,7 +281,7 @@ describe('Pre-Update Safety Vault & Master Excel Backup System', () => {
       subjects: mockSubjects,
       classRecords: mockClassRecords,
       schoolYear: '2026-2027',
-      schoolProfile: mockBackup.payload.schoolProfile as any
+      schoolProfile: mockSchoolProfile
     });
     expect(sf5Pdf).toBeDefined();
     expect(String.fromCharCode(...new Uint8Array(sf5Pdf).slice(0, 5))).toBe('%PDF-');
@@ -291,7 +292,7 @@ describe('Pre-Update Safety Vault & Master Excel Backup System', () => {
       subjects: mockSubjects,
       classRecords: mockClassRecords,
       schoolYear: '2026-2027',
-      schoolProfile: mockBackup.payload.schoolProfile as any
+      schoolProfile: mockSchoolProfile
     });
     expect(sf5Xlsx).toBeDefined();
     expect(sf5Xlsx.byteLength).toBeGreaterThan(500);
@@ -303,7 +304,7 @@ describe('Pre-Update Safety Vault & Master Excel Backup System', () => {
       subjects: mockSubjects,
       classRecords: mockClassRecords,
       schoolYear: '2026-2027',
-      schoolProfile: mockBackup.payload.schoolProfile as any
+      schoolProfile: mockSchoolProfile
     });
     expect(sf6Pdf).toBeDefined();
     expect(String.fromCharCode(...new Uint8Array(sf6Pdf).slice(0, 5))).toBe('%PDF-');
@@ -314,7 +315,7 @@ describe('Pre-Update Safety Vault & Master Excel Backup System', () => {
       subjects: mockSubjects,
       classRecords: mockClassRecords,
       schoolYear: '2026-2027',
-      schoolProfile: mockBackup.payload.schoolProfile as any
+      schoolProfile: mockSchoolProfile
     });
     expect(sf6Xlsx).toBeDefined();
     expect(sf6Xlsx.byteLength).toBeGreaterThan(500);
@@ -326,7 +327,7 @@ describe('Pre-Update Safety Vault & Master Excel Backup System', () => {
       subjects: mockSubjects,
       classRecords: mockClassRecords,
       schoolYear: '2026-2027',
-      schoolProfile: mockBackup.payload.schoolProfile as any
+      schoolProfile: mockSchoolProfile
     });
     expect(sf9Xlsx).toBeDefined();
     expect(sf9Xlsx.byteLength).toBeGreaterThan(500);
@@ -337,7 +338,7 @@ describe('Pre-Update Safety Vault & Master Excel Backup System', () => {
       subjects: mockSubjects,
       classRecords: mockClassRecords,
       schoolYear: '2026-2027',
-      schoolProfile: mockBackup.payload.schoolProfile as any
+      schoolProfile: mockSchoolProfile
     });
     expect(sf9Pdf).toBeDefined();
     expect(String.fromCharCode(...new Uint8Array(sf9Pdf).slice(0, 5))).toBe('%PDF-');

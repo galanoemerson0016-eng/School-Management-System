@@ -724,12 +724,15 @@ export function SF9Template2SlipFront({
   // Otherwise fall back to DEFAULT_SUBJECTS for backward compatibility with tests/fallback.
   const rawSubjects = (learner.subjects && learner.subjects.length > 0)
     ? learner.subjects
-        .map((subItem: any) => ({
-          name: (subItem.subject_name || subItem.name || '').trim(),
-          isComponent: Boolean(subItem.isComponent),
-          isHeader: Boolean(subItem.isHeader),
-          isReserved: Boolean(subItem.isReserved),
-        }))
+        .map((subItem) => {
+          const s = subItem as unknown as Record<string, unknown>;
+          return {
+            name: (String(s.subject_name || s.name || '')).trim(),
+            isComponent: Boolean(s.isComponent),
+            isHeader: Boolean(s.isHeader),
+            isReserved: Boolean(s.isReserved),
+          };
+        })
         .filter((subItem) => !subItem.isReserved && subItem.name)
     : DEFAULT_SUBJECTS;
 

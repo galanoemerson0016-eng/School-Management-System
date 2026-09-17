@@ -59,6 +59,7 @@ export function broadcastAttendanceUpdate(
     // 0. Electron IPC — direct main-process bridge (zero-CORS, instant, EXE only)
     if (window.electronAPI && window.electronAPI.pushAttendanceUpdate) {
         window.electronAPI.pushAttendanceUpdate(event).catch(() => {});
+        return;
     }
 
     // 1. BroadcastChannel
@@ -77,27 +78,20 @@ export function broadcastAttendanceUpdate(
         console.error('LocalStorage sync write failed:', err);
     }
 
-    // 3. Push to Local Express REST API server across all active ports
-    //    Port 3001 is the production default (EXE); 3003 is a legacy fallback.
-    const targetHost = serverHost || window.location.hostname || 'localhost';
-    const port = window.location.port || '3001';
-    const endpoints = Array.from(new Set([
-        `http://localhost:3001/api/attendance/update`,
-        `http://127.0.0.1:3001/api/attendance/update`,
-        `/api/attendance/update`,
-        `http://${targetHost}:${port}/api/attendance/update`,
-        `http://${targetHost}:3003/api/attendance/update`,
-    ]));
+    // 3. Push to Local Express REST API server (single resolved endpoint)
+    const targetHost = serverHost || (typeof window !== 'undefined' ? window.location.hostname : '') || 'localhost';
+    const port = (typeof window !== 'undefined' ? window.location.port : '') || '3001';
+    const endpoint = (typeof window !== 'undefined' && window.location.port)
+        ? `/api/attendance/update`
+        : `http://${targetHost}:${port}/api/attendance/update`;
 
-    for (const apiUrl of endpoints) {
-        fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(event),
-        }).catch(() => {
-            // Silently fail if local REST API server endpoint is unreachable
-        });
-    }
+    fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(event),
+    }).catch(() => {
+        // Silently fail if local REST API server endpoint is unreachable
+    });
 }
 
 /**
@@ -166,21 +160,15 @@ export function subscribeToAttendanceUpdates(
     handlers.push(() => window.removeEventListener('storage', storageHandler));
 
     // 3. Electron IPC direct polling (most reliable for EXE — bypasses network entirely)
-    // 4. HTTP Polling Fallback (Every 1.5 seconds for active sync across Wi-Fi networks)
+    // 4. HTTP Polling Fallback (Every 3 seconds for active sync across Wi-Fi networks)
     let lastCheckTimestamp = 0; // 0 queries all pending events on first poll
     const targetHost = serverHost || (typeof window !== 'undefined' ? window.location.hostname : '') || 'localhost';
     const currentPort = (typeof window !== 'undefined' ? window.location.port : '') || '3001';
     
-    // Build valid HTTP endpoints
-    const rawUrls = [
-        `http://localhost:3001/api/attendance/updates`,
-        `http://127.0.0.1:3001/api/attendance/updates`,
-        `/api/attendance/updates`,
-        targetHost && currentPort ? `http://${targetHost}:${currentPort}/api/attendance/updates` : '',
-        targetHost ? `http://${targetHost}:3001/api/attendance/updates` : '',
-        targetHost ? `http://${targetHost}:3003/api/attendance/updates` : '',
-    ].filter(Boolean);
-    const pollUrls = Array.from(new Set(rawUrls));
+    // Resolve single valid HTTP endpoint
+    const pollUrl = (typeof window !== 'undefined' && window.location.port)
+        ? `/api/attendance/updates`
+        : `http://${targetHost}:${currentPort}/api/attendance/updates`;
 
     const intervalId = setInterval(async () => {
         // Electron IPC path — direct main-process query, zero network overhead
@@ -207,30 +195,27 @@ export function subscribeToAttendanceUpdates(
         }
 
         // HTTP Polling fallback
-        for (const pollUrl of pollUrls) {
-            try {
-                const res = await fetch(`${pollUrl}?since=${lastCheckTimestamp}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.events && Array.isArray(data.events) && data.events.length > 0) {
-                        for (const ev of data.events) {
-                            deduplicatedOnEvent(ev);
-                        }
+        try {
+            const res = await fetch(`${pollUrl}?since=${lastCheckTimestamp}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.events && Array.isArray(data.events) && data.events.length > 0) {
+                    for (const ev of data.events) {
+                        deduplicatedOnEvent(ev);
                     }
-                    // Update lastCheckTimestamp using serverTime or lastUpdated from server response
-                    const serverTs = data.serverTime || data.lastUpdated;
-                    if (serverTs && serverTs > 0) {
-                        lastCheckTimestamp = serverTs;
-                    } else if (lastCheckTimestamp === 0) {
-                        lastCheckTimestamp = Date.now() - 60000;
-                    }
-                    break; // Endpoint succeeded, don't query remaining fallback ports
                 }
-            } catch {
-                // Try next endpoint
+                // Update lastCheckTimestamp using serverTime or lastUpdated from server response
+                const serverTs = data.serverTime || data.lastUpdated;
+                if (serverTs && serverTs > 0) {
+                    lastCheckTimestamp = serverTs;
+                } else if (lastCheckTimestamp === 0) {
+                    lastCheckTimestamp = Date.now() - 60000;
+                }
             }
+        } catch {
+            // Silently ignore unreachable endpoint
         }
-    }, 1500);
+    }, 3000);
 
     handlers.push(() => clearInterval(intervalId));
 
@@ -294,28 +279,22 @@ export function pushAttendanceSessionToBackend(data: {
     // 1. Direct Electron Native Main Process Bridge (Zero-CORS, 100% Reliable)
     if (window.electronAPI && window.electronAPI.pushAttendanceSession) {
         window.electronAPI.pushAttendanceSession(sessionObj).catch(() => {});
+        return;
     }
 
     // 2. Web REST API Fallback
     const payload = JSON.stringify(sessionObj);
-    const host = data.localIp || window.location.hostname || 'localhost';
-    const port = window.location.port || '3001';
-    const endpoints = Array.from(new Set([
-        `/api/attendance/session`,
-        `http://localhost:3001/api/attendance/session`,
-        `http://127.0.0.1:3001/api/attendance/session`,
-        `http://localhost:3003/api/attendance/session`,
-        `http://${host}:3001/api/attendance/session`,
-        `http://${host}:${port}/api/attendance/session`
-    ]));
+    const host = data.localIp || (typeof window !== 'undefined' ? window.location.hostname : '') || 'localhost';
+    const port = (typeof window !== 'undefined' ? window.location.port : '') || '3001';
+    const endpoint = (typeof window !== 'undefined' && window.location.port)
+        ? `/api/attendance/session`
+        : `http://${host}:${port}/api/attendance/session`;
 
-    for (const url of endpoints) {
-        fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: payload,
-        }).catch(() => {
-            // Silently ignore unreachable endpoints
-        });
-    }
+    fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+    }).catch(() => {
+        // Silently ignore unreachable endpoint
+    });
 }

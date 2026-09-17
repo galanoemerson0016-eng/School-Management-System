@@ -15,7 +15,8 @@ import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
 import { isMatchingSubject, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
 import { generateDeterministicSubjectId, reconcileOrphanedGradesAndSubjects } from '../utils/grade-reconciliation';
-import { normalizeSubjectName } from '../lib/subjectConfig';
+import { normalizeSubjectName, getCanonicalSubjectKey } from '../lib/subjectConfig';
+import { normalizeWeightPercent } from '../lib/grading';
 
 const GRADE_METADATA: Record<string, { icon: LucideIcon; color: string; description: string; bg: string }> = {
     'Grade 1': { icon: BookOpen, color: 'from-pink-500 to-rose-600', bg: 'bg-pink-50', description: 'Emerging Learners - Focus on literacy and numeracy foundations.' },
@@ -1783,9 +1784,13 @@ export function SubjectsPage() {
         let isLocked = true;
         if (hasCustomWeights) {
             const std = getDepEdStandardWeights(subject.subject_name);
-            const matchesStd = Math.round((subject.written_weight || 0) * 100) === Math.round(std.written_weight * 100) &&
-                               Math.round((subject.performance_weight || 0) * 100) === Math.round(std.performance_weight * 100) &&
-                               Math.round((subject.exam_weight || 0) * 100) === Math.round(std.exam_weight * 100);
+            const subWw = normalizeWeightPercent(subject.written_weight);
+            const subPt = normalizeWeightPercent(subject.performance_weight);
+            const subQa = normalizeWeightPercent(subject.exam_weight);
+            const stdWw = normalizeWeightPercent(std.written_weight);
+            const stdPt = normalizeWeightPercent(std.performance_weight);
+            const stdQa = normalizeWeightPercent(std.exam_weight);
+            const matchesStd = subWw === stdWw && subPt === stdPt && subQa === stdQa;
             isLocked = matchesStd;
         }
         setUseDepEdWeightsLocked(isLocked);
@@ -1796,9 +1801,9 @@ export function SubjectsPage() {
             section_id: subject.section_id || '',
             teacher_id: subject.teacher_id || '',
             term: subject.term || 'all',
-            written_weight: subject.written_weight !== undefined ? String(Math.round(subject.written_weight * 100)) : '',
-            performance_weight: subject.performance_weight !== undefined ? String(Math.round(subject.performance_weight * 100)) : '',
-            exam_weight: subject.exam_weight !== undefined ? String(Math.round(subject.exam_weight * 100)) : ''
+            written_weight: subject.written_weight !== undefined ? String(normalizeWeightPercent(subject.written_weight)) : '',
+            performance_weight: subject.performance_weight !== undefined ? String(normalizeWeightPercent(subject.performance_weight)) : '',
+            exam_weight: subject.exam_weight !== undefined ? String(normalizeWeightPercent(subject.exam_weight)) : ''
         });
         setIsModalOpen(true);
     };
@@ -1946,7 +1951,8 @@ export function SubjectsPage() {
             if (s.subject_name !== s.subject_name.trim()) {
                 untrimmedSubjects.push(s);
             }
-            const key = `${s.grade_level || 'all'}::${s.section_id || 'all'}::${normalizeSubjectLabel(s.subject_name)}`;
+            const canon = getCanonicalSubjectKey(s.subject_name, s.grade_level) || normalizeSubjectLabel(s.subject_name);
+            const key = `${s.grade_level || 'all'}::${s.section_id || 'all'}::${canon}`;
             if (!gradeGroups[key]) gradeGroups[key] = [];
             gradeGroups[key].push(s);
         });
@@ -1977,6 +1983,7 @@ export function SubjectsPage() {
         try {
             let mergedCount = 0;
             const duplicateIdsToDelete: string[] = [];
+            const dupIdToCanonicalMap = new Map<string, Subject>();
             const classRecordsToUpdate: ClassRecord[] = [];
             const gradingRecordsToUpdate: ClassRecord[] = [];
             const hpsRecordsToUpdate: HPSRecord[] = [];
@@ -1988,9 +1995,13 @@ export function SubjectsPage() {
                 const isJhs = (gNum >= 7 && gNum <= 10) || (clusterGrade || '').toLowerCase().includes('jhs');
 
                 let officialTarget: string | null = null;
-                if (normalizeSubjectLabel(cluster[0].subject_name) === 'gmrc') {
+                const cKey = getCanonicalSubjectKey(cluster[0].subject_name, clusterGrade);
+                if (cKey === 'gmrc' || normalizeSubjectLabel(cluster[0].subject_name) === 'gmrc') {
                     if (isElem) officialTarget = 'GMRC (Good Manners and Right Conduct)';
                     if (isJhs) officialTarget = 'Values Education';
+                } else if (cKey.startsWith('physicaleducationandhealth')) {
+                    const numMatch = cKey.match(/[1-4]$/)?.[0];
+                    officialTarget = numMatch ? `Physical Education and Health ${numMatch}` : 'Physical Education and Health';
                 }
 
                 // Find canonical subject: prefer official DepEd template name, deterministic ID, or cleanly trimmed name
@@ -2011,6 +2022,7 @@ export function SubjectsPage() {
                 const duplicates = cluster.filter(s => s.id !== canonical.id);
                 for (const dup of duplicates) {
                     duplicateIdsToDelete.push(dup.id);
+                    dupIdToCanonicalMap.set(dup.id, canonical);
                     mergedCount++;
 
                     classRecords.forEach(cr => {
@@ -2058,6 +2070,57 @@ export function SubjectsPage() {
             // Delete duplicate subject items
             if (duplicateIdsToDelete.length > 0) {
                 await deleteSubjectsBulk(duplicateIdsToDelete);
+            }
+
+            // Update all sections so taught_subjects and teaching_subjects replace duplicates with canonical names
+            for (const sec of sections) {
+                let secChanged = false;
+                const sanitizeSecList = (list?: string[]): string[] | undefined => {
+                    if (!list) return undefined;
+                    const mapped = list.map(item => {
+                        const trimmed = item.trim();
+                        for (const [dupId, canon] of dupIdToCanonicalMap.entries()) {
+                            if (dupId === trimmed || normalizeSubjectName(trimmed) === normalizeSubjectName(dupId)) {
+                                secChanged = true;
+                                return canon.subject_name;
+                            }
+                        }
+                        const itemCanon = getCanonicalSubjectKey(trimmed, sec.section_grade_level);
+                        for (const canon of dupIdToCanonicalMap.values()) {
+                            const canonKey = getCanonicalSubjectKey(canon.subject_name, sec.section_grade_level);
+                            if (itemCanon && canonKey && itemCanon === canonKey) {
+                                if (trimmed !== canon.subject_name) {
+                                    secChanged = true;
+                                    return canon.subject_name;
+                                }
+                            }
+                        }
+                        return trimmed;
+                    });
+                    const seen = new Set<string>();
+                    const deduped: string[] = [];
+                    for (const m of mapped) {
+                        const k = getCanonicalSubjectKey(m, sec.section_grade_level) || normalizeSubjectName(m);
+                        if (k && seen.has(k)) {
+                            secChanged = true;
+                            continue;
+                        }
+                        if (k) seen.add(k);
+                        deduped.push(m);
+                    }
+                    if (deduped.length !== list.length) secChanged = true;
+                    return deduped;
+                };
+
+                const newTaught = sanitizeSecList(sec.taught_subjects);
+                const newTeaching = sanitizeSecList(sec.teaching_subjects);
+                if (secChanged) {
+                    await updateSection({
+                        ...sec,
+                        taught_subjects: newTaught,
+                        teaching_subjects: newTeaching
+                    });
+                }
             }
 
             // Reconcile any remaining orphaned grade records
@@ -2921,7 +2984,7 @@ export function SubjectsPage() {
                                                                                 {subject.subject_code && <div className="text-[10px] font-black text-indigo-400 dark:text-indigo-300 uppercase tracking-widest mt-0.5">{subject.subject_code}</div>}
                                                                                 {subject.written_weight !== undefined && subject.performance_weight !== undefined && subject.exam_weight !== undefined && (
                                                                                     <div className="text-[10px] font-medium text-amber-600 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-800/40 rounded px-1.5 py-0.5 inline-block mt-1 uppercase tracking-wide mr-2">
-                                                                                        Custom Weights: WW: {Math.round(subject.written_weight * 100)}% | PT: {Math.round(subject.performance_weight * 100)}% | QA: {Math.round(subject.exam_weight * 100)}%
+                                                                                        Custom Weights: WW: {normalizeWeightPercent(subject.written_weight)}% | PT: {normalizeWeightPercent(subject.performance_weight)}% | QA: {normalizeWeightPercent(subject.exam_weight)}%
                                                                                     </div>
                                                                                 )}
                                                                                 {(() => {

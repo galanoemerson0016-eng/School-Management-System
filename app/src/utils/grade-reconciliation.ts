@@ -1,5 +1,6 @@
 import type { Subject, Section, Student, ClassRecord, HPSRecord } from '../types';
-import { isMatchingSubject } from './grading-helpers';
+import { isMatchingSubject, computeLiveTransmutedGradeFromRecord, findHpsRecord } from './grading-helpers';
+import { transmuteGrade } from '../lib/grading';
 import { STANDARD_SUBJECTS } from '../lib/curriculum';
 import { normalizeSubjectName, getCanonicalSubjectKey } from '../lib/subjectConfig';
 
@@ -135,6 +136,19 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
             if (isElem) return 'GMRC (Good Manners and Right Conduct)';
             if (isJhs) return 'Values Education';
         }
+
+        // PE and Health standard naming
+        if (
+            norm.includes('physicaleducationandhealth') ||
+            norm.includes('peandhealth') ||
+            norm.includes('pehealth') ||
+            ((norm.includes('physicaleducation') || norm.startsWith('pe')) && norm.includes('health')) ||
+            /^pe[1-4]$/.test(norm)
+        ) {
+            const numMatch = norm.match(/[1-4]$/)?.[0];
+            return numMatch ? `Physical Education and Health ${numMatch}` : 'Physical Education and Health';
+        }
+
         return null;
     };
 
@@ -176,7 +190,7 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
         // Multiple subjects in cluster! Find canonical:
         // Prioritize official DepEd standard template names, e.g. GMRC (Good Manners and Right Conduct)
         // while also preferring permanent deterministic IDs over temporary sub_ IDs.
-        let canonical = (officialTarget && cluster.find(s => s.subject_name === officialTarget && !s.id.startsWith('sub_')))
+        const canonical = (officialTarget && cluster.find(s => s.subject_name === officialTarget && !s.id.startsWith('sub_')))
             || (officialTarget && cluster.find(s => s.subject_name === officialTarget))
             || cluster.find(s => !s.id.startsWith('sub_') && s.subject_name === s.subject_name.trim())
             || cluster.find(s => !s.id.startsWith('sub_'))
@@ -474,7 +488,109 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
         };
     });
 
-    // 5. Reconcile Sections (Ensure Elementary sections use official GMRC and JHS use Values Education)
+    // 5. Self-Healing: Heal any 100x unnormalized grades or corrupted 100 final_grade records
+    // caused by legacy weight scaling in existing client storage
+    const healedClassRecords = updatedClassRecords.map((cr) => {
+        const crRecord = cr as unknown as Record<string, unknown>;
+        const rawInit = Number(crRecord.initial_grade ?? crRecord.initialGrade);
+        if (!isNaN(rawInit) && rawInit > 120 && rawInit <= 10000) {
+            const healedInitial = Math.round((rawInit / 100) * 100) / 100;
+            const healedFinal = transmuteGrade(healedInitial, cr.school_year);
+            repairedCount++;
+            modified = true;
+            return {
+                ...cr,
+                initial_grade: healedInitial,
+                final_grade: healedFinal
+            };
+        }
+
+        if (Number(cr.final_grade) === 100) {
+            const isValidScore = (s: number | string | null | undefined) =>
+                s !== '' && s !== null && s !== undefined && !isNaN(Number(s));
+            const rawWw = Array.isArray(cr.written_works) ? cr.written_works : [];
+            const rawPt = Array.isArray(cr.performance_tasks) ? cr.performance_tasks : [];
+            const rawQa = cr.quarterly_exam;
+            const rawSt = (cr as ClassRecord & { summative_tests?: (number | string)[] }).summative_tests;
+            const hasAnyScores =
+                rawWw.some(isValidScore) ||
+                rawPt.some(isValidScore) ||
+                (isValidScore(rawQa) && Number(rawQa) > 0) ||
+                (Array.isArray(rawSt) && rawSt.some(isValidScore));
+
+            if (hasAnyScores) {
+                const secId = cr.section_id || studentSectionMap.get(cr.student_lrn);
+                const gradeLevel = secId ? sectionGradeMap.get(secId) : undefined;
+                const hpsRec = findHpsRecord(updatedHpsRecords, {
+                    subjectId: cr.subject_id,
+                    subjectName: cr.subject_name,
+                    sectionId: secId,
+                    sectionGradeLevel: gradeLevel,
+                    quarter: cr.quarter,
+                    schoolYear: cr.school_year,
+                    subjects: workingSubjects,
+                    classRecords: updatedClassRecords
+                });
+
+                if (hpsRec) {
+                    const liveGrade = computeLiveTransmutedGradeFromRecord(
+                        cr,
+                        hpsRec,
+                        cr.subject_name,
+                        gradeLevel,
+                        undefined,
+                        cr.school_year
+                    );
+                    if (liveGrade > 0 && liveGrade !== 100) {
+                        repairedCount++;
+                        modified = true;
+                        return {
+                            ...cr,
+                            final_grade: liveGrade
+                        };
+                    }
+                }
+            }
+        }
+        return cr;
+    });
+
+    // Also heal matching gradingSheetRecords
+    const healedGradingSheetRecords = updatedGradingSheetRecords.map((gs) => {
+        const gsRecord = gs as unknown as Record<string, unknown>;
+        const rawInit = Number(gsRecord.initial_grade ?? gsRecord.initialGrade);
+        if (!isNaN(rawInit) && rawInit > 120 && rawInit <= 10000) {
+            const healedInitial = Math.round((rawInit / 100) * 100) / 100;
+            const healedFinal = transmuteGrade(healedInitial, gs.school_year);
+            repairedCount++;
+            modified = true;
+            return {
+                ...gs,
+                initial_grade: healedInitial,
+                final_grade: healedFinal
+            };
+        }
+
+        if (Number(gs.final_grade) === 100) {
+            const matchingCr = healedClassRecords.find(c =>
+                c.student_lrn === gs.student_lrn &&
+                c.subject_id === gs.subject_id &&
+                Number(c.quarter) === Number(gs.quarter) &&
+                (!gs.school_year || !c.school_year || c.school_year === gs.school_year)
+            );
+            if (matchingCr && Number(matchingCr.final_grade) > 0 && Number(matchingCr.final_grade) !== 100) {
+                repairedCount++;
+                modified = true;
+                return {
+                    ...gs,
+                    final_grade: matchingCr.final_grade
+                };
+            }
+        }
+        return gs;
+    });
+
+    // 5. Reconcile Sections (Ensure Elementary sections use official GMRC, JHS use Values Education, and sanitize/deduplicate taught/teaching subjects)
     let sectionsModified = false;
     const workingSections: Section[] = sections.map(sec => {
         const secGradeNum = parseInt((sec.section_grade_level || '').replace(/\D/g, '')) || 0;
@@ -487,98 +603,84 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
         const metadata = sec.section_metadata ? { ...sec.section_metadata } : undefined;
         let hidden = metadata?.hiddenConsolidatedSubjects ? [...metadata.hiddenConsolidatedSubjects] : undefined;
 
-        if (secIsElem) {
-            if (taught) {
-                const newTaught = taught.map(t => {
-                    if (normalizeSubjectName(t) === 'gmrc' && t !== 'GMRC (Good Manners and Right Conduct)') {
-                        secChanged = true;
-                        return 'GMRC (Good Manners and Right Conduct)';
-                    }
-                    return t;
-                });
-                const seenT = new Set<string>();
-                taught = newTaught.filter(t => {
-                    const norm = normalizeSubjectName(t);
-                    if (seenT.has(norm)) {
-                        secChanged = true;
-                        return false;
-                    }
-                    seenT.add(norm);
-                    return true;
-                });
-            }
+        const sanitizeSubjects = (list?: string[]): string[] | undefined => {
+            if (!list) return undefined;
+            const mapped = list.map(t => {
+                const trimmed = t.trim();
+                const norm = normalizeSubjectName(trimmed);
 
-            if (teaching) {
-                const newTeaching = teaching.map(t => {
-                    if (normalizeSubjectName(t) === 'gmrc' && t !== 'GMRC (Good Manners and Right Conduct)') {
+                // Check duplicate map
+                for (const [dupId, canon] of duplicateIdToCanonicalMap.entries()) {
+                    if (dupId === trimmed || norm === normalizeSubjectName(dupId)) {
                         secChanged = true;
-                        return 'GMRC (Good Manners and Right Conduct)';
+                        return canon.subject_name;
                     }
-                    return t;
-                });
-                const seenTech = new Set<string>();
-                teaching = newTeaching.filter(t => {
-                    const norm = normalizeSubjectName(t);
-                    if (seenTech.has(norm)) {
-                        secChanged = true;
-                        return false;
-                    }
-                    seenTech.add(norm);
-                    return true;
-                });
-            }
-
-            if (hidden && hidden.length > 0) {
-                const newHidden = hidden.filter(h => {
-                    if (normalizeSubjectName(h) === 'gmrc' || h.toLowerCase().trim() === 'gmrc') {
-                        secChanged = true;
-                        return false;
-                    }
-                    return true;
-                });
-                if (newHidden.length !== hidden.length) {
-                    secChanged = true;
-                    hidden = newHidden;
                 }
-            }
-        } else if (secIsJhs) {
-            if (taught) {
-                const newTaught = taught.map(t => {
-                    if (normalizeSubjectName(t) === 'gmrc') {
+
+                // GMRC / Values Education
+                if (norm === 'gmrc') {
+                    if (secIsElem && trimmed !== 'GMRC (Good Manners and Right Conduct)') {
+                        secChanged = true;
+                        return 'GMRC (Good Manners and Right Conduct)';
+                    }
+                    if (secIsJhs && trimmed !== 'Values Education') {
                         secChanged = true;
                         return 'Values Education';
                     }
-                    return t;
-                });
-                const seenT = new Set<string>();
-                taught = newTaught.filter(t => {
-                    const norm = normalizeSubjectName(t);
-                    if (seenT.has(norm)) {
-                        secChanged = true;
-                        return false;
-                    }
-                    seenT.add(norm);
-                    return true;
-                });
+                }
+
+                // Official Standard name (PE and Health, etc.)
+                const stdName = getOfficialStandardName(trimmed, sec.section_grade_level);
+                if (stdName && trimmed !== stdName) {
+                    secChanged = true;
+                    return stdName;
+                }
+
+                if (trimmed !== t) {
+                    secChanged = true;
+                    return trimmed;
+                }
+                return t;
+            });
+
+            // Deduplicate by canonical key
+            const seenKeys = new Set<string>();
+            const deduped: string[] = [];
+            for (const item of mapped) {
+                const canonKey = getCanonicalSubjectKey(item, sec.section_grade_level) || normalizeSubjectName(item);
+                if (canonKey && seenKeys.has(canonKey)) {
+                    secChanged = true;
+                    continue;
+                }
+                if (canonKey) seenKeys.add(canonKey);
+                deduped.push(item);
             }
-            if (teaching) {
-                const newTeaching = teaching.map(t => {
-                    if (normalizeSubjectName(t) === 'gmrc') {
-                        secChanged = true;
-                        return 'Values Education';
-                    }
-                    return t;
-                });
-                const seenTech = new Set<string>();
-                teaching = newTeaching.filter(t => {
-                    const norm = normalizeSubjectName(t);
-                    if (seenTech.has(norm)) {
-                        secChanged = true;
-                        return false;
-                    }
-                    seenTech.add(norm);
-                    return true;
-                });
+
+            if (deduped.length !== list.length) {
+                secChanged = true;
+            }
+            return deduped;
+        };
+
+        if (taught) {
+            taught = sanitizeSubjects(taught);
+        }
+        if (teaching) {
+            teaching = sanitizeSubjects(teaching);
+        }
+
+        if (hidden && hidden.length > 0) {
+            const newHidden = hidden.filter(h => {
+                const norm = normalizeSubjectName(h);
+                if (secIsElem && (norm === 'gmrc' || h.toLowerCase().trim() === 'gmrc')) {
+                    secChanged = true;
+                    return false;
+                }
+                return true;
+            });
+            if (newHidden.length !== hidden.length) {
+                secChanged = true;
+                hidden = newHidden;
             }
         }
 
@@ -601,9 +703,9 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
         subjects: workingSubjects,
         subjectsModified,
         deletedSubjectIds,
-        classRecords: updatedClassRecords,
+        classRecords: healedClassRecords,
         hpsRecords: updatedHpsRecords,
-        gradingSheetRecords: updatedGradingSheetRecords,
+        gradingSheetRecords: healedGradingSheetRecords,
         modified,
         repairedCount,
         sections: workingSections,

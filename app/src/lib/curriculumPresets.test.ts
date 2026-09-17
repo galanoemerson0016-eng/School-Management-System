@@ -1,12 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
     getCurriculumPreset,
-    getAvailablePresetsForGrade,
     getDepEdWeightsForSubject,
     validateSectionCurriculumHealth,
     SSHS_G11_STEM_PRESET,
-    SSHS_G11_CORE_SUBJECTS,
-    GRADE_1_MATATAG_PRESET
+    SSHS_G11_CORE_SUBJECTS
 } from './curriculumPresets';
 
 describe('DepEd Curriculum Presets Engine (Universal 3-Term)', () => {

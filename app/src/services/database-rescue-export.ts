@@ -28,7 +28,8 @@ import {
     getSubjectCluster,
     getWeights,
     transmuteGrade,
-    getGradeDescriptorWithFilipino
+    getGradeDescriptorWithFilipino,
+    normalizeWeightFraction
 } from '../lib/grading';
 import { isMatchingSubject } from '../utils/grading-helpers';
 
@@ -773,17 +774,18 @@ export async function exportDirectDatabaseToExcel(): Promise<{
                 const teWS = validExam !== null && hpsQaExam > 0 ? Math.round((validExam / hpsQaExam) * 10 * 100) / 100 : '';
 
                 const qaPS = validExam !== null && hpsQaExam > 0 ? Math.round((validExam / hpsQaExam) * 10000) / 100 : '';
-                const wwWS = typeof wwPS === 'number' ? Math.round(wwPS * weights.written_works * 100) / 100 : '';
-                const ptWS = typeof ptPS === 'number' ? Math.round(ptPS * weights.performance_tasks * 100) / 100 : '';
-                const qaWS = typeof qaPS === 'number' ? Math.round(qaPS * weights.quarterly_exam * 100) / 100 : '';
+                const wwWS = typeof wwPS === 'number' ? Math.round(wwPS * normalizeWeightFraction(weights.written_works) * 100) / 100 : '';
+                const ptWS = typeof ptPS === 'number' ? Math.round(ptPS * normalizeWeightFraction(weights.performance_tasks) * 100) / 100 : '';
+                const qaWS = typeof qaPS === 'number' ? Math.round(qaPS * normalizeWeightFraction(weights.quarterly_exam) * 100) / 100 : '';
 
                 const validWS = [wwWS, ptWS, qaWS].filter((v): v is number => typeof v === 'number');
                 const computedInitial = validWS.length > 0 ? Math.round(validWS.reduce((a, b) => a + b, 0) * 100) / 100 : '';
-                const initialGrade = rawRec.initial_grade ?? computedInitial;
+                const rawInit = rawRec.initial_grade ?? computedInitial;
+                const initialGrade = typeof rawInit === 'number' && rawInit > 100 && rawInit <= 10000 ? Math.round((rawInit / 100) * 100) / 100 : rawInit;
 
                 let finalGradeVal = g.final_grade ?? '';
-                if ((!finalGradeVal || Number(finalGradeVal) === 0) && typeof computedInitial === 'number' && computedInitial > 0) {
-                    finalGradeVal = transmuteGrade(computedInitial);
+                if (typeof initialGrade === 'number' && initialGrade > 0 && (Number(finalGradeVal) === 100 || !finalGradeVal || Number(finalGradeVal) === 0)) {
+                    finalGradeVal = transmuteGrade(initialGrade, g.school_year || undefined);
                 }
 
                 const finalGradeNum = Number(finalGradeVal);
@@ -2068,6 +2070,10 @@ export async function exportDirectDatabaseStoreToCSV(storeName: string): Promise
             const finalGradeNum = Number(g.final_grade);
             const remarks = !isNaN(finalGradeNum) && finalGradeNum > 0 ? (finalGradeNum >= 75 ? 'PASSED' : 'FAILED') : '';
 
+            const rawInitNum = Number(rawRec.initial_grade);
+            const healedInit = !isNaN(rawInitNum) && rawInitNum > 100 && rawInitNum <= 10000 ? Math.round((rawInitNum / 100) * 100) / 100 : (rawRec.initial_grade ?? '');
+            const healedFinal = !isNaN(rawInitNum) && rawInitNum > 100 && rawInitNum <= 10000 && Number(g.final_grade) === 100 ? transmuteGrade(rawInitNum / 100, g.school_year || undefined) : (g.final_grade ?? '');
+
             return {
                 'Student LRN': g.student_lrn,
                 'Learner Name': studentName,
@@ -2089,8 +2095,8 @@ export async function exportDirectDatabaseStoreToCSV(storeName: string): Promise
                 'ST 1': st[0] ?? '',
                 'ST 2': st[1] ?? '',
                 'Periodic Exam': st[2] || g.quarterly_exam || '',
-                'Initial Grade': rawRec.initial_grade ?? '',
-                'Quarterly Final Grade': g.final_grade ?? '',
+                'Initial Grade': healedInit,
+                'Quarterly Final Grade': healedFinal,
                 'Remarks': remarks
             };
         });

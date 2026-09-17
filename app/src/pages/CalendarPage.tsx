@@ -459,7 +459,7 @@ export function CalendarPage() {
                                             </div>
                                         </div>
                                         {canManageEvents && (
-                                            <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity shrink-0">
+                                            <div className="opacity-80 group-hover:opacity-100 flex items-center gap-1 transition-opacity shrink-0">
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); handleEditEvent(evt); }}
                                                     className="p-0.5 hover:bg-blue-100 dark:hover:bg-white/10 rounded text-blue-500 dark:text-blue-400 hover:text-blue-700 transition-colors"

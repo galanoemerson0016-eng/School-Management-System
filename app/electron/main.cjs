@@ -67,6 +67,8 @@ if (!gotTheLock) {
         nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.cjs'),
+        spellcheck: false,
+        backgroundThrottling: false,
       },
       title: "FormEase Pro",
       autoHideMenuBar: true
@@ -110,6 +112,11 @@ if (!gotTheLock) {
 
 let expressServer = null;
 global.expressServer = null;
+
+// Hardware acceleration and GPU flags for smooth, lag-free rendering
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
 
   app.whenReady().then(() => {
     if (process.platform === 'win32') {
@@ -1247,35 +1254,13 @@ ipcMain.handle('push-attendance-session', async (event, sessionData) => {
     const srv = global.expressServer || expressServer;
     if (srv && srv.updateActiveSession) {
       srv.updateActiveSession(sessionData);
+      return { success: true };
     }
+    return { success: false, error: 'Express server not available' };
   } catch (err) {
-    console.warn('[IPC] In-memory session update warning:', err.message || err);
+    console.warn('[IPC] push-attendance-session warning:', err.message || err);
+    return { success: false, error: err.message || String(err) };
   }
-
-  return new Promise((resolve) => {
-    try {
-      const http = require('http');
-      const payload = JSON.stringify(sessionData || {});
-      const req = http.request({
-        hostname: '127.0.0.1',
-        port: 3001,
-        path: '/api/attendance/session',
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(payload)
-        },
-        timeout: 3000
-      }, (res) => {
-        resolve({ success: res.statusCode >= 200 && res.statusCode < 300 });
-      });
-      req.on('error', (err) => resolve({ success: false, error: err.message }));
-      req.write(payload);
-      req.end();
-    } catch (e) {
-      resolve({ success: false, error: e.message });
-    }
-  });
 });
 
 // --- Real-Time Attendance Sync IPC (Phone ↔ Desktop) ---

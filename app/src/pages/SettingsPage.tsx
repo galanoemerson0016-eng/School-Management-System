@@ -3776,12 +3776,59 @@ export function SettingsPage() {
                             </div>
 
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 3.5.7 */}
+                                {/* Version 3.5.14 */}
                                 <div className="relative pl-6">
                                     <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.7</span>
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.14</span>
                                         <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 17, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>⚡ <strong>Automated Startup Database Healing</strong>: Scans IndexedDB on app launch, recalculating legacy unnormalized weights (&gt; 120) and restoring genuine DepEd grades with zero teacher re-encoding.</li>
+                                        <li>🎯 <strong>Weight Normalization Engine</strong>: Converted whole weights (40, 60, 20) to standard fractions (0.40, 0.60, 0.20) and display percentages (40%), eliminating thousands-scale weighted scores and the 4000% header bug.</li>
+                                        <li>🛡️ <strong>Ghost Record Suppression</strong>: Verifies score containers in resolveStudentQuarterGrade ensuring empty score arrays never output phantom 100 grades in SF9, SF10, or Consolidated Grades.</li>
+                                        <li>📊 <strong>Grade 11 SF9 Excel &amp; PDF Export Resilience</strong>: Fixed style index boundaries and shared formulas in sheet6.xml for clean export without Excel repair warnings.</li>
+                                        <li>🔒 <strong>Zero Data Loss Guarantee</strong>: 100% backward-compatible update preserving all client records and profiles in IndexedDB.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 3.5.9 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 dark:bg-slate-700 border-2 border-white dark:border-[#0d1225]" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.9</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 15, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>🎓 <strong>Official DepEd DO 8, s. 2015 Grade 12 Categorization</strong>: Fully aligned traditional Senior High School subject categories into Core Subjects (Universal), Applied Subjects, Strand-Specific Specialized Subjects (GAS, ABM, STEM, HUMSS, TVL, Sports, Arts), and Work Immersion / Culminating Activity.</li>
+                                        <li>🚫 <strong>Eliminated Misapplied SSHS Clusters</strong>: Removed incorrect SSHS cluster categories (such as <em>"General Academic Elective"</em>, <em>"Arts, Social Sciences, and Humanities"</em>, <em>"Field Experience"</em>) from Grade 12 Traditional K-12 section creation and teaching load panels.</li>
+                                        <li>⚡ <strong>Grade 12 GAS & TVL 3-Term Official Presets</strong>: Added full DepEd 12-subject trimester presets for General Academic Strand (GAS) and Technical-Vocational-Livelihood (TVL) tracks with balanced 4-subject per term distributions.</li>
+                                        <li>🛡️ <strong>Universal Core Subject Accuracy</strong>: Fully recognized all 18 DepEd Core subjects (including HOPE 1–4, PE & Health 1–4, DRRR, Earth & Life, Philosophy) preventing accidental misclassification into electives.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 3.5.8 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 dark:bg-slate-700 border-2 border-white dark:border-[#0d1225]" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.8</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 15, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>🎓 <strong>Senior High School Track & Strand Scoping</strong>: Eliminated the 105-subject overload in section creation. Selecting Grade 12 (e.g. ABM, STEM, HUMSS, TVL) automatically presents only Core, Applied, and Strand-specific specialized subjects.</li>
+                                        <li>✨ <strong>Official DepEd 12-Subject Preset Auto-Application</strong>: Creating or configuring Grade 12 sections automatically loads the official DepEd 12-subject trimester model (T1, T2, T3) instead of dumping un-filtered database records.</li>
+                                        <li>🧹 <strong>Dedicated "Clear All" & Quick Selection Controls</strong>: Added 1-click Clear All in the curriculum header and a quick toolbar (Select All / Clear All) in the Catalog Checklist, with an explicit cleared state guard to prevent unintended subject resets.</li>
+                                        <li>🛡️ <strong>Grade 11 SSHS DepEd Order No. 017, s. 2026 Conformance</strong>: Grade 11 strictly presents SSHS Core and Academic/TechPro cluster electives, completely isolating old K-12 offerings.</li>
+                                        <li>🚀 <strong>Clean Setup Assurance</strong>: Verified removal of sample records on clean client installs.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 3.5.7 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 dark:bg-slate-700 border-2 border-white dark:border-[#0d1225]" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.7</span>
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 15, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">

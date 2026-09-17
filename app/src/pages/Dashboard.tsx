@@ -1463,7 +1463,7 @@ export function Dashboard() {
     };
 
     return (
-        <div className="min-h-screen bg-app-bg dark:bg-transparent text-slate-900 dark:text-slate-100 selection:bg-indigo-100 selection:text-indigo-900">
+        <div className="min-h-full bg-app-bg dark:bg-transparent text-slate-900 dark:text-slate-100 selection:bg-indigo-100 selection:text-indigo-900">
             {/* Background Decorative Elements - Ambient Light Canvas */}
             <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 bg-slate-50/30 dark:bg-transparent opacity-100 dark:opacity-30">
                 <div className="absolute -top-[15%] -right-[10%] w-[50%] h-[50%] bg-blue-500/15 rounded-full blur-[140px] animate-pulse" style={{ animationDuration: '8s' }} />

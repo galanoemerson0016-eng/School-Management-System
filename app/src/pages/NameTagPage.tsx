@@ -39,6 +39,8 @@ export function NameTagPage() {
                 groups['JUNIOR HIGH SCHOOL'].push(s);
             } else if (num >= 11 && num <= 12) {
                 groups['SENIOR HIGH SCHOOL'].push(s);
+            } else {
+                groups['ELEMENTARY'].push(s);
             }
         });
         
@@ -66,7 +68,7 @@ export function NameTagPage() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-[#080d1a] flex flex-col font-sans print:bg-white print:h-auto print:overflow-visible">
+        <div className="h-full min-h-0 bg-slate-50 dark:bg-[#080d1a] flex flex-col font-sans print:bg-white print:h-auto print:overflow-visible">
             <style>{`
                 .print-page {
                     width: 210mm;

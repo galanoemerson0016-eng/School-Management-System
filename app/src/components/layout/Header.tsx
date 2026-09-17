@@ -4,6 +4,7 @@ import { Bell, X, Database, HelpCircle, Cloud, CloudUpload, Loader2, ChevronDown
 import { UpdateStatus } from '../ui/UpdateStatus';
 import { CloudSyncService } from '../../services/cloud-sync';
 import { createComprehensiveBackup, validateBackup } from '../../utils/backup-restore';
+import { onDatabaseWriteChange } from '../../services/database';
 
 const viewTitles: Record<string, string> = {
     dashboard: 'Dashboard',
@@ -38,13 +39,19 @@ export function Header() {
     const schoolProfile = useAppStore(state => state.schoolProfile);
     const activeSchoolYear = useAppStore(state => state.activeSchoolYear);
     const announcements = useAppStore(state => state.announcements);
-    const dbWritePendingCount = useAppStore(state => state.dbWritePendingCount || 0);
+    const [dbWritePendingCount, setDbWritePendingCount] = useState(0);
     const showNotification = useAppStore(state => state.showNotification);
     const sections = useAppStore(state => state.sections);
     const selectedSection = useAppStore(state => state.selectedSection);
     const setSelectedSection = useAppStore(state => state.setSelectedSection);
     const { user } = useAuthStore();
     const [showNotifications, setShowNotifications] = useState(false);
+
+    useEffect(() => {
+        return onDatabaseWriteChange((count) => {
+            setDbWritePendingCount(count);
+        });
+    }, []);
 
     const advisorySections = useMemo(() => {
         return (sections || []).filter(s => s.is_advisory).sort((a, b) => {
@@ -192,42 +199,42 @@ export function Header() {
             <div className="flex items-center justify-between w-full max-w-screen-2xl mx-auto relative h-full">
                 
                 {/* Left Area: Title */}
-                <div className="flex-1 min-w-0 flex items-center gap-3 pr-4">
-                    <div className="w-1 h-6 rounded-sm bg-deped-blue dark:bg-blue-500 hidden sm:block" />
-                    <div className="flex flex-col justify-center min-w-0">
-                        <h2 className="text-base font-semibold text-slate-900 dark:text-white tracking-tight leading-none mb-1 flex items-center gap-2" title={viewTitles[currentView] || 'Dashboard'}>
-                            <span>{viewTitles[currentView] || 'Dashboard'}</span>
-                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-md xl:hidden shrink-0">S.Y. {activeSchoolYear}</span>
+                <div className="flex items-center gap-3 min-w-0 shrink max-w-xs sm:max-w-sm lg:max-w-md">
+                    <div className="w-1 h-5.5 rounded-sm bg-deped-blue dark:bg-blue-500 shrink-0 hidden sm:block" />
+                    <div className="min-w-0 flex items-center gap-2">
+                        <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight leading-none truncate whitespace-nowrap" title={viewTitles[currentView] || 'Dashboard'}>
+                            {viewTitles[currentView] || 'Dashboard'}
                         </h2>
-                        <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-none truncate" title={schoolProfile.name}>
-                            {schoolProfile.name}
-                        </p>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-md xl:hidden shrink-0 whitespace-nowrap">S.Y. {activeSchoolYear}</span>
                     </div>
                 </div>
 
                 {/* Center Area: Advisory Class Switcher & S.Y. */}
-                <div className="hidden md:flex items-center gap-2 shrink-0 mx-2">
+                <div className="hidden md:flex items-center gap-2 shrink-0 mx-2 min-w-0">
                     {advisorySections.length > 0 && (
-                        <div className="flex items-center gap-1.5 h-7.5 px-2.5 bg-indigo-50/80 dark:bg-indigo-950/50 border border-indigo-200/80 dark:border-indigo-800/60 rounded-md shadow-2xs">
+                        <div className="flex items-center gap-1.5 h-7.5 px-2.5 bg-indigo-50/80 dark:bg-indigo-950/50 border border-indigo-200/80 dark:border-indigo-800/60 rounded-md shadow-2xs max-w-42.5 lg:max-w-55">
                             <Shield className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                            <span className="text-[10px] font-bold text-indigo-600/90 dark:text-indigo-400/90 uppercase tracking-wider hidden lg:inline">Advisory:</span>
                             <select
                                 value={activeAdvisory ? activeAdvisory.id : ''}
                                 onChange={(e) => {
                                     const sec = advisorySections.find(s => s.id === e.target.value);
                                     if (sec) {
                                         setSelectedSection(sec.section_name);
-                                        showNotification(`Active Advisory switched to ${sec.section_grade_level} - ${sec.section_name}`, 'info');
+                                        const gradeNum = sec.section_grade_level.replace(/\D/g, '') || sec.section_grade_level;
+                                        showNotification(`Active Advisory switched to ${gradeNum}-${sec.section_name}`, 'info');
                                     }
                                 }}
-                                className="bg-transparent text-indigo-950 dark:text-indigo-100 font-bold text-xs outline-none cursor-pointer pr-1"
+                                className="bg-transparent text-indigo-950 dark:text-indigo-100 font-bold text-xs outline-none cursor-pointer pr-1 truncate min-w-0 flex-1"
                                 title="Switch Active Advisory Class (Controls Grade Management, SF9, SF10, & Grade Slips)"
                             >
-                                {advisorySections.map(s => (
-                                    <option key={s.id} value={s.id} className="bg-white dark:bg-[#0d1322] text-slate-800 dark:text-slate-100">
-                                        {s.section_grade_level} - {s.section_name}
-                                    </option>
-                                ))}
+                                {advisorySections.map(s => {
+                                    const gradeNum = s.section_grade_level.replace(/\D/g, '') || s.section_grade_level;
+                                    return (
+                                        <option key={s.id} value={s.id} className="bg-white dark:bg-[#0d1322] text-slate-800 dark:text-slate-100">
+                                            {gradeNum}-{s.section_name}
+                                        </option>
+                                    );
+                                })}
                             </select>
                         </div>
                     )}
@@ -243,7 +250,7 @@ export function Header() {
                 </div>
 
                 {/* Right Area: Utilities & Profile */}
-                <div className="flex-1 flex items-center justify-end gap-1.5 lg:gap-2 min-w-max pl-4">
+                <div className="flex-1 flex items-center justify-end gap-1.5 lg:gap-2 shrink-0 pl-2">
                     {/* Database Sync Status Indicator */}
                     <div 
                         className={`flex items-center gap-1.5 h-7.5 px-2.5 rounded-md border text-[11px] font-medium select-none cursor-default transition-colors ${

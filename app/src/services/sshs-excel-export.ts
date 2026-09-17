@@ -14,6 +14,8 @@ import JSZip from 'jszip';
 import type { SchoolProfile, Section, Subject, Student, ClassRecord, HPSRecord } from '../types';
 import { normalizeRegionForECR } from './ecr-excel-export';
 import { transmuteGrade } from '../lib/grading';
+import { isGrade11CoreSubject, getDefaultTermForSubject } from '../lib/curriculum';
+import { isSameSubject, isMatchingSubject } from '../utils/grading-helpers';
 
 export const TEMPLATE_SSHS_G11 = 'SSHS E-Class Record SY 2026-2027.xlsx';
 
@@ -21,6 +23,13 @@ const MAX_STUDENTS_PER_GENDER = 50;
 const SSHS_WW_COUNT = 10;
 const SSHS_PT_COUNT = 10;
 const SSHS_ST_COUNT = 3;
+
+export interface ResolvedSSHSTerms {
+  numTerms: number;
+  termBlock: 'FIRST TERM' | 'SECOND TERM' | 'THIRD TERM' | '';
+  termDesc: '1ST' | '2ND' | '3RD' | '1ST & 2ND' | '2ND & 3RD' | '1ST, 2ND, 3RD';
+  code: number;
+}
 
 export interface SSHSExportOptions {
   schoolProfile: SchoolProfile | null;
@@ -33,6 +42,7 @@ export interface SSHSExportOptions {
   teacherName?: string;
   termBlock?: string;
   numTerms?: number;
+  resolvedTerms?: ResolvedSSHSTerms;
 }
 
 /**
@@ -2539,10 +2549,180 @@ export function sortStudentsAlphabetically(list: Student[]): Student[] {
 }
 
 /**
+ * Accurately matches records by subject ID, clean name, peer subject mapping, or legacy fallback.
+ */
+export function isMatchingRecordSubject(
+  targetSubject: Subject,
+  recSubjectId?: string,
+  recSubjectName?: string
+): boolean {
+  if (!recSubjectId && !recSubjectName) return false;
+  if (targetSubject.id && recSubjectId === targetSubject.id) return true;
+  if (targetSubject.subject_name) {
+    if (recSubjectName && isSameSubject(targetSubject.id, targetSubject.subject_name, recSubjectId || '', recSubjectName)) {
+      return true;
+    }
+    if (isMatchingSubject(targetSubject.subject_name, recSubjectId || '', recSubjectName || '')) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Normalizes school year variations (e.g. "2026-2027", "2026 – 2027", "2026")
+ */
+export function isMatchingSchoolYear(recSy?: string, targetSy?: string): boolean {
+  if (!recSy || !targetSy) return true;
+  const cleanRec = recSy.replace(/[\s–—-]+/g, '-').trim();
+  const cleanTarget = targetSy.replace(/[\s–—-]+/g, '-').trim();
+  if (cleanRec === cleanTarget) return true;
+  const startYear = getStartYear(targetSy);
+  return recSy.includes(String(startYear));
+}
+
+/**
+ * Intelligently resolves the number of terms and term block for SSHS (Grade 11 & Grade 12)
+ * based on curriculum rules (DO 017 Core universal 3-terms), section metadata, subject settings,
+ * encoded grades in classRecords/hpsRecords, and official defaults.
+ */
+export function resolveSSHSTerms(
+  subject?: Subject,
+  section?: Section,
+  classRecords?: ClassRecord[],
+  hpsRecords?: HPSRecord[],
+  schoolYear?: string,
+  explicitTermBlock?: string,
+  explicitNumTerms?: number
+): ResolvedSSHSTerms {
+  const norm = (subject?.subject_name || '').toLowerCase();
+  const sName = subject?.subject_name || '';
+  const sId = subject?.id || '';
+  const gradeMatch = String(section?.section_grade_level || (subject as any)?.grade_level || '').match(/(\d+)/);
+  const gradeLevel = gradeMatch ? parseInt(gradeMatch[1], 10) : 11;
+
+  // 1. Grade 11 Universal Core Subjects are ALWAYS 3 terms per DepEd DO 017, s. 2026
+  if (gradeLevel === 11 && (isGrade11CoreSubject(sName) || [
+    'effective communication', 'mabisang komunikasyon',
+    'general mathematics', 'general science',
+    'life and career skills', 'pag-aaral ng kasaysayan at lipunang pilipino', 'kasaysayan at lipunang pilipino'
+  ].some(c => norm.includes(c)))) {
+    return { numTerms: 3, termBlock: '', termDesc: '1ST, 2ND, 3RD', code: 33 };
+  }
+
+  // 2. Explicit term block override if provided and NOT the generic unconfigured '1ST, 2ND, 3RD'
+  if (explicitTermBlock && explicitTermBlock !== '1ST, 2ND, 3RD') {
+    const tb = String(explicitTermBlock).toUpperCase();
+    const nt = explicitNumTerms || 1;
+    if (nt === 3 || tb.includes('ALL')) {
+      return { numTerms: 3, termBlock: '', termDesc: '1ST, 2ND, 3RD', code: 33 };
+    }
+    if (nt === 2) {
+      if (tb.includes('2ND') || tb.includes('SECOND') || tb.includes('TERM 2') || tb.includes('T2')) {
+        return { numTerms: 2, termBlock: 'SECOND TERM', termDesc: '2ND & 3RD', code: 22 };
+      }
+      return { numTerms: 2, termBlock: 'FIRST TERM', termDesc: '1ST & 2ND', code: 21 };
+    }
+    if (tb.includes('3RD') || tb.includes('THIRD') || tb.includes('TERM 3') || tb.includes('T3')) {
+      return { numTerms: 1, termBlock: 'THIRD TERM', termDesc: '3RD', code: 13 };
+    }
+    if (tb.includes('2ND') || tb.includes('SECOND') || tb.includes('TERM 2') || tb.includes('T2')) {
+      return { numTerms: 1, termBlock: 'SECOND TERM', termDesc: '2ND', code: 12 };
+    }
+    return { numTerms: 1, termBlock: 'FIRST TERM', termDesc: '1ST', code: 11 };
+  }
+
+  // 3. Check section_metadata.subjectTerms
+  const subjectTermsMeta = (section?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, unknown> | undefined;
+  const metaTerm = subjectTermsMeta?.[sName] ?? subjectTermsMeta?.[sId];
+  if (metaTerm !== undefined && metaTerm !== null) {
+    if (metaTerm === 1 || metaTerm === '1') return { numTerms: 1, termBlock: 'FIRST TERM', termDesc: '1ST', code: 11 };
+    if (metaTerm === 2 || metaTerm === '2') return { numTerms: 1, termBlock: 'SECOND TERM', termDesc: '2ND', code: 12 };
+    if (metaTerm === 3 || metaTerm === '3') return { numTerms: 1, termBlock: 'THIRD TERM', termDesc: '3RD', code: 13 };
+    if (metaTerm === 'all') return { numTerms: 3, termBlock: '', termDesc: '1ST, 2ND, 3RD', code: 33 };
+    if (typeof metaTerm === 'string' && metaTerm.includes(',')) {
+      const parts = metaTerm.split(',').map(p => Number(p.trim())).filter(n => n >= 1 && n <= 3);
+      if (parts.length === 3) return { numTerms: 3, termBlock: '', termDesc: '1ST, 2ND, 3RD', code: 33 };
+      if (parts.length === 2) {
+        if (parts.includes(2) && parts.includes(3)) return { numTerms: 2, termBlock: 'SECOND TERM', termDesc: '2ND & 3RD', code: 22 };
+        return { numTerms: 2, termBlock: 'FIRST TERM', termDesc: '1ST & 2ND', code: 21 };
+      }
+      if (parts.length === 1) {
+        if (parts[0] === 2) return { numTerms: 1, termBlock: 'SECOND TERM', termDesc: '2ND', code: 12 };
+        if (parts[0] === 3) return { numTerms: 1, termBlock: 'THIRD TERM', termDesc: '3RD', code: 13 };
+        return { numTerms: 1, termBlock: 'FIRST TERM', termDesc: '1ST', code: 11 };
+      }
+    }
+  }
+
+  // 4. Check subject.term
+  if (subject?.term === 1 || String(subject?.term) === '1') return { numTerms: 1, termBlock: 'FIRST TERM', termDesc: '1ST', code: 11 };
+  if (subject?.term === 2 || String(subject?.term) === '2') return { numTerms: 1, termBlock: 'SECOND TERM', termDesc: '2ND', code: 12 };
+  if (subject?.term === 3 || String(subject?.term) === '3') return { numTerms: 1, termBlock: 'THIRD TERM', termDesc: '3RD', code: 13 };
+  if (subject?.term === 'all') return { numTerms: 3, termBlock: '', termDesc: '1ST, 2ND, 3RD', code: 33 };
+
+  // 5. Scan active quarters in classRecords and hpsRecords
+  const sy = schoolYear || '';
+  const dummySubj: Subject = subject || ({ id: sId, subject_name: sName, grade_level: `Grade ${gradeLevel}` } as Subject);
+  const activeTerms = [1, 2, 3].filter(t => {
+    const hasHps = (hpsRecords || []).some(h =>
+      isMatchingRecordSubject(dummySubj, h.subject_id, h.subject_name) &&
+      isMatchingSchoolYear(h.school_year, sy) &&
+      Number(h.quarter) === t &&
+      ((h.written_works && h.written_works.some(w => w !== '' && w !== 0 && w !== null && !isNaN(Number(w)))) ||
+       (h.performance_tasks && h.performance_tasks.some(p => p !== '' && p !== 0 && p !== null && !isNaN(Number(p)))) ||
+       (h.quarterly_exam !== undefined && h.quarterly_exam !== '' && h.quarterly_exam !== null && Number(h.quarterly_exam) > 0))
+    );
+    const hasScores = (classRecords || []).some(c =>
+      isMatchingRecordSubject(dummySubj, c.subject_id, c.subject_name) &&
+      isMatchingSchoolYear(c.school_year, sy) &&
+      Number(c.quarter) === t &&
+      ((c.written_works && c.written_works.some(w => w !== '' && w !== 0 && w !== null && !isNaN(Number(w)))) ||
+       (c.performance_tasks && c.performance_tasks.some(p => p !== '' && p !== 0 && p !== null && !isNaN(Number(p)))) ||
+       (c.quarterly_exam !== undefined && c.quarterly_exam !== '' && c.quarterly_exam !== null && Number(c.quarterly_exam) > 0) ||
+       (c.final_grade !== undefined && c.final_grade !== '' && c.final_grade !== null && Number(c.final_grade) > 0))
+    );
+    return hasHps || hasScores;
+  });
+
+  if (activeTerms.length === 1) {
+    const t = activeTerms[0];
+    if (t === 2) return { numTerms: 1, termBlock: 'SECOND TERM', termDesc: '2ND', code: 12 };
+    if (t === 3) return { numTerms: 1, termBlock: 'THIRD TERM', termDesc: '3RD', code: 13 };
+    return { numTerms: 1, termBlock: 'FIRST TERM', termDesc: '1ST', code: 11 };
+  }
+  if (activeTerms.length === 2) {
+    if (activeTerms.includes(2) && activeTerms.includes(3)) {
+      return { numTerms: 2, termBlock: 'SECOND TERM', termDesc: '2ND & 3RD', code: 22 };
+    }
+    return { numTerms: 2, termBlock: 'FIRST TERM', termDesc: '1ST & 2ND', code: 21 };
+  }
+  if (activeTerms.length === 3) {
+    return { numTerms: 3, termBlock: '', termDesc: '1ST, 2ND, 3RD', code: 33 };
+  }
+
+  // 6. Curriculum sequence default (e.g. Chemistry 1 = Term 1, Chemistry 2 = Term 2)
+  if (sName) {
+    const defTerm = getDefaultTermForSubject(sName, gradeLevel);
+    if (defTerm === 1) return { numTerms: 1, termBlock: 'FIRST TERM', termDesc: '1ST', code: 11 };
+    if (defTerm === 2) return { numTerms: 1, termBlock: 'SECOND TERM', termDesc: '2ND', code: 12 };
+    if (defTerm === 3) return { numTerms: 1, termBlock: 'THIRD TERM', termDesc: '3RD', code: 13 };
+    if (defTerm === 'all') return { numTerms: 3, termBlock: '', termDesc: '1ST, 2ND, 3RD', code: 33 };
+  }
+
+  // 7. Catalog metadata fallback
+  const meta = resolveSSHSMetadata(dummySubj, gradeLevel);
+  if (meta.terms === 3) return { numTerms: 3, termBlock: '', termDesc: '1ST, 2ND, 3RD', code: 33 };
+  if (meta.terms === 2) return { numTerms: 2, termBlock: 'FIRST TERM', termDesc: '1ST & 2ND', code: 21 };
+
+  return { numTerms: 1, termBlock: 'FIRST TERM', termDesc: '1ST', code: 11 };
+}
+
+/**
  * Populates sheet2.xml (INPUT DATA).
  */
 function populateSSHSInputDataXml(sheetXml: string, options: SSHSExportOptions): string {
-  const { schoolProfile, schoolYear, section, subject, students, teacherName, termBlock } = options;
+  const { schoolProfile, schoolYear, section, subject, students, teacherName } = options;
 
   const startYear = getStartYear(schoolYear);
   const region = normalizeRegionForECR(schoolProfile?.region || 'Region III');
@@ -2559,27 +2739,20 @@ function populateSSHSInputDataXml(sheetXml: string, options: SSHSExportOptions):
   const cluster = meta.cluster;
   const subjectName = meta.subject;
 
-  // Format term block according to data validation in H33: "FIRST TERM", "SECOND TERM", "THIRD TERM"
-  let formattedTermBlock = 'FIRST TERM';
-  let tbNum = 1;
-  const tb = String(termBlock || (subject as any)?.term_block || '').toUpperCase();
-  if (tb.includes('3') || tb.includes('THIRD') || tb.includes('3RD')) {
-    formattedTermBlock = 'THIRD TERM';
-    tbNum = 3;
-  } else if (tb.includes('2') || tb.includes('SECOND') || tb.includes('2ND')) {
-    formattedTermBlock = 'SECOND TERM';
-    tbNum = 2;
-  } else {
-    formattedTermBlock = 'FIRST TERM';
-    tbNum = 1;
-  }
+  const resolvedTerms = options.resolvedTerms || resolveSSHSTerms(
+    subject,
+    section,
+    options.classRecords,
+    options.hpsRecords,
+    schoolYear,
+    options.termBlock,
+    options.numTerms
+  );
 
-  // For 3-term subjects, the block is empty in H33 and I33 has 3
-  const is3Terms = (meta.terms || 3) === 3;
-  const numTermsTaught = meta.terms || (is3Terms ? 3 : 1);
-  const termBlockDisplay = is3Terms ? '' : formattedTermBlock;
-  const termBlockNum = is3Terms ? 3 : tbNum;
-  const helperCode = is3Terms ? 33 : (numTermsTaught * 10 + tbNum);
+  const numTermsTaught = resolvedTerms.numTerms;
+  const termBlockDisplay = resolvedTerms.termBlock;
+  const termBlockNum = resolvedTerms.numTerms === 3 ? 3 : (resolvedTerms.termBlock === 'FIRST TERM' ? 1 : resolvedTerms.termBlock === 'SECOND TERM' ? 2 : 3);
+  const helperCode = resolvedTerms.code;
 
   const males = sortStudentsAlphabetically(
     students.filter(s => (s.gender || '').toLowerCase() === 'male')
@@ -2665,7 +2838,7 @@ function populateSSHSTermXml(
   term: 1 | 2 | 3,
   options: SSHSExportOptions
 ): string {
-  const { schoolProfile, schoolYear, section, subject, students, classRecords, hpsRecords, teacherName, termBlock } = options;
+  const { schoolProfile, schoolYear, section, subject, students, classRecords, hpsRecords, teacherName } = options;
 
   const gradeMatch = String(section.section_grade_level || (subject as any).grade_level || '').match(/(\d+)/);
   const gradeLevel = gradeMatch ? parseInt(gradeMatch[1], 10) : 11;
@@ -2675,22 +2848,26 @@ function populateSSHSTermXml(
   const cluster = meta.cluster;
   const subjectName = (subject.subject_name || meta.subject || '').toUpperCase();
 
-  // Determine if this term sheet is active
-  let tbNum = 1;
-  const tb = String(termBlock || (subject as any)?.term_block || '').toUpperCase();
-  if (tb.includes('3') || tb.includes('THIRD') || tb.includes('3RD')) {
-    tbNum = 3;
-  } else if (tb.includes('2') || tb.includes('SECOND') || tb.includes('2ND')) {
-    tbNum = 2;
-  }
+  const resolvedTerms = options.resolvedTerms || resolveSSHSTerms(
+    subject,
+    section,
+    classRecords,
+    hpsRecords,
+    schoolYear,
+    options.termBlock,
+    options.numTerms
+  );
 
-  const is3Terms = (meta.terms || 3) === 3;
-  const is2Terms = (meta.terms || 3) === 2;
-  const isTermActive = is3Terms || (is2Terms ? (term === tbNum || term === tbNum + 1) : (term === tbNum));
+  const isTermActive =
+    resolvedTerms.numTerms === 3 ||
+    (resolvedTerms.numTerms === 2 ? (resolvedTerms.termBlock === 'SECOND TERM' ? (term === 2 || term === 3) : (term === 1 || term === 2)) : false) ||
+    (resolvedTerms.numTerms === 1 ? (resolvedTerms.termBlock === 'FIRST TERM' ? term === 1 : resolvedTerms.termBlock === 'SECOND TERM' ? term === 2 : term === 3) : false);
 
   // Find HPS Record for this term
-  const hps = hpsRecords.find(
-    h => h.subject_id === subject.id && h.quarter === term && h.school_year === schoolYear
+  const hps = (hpsRecords || []).find(
+    h => isMatchingRecordSubject(subject, h.subject_id, h.subject_name) &&
+         Number(h.quarter) === term &&
+         isMatchingSchoolYear(h.school_year, schoolYear)
   ) || {
     written_works: [],
     performance_tasks: [],
@@ -2796,8 +2973,11 @@ function populateSSHSTermXml(
         const studentName = formatDepEdStudentName(student);
         updated = updateCellFormulaValue(updated, 'C', rowIdx, studentName, 'str');
 
-        const record = classRecords.find(
-          c => c.student_lrn === student.lrn && c.subject_id === subject.id && c.quarter === term && c.school_year === schoolYear
+        const record = (classRecords || []).find(
+          c => c.student_lrn === student.lrn &&
+               isMatchingRecordSubject(subject, c.subject_id, c.subject_name) &&
+               Number(c.quarter) === term &&
+               isMatchingSchoolYear(c.school_year, schoolYear)
         );
 
         const wwScores = normalizeScores(record?.written_works, SSHS_WW_COUNT);
@@ -2928,15 +3108,25 @@ function computeStudentTermGrade(
 ): number | '' {
   const { schoolYear, subject, classRecords, hpsRecords } = options;
 
-  const hps = hpsRecords.find(
-    h => h.subject_id === subject.id && h.quarter === term && h.school_year === schoolYear
-  );
-  if (!hps) return '';
-
-  const record = classRecords.find(
-    c => c.student_lrn === student.lrn && c.subject_id === subject.id && c.quarter === term && c.school_year === schoolYear
+  const record = (classRecords || []).find(
+    c => c.student_lrn === student.lrn &&
+         isMatchingRecordSubject(subject, c.subject_id, c.subject_name) &&
+         Number(c.quarter) === term &&
+         isMatchingSchoolYear(c.school_year, schoolYear)
   );
   if (!record) return '';
+
+  const hps = (hpsRecords || []).find(
+    h => isMatchingRecordSubject(subject, h.subject_id, h.subject_name) &&
+         Number(h.quarter) === term &&
+         isMatchingSchoolYear(h.school_year, schoolYear)
+  );
+  if (!hps) {
+    if (record.final_grade !== undefined && record.final_grade !== '' && record.final_grade !== null && !isNaN(Number(record.final_grade))) {
+      return Number(record.final_grade);
+    }
+    return '';
+  }
 
   const wwHps = normalizeScores(hps.written_works, SSHS_WW_COUNT);
   const ptHps = normalizeScores(hps.performance_tasks, SSHS_PT_COUNT);
@@ -2977,7 +3167,12 @@ function computeStudentTermGrade(
   const hasTE = teScore !== '' && !isNaN(Number(teScore));
 
   const hasAnyScore = hasWW || hasPT || hasST1 || hasST2 || hasTE;
-  if (!hasAnyScore) return '';
+  if (!hasAnyScore) {
+    if (record.final_grade !== undefined && record.final_grade !== '' && record.final_grade !== null && !isNaN(Number(record.final_grade))) {
+      return Number(record.final_grade);
+    }
+    return '';
+  }
 
   const wwPS = hasWW && wwHpsTotal > 0 ? (wwSum / wwHpsTotal) * 100 : 0;
   const wwWS = (wwPS * meta.weights.ww) / 100;
@@ -3009,7 +3204,7 @@ function computeStudentTermGrade(
  * while strictly preserving all official Excel formulas.
  */
 function populateSSHSFinalGradesXml(sheetXml: string, options: SSHSExportOptions): string {
-  const { schoolProfile, section, subject, students, teacherName, termBlock } = options;
+  const { schoolProfile, section, subject, students, teacherName, schoolYear } = options;
   const gradeMatch = String(section.section_grade_level || (subject as any).grade_level || '').match(/(\d+)/);
   const gradeLevel = gradeMatch ? parseInt(gradeMatch[1], 10) : 11;
   const sectionName = (section.section_name || '').toUpperCase();
@@ -3017,24 +3212,33 @@ function populateSSHSFinalGradesXml(sheetXml: string, options: SSHSExportOptions
   const meta = resolveSSHSMetadata(subject, gradeLevel);
   const subjectName = (subject.subject_name || meta.subject || '').toUpperCase();
 
-  let tbNum = 1;
-  const tb = String(termBlock || (subject as any)?.term_block || '').toUpperCase();
-  if (tb.includes('3') || tb.includes('THIRD') || tb.includes('3RD')) {
-    tbNum = 3;
-  } else if (tb.includes('2') || tb.includes('SECOND') || tb.includes('2ND')) {
-    tbNum = 2;
-  }
+  const resolvedTerms = options.resolvedTerms || resolveSSHSTerms(
+    subject,
+    section,
+    options.classRecords,
+    options.hpsRecords,
+    schoolYear,
+    options.termBlock,
+    options.numTerms
+  );
 
-  const is3Terms = (meta.terms || 3) === 3;
-  const is2Terms = (meta.terms || 3) === 2;
+  const isT1Active =
+    resolvedTerms.numTerms === 3 ||
+    (resolvedTerms.numTerms === 2 && resolvedTerms.termBlock === 'FIRST TERM') ||
+    (resolvedTerms.numTerms === 1 && resolvedTerms.termBlock === 'FIRST TERM');
 
-  // Active term flags: 1 if active, 0 otherwise
-  const isT1Active = is3Terms || (is2Terms ? tbNum === 1 : tbNum === 1);
-  const isT2Active = is3Terms || (is2Terms ? (tbNum === 1 || tbNum === 2) : tbNum === 2);
-  const isT3Active = is3Terms || (is2Terms ? tbNum === 2 : tbNum === 3);
+  const isT2Active =
+    resolvedTerms.numTerms === 3 ||
+    resolvedTerms.numTerms === 2 ||
+    (resolvedTerms.numTerms === 1 && resolvedTerms.termBlock === 'SECOND TERM');
 
-  const termDesc = is3Terms ? '1ST, 2ND, 3RD' : (is2Terms ? (tbNum === 1 ? '1ST & 2ND' : '2ND & 3RD') : (tbNum === 1 ? '1ST' : tbNum === 2 ? '2ND' : '3RD'));
-  const numTerms = meta.terms || (is3Terms ? 3 : 1);
+  const isT3Active =
+    resolvedTerms.numTerms === 3 ||
+    (resolvedTerms.numTerms === 2 && resolvedTerms.termBlock === 'SECOND TERM') ||
+    (resolvedTerms.numTerms === 1 && resolvedTerms.termBlock === 'THIRD TERM');
+
+  const termDesc = resolvedTerms.termDesc;
+  const numTerms = resolvedTerms.numTerms;
 
   const males = sortStudentsAlphabetically(
     students.filter(s => (s.gender || '').toLowerCase() === 'male')
@@ -3152,24 +3356,21 @@ function populateSSHSFinalGradesXml(sheetXml: string, options: SSHSExportOptions
  * Populates sheet7.xml (HELPER) to guarantee dropdown lookup formulas never resolve to #VALUE! or #N/A.
  */
 function populateSSHSHelperXml(sheetXml: string, options: SSHSExportOptions): string {
-  const { section, subject, termBlock } = options;
+  const { section, subject, schoolYear } = options;
   const gradeMatch = String(section.section_grade_level || (subject as any).grade_level || '').match(/(\d+)/);
   const gradeLevel = gradeMatch ? parseInt(gradeMatch[1], 10) : 11;
   const meta = resolveSSHSMetadata(subject, gradeLevel);
   const subjectName = (subject.subject_name || meta.subject || '').toUpperCase();
 
-  let tbNum = 1;
-  const tb = String(termBlock || (subject as any)?.term_block || '').toUpperCase();
-  if (tb.includes('3') || tb.includes('THIRD') || tb.includes('3RD')) {
-    tbNum = 3;
-  } else if (tb.includes('2') || tb.includes('SECOND') || tb.includes('2ND')) {
-    tbNum = 2;
-  }
-
-  const is3Terms = (meta.terms || 3) === 3;
-  const is2Terms = (meta.terms || 3) === 2;
-  const code = is3Terms ? 33 : (is2Terms ? (tbNum === 1 ? 21 : 22) : (tbNum === 1 ? 11 : tbNum === 2 ? 12 : 13));
-  const termDesc = is3Terms ? '1ST, 2ND, 3RD' : (is2Terms ? (tbNum === 1 ? '1ST & 2ND' : '2ND & 3RD') : (tbNum === 1 ? '1ST' : tbNum === 2 ? '2ND' : '3RD'));
+  const resolvedTerms = options.resolvedTerms || resolveSSHSTerms(
+    subject,
+    section,
+    options.classRecords,
+    options.hpsRecords,
+    schoolYear,
+    options.termBlock,
+    options.numTerms
+  );
 
   let xml = sheetXml;
   const rowRegex = /<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g;
@@ -3185,8 +3386,8 @@ function populateSSHSHelperXml(sheetXml: string, options: SSHSExportOptions): st
     if (r === 9) updated = setCellString(updated, 'G', 9, meta.cluster);
     if (r === 10) updated = setCellString(updated, 'G', 10, subjectName);
     if (r === 23) {
-      updated = updateCellFormulaValue(updated, 'F', 23, code);
-      updated = updateCellFormulaValue(updated, 'G', 23, termDesc, 'str');
+      updated = updateCellFormulaValue(updated, 'F', 23, resolvedTerms.code);
+      updated = updateCellFormulaValue(updated, 'G', 23, resolvedTerms.termDesc, 'str');
     }
 
     return updated;
@@ -3277,6 +3478,23 @@ export async function populateSSHSWorkbookZip(
   templateBuffer: Uint8Array,
   options: SSHSExportOptions
 ): Promise<JSZip> {
+  const resolvedTerms = options.resolvedTerms || resolveSSHSTerms(
+    options.subject,
+    options.section,
+    options.classRecords,
+    options.hpsRecords,
+    options.schoolYear,
+    options.termBlock,
+    options.numTerms
+  );
+
+  const resolvedOptions: SSHSExportOptions = {
+    ...options,
+    termBlock: resolvedTerms.termBlock,
+    numTerms: resolvedTerms.numTerms,
+    resolvedTerms
+  };
+
   const zip = await JSZip.loadAsync(templateBuffer);
 
   // 1. Remove stale calcChain & external links to eliminate Excel repair warning
@@ -3317,7 +3535,7 @@ export async function populateSSHSWorkbookZip(
   const sheet2File = zip.file('xl/worksheets/sheet2.xml');
   if (sheet2File) {
     const rawXml = await sheet2File.async('text');
-    const updatedXml = populateSSHSInputDataXml(rawXml, options);
+    const updatedXml = populateSSHSInputDataXml(rawXml, resolvedOptions);
     zip.file('xl/worksheets/sheet2.xml', cleanXmlErrors(updatedXml));
   }
 
@@ -3325,7 +3543,7 @@ export async function populateSSHSWorkbookZip(
   const sheet3File = zip.file('xl/worksheets/sheet3.xml');
   if (sheet3File) {
     const rawXml = await sheet3File.async('text');
-    const updatedXml = populateSSHSTermXml(rawXml, 1, options);
+    const updatedXml = populateSSHSTermXml(rawXml, 1, resolvedOptions);
     zip.file('xl/worksheets/sheet3.xml', cleanXmlErrors(updatedXml));
   }
 
@@ -3333,7 +3551,7 @@ export async function populateSSHSWorkbookZip(
   const sheet4File = zip.file('xl/worksheets/sheet4.xml');
   if (sheet4File) {
     const rawXml = await sheet4File.async('text');
-    const updatedXml = populateSSHSTermXml(rawXml, 2, options);
+    const updatedXml = populateSSHSTermXml(rawXml, 2, resolvedOptions);
     zip.file('xl/worksheets/sheet4.xml', cleanXmlErrors(updatedXml));
   }
 
@@ -3341,7 +3559,7 @@ export async function populateSSHSWorkbookZip(
   const sheet5File = zip.file('xl/worksheets/sheet5.xml');
   if (sheet5File) {
     const rawXml = await sheet5File.async('text');
-    const updatedXml = populateSSHSTermXml(rawXml, 3, options);
+    const updatedXml = populateSSHSTermXml(rawXml, 3, resolvedOptions);
     zip.file('xl/worksheets/sheet5.xml', cleanXmlErrors(updatedXml));
   }
 
@@ -3349,7 +3567,7 @@ export async function populateSSHSWorkbookZip(
   const sheet6File = zip.file('xl/worksheets/sheet6.xml');
   if (sheet6File) {
     const rawXml = await sheet6File.async('text');
-    const updatedXml = populateSSHSFinalGradesXml(rawXml, options);
+    const updatedXml = populateSSHSFinalGradesXml(rawXml, resolvedOptions);
     zip.file('xl/worksheets/sheet6.xml', cleanXmlErrors(updatedXml));
   }
 
@@ -3357,7 +3575,7 @@ export async function populateSSHSWorkbookZip(
   const sheet7File = zip.file('xl/worksheets/sheet7.xml');
   if (sheet7File) {
     const rawXml = await sheet7File.async('text');
-    const updatedXml = populateSSHSHelperXml(rawXml, options);
+    const updatedXml = populateSSHSHelperXml(rawXml, resolvedOptions);
     zip.file('xl/worksheets/sheet7.xml', cleanXmlErrors(updatedXml));
   }
 

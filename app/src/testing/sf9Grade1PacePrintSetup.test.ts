@@ -96,6 +96,41 @@ describe('Grade 1 Master ECR, PACE, and SF9 Export - PACE Form Print Setup', () 
     // 4. Verify PACE rating formulas are guarded so unrated cells stay blank instead of resulting in 0
     expect(paceXml).toContain('IF(VLOOKUP(G6,\'TERM 1 READING &amp; LITERACY\'!C15:DG115,9,0)="","",VLOOKUP(G6,\'TERM 1 READING &amp; LITERACY\'!C15:DG115,9,0))');
     expect(paceXml).not.toContain('<v>0</v>');
+
+    // 5. Verify all rows across all sheets strictly preserve OpenXML alphabetical column ordering
+    function colToNum(col: string): number {
+      let n = 0;
+      for (let i = 0; i < col.length; i++) {
+        n = n * 26 + (col.charCodeAt(i) - 64);
+      }
+      return n;
+    }
+
+    const sheetFiles = Object.keys(zip.files).filter(k => k.startsWith('xl/worksheets/sheet') && k.endsWith('.xml'));
+    expect(sheetFiles.length).toBeGreaterThan(0);
+
+    for (const sf of sheetFiles) {
+      const xml = await zip.file(sf)!.async('string');
+      const rowRegex = /<row\s+r="(\d+)"[^>]*?>([\s\S]*?)<\/row>/g;
+      let rM: RegExpExecArray | null;
+      while ((rM = rowRegex.exec(xml)) !== null) {
+        const rowNum = rM[1];
+        const rowBody = rM[2];
+        const cellRegex = /<c\s+r="([A-Z]+)\d+"/g;
+        let cM: RegExpExecArray | null;
+        let lastColNum = 0;
+        let lastCol = '';
+        while ((cM = cellRegex.exec(rowBody)) !== null) {
+          const col = cM[1];
+          const colNum = colToNum(col);
+          if (colNum <= lastColNum) {
+            throw new Error(`[${sf}] ROW ${rowNum} BROKEN: Column ${col} (${colNum}) appears AFTER ${lastCol} (${lastColNum})!`);
+          }
+          lastColNum = colNum;
+          lastCol = col;
+        }
+      }
+    }
   });
 
   it('handles single-subject PACE form isolation correctly (1 page)', async () => {

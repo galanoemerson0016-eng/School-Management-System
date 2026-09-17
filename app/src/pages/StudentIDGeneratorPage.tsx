@@ -2,7 +2,7 @@
  * Student ID Generator — issue DepEd-style student IDs from existing records.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import { useAuthStore } from '../stores/auth-store';
 import { 
     ArrowLeft, 
@@ -277,9 +277,9 @@ export function StudentIDGeneratorPage() {
         });
 
     return (
-        <div className="h-full flex flex-col overflow-hidden bg-slate-50 dark:bg-[#070a12]">
+        <div className="h-full min-h-0 flex flex-col overflow-hidden bg-slate-50 dark:bg-[#070a12]">
             {/* Header */}
-            <div className="bg-white dark:bg-[#0d1225] border-b border-slate-200 dark:border-white/10 px-4 py-3 flex items-center justify-between z-20">
+            <div className="bg-white dark:bg-[#0d1225] border-b border-slate-200 dark:border-white/10 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 z-20 shrink-0">
                 {/* Left: Title & Mode Switcher */}
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-3">

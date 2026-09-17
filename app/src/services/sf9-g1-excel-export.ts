@@ -274,6 +274,29 @@ function lettersToColNumber(letters: string): number {
 }
 
 /**
+ * Insert a cell XML tag into a row's inner XML while strictly maintaining
+ * ascending alphabetical column order (mandated by OpenXML spreadsheetml schemas).
+ */
+function insertCellIntoRowBody(rowBody: string, cellRef: string, cellTag: string): string {
+  const targetCol = cellRef.replace(/\d+/g, '').toUpperCase();
+  const targetColNum = lettersToColNumber(targetCol);
+
+  // Match each cell element: either self-closing <c .../> or with children <c ...>...</c>
+  const cellRegex = /<c\s+r="([A-Z]+)\d+"[^>]*?(?:\/>|>[\s\S]*?<\/c>)/g;
+  let match: RegExpExecArray | null;
+  while ((match = cellRegex.exec(rowBody)) !== null) {
+    const existingCol = match[1];
+    const existingColNum = lettersToColNumber(existingCol);
+    if (existingColNum > targetColNum) {
+      // Target column comes before this existing column, insert here
+      return rowBody.slice(0, match.index) + cellTag + rowBody.slice(match.index);
+    }
+  }
+  // If target column is greater than all existing columns in the row, append to the end
+  return rowBody + cellTag;
+}
+
+/**
  * Update or insert a cell with an explicit formula and optional cached value in OpenXML
  */
 function setCellFormulaInSheetXml(
@@ -326,7 +349,7 @@ function setCellFormulaInSheetXml(
     return sheetXml.replace(rowRegex, (_m, p1, p2, p3) => {
       const styleAttr = defaultStyle ? ` s="${defaultStyle}"` : '';
       const cellTag = `<c r="${cellRef}"${styleAttr}${tAttr}><f>${escapedFormula}</f>${valTag}</c>`;
-      return `${p1}${p2}${cellTag}${p3}`;
+      return `${p1}${insertCellIntoRowBody(p2, cellRef, cellTag)}${p3}`;
     });
   }
 
@@ -424,10 +447,10 @@ function updateCellInSheetXml(
       const styleAttr = forceStyle ? ` s="${forceStyle}"` : '';
       if (isEmpty) {
         const cellTag = `<c r="${cellRef}"${styleAttr}/>`;
-        return `${p1}${p2}${cellTag}${p3}`;
+        return `${p1}${insertCellIntoRowBody(p2, cellRef, cellTag)}${p3}`;
       }
       const cellTag = `${newTag}${styleAttr}>${newInner}</c>`;
-      return `${p1}${p2}${cellTag}${p3}`;
+      return `${p1}${insertCellIntoRowBody(p2, cellRef, cellTag)}${p3}`;
     });
   }
 
@@ -795,6 +818,42 @@ async function populateUpdatedAllInOneGrade1Workbook(
     zip.file('xl/workbook.xml', wbXml);
   }
 
+  // 1c. Unify fonts, alignments, and styles for learner rows in INPUT DATA (sheet2.xml):
+  // Ensure styles 73, 75, 77, 79, 81, 83, 104, 106 use uniform Arial 10pt Bold (font 14),
+  // shrinkToFit for names, horizontal/vertical center for LRN & Birthday, and correct numFmt.
+  const stylesFile = zip.file('xl/styles.xml');
+  if (stylesFile) {
+    let stylesXml = await stylesFile.async('string');
+    const nameStyle = '<xf borderId="36" fillId="5" fontId="14" numFmtId="0" xfId="0" applyAlignment="1" applyBorder="1" applyFill="1" applyFont="1"><alignment horizontal="left" vertical="center" shrinkToFit="1"/></xf>';
+    const lrnStyle = '<xf borderId="36" fillId="5" fontId="14" numFmtId="49" xfId="0" applyAlignment="1" applyBorder="1" applyFill="1" applyFont="1" applyNumberFormat="1"><alignment horizontal="center" vertical="center"/></xf>';
+    const bdayStyle = '<xf borderId="36" fillId="5" fontId="14" numFmtId="164" xfId="0" applyAlignment="1" applyBorder="1" applyFill="1" applyFont="1" applyNumberFormat="1"><alignment horizontal="center" vertical="center"/></xf>';
+
+    const cellXfsMatch = stylesXml.match(/<cellXfs count="(\d+)">([\s\S]*?)<\/cellXfs>/);
+    if (cellXfsMatch) {
+      const xfs: string[] = [];
+      const xfRegex = /<xf\s+[^>]*?(?:\/>|>[\s\S]*?<\/xf>)/g;
+      let m: RegExpExecArray | null;
+      while ((m = xfRegex.exec(cellXfsMatch[2])) !== null) {
+        xfs.push(m[0]);
+      }
+      if (xfs.length > 106) {
+        xfs[73] = nameStyle;
+        xfs[79] = nameStyle;
+        xfs[75] = lrnStyle;
+        xfs[81] = lrnStyle;
+        xfs[104] = lrnStyle;
+        xfs[77] = bdayStyle;
+        xfs[83] = bdayStyle;
+        xfs[106] = bdayStyle;
+        stylesXml = stylesXml.replace(
+          /<cellXfs count="\d+">[\s\S]*?<\/cellXfs>/,
+          `<cellXfs count="${xfs.length}">${xfs.join('')}</cellXfs>`
+        );
+        zip.file('xl/styles.xml', stylesXml);
+      }
+    }
+  }
+
   // 2. Fix DepEd Template Bug in TERM 1-3 MATHEMATICS (sheet14.xml):
   // Female learners in rows 67-116 incorrectly referenced Q12..Q61 instead of Q11..Q60
   const mathSheetPath = sheetMap['TERM 1-3 MATHEMATICS'] || 'xl/worksheets/sheet14.xml';
@@ -944,7 +1003,73 @@ async function populateUpdatedAllInOneGrade1Workbook(
       }
     }
 
-    inputXml = updateCellsBatch(inputXml, inputCells);
+    // Ensure all learner rows (11 to 60) have uniform styling:
+    // K & P: style 72 (NO., centered, Arial 10pt bold)
+    // L & Q: style 79 (Name, left, vertical center, shrinkToFit, Arial 10pt bold)
+    // M & R: style 81 (LRN, centered, vertical center, Arial 10pt bold)
+    // N & S: style 83 (Birthday, centered, vertical center, Arial 10pt bold, M/d/yyyy)
+    const inputStyles: Record<string, string> = {};
+    for (let i = 0; i < 50; i++) {
+      const r = 11 + i;
+      inputStyles[`K${r}`] = '72';
+      inputStyles[`L${r}`] = '79';
+      inputStyles[`M${r}`] = '81';
+      inputStyles[`N${r}`] = '83';
+      inputStyles[`P${r}`] = '72';
+      inputStyles[`Q${r}`] = '79';
+      inputStyles[`R${r}`] = '81';
+      inputStyles[`S${r}`] = '83';
+    }
+
+    inputXml = updateCellsBatch(inputXml, inputCells, inputStyles);
+
+    // Standardize column widths in INPUT DATA:
+    // K & P (No.): 5.0
+    // L & Q (Name): 42.0
+    // M & R (LRN): 16.5
+    // N & S (Birthday): 16.0
+    // O (Spacer): 3.75
+    const updatedCols = '<cols>' +
+      '<col customWidth="1" min="1" max="2" width="3.75"/>' +
+      '<col customWidth="1" min="3" max="3" width="11.5"/>' +
+      '<col customWidth="1" min="4" max="4" width="7.5"/>' +
+      '<col customWidth="1" min="5" max="5" width="3.75"/>' +
+      '<col customWidth="1" min="6" max="6" width="12.5"/>' +
+      '<col customWidth="1" min="7" max="7" width="31.5"/>' +
+      '<col customWidth="1" min="8" max="10" width="3.75"/>' +
+      '<col customWidth="1" min="11" max="11" width="5.0"/>' +
+      '<col customWidth="1" min="12" max="12" width="42.0"/>' +
+      '<col customWidth="1" min="13" max="13" width="16.5"/>' +
+      '<col customWidth="1" min="14" max="14" width="16.0"/>' +
+      '<col customWidth="1" min="15" max="15" width="3.75"/>' +
+      '<col customWidth="1" min="16" max="16" width="5.0"/>' +
+      '<col customWidth="1" min="17" max="17" width="42.0"/>' +
+      '<col customWidth="1" min="18" max="18" width="16.5"/>' +
+      '<col customWidth="1" min="19" max="19" width="16.0"/>' +
+      '<col customWidth="1" min="20" max="21" width="3.75"/>' +
+      '<col customWidth="1" min="22" max="26" width="12.5"/>' +
+      '</cols>';
+    inputXml = inputXml.replace(/<cols>[\s\S]*?<\/cols>/, updatedCols);
+
+    // Standardize row heights for Rows 11 to 60: ht="20"
+    inputXml = inputXml.replace(/<row\s+r="(\d+)"[^>]*>/g, (orig, rowStr) => {
+      const r = parseInt(rowStr, 10);
+      if (r >= 11 && r <= 60) {
+        return `<row r="${r}" ht="20" customHeight="1">`;
+      }
+      return orig;
+    });
+
+    // Suppress green error triangles on LRN columns (M11:M60 and R11:R60)
+    if (!inputXml.includes('<ignoredErrors>')) {
+      const ignoredErrorsTag = '<ignoredErrors><ignoredError sqref="M11:M60 R11:R60" numberStoredAsText="1"/></ignoredErrors>';
+      if (inputXml.includes('<drawing')) {
+        inputXml = inputXml.replace('<drawing', `${ignoredErrorsTag}<drawing`);
+      } else {
+        inputXml = inputXml.replace('</worksheet>', `${ignoredErrorsTag}</worksheet>`);
+      }
+    }
+
     zip.file(inputSheetPath, inputXml);
   }
 
@@ -1302,7 +1427,6 @@ async function populateUpdatedAllInOneGrade1Workbook(
       'I17': hasActiveBday ? activeBosy.months : '',
       'O17': hasActiveBday ? activeEosy.years : '',
       'R17': hasActiveBday ? activeEosy.months : '',
-      'E13': opts.schoolYear,
       'M72': rawAdviser.toUpperCase(),
       'M75': rawPrincipal.toUpperCase()
     });

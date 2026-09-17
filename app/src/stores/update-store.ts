@@ -366,7 +366,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.7';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.14';
       const api = window.electronAPI;
 
       try {
@@ -424,10 +424,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "⚡ Automated Startup Grade Reconciliation: Scans local database on app launch, reconnects orphaned records, unhides Elementary/JHS subjects, and restores PE & Health dual components.",
-              "📚 DepEd Curriculum Separation: Strictly enforces 'GMRC (Good Manners and Right Conduct)' for Elementary (Grades 1–6) and 'Values Education' for JHS (Grades 7–10), permanently eliminating ghost duplicate columns.",
-              "📊 Official Excel Template & Formula Preservation: 100% native formula integrity across Senior High School Grade 12, SSHS Pilot, ECR Academic G2–G10, Grade 1 PACE/SF9, and SF9 G11 Academic & Tech-Pro.",
-              "🎯 Section-Isolated Highest Possible Score (HPS): Independent HPS management per section ensuring zero cross-contamination between classes.",
+              "⚡ Automated Startup Grade Healing: Audits and repairs inflated weights and false 100s on launch with zero teacher re-encoding.",
+              "🎯 Normalized Weights & Header Percentages: Table headers display standard 40%/60%/20% weights, ensuring genuine DepEd grades.",
+              "🛡️ Ghost Record Protection: Suppresses phantom grades when score containers are empty.",
+              "📊 Official Excel Template & Formula Preservation: 100% native DepEd formula integrity across SF9, SHS G12, and SSHS Pilot.",
               "🔒 100% backward-compatible update with zero data loss guarantee."
             ],
             timestamp: Date.now(),

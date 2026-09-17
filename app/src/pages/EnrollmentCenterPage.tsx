@@ -136,6 +136,8 @@ export function EnrollmentCenterPage() {
                 groups['JUNIOR HIGH SCHOOL'].push(s);
             } else if (num >= 11 && num <= 12) {
                 groups['SENIOR HIGH SCHOOL'].push(s);
+            } else {
+                groups['ELEMENTARY'].push(s);
             }
         });
         

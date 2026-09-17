@@ -1,17 +1,18 @@
 import { useState, useMemo, useEffect, useCallback, memo, useRef } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, ArrowRight, FileSpreadsheet, ChevronDown, Bug, Shield, SlidersHorizontal } from 'lucide-react';
-import type { ClassRecord, HPSRecord, Subject } from '../types';
+import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, ArrowRight, FileSpreadsheet, ChevronDown, Bug, Shield, SlidersHorizontal, Crosshair } from 'lucide-react';
+import { useTableCrosshair } from '../hooks/useTableCrosshair';
+import type { ClassRecord, HPSRecord, Subject, Student } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
 import { isGrade1 } from '../services/sf9-g1-excel-export';
-import { exportECRToExcel, exportECRBatchToZip, isGrade2To10, isGmrcVeSubject, normalizeSubjectForECR, isMapehSubject, isEppTleSubject, isEppTleComponent } from '../services/ecr-excel-export';
+import { exportECRToExcel, exportECRBatchToZip, isGrade2To10, isGmrcVeSubject, normalizeSubjectForECR, isMapehSubject, isEppTleSubject, isEppTleComponent, isMusicArtsSubject, isPeHealthSubject } from '../services/ecr-excel-export';
 import { exportDirectDatabaseToExcel } from '../services/database-rescue-export';
-import { isMatchingSubject, isSameSubject, findHpsRecord } from '../utils/grading-helpers';
+import { isMatchingSubject, isSameSubject, findHpsRecord, resolveStudentQuarterGrade, computeLiveTransmutedGradeFromRecord } from '../utils/grading-helpers';
 import { normalizeSubjectName } from '../lib/subjectConfig';
 
-import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
+import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore, normalizeWeightPercent, normalizeWeightFraction, type SubjectCluster } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
 
 const WW_COUNT = 5;
@@ -20,6 +21,20 @@ const ST_COUNT = 3;
 
 const GMRC_WW_COUNT = 10;
 const GMRC_PT_COUNT = 9;
+
+type QuarterValue = 1 | 2 | 3 | 'summary' | 'summary_t1' | 'summary_t2' | 'summary_t3' | 'summary_final';
+
+interface SummaryGradeResult {
+    t1?: number | '';
+    t2?: number | '';
+    t3?: number | '';
+    ma?: number | '';
+    pe?: number | '';
+    final: number | '';
+    descriptor: string;
+    isMapeh: boolean;
+    mapehMode?: 'component' | 'final';
+}
 
 type PaperSize = 'folio' | 'a4' | 'letter';
 
@@ -228,11 +243,14 @@ function DebouncedInput({
 }: DebouncedInputProps) {
     const [value, setValue] = useState(initialValue);
     const valueRef = useRef(value);
-    valueRef.current = value;
     const initialValueRef = useRef(initialValue);
-    initialValueRef.current = initialValue;
     const onChangeRef = useRef(onChange);
-    onChangeRef.current = onChange;
+
+    useEffect(() => {
+        valueRef.current = value;
+        initialValueRef.current = initialValue;
+        onChangeRef.current = onChange;
+    });
 
     useEffect(() => {
         setValue(initialValue);
@@ -274,20 +292,20 @@ function DebouncedInput({
 }
 
 interface StudentGradeRowProps {
-    student: any;
+    student: Student;
     idx: number;
     sectionIdx: number;
     maleStudentsCount: number;
-    hps: { ww: any[]; pt: any[]; qa: any[] };
-    currentWeights: any;
-    currentCluster: any;
+    hps: { ww: (number | string)[]; pt: (number | string)[]; qa: (number | string)[] };
+    currentWeights: { written_works: number; performance_tasks: number; quarterly_exam: number };
+    currentCluster: SubjectCluster;
     activeSchoolYear: string;
     sectionGradeLevel: string;
     optimalNameColumnWidth: number;
-    record: any;
+    record: ClassRecord | undefined;
     updateGrade: (lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => void;
     handleKeyDown: (e: React.KeyboardEvent, rowIndex: number, colIndex: number) => void;
-    formatStudentFullName: (student: any) => string;
+    formatStudentFullName: (student: Student) => string;
     isGMRCSubject?: boolean;
 }
 
@@ -326,7 +344,7 @@ const StudentGradeRow = memo(({
             const n = Number(s);
             return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
         });
-        const rawQaRec = (record as any)?.summative_tests;
+        const rawQaRec = (record as (ClassRecord & { summative_tests?: (number | string)[] }) | undefined)?.summative_tests;
         const qaScores = normalizeScores(rawQaRec, ST_COUNT).map(s => {
             const n = Number(s);
             return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
@@ -435,12 +453,12 @@ const StudentGradeRow = memo(({
         const wwTotalScore = wwScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
         const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b), 0);
         const wwPS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100;
-        const wwWS = wwPS * (currentWeights.written_works || 0);
+        const wwWS = wwPS * (normalizeWeightFraction(currentWeights.written_works) || 0);
 
         const ptTotalScore = ptScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
         const ptTotalHPS = hps.pt.reduce<number>((a, b) => a + Number(b), 0);
         const ptPS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100;
-        const ptWS = ptPS * (currentWeights.performance_tasks || 0);
+        const ptWS = ptPS * (normalizeWeightFraction(currentWeights.performance_tasks) || 0);
 
         const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : (qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]));
         const st1HPS = Number(hps.qa[0]) || 0;
@@ -469,9 +487,10 @@ const StudentGradeRow = memo(({
         }
 
         const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
-        const qaWS = qaPS * (currentWeights.quarterly_exam || 0);
+        const qaWS = qaPS * (normalizeWeightFraction(currentWeights.quarterly_exam) || 0);
 
-        const initialGrade = (wwWS || 0) + (ptWS || 0) + (qaWS || 0);
+        const rawInitial = (wwWS || 0) + (ptWS || 0) + (qaWS || 0);
+        const initialGrade = rawInitial > 100 && rawInitial <= 10000 ? Math.round((rawInitial / 100) * 100) / 100 : Math.round(rawInitial * 100) / 100;
         const quarterlyGrade = hasScores ? transmuteGrade(initialGrade, activeSchoolYear) : 0;
 
         return {
@@ -497,13 +516,13 @@ const StudentGradeRow = memo(({
 
     if (isGMRCSubject) {
         return (
-            <tr className="hover:bg-gray-50">
-                <td className="border border-black px-2 py-0.5 text-left text-[10px] leading-tight whitespace-nowrap font-bold uppercase truncate" title={`${idx + 1}. ${formatStudentFullName(student)}`} style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>
+            <tr className="grade-row hover:bg-gray-50" data-row-key={student.lrn}>
+                <td className="student-name-cell border border-black px-2 py-0.5 text-left text-[10px] leading-tight whitespace-nowrap font-bold uppercase truncate" data-col-key="learner-name" title={`${idx + 1}. ${formatStudentFullName(student)}`} style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>
                     {idx + 1}. {formatStudentFullName(student)}
                 </td>
                 {/* WW Cognitive 1..5 (cols 0..4) */}
                 {(summary.wwCog || []).map((score, i) => (
-                    <td key={`ww-cog-${i}`} className="border border-black p-0">
+                    <td key={`ww-cog-${i}`} className="border border-black p-0" data-col-key={`ww-cog-${i}`}>
                         <DebouncedInput
                             type="number"
                             value={score === '' ? '' : score}
@@ -515,13 +534,13 @@ const StudentGradeRow = memo(({
                         />
                     </td>
                 ))}
-                <td className="border border-black bg-blue-50 text-[8px]">{summary.wwCogTotalHPS && summary.wwCogTotalHPS > 0 && summary.wwCog?.some(s => s !== '') ? summary.wwCogTotalScore : ''}</td>
-                <td className="border border-black bg-blue-50 text-[8px]">{summary.wwCogTotalHPS && summary.wwCogTotalHPS > 0 && summary.wwCog?.some(s => s !== '') ? summary.wwCogPS?.toFixed(2) : ''}</td>
-                <td className="border border-black bg-blue-100 font-semibold text-[8px]">{summary.wwCogTotalHPS && summary.wwCogTotalHPS > 0 && summary.wwCog?.some(s => s !== '') ? summary.wwCogWS?.toFixed(2) : ''}</td>
+                <td className="border border-black bg-blue-50 text-[8px]" data-col-key="ww-cog-total">{summary.wwCogTotalHPS && summary.wwCogTotalHPS > 0 && summary.wwCog?.some(s => s !== '') ? summary.wwCogTotalScore : ''}</td>
+                <td className="border border-black bg-blue-50 text-[8px]" data-col-key="ww-cog-ps">{summary.wwCogTotalHPS && summary.wwCogTotalHPS > 0 && summary.wwCog?.some(s => s !== '') ? summary.wwCogPS?.toFixed(2) : ''}</td>
+                <td className="border border-black bg-blue-100 font-semibold text-[8px]" data-col-key="ww-cog-ws">{summary.wwCogTotalHPS && summary.wwCogTotalHPS > 0 && summary.wwCog?.some(s => s !== '') ? summary.wwCogWS?.toFixed(2) : ''}</td>
 
                 {/* WW Affective 1..5 (cols 5..9) */}
                 {(summary.wwAff || []).map((score, i) => (
-                    <td key={`ww-aff-${i}`} className="border border-black p-0">
+                    <td key={`ww-aff-${i}`} className="border border-black p-0" data-col-key={`ww-aff-${i}`}>
                         <DebouncedInput
                             type="number"
                             value={score === '' ? '' : score}
@@ -533,13 +552,13 @@ const StudentGradeRow = memo(({
                         />
                     </td>
                 ))}
-                <td className="border border-black bg-blue-50 text-[8px]">{summary.wwAffTotalHPS && summary.wwAffTotalHPS > 0 && summary.wwAff?.some(s => s !== '') ? summary.wwAffTotalScore : ''}</td>
-                <td className="border border-black bg-blue-50 text-[8px]">{summary.wwAffTotalHPS && summary.wwAffTotalHPS > 0 && summary.wwAff?.some(s => s !== '') ? summary.wwAffPS?.toFixed(2) : ''}</td>
-                <td className="border border-black bg-blue-100 font-semibold text-[8px]">{summary.wwAffTotalHPS && summary.wwAffTotalHPS > 0 && summary.wwAff?.some(s => s !== '') ? summary.wwAffWS?.toFixed(2) : ''}</td>
+                <td className="border border-black bg-blue-50 text-[8px]" data-col-key="ww-aff-total">{summary.wwAffTotalHPS && summary.wwAffTotalHPS > 0 && summary.wwAff?.some(s => s !== '') ? summary.wwAffTotalScore : ''}</td>
+                <td className="border border-black bg-blue-50 text-[8px]" data-col-key="ww-aff-ps">{summary.wwAffTotalHPS && summary.wwAffTotalHPS > 0 && summary.wwAff?.some(s => s !== '') ? summary.wwAffPS?.toFixed(2) : ''}</td>
+                <td className="border border-black bg-blue-100 font-semibold text-[8px]" data-col-key="ww-aff-ws">{summary.wwAffTotalHPS && summary.wwAffTotalHPS > 0 && summary.wwAff?.some(s => s !== '') ? summary.wwAffWS?.toFixed(2) : ''}</td>
 
                 {/* PT Cognitive 1..3 (cols 10..12) */}
                 {(summary.ptCog || []).map((score, i) => (
-                    <td key={`pt-cog-${i}`} className="border border-black p-0">
+                    <td key={`pt-cog-${i}`} className="border border-black p-0" data-col-key={`pt-cog-${i}`}>
                         <DebouncedInput
                             type="number"
                             value={score === '' ? '' : score}
@@ -551,13 +570,13 @@ const StudentGradeRow = memo(({
                         />
                     </td>
                 ))}
-                <td className="border border-black bg-green-50 text-[8px]">{summary.ptCogTotalHPS && summary.ptCogTotalHPS > 0 && summary.ptCog?.some(s => s !== '') ? summary.ptCogTotalScore : ''}</td>
-                <td className="border border-black bg-green-50 text-[8px]">{summary.ptCogTotalHPS && summary.ptCogTotalHPS > 0 && summary.ptCog?.some(s => s !== '') ? summary.ptCogPS?.toFixed(2) : ''}</td>
-                <td className="border border-black bg-green-100 font-semibold text-[8px]">{summary.ptCogTotalHPS && summary.ptCogTotalHPS > 0 && summary.ptCog?.some(s => s !== '') ? summary.ptCogWS?.toFixed(2) : ''}</td>
+                <td className="border border-black bg-green-50 text-[8px]" data-col-key="pt-cog-total">{summary.ptCogTotalHPS && summary.ptCogTotalHPS > 0 && summary.ptCog?.some(s => s !== '') ? summary.ptCogTotalScore : ''}</td>
+                <td className="border border-black bg-green-50 text-[8px]" data-col-key="pt-cog-ps">{summary.ptCogTotalHPS && summary.ptCogTotalHPS > 0 && summary.ptCog?.some(s => s !== '') ? summary.ptCogPS?.toFixed(2) : ''}</td>
+                <td className="border border-black bg-green-100 font-semibold text-[8px]" data-col-key="pt-cog-ws">{summary.ptCogTotalHPS && summary.ptCogTotalHPS > 0 && summary.ptCog?.some(s => s !== '') ? summary.ptCogWS?.toFixed(2) : ''}</td>
 
                 {/* PT Affective 1..3 (cols 13..15) */}
                 {(summary.ptAff || []).map((score, i) => (
-                    <td key={`pt-aff-${i}`} className="border border-black p-0">
+                    <td key={`pt-aff-${i}`} className="border border-black p-0" data-col-key={`pt-aff-${i}`}>
                         <DebouncedInput
                             type="number"
                             value={score === '' ? '' : score}
@@ -569,13 +588,13 @@ const StudentGradeRow = memo(({
                         />
                     </td>
                 ))}
-                <td className="border border-black bg-green-50 text-[8px]">{summary.ptAffTotalHPS && summary.ptAffTotalHPS > 0 && summary.ptAff?.some(s => s !== '') ? summary.ptAffTotalScore : ''}</td>
-                <td className="border border-black bg-green-50 text-[8px]">{summary.ptAffTotalHPS && summary.ptAffTotalHPS > 0 && summary.ptAff?.some(s => s !== '') ? summary.ptAffPS?.toFixed(2) : ''}</td>
-                <td className="border border-black bg-green-100 font-semibold text-[8px]">{summary.ptAffTotalHPS && summary.ptAffTotalHPS > 0 && summary.ptAff?.some(s => s !== '') ? summary.ptAffWS?.toFixed(2) : ''}</td>
+                <td className="border border-black bg-green-50 text-[8px]" data-col-key="pt-aff-total">{summary.ptAffTotalHPS && summary.ptAffTotalHPS > 0 && summary.ptAff?.some(s => s !== '') ? summary.ptAffTotalScore : ''}</td>
+                <td className="border border-black bg-green-50 text-[8px]" data-col-key="pt-aff-ps">{summary.ptAffTotalHPS && summary.ptAffTotalHPS > 0 && summary.ptAff?.some(s => s !== '') ? summary.ptAffPS?.toFixed(2) : ''}</td>
+                <td className="border border-black bg-green-100 font-semibold text-[8px]" data-col-key="pt-aff-ws">{summary.ptAffTotalHPS && summary.ptAffTotalHPS > 0 && summary.ptAff?.some(s => s !== '') ? summary.ptAffWS?.toFixed(2) : ''}</td>
 
                 {/* PT Behavioral 1..3 (cols 16..18) */}
                 {(summary.ptBeh || []).map((score, i) => (
-                    <td key={`pt-beh-${i}`} className="border border-black p-0">
+                    <td key={`pt-beh-${i}`} className="border border-black p-0" data-col-key={`pt-beh-${i}`}>
                         <DebouncedInput
                             type="number"
                             value={score === '' ? '' : score}
@@ -587,13 +606,13 @@ const StudentGradeRow = memo(({
                         />
                     </td>
                 ))}
-                <td className="border border-black bg-green-50 text-[8px]">{summary.ptBehTotalHPS && summary.ptBehTotalHPS > 0 && summary.ptBeh?.some(s => s !== '') ? summary.ptBehTotalScore : ''}</td>
-                <td className="border border-black bg-green-50 text-[8px]">{summary.ptBehTotalHPS && summary.ptBehTotalHPS > 0 && summary.ptBeh?.some(s => s !== '') ? summary.ptBehPS?.toFixed(2) : ''}</td>
-                <td className="border border-black bg-green-100 font-semibold text-[8px]">{summary.ptBehTotalHPS && summary.ptBehTotalHPS > 0 && summary.ptBeh?.some(s => s !== '') ? summary.ptBehWS?.toFixed(2) : ''}</td>
+                <td className="border border-black bg-green-50 text-[8px]" data-col-key="pt-beh-total">{summary.ptBehTotalHPS && summary.ptBehTotalHPS > 0 && summary.ptBeh?.some(s => s !== '') ? summary.ptBehTotalScore : ''}</td>
+                <td className="border border-black bg-green-50 text-[8px]" data-col-key="pt-beh-ps">{summary.ptBehTotalHPS && summary.ptBehTotalHPS > 0 && summary.ptBeh?.some(s => s !== '') ? summary.ptBehPS?.toFixed(2) : ''}</td>
+                <td className="border border-black bg-green-100 font-semibold text-[8px]" data-col-key="pt-beh-ws">{summary.ptBehTotalHPS && summary.ptBehTotalHPS > 0 && summary.ptBeh?.some(s => s !== '') ? summary.ptBehWS?.toFixed(2) : ''}</td>
 
                 {/* QA ST1, ST2, TE (cols 19..21) */}
                 {summary.qa.map((score, i) => (
-                    <td key={`qa-${i}`} className="border border-black p-0">
+                    <td key={`qa-${i}`} className="border border-black p-0" data-col-key={`qa-${i}`}>
                         <DebouncedInput
                             type="number"
                             value={score === '' ? '' : score}
@@ -605,16 +624,16 @@ const StudentGradeRow = memo(({
                         />
                     </td>
                 ))}
-                <td className="border border-black bg-yellow-50/70 text-[8.5px]">{summary.st1WS !== null ? summary.st1WS.toFixed(2) : ''}</td>
-                <td className="border border-black bg-yellow-50/70 text-[8.5px]">{summary.st2WS !== null ? summary.st2WS.toFixed(2) : ''}</td>
-                <td className="border border-black bg-yellow-50/70 text-[8.5px]">{summary.teWS !== null ? summary.teWS.toFixed(2) : ''}</td>
-                <td className="border border-black bg-yellow-50 font-medium text-[8.5px]">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaPS.toFixed(2) : ''}</td>
-                <td className="border border-black bg-yellow-100 font-semibold text-[8.5px]">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaWS.toFixed(2) : ''}</td>
-                <td className="border border-black bg-gray-100 font-bold text-[8.5px]">{summary.hasScores ? summary.initialGrade.toFixed(2) : ''}</td>
-                <td className={`border border-black font-bold text-[10px] leading-tight whitespace-normal wrap-break-word ${summary.quarterlyGrade > 0 ? (summary.quarterlyGrade < 75 ? 'bg-red-500 text-white' : 'bg-deped-blue text-white') : 'bg-gray-50'}`}>
+                <td className="border border-black bg-yellow-50/70 text-[8.5px]" data-col-key="st1-ws">{summary.st1WS !== null ? summary.st1WS.toFixed(2) : ''}</td>
+                <td className="border border-black bg-yellow-50/70 text-[8.5px]" data-col-key="st2-ws">{summary.st2WS !== null ? summary.st2WS.toFixed(2) : ''}</td>
+                <td className="border border-black bg-yellow-50/70 text-[8.5px]" data-col-key="te-ws">{summary.teWS !== null ? summary.teWS.toFixed(2) : ''}</td>
+                <td className="border border-black bg-yellow-50 font-medium text-[8.5px]" data-col-key="qa-ps">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaPS.toFixed(2) : ''}</td>
+                <td className="border border-black bg-yellow-100 font-semibold text-[8.5px]" data-col-key="qa-ws">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaWS.toFixed(2) : ''}</td>
+                <td className="border border-black bg-gray-100 font-bold text-[8.5px]" data-col-key="initial-grade">{summary.hasScores ? summary.initialGrade.toFixed(2) : ''}</td>
+                <td className={`border border-black font-bold text-[10px] leading-tight whitespace-normal wrap-break-word ${summary.quarterlyGrade > 0 ? (summary.quarterlyGrade < 75 ? 'bg-red-500 text-white' : 'bg-deped-blue text-white') : 'bg-gray-50'}`} data-col-key="term-grade">
                     {summary.quarterlyGrade > 0 ? formatGradeForDisplay(summary.quarterlyGrade, sectionGradeLevel) : ''}
                 </td>
-                <td className="border border-black bg-blue-50 text-[10px] font-bold leading-tight whitespace-normal wrap-break-word px-1">
+                <td className="border border-black bg-blue-50 text-[10px] font-bold leading-tight whitespace-normal wrap-break-word px-1" data-col-key="descriptor">
                     {descriptor}
                 </td>
             </tr>
@@ -622,12 +641,12 @@ const StudentGradeRow = memo(({
     }
 
     return (
-        <tr className="hover:bg-gray-50">
-            <td className="border border-black px-2 py-0.5 text-left text-[10px] leading-tight whitespace-nowrap font-bold uppercase truncate" title={`${idx + 1}. ${formatStudentFullName(student)}`} style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>
+        <tr className="grade-row hover:bg-gray-50" data-row-key={student.lrn}>
+            <td className="student-name-cell border border-black px-2 py-0.5 text-left text-[10px] leading-tight whitespace-nowrap font-bold uppercase truncate" data-col-key="learner-name" title={`${idx + 1}. ${formatStudentFullName(student)}`} style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>
                 {idx + 1}. {formatStudentFullName(student)}
             </td>
             {summary.ww.map((score, i) => (
-                <td key={`ww-${i}`} className="border border-black p-0">
+                <td key={`ww-${i}`} className="border border-black p-0" data-col-key={`ww-${i}`}>
                     <DebouncedInput
                         type="number"
                         value={score === '' ? '' : score}
@@ -639,11 +658,11 @@ const StudentGradeRow = memo(({
                     />
                 </td>
             ))}
-            <td className="border border-black bg-blue-50">{summary.wwTotalHPS > 0 && summary.ww.some(s => s !== '') ? summary.wwTotalScore : ''}</td>
-            <td className="border border-black bg-blue-50">{summary.wwTotalHPS > 0 && summary.ww.some(s => s !== '') ? summary.wwPS.toFixed(2) : ''}</td>
-            <td className="border border-black bg-blue-100 font-semibold">{summary.wwTotalHPS > 0 && summary.ww.some(s => s !== '') ? summary.wwWS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-blue-50" data-col-key="ww-total">{summary.wwTotalHPS > 0 && summary.ww.some(s => s !== '') ? summary.wwTotalScore : ''}</td>
+            <td className="border border-black bg-blue-50" data-col-key="ww-ps">{summary.wwTotalHPS > 0 && summary.ww.some(s => s !== '') ? summary.wwPS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-blue-100 font-semibold" data-col-key="ww-ws">{summary.wwTotalHPS > 0 && summary.ww.some(s => s !== '') ? summary.wwWS.toFixed(2) : ''}</td>
             {summary.pt.map((score, i) => (
-                <td key={`pt-${i}`} className="border border-black p-0">
+                <td key={`pt-${i}`} className="border border-black p-0" data-col-key={`pt-${i}`}>
                     <DebouncedInput
                         type="number"
                         value={score === '' ? '' : score}
@@ -655,11 +674,11 @@ const StudentGradeRow = memo(({
                     />
                 </td>
             ))}
-            <td className="border border-black bg-green-50">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptTotalScore : ''}</td>
-            <td className="border border-black bg-green-50">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptPS.toFixed(2) : ''}</td>
-            <td className="border border-black bg-green-100 font-semibold">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptWS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-green-50" data-col-key="pt-total">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptTotalScore : ''}</td>
+            <td className="border border-black bg-green-50" data-col-key="pt-ps">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptPS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-green-100 font-semibold" data-col-key="pt-ws">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptWS.toFixed(2) : ''}</td>
             {summary.qa.map((score, i) => (
-                <td key={`qa-${i}`} className="border border-black p-0">
+                <td key={`qa-${i}`} className="border border-black p-0" data-col-key={`qa-${i}`}>
                     <DebouncedInput
                         type="number"
                         value={score === '' ? '' : score}
@@ -671,16 +690,16 @@ const StudentGradeRow = memo(({
                     />
                 </td>
             ))}
-            <td className="border border-black bg-yellow-50/70 text-[9px]">{summary.st1WS !== null ? summary.st1WS.toFixed(2) : ''}</td>
-            <td className="border border-black bg-yellow-50/70 text-[9px]">{summary.st2WS !== null ? summary.st2WS.toFixed(2) : ''}</td>
-            <td className="border border-black bg-yellow-50/70 text-[9px]">{summary.teWS !== null ? summary.teWS.toFixed(2) : ''}</td>
-            <td className="border border-black bg-yellow-50 font-medium">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaPS.toFixed(2) : ''}</td>
-            <td className="border border-black bg-yellow-100 font-semibold">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaWS.toFixed(2) : ''}</td>
-            <td className="border border-black bg-gray-100 font-bold">{summary.hasScores ? summary.initialGrade.toFixed(2) : ''}</td>
-            <td className={`border border-black w-20 min-w-20 max-w-20 font-bold text-[10px] leading-tight whitespace-normal wrap-break-word ${summary.quarterlyGrade > 0 ? (summary.quarterlyGrade < 75 ? 'bg-red-500 text-white' : 'bg-deped-blue text-white') : 'bg-gray-50'}`}>
+            <td className="border border-black bg-yellow-50/70 text-[9px]" data-col-key="st1-ws">{summary.st1WS !== null ? summary.st1WS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-yellow-50/70 text-[9px]" data-col-key="st2-ws">{summary.st2WS !== null ? summary.st2WS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-yellow-50/70 text-[9px]" data-col-key="te-ws">{summary.teWS !== null ? summary.teWS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-yellow-50 font-medium" data-col-key="qa-ps">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaPS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-yellow-100 font-semibold" data-col-key="qa-ws">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaWS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-gray-100 font-bold" data-col-key="initial-grade">{summary.hasScores ? summary.initialGrade.toFixed(2) : ''}</td>
+            <td className={`border border-black w-20 min-w-20 max-w-20 font-bold text-[10px] leading-tight whitespace-normal wrap-break-word ${summary.quarterlyGrade > 0 ? (summary.quarterlyGrade < 75 ? 'bg-red-500 text-white' : 'bg-deped-blue text-white') : 'bg-gray-50'}`} data-col-key="term-grade">
                 {summary.quarterlyGrade > 0 ? formatGradeForDisplay(summary.quarterlyGrade, sectionGradeLevel) : ''}
             </td>
-            <td className="border border-black bg-blue-50 text-[10px] font-bold leading-tight whitespace-normal wrap-break-word px-1">
+            <td className="border border-black bg-blue-50 text-[10px] font-bold leading-tight whitespace-normal wrap-break-word px-1" data-col-key="descriptor">
                 {descriptor}
             </td>
         </tr>
@@ -704,7 +723,7 @@ const StudentGradeRow = memo(({
 });
 
 export function EClassRecord() {
-    
+    const { containerRef, isCrosshairEnabled, toggleCrosshair } = useTableCrosshair();
 
     const students = useAppStore(state => state.students);
     const sections = useAppStore(state => state.sections);
@@ -722,6 +741,7 @@ export function EClassRecord() {
     const setGlobalSubject = useAppStore(state => state.setSelectedSubject);
     const showNotification = useAppStore(state => state.showNotification);
     const teachers = useAppStore(state => state.teachers);
+    const gradingSheetRecords = useAppStore(state => state.gradingSheetRecords);
     const { user } = useAuthStore();
 
     const [selectedSection, setSelectedSection] = useState(globalSection || '');
@@ -764,8 +784,16 @@ export function EClassRecord() {
     const isGrade1Section = isGrade1(sectionGradeLevel);
     const isG2ToG10Section = useMemo(() => isGrade2To10(sectionGradeLevel), [sectionGradeLevel]);
     const selectedSubjectObj = useMemo(() => {
+        if (selectedSubject === 'virtual_mapeh') {
+            return {
+                id: 'virtual_mapeh',
+                subject_name: 'MAPEH',
+                grade_level: selectedSectionObj?.section_grade_level || '',
+                section_id: selectedSectionObj?.id || ''
+            } as Subject;
+        }
         return subjects.find(s => s.id === selectedSubject);
-    }, [subjects, selectedSubject]);
+    }, [subjects, selectedSubject, selectedSectionObj]);
     // Sort Sections: Grade Level (Asc) -> Name (Asc)
     // Filter: If Teacher, only show sections where they are Adviser OR have a Subject assigned
     const sortedSections = useMemo(() => {
@@ -1198,16 +1226,25 @@ export function EClassRecord() {
         return Math.max(minFloor, calculated);
     }, [maleStudents, femaleStudents, formatStudentFullName]);
 
+    const studentRecordMap = useMemo(() => {
+        const map = new Map<string, ClassRecord>();
+        const targetQ = typeof quarter === 'number' ? quarter : parseInt(String(quarter).replace(/\D/g, '')) || 1;
+        for (let i = 0; i < classRecords.length; i++) {
+            const r = classRecords[i];
+            if (Number(r.quarter) !== targetQ) continue;
+            if (activeSchoolYear && r.school_year && r.school_year !== activeSchoolYear && !r.school_year.includes(activeSchoolYear)) continue;
+            if (r.subject_id === effectiveSubjectId || isSameSubject(r.subject_id, r.subject_name, effectiveSubjectId, subjectName)) {
+                map.set(r.student_lrn, r);
+            }
+        }
+        return map;
+    }, [classRecords, effectiveSubjectId, subjectName, quarter, activeSchoolYear]);
+
     const getStudentSummary = useCallback((student: typeof students[0]) => {
         const activeWwCount = isGMRCSubject ? GMRC_WW_COUNT : WW_COUNT;
         const activePtCount = isGMRCSubject ? GMRC_PT_COUNT : PT_COUNT;
 
-        const record = classRecords.find(r =>
-            r.student_lrn === student.lrn &&
-            (r.subject_id === effectiveSubjectId || isSameSubject(r.subject_id, r.subject_name, effectiveSubjectId, subjectName)) &&
-            Number(r.quarter) === quarter &&
-            (!activeSchoolYear || !r.school_year || r.school_year === activeSchoolYear || r.school_year.includes(activeSchoolYear))
-        );
+        const record = studentRecordMap.get(student.lrn);
 
         const sGrades: Pick<ClassRecord, 'written_works' | 'performance_tasks' | 'quarterly_exam'> = record || {
             written_works: Array(activeWwCount).fill(''),
@@ -1323,12 +1360,12 @@ export function EClassRecord() {
         const wwTotalScore = wwScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
         const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b), 0);
         const wwPS = wwTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (wwTotalScore / wwTotalHPS) * 100));
-        const wwWS = wwPS * (currentWeights.written_works || 0);
+        const wwWS = wwPS * (normalizeWeightFraction(currentWeights.written_works) || 0);
 
         const ptTotalScore = ptScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
         const ptTotalHPS = hps.pt.reduce<number>((a, b) => a + Number(b), 0);
         const ptPS = ptTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (ptTotalScore / ptTotalHPS) * 100));
-        const ptWS = ptPS * (currentWeights.performance_tasks || 0);
+        const ptWS = ptPS * (normalizeWeightFraction(currentWeights.performance_tasks) || 0);
 
         const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : (qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]));
         const st1HPS = Number(hps.qa[0]) || 0;
@@ -1353,9 +1390,10 @@ export function EClassRecord() {
         }
 
         const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
-        const qaWS = qaPS * (currentWeights.quarterly_exam || 0);
+        const qaWS = qaPS * (normalizeWeightFraction(currentWeights.quarterly_exam) || 0);
 
-        const initialGrade = Math.min(100, Math.max(0, (wwWS || 0) + (ptWS || 0) + (qaWS || 0)));
+        const rawInitial = (wwWS || 0) + (ptWS || 0) + (qaWS || 0);
+        const initialGrade = rawInitial > 100 && rawInitial <= 10000 ? Math.min(100, Math.max(0, rawInitial / 100)) : Math.min(100, Math.max(0, rawInitial));
         const quarterlyGrade = hasScores ? transmuteGrade(initialGrade, activeSchoolYear) : 0;
 
         return {
@@ -1369,14 +1407,14 @@ export function EClassRecord() {
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
         };
-    }, [classRecords, effectiveSubjectId, subjectName, quarter, hps, currentWeights, currentCluster, activeSchoolYear, isGMRCSubject]);
+    }, [studentRecordMap, hps, currentWeights, currentCluster, activeSchoolYear, isGMRCSubject]);
 
     const getGradeDescriptor = useCallback((grade: number, hasScores: boolean) => {
         if (!hasScores || grade <= 0) return '';
         return getGradeDescriptorWithFilipino(grade, sectionGradeLevel, activeSchoolYear);
     }, [sectionGradeLevel, activeSchoolYear]);
 
-    const getSummaryGrades = useCallback((student: typeof students[0]) => {
+    const getSummaryGrades = useCallback((student: Student): SummaryGradeResult => {
         const isMapeh = (isMapehSelected || subjectName.toUpperCase() === 'MAPEH') && mapehComponents.length > 0;
         
         const targetSubjectObj = subjects.find(s => s.id === selectedSubject);
@@ -1388,67 +1426,164 @@ export function EClassRecord() {
             return Number(termVal) === q;
         };
 
+        // Authoritative quarter grade resolver: live computed from raw scores + HPS -> fallback to resolveStudentQuarterGrade
+        const resolveQuarterGradeForSubj = (subj: Subject | undefined, q: number): number => {
+            if (!subj || !isTermOffered(subj, q)) return 0;
+
+            const record = classRecords.find(r =>
+                r.student_lrn === student.lrn &&
+                (r.subject_id === subj.id || isMatchingSubject(subj.subject_name, r.subject_id, r.subject_name)) &&
+                (r.quarter === q || Number(r.quarter) === q) &&
+                r.school_year === activeSchoolYear
+            );
+
+            const recordHps = findHpsRecord(hpsRecords, {
+                subjectId: subj.id,
+                subjectName: subj.subject_name,
+                quarter: q,
+                schoolYear: activeSchoolYear,
+                sectionId: selectedSectionObj?.id || selectedSection,
+            });
+
+            const subjCluster = getSubjectCluster(subj.subject_name, sectionGradeLevel);
+            const subjWeights = getWeights(subjCluster);
+
+            let calculated = 0;
+            if (record) {
+                const live = computeLiveTransmutedGradeFromRecord(record, recordHps, {
+                    gradeLevel: sectionGradeLevel,
+                    schoolYear: activeSchoolYear,
+                    weights: subjWeights,
+                    cluster: subjCluster,
+                    isZeroExam: false
+                });
+                if (live > 0) calculated = live;
+            }
+
+            if (!calculated || calculated <= 0) {
+                const fallback = resolveStudentQuarterGrade({
+                    studentLrn: student.lrn,
+                    subjectId: subj.id,
+                    subjectName: subj.subject_name,
+                    quarter: q,
+                    schoolYear: activeSchoolYear,
+                    gradingSheetRecords,
+                    classRecords,
+                    hpsRecords,
+                    sectionGradeLevel,
+                });
+                if (fallback > 0) calculated = fallback;
+            }
+
+            return calculated > 0 ? calculated : 0;
+        };
+
         if (isMapeh) {
             // Find component subjects for this section using the already calculated mapehComponents
-            const maSubj = mapehComponents.find(s => {
+            const maSubj = mapehComponents.find(s => isMusicArtsSubject(s.subject_name)) || mapehComponents.find(s => {
                 const n = s.subject_name.toLowerCase();
                 return (n.includes('music') && n.includes('arts'));
             });
-            const peSubj = mapehComponents.find(s => {
+            const peSubj = mapehComponents.find(s => isPeHealthSubject(s.subject_name)) || mapehComponents.find(s => {
                 const n = s.subject_name.toLowerCase();
                 return ((n.includes('pe') || n.includes('physical')) && n.includes('health'));
             });
 
-            const getGrade = (subjId?: string, q: number = 1) => {
-                if (!subjId) return '';
-                const subj = subjects.find(s => s.id === subjId);
-                if (!isTermOffered(subj, q)) return '';
+            // Legacy 4-component support fallback if dual components not present
+            const musicSubj = !maSubj ? mapehComponents.find(s => s.subject_name.toLowerCase().trim() === 'music') : undefined;
+            const artsSubj = !maSubj ? mapehComponents.find(s => s.subject_name.toLowerCase().trim() === 'arts' || s.subject_name.toLowerCase().trim() === 'art') : undefined;
+            const peOnlySubj = !peSubj ? mapehComponents.find(s => s.subject_name.toLowerCase().trim() === 'pe' || s.subject_name.toLowerCase().trim() === 'physical education') : undefined;
+            const healthSubj = !peSubj ? mapehComponents.find(s => s.subject_name.toLowerCase().trim() === 'health') : undefined;
 
-                const record = classRecords.find(r =>
-                    r.student_lrn === student.lrn &&
-                    (r.subject_id === subjId || (subj && isMatchingSubject(subj.subject_name, r.subject_id, r.subject_name))) &&
-                    (r.quarter === q || Number(r.quarter) === q) &&
-                    r.school_year === activeSchoolYear
-                );
-
-                // Only return if final_grade is a valid number > 0
-                if (record && record.final_grade) {
-                    const g = Number(record.final_grade);
-                    return isNaN(g) ? '' : g;
+            const getMaGrade = (q: number) => {
+                if (maSubj) return resolveQuarterGradeForSubj(maSubj, q);
+                if (musicSubj && artsSubj) {
+                    const m = resolveQuarterGradeForSubj(musicSubj, q);
+                    const a = resolveQuarterGradeForSubj(artsSubj, q);
+                    if (m > 0 && a > 0) return Math.round((m + a) / 2);
+                    return m || a || 0;
                 }
-                return '';
+                return 0;
+            };
+
+            const getPeGrade = (q: number) => {
+                if (peSubj) return resolveQuarterGradeForSubj(peSubj, q);
+                if (peOnlySubj && healthSubj) {
+                    const p = resolveQuarterGradeForSubj(peOnlySubj, q);
+                    const h = resolveQuarterGradeForSubj(healthSubj, q);
+                    if (p > 0 && h > 0) return Math.round((p + h) / 2);
+                    return p || h || 0;
+                }
+                return 0;
             };
 
             // Handling specific summary modes
             if (quarter === 'summary_t1' || quarter === 'summary_t2' || quarter === 'summary_t3' || quarter === 'summary') {
                 const targetTerm = quarter === 'summary_t2' ? 2 : quarter === 'summary_t3' ? 3 : 1;
-                const ma = getGrade(maSubj?.id, targetTerm);
-                const pe = getGrade(peSubj?.id, targetTerm);
-                const maNum = typeof ma === 'number' ? ma : 0;
-                const peNum = typeof pe === 'number' ? pe : 0;
-                const final = (maNum > 0 && peNum > 0) ? Math.round((maNum + peNum) / 2) : (ma || pe || '');
+                const maNum = getMaGrade(targetTerm);
+                const peNum = getPeGrade(targetTerm);
+                let finalNum: number | '' = (maNum > 0 && peNum > 0) ? Math.round((maNum + peNum) / 2) : (maNum || peNum || '');
+
+                if (finalNum === '') {
+                    const mapehDirect = resolveStudentQuarterGrade({
+                        studentLrn: student.lrn,
+                        subjectId: selectedSubject,
+                        subjectName: 'MAPEH',
+                        quarter: targetTerm,
+                        schoolYear: activeSchoolYear,
+                        gradingSheetRecords,
+                        classRecords,
+                        hpsRecords,
+                        sectionGradeLevel,
+                    });
+                    if (mapehDirect > 0) finalNum = mapehDirect;
+                }
+
+                const final = finalNum !== '' ? finalNum : '';
                 const descriptor = final !== '' ? getGradeDescriptor(Number(final), true) : '';
-                return { ma, pe, final, descriptor, isMapeh: true, mapehMode: 'component' };
+                return {
+                    ma: maNum > 0 ? maNum : '',
+                    pe: peNum > 0 ? peNum : '',
+                    final,
+                    descriptor,
+                    isMapeh: true,
+                    mapehMode: 'component'
+                };
             }
 
             if (quarter === 'summary_final') {
                 let total = 0;
                 let count = 0;
                 const termAverages = [1, 2, 3].map(q => {
-                    const maOffered = maSubj ? isTermOffered(maSubj, q) : false;
-                    const peOffered = peSubj ? isTermOffered(peSubj, q) : false;
+                    const maOffered = maSubj ? isTermOffered(maSubj, q) : true;
+                    const peOffered = peSubj ? isTermOffered(peSubj, q) : true;
                     if (!maOffered && !peOffered) return '';
                     
-                    const ma = getGrade(maSubj?.id, q);
-                    const pe = getGrade(peSubj?.id, q);
-                    const maNum = typeof ma === 'number' ? ma : 0;
-                    const peNum = typeof pe === 'number' ? pe : 0;
-                    const avg = (maNum > 0 && peNum > 0) ? Math.round((maNum + peNum) / 2) : (maNum || peNum || 0);
-                    if (avg > 0) {
-                        total += Number(avg);
-                        count++;
+                    const maNum = getMaGrade(q);
+                    const peNum = getPeGrade(q);
+                    let avg = (maNum > 0 && peNum > 0) ? Math.round((maNum + peNum) / 2) : (maNum || peNum || 0);
+
+                    if (avg === 0) {
+                        const mapehDirect = resolveStudentQuarterGrade({
+                            studentLrn: student.lrn,
+                            subjectId: selectedSubject,
+                            subjectName: 'MAPEH',
+                            quarter: q,
+                            schoolYear: activeSchoolYear,
+                            gradingSheetRecords,
+                            classRecords,
+                            hpsRecords,
+                            sectionGradeLevel,
+                        });
+                        if (mapehDirect > 0) avg = mapehDirect;
                     }
-                    return avg > 0 ? avg : '';
+
+                    if (avg > 0) {
+                        total += avg;
+                        count++;
+                        return avg;
+                    }
+                    return '';
                 });
                 const final = count > 0 ? Math.round(total / count) : '';
                 const descriptor = final !== '' ? getGradeDescriptor(Number(final), true) : '';
@@ -1462,21 +1597,17 @@ export function EClassRecord() {
             if (!isTermOffered(targetSubjectObj, q)) {
                 return '';
             }
-            const record = classRecords.find(r =>
-                r.student_lrn === student.lrn &&
-                (r.subject_id === selectedSubject || (targetSubjectObj && isMatchingSubject(targetSubjectObj.subject_name, r.subject_id, r.subject_name))) &&
-                Number(r.quarter) === q
-            );
-            const grade = record?.final_grade ? Number(record.final_grade) : 0;
+            const grade = resolveQuarterGradeForSubj(targetSubjectObj, q);
             if (grade > 0) {
                 total += grade;
                 count++;
+                return grade;
             }
-            return grade > 0 ? grade : '';
+            return '';
         });
         
         const final = count > 0 ? Math.round(total / count) : '';
-        const descriptor = final !== '' ? getGradeDescriptor(final, true) : '';
+        const descriptor = final !== '' ? getGradeDescriptor(Number(final), true) : '';
         
         return {
             t1: terms[0],
@@ -1486,7 +1617,7 @@ export function EClassRecord() {
             descriptor,
             isMapeh: false
         };
-    }, [classRecords, subjectName, selectedSubject, activeSchoolYear, quarter, mapehComponents, getGradeDescriptor, subjects, isMapehSelected]);
+    }, [classRecords, gradingSheetRecords, hpsRecords, subjectName, selectedSubject, activeSchoolYear, quarter, mapehComponents, getGradeDescriptor, subjects, isMapehSelected, selectedSectionObj, selectedSection, sectionGradeLevel]);
 
     const proficiencyDataCalc = useMemo(() => {
         const levels = [
@@ -1627,7 +1758,7 @@ export function EClassRecord() {
             subject_id: effectiveSubjectId,
             subject_name: currentSubName,
             school_year: activeSchoolYear,
-            quarter: quarter as any,
+            quarter: (typeof quarter === 'number' ? quarter : 1) as 1 | 2 | 3 | 4,
             written_works: Array(activeWwCount).fill(''),
             performance_tasks: Array(activePtCount).fill(''),
             quarterly_exam: '',
@@ -1671,10 +1802,10 @@ export function EClassRecord() {
 
             const sWw = normalizeScores(cr.written_works, activeWwCount);
             const sPt = normalizeScores(cr.performance_tasks, activePtCount);
-            const sQa = normalizeScores((cr as any).summative_tests, ST_COUNT);
+            const sQa = normalizeScores((cr as ClassRecord & { summative_tests?: (number | string)[] }).summative_tests, ST_COUNT);
             if (!sQa[2] && cr.quarterly_exam !== '') sQa[2] = cr.quarterly_exam;
 
-            const isValid = (v: any) => v !== '' && v !== null && v !== undefined && !isNaN(Number(v));
+            const isValid = (v: unknown) => v !== '' && v !== null && v !== undefined && !isNaN(Number(v));
             const hasScores = sWw.some(isValid) || sPt.some(isValid) || sQa.some(isValid);
             if (!hasScores) return;
 
@@ -1727,10 +1858,10 @@ export function EClassRecord() {
                 const hpsPtTotal = currentHpsPt.reduce((a, b) => a + b, 0);
 
                 const wwPS = hpsWwTotal === 0 ? 0 : Math.min(100, Math.max(0, (sWwTotal / hpsWwTotal) * 100));
-                const wwWS = wwPS * currentWeights.written_works;
+                const wwWS = wwPS * (normalizeWeightFraction(currentWeights.written_works) || 0);
 
                 const ptPS = hpsPtTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtTotal / hpsPtTotal) * 100));
-                const ptWS = ptPS * currentWeights.performance_tasks;
+                const ptWS = ptPS * (normalizeWeightFraction(currentWeights.performance_tasks) || 0);
 
                 const st1Score = sQa[0] === '' || sQa[0] === null || sQa[0] === undefined ? null : Number(sQa[0]);
                 const st1HPS = Number(currentHpsQa[0]) || 0;
@@ -1740,9 +1871,9 @@ export function EClassRecord() {
                 const teHPS = Number(currentHpsQa[2]) || 0;
 
                 const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
-                const qaWS = qaPS * currentWeights.quarterly_exam;
-
-                initialGrade = Math.min(100, Math.max(0, wwWS + ptWS + qaWS));
+                const qaWS = qaPS * (normalizeWeightFraction(currentWeights.quarterly_exam) || 0);
+                const rawInitial = wwWS + ptWS + qaWS;
+                initialGrade = rawInitial > 100 && rawInitial <= 10000 ? Math.min(100, Math.max(0, rawInitial / 100)) : Math.min(100, Math.max(0, rawInitial));
             }
 
             const newFinalGrade = transmuteGrade(initialGrade, cr.school_year || activeSchoolYear);
@@ -1770,7 +1901,7 @@ export function EClassRecord() {
                 quarterly_exam: 0
             });
         });
-    }, [effectiveSubjectId, subjectName, activeSchoolYear, quarter, selectedSection, selectedSectionObj, sections, sectionStudents, currentWeights, currentCluster, updateHPSRecord, updateClassRecord, isGMRCSubject]);
+    }, [effectiveSubjectId, subjectName, selectedSubjectObj?.subject_name, activeSchoolYear, quarter, selectedSection, selectedSectionObj, sections, sectionStudents, currentWeights, currentCluster, updateHPSRecord, updateClassRecord, isGMRCSubject]);
 
     const updateGrade = useCallback((lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => {
         if (!selectedSection || !effectiveSubjectId) return;
@@ -1800,7 +1931,7 @@ export function EClassRecord() {
             subject_id: effectiveSubjectId,
             subject_name: subjectName,
             school_year: activeSchoolYear,
-            quarter: quarter as any,
+            quarter: (typeof quarter === 'number' ? quarter : 1) as 1 | 2 | 3 | 4,
             written_works: Array(activeWwCount).fill(''),
             performance_tasks: Array(activePtCount).fill(''),
             quarterly_exam: '',
@@ -1891,12 +2022,12 @@ export function EClassRecord() {
             const wwTotalScore = normalizedWW.reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
             const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b), 0);
             const wwPS = wwTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (wwTotalScore / wwTotalHPS) * 100));
-            const wwWS = wwPS * currentWeights.written_works;
+            const wwWS = wwPS * (normalizeWeightFraction(currentWeights.written_works) || 0);
 
             const ptTotalScore = normalizedPT.reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
             const ptTotalHPS = hps.pt.reduce<number>((a, b) => a + Number(b), 0);
             const ptPS = ptTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (ptTotalScore / ptTotalHPS) * 100));
-            const ptWS = ptPS * currentWeights.performance_tasks;
+            const ptWS = ptPS * (normalizeWeightFraction(currentWeights.performance_tasks) || 0);
 
             const st1Score = qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]);
             const st1HPS = Number(hps.qa[0]) || 0;
@@ -1906,9 +2037,10 @@ export function EClassRecord() {
             const teHPS = Number(hps.qa[2]) || 0;
 
             const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
-            const qaWS = qaPS * currentWeights.quarterly_exam;
+            const qaWS = qaPS * (normalizeWeightFraction(currentWeights.quarterly_exam) || 0);
 
-            initialGrade = Math.min(100, Math.max(0, wwWS + ptWS + qaWS));
+            const rawInitial = wwWS + ptWS + qaWS;
+            initialGrade = rawInitial > 100 && rawInitial <= 10000 ? Math.min(100, Math.max(0, rawInitial / 100)) : Math.min(100, Math.max(0, rawInitial));
         }
 
         const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
@@ -2017,7 +2149,7 @@ export function EClassRecord() {
 
             const orientation = isSummaryMode ? 'portrait' : 'landscape';
             const pSize = PAPER_SIZES[paperSize];
-            const pdf = new jsPDF({ orientation, unit: 'mm', format: pSize.jspdfFormat as any });
+            const pdf = new jsPDF({ orientation, unit: 'mm', format: pSize.jspdfFormat as string | [number, number] });
 
             const pageW = pdf.internal.pageSize.getWidth();
             const pageH = pdf.internal.pageSize.getHeight();
@@ -2027,7 +2159,7 @@ export function EClassRecord() {
 
             for (let i = 0; i < pages.length; i++) {
                 if (i > 0) {
-                    pdf.addPage(pSize.jspdfFormat as any, orientation);
+                    pdf.addPage(pSize.jspdfFormat as string | [number, number], orientation);
                 }
 
                 const pageEl = pages[i];
@@ -2352,9 +2484,9 @@ export function EClassRecord() {
                             onChange={(e) => {
                                 const val = e.target.value;
                                 if (val.startsWith('summary')) {
-                                    setQuarter(val as any);
+                                    setQuarter(val as QuarterValue);
                                 } else {
-                                    setQuarter(Number(val) as any);
+                                    setQuarter(Number(val) as QuarterValue);
                                 }
                             }} 
                             className="form-input h-7.5 py-0.5 px-1.5 text-[10px] rounded-lg disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
@@ -2420,6 +2552,18 @@ export function EClassRecord() {
                                 <Plus className="w-2.5 h-2.5" />
                             </button>
                         </div>
+                        <button
+                            onClick={toggleCrosshair}
+                            className={`h-7.5 px-2 rounded-lg border text-[8.5px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs transition-all cursor-pointer shrink-0 ${
+                                isCrosshairEnabled
+                                    ? 'bg-blue-600 text-white border-blue-500 hover:bg-blue-700 shadow-blue-500/20'
+                                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-white/10'
+                            }`}
+                            title={isCrosshairEnabled ? "Crosshair Highlighter: Active (Click to disable)" : "Crosshair Highlighter: Disabled (Click to activate)"}
+                        >
+                            <Crosshair className="w-3 h-3" />
+                            <span>Guide</span>
+                        </button>
                         {selectedSubject && selectedSubject !== 'virtual_mapeh' && (
                             <button 
                                 onClick={() => setIsEnrollmentModalOpen(true)}
@@ -2572,41 +2716,162 @@ export function EClassRecord() {
                         )}
                         <button 
                             onClick={async () => {
-                                if (!selectedSubjectObj || !sectionStudents.length || quarter === 'summary') return;
+                                if (!selectedSubjectObj || !sectionStudents.length) return;
                                 
-                                const termName = quarter === 1 ? '1st' : quarter === 2 ? '2nd' : '3rd';
-                                const confirmMsg = `Publish ${termName} Term grades for ${selectedSubjectObj.subject_name} to the official Grade Management?\n\nThis will update the SF9/Advisory records for ${selectedSection}.`;
+                                const isSummary = typeof quarter === 'string' && quarter.startsWith('summary');
+                                const isMapeh = (isMapehSelected || subjectName.toUpperCase() === 'MAPEH') && mapehComponents.length > 0;
+                                
+                                let confirmMsg = '';
+                                if (isMapeh) {
+                                    if (quarter === 'summary_final') {
+                                        confirmMsg = `Publish Final Summary MAPEH and component grades to the official Grade Management?\n\nThis will publish all term grades for Music and Arts, PE and Health, and MAPEH to update SF9/Advisory records for ${selectedSection}.`;
+                                    } else if (typeof quarter === 'string' && quarter.startsWith('summary')) {
+                                        const targetTerm = quarter === 'summary_t2' ? 2 : quarter === 'summary_t3' ? 3 : 1;
+                                        confirmMsg = `Publish Term ${targetTerm} MAPEH and component grades to the official Grade Management?\n\nThis will update Music and Arts, PE and Health, and MAPEH composite records for ${selectedSection}.`;
+                                    } else {
+                                        confirmMsg = `Publish ${quarter === 1 ? '1st' : quarter === 2 ? '2nd' : '3rd'} Term grades for ${subjectName} to the official Grade Management?\n\nThis will update the SF9/Advisory records for ${selectedSection}.`;
+                                    }
+                                } else {
+                                    if (isSummary) {
+                                        confirmMsg = `Publish Final Summary grades for ${selectedSubjectObj.subject_name} to the official Grade Management?\n\nThis will publish all active term grades and update SF9/Advisory records for ${selectedSection}.`;
+                                    } else {
+                                        confirmMsg = `Publish ${quarter === 1 ? '1st' : quarter === 2 ? '2nd' : '3rd'} Term grades for ${selectedSubjectObj.subject_name} to the official Grade Management?\n\nThis will update the SF9/Advisory records for ${selectedSection}.`;
+                                    }
+                                }
+
                                 if (!window.confirm(confirmMsg)) return;
 
                                 try {
-                                    const { updateGradingSheetRecord } = useAppStore.getState();
+                                    const { updateGradingSheetRecord: storeUpdateGrading, updateClassRecord: storeUpdateClass } = useAppStore.getState();
                                     let count = 0;
-                                    for (const student of sectionStudents) {
-                                        const summary = getStudentSummary(student);
-                                        if (summary.hasScores && summary.quarterlyGrade > 0) {
-                                            const recordId = `${student.lrn}_${selectedSubject}_${quarter}_${activeSchoolYear}`;
-                                            await updateGradingSheetRecord({
-                                                id: recordId,
-                                                student_lrn: student.lrn,
-                                                subject_id: selectedSubject,
-                                                subject_name: selectedSubjectObj.subject_name,
-                                                section_id: selectedSectionObj?.id || '',
-                                                quarter: quarter as 1|2|3,
-                                                school_year: activeSchoolYear,
-                                                final_grade: summary.quarterlyGrade,
-                                                written_works: [],
-                                                performance_tasks: [],
-                                                quarterly_exam: 0
+
+                                    const maSubj = mapehComponents.find(s => isMusicArtsSubject(s.subject_name)) || mapehComponents.find(s => {
+                                        const n = s.subject_name.toLowerCase();
+                                        return (n.includes('music') && n.includes('arts'));
+                                    });
+                                    const peSubj = mapehComponents.find(s => isPeHealthSubject(s.subject_name)) || mapehComponents.find(s => {
+                                        const n = s.subject_name.toLowerCase();
+                                        return ((n.includes('pe') || n.includes('physical')) && n.includes('health'));
+                                    });
+                                    const mapehSubj = subjects.find(s => (s.id === selectedSubject && s.id !== 'virtual_mapeh') || (s.subject_name.trim().toUpperCase() === 'MAPEH' && (s.section_id === selectedSectionObj?.id || !s.section_id)));
+                                    const mapehId = mapehSubj?.id || (selectedSubject !== 'virtual_mapeh' ? selectedSubject : 'virtual_mapeh');
+                                    const mapehName = mapehSubj?.subject_name || 'MAPEH';
+
+                                    const syncGradeRecord = async (studentLrn: string, subjId: string, subjName: string, qNum: 1|2|3, gradeVal: number) => {
+                                        if (gradeVal <= 0) return;
+                                        const recordId = `${studentLrn}_${subjId}_${qNum}_${activeSchoolYear}`;
+                                        await storeUpdateGrading({
+                                            id: recordId,
+                                            student_lrn: studentLrn,
+                                            subject_id: subjId,
+                                            subject_name: subjName,
+                                            section_id: selectedSectionObj?.id || '',
+                                            quarter: qNum,
+                                            school_year: activeSchoolYear,
+                                            final_grade: gradeVal,
+                                            written_works: [],
+                                            performance_tasks: [],
+                                            quarterly_exam: 0
+                                        });
+                                        count++;
+
+                                        const existingCR = classRecords.find(
+                                            cr => cr.student_lrn === studentLrn &&
+                                                  (cr.subject_id === subjId || isMatchingSubject(subjName, cr.subject_id, cr.subject_name)) &&
+                                                  Number(cr.quarter) === qNum &&
+                                                  cr.school_year === activeSchoolYear
+                                        );
+                                        if (existingCR && existingCR.final_grade !== gradeVal) {
+                                            await storeUpdateClass({
+                                                ...existingCR,
+                                                final_grade: gradeVal
                                             });
-                                            count++;
+                                        }
+                                    };
+
+                                    if (isMapeh) {
+                                        if (quarter === 'summary_final') {
+                                            for (const student of sectionStudents) {
+                                                for (const t of [1, 2, 3] as const) {
+                                                    const sSummary = getSummaryGrades(student);
+                                                    const tVal = t === 1 ? sSummary.t1 : t === 2 ? sSummary.t2 : sSummary.t3;
+                                                    if (tVal && typeof tVal === 'number' && tVal > 0) {
+                                                        await syncGradeRecord(student.lrn, mapehId, mapehName, t, tVal);
+                                                    }
+                                                }
+                                            }
+                                        } else if (typeof quarter === 'string' && quarter.startsWith('summary')) {
+                                            const targetTerm = (quarter === 'summary_t2' ? 2 : quarter === 'summary_t3' ? 3 : 1) as 1|2|3;
+                                            for (const student of sectionStudents) {
+                                                const sSummary = getSummaryGrades(student);
+                                                if (sSummary.isMapeh) {
+                                                    const maVal = Number(sSummary.ma) || 0;
+                                                    const peVal = Number(sSummary.pe) || 0;
+                                                    const compVal = Number(sSummary.final) || 0;
+                                                    if (maVal > 0 && maSubj) {
+                                                        await syncGradeRecord(student.lrn, maSubj.id, maSubj.subject_name, targetTerm, maVal);
+                                                    }
+                                                    if (peVal > 0 && peSubj) {
+                                                        await syncGradeRecord(student.lrn, peSubj.id, peSubj.subject_name, targetTerm, peVal);
+                                                    }
+                                                    if (compVal > 0) {
+                                                        await syncGradeRecord(student.lrn, mapehId, mapehName, targetTerm, compVal);
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            const qNum = quarter as 1|2|3;
+                                            for (const student of sectionStudents) {
+                                                const summary = getStudentSummary(student);
+                                                if (summary.hasScores && summary.quarterlyGrade > 0) {
+                                                    await syncGradeRecord(student.lrn, effectiveSubjectId, subjectName, qNum, summary.quarterlyGrade);
+
+                                                    const isCurrentMA = isMusicArtsSubject(subjectName);
+                                                    const siblingSubj = isCurrentMA ? peSubj : maSubj;
+                                                    if (siblingSubj) {
+                                                        const siblingRecord = classRecords.find(
+                                                            r => r.student_lrn === student.lrn &&
+                                                                 (r.subject_id === siblingSubj.id || isMatchingSubject(siblingSubj.subject_name, r.subject_id, r.subject_name)) &&
+                                                                 Number(r.quarter) === qNum &&
+                                                                 r.school_year === activeSchoolYear
+                                                        );
+                                                        const siblingGrade = siblingRecord?.final_grade ? Number(siblingRecord.final_grade) : 0;
+                                                        if (siblingGrade > 0) {
+                                                            const mapehComposite = Math.round((summary.quarterlyGrade + siblingGrade) / 2);
+                                                            await syncGradeRecord(student.lrn, mapehId, mapehName, qNum, mapehComposite);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        if (isSummary) {
+                                            for (const student of sectionStudents) {
+                                                const sSummary = getSummaryGrades(student);
+                                                for (const t of [1, 2, 3] as const) {
+                                                    const termGrade = t === 1 ? sSummary.t1 : t === 2 ? sSummary.t2 : sSummary.t3;
+                                                    if (termGrade && typeof termGrade === 'number' && termGrade > 0) {
+                                                        await syncGradeRecord(student.lrn, selectedSubject, selectedSubjectObj.subject_name, t, termGrade);
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            const qNum = quarter as 1|2|3;
+                                            for (const student of sectionStudents) {
+                                                const summary = getStudentSummary(student);
+                                                if (summary.hasScores && summary.quarterlyGrade > 0) {
+                                                    await syncGradeRecord(student.lrn, effectiveSubjectId, selectedSubjectObj.subject_name, qNum, summary.quarterlyGrade);
+                                                }
+                                            }
                                         }
                                     }
+
                                     showNotification(`Successfully published ${count} grades to official records!`, 'success');
                                 } catch {
                                     showNotification("Failed to publish grades.", "error");
                                 }
                             }}
-                            disabled={!selectedSubject || sectionStudents.length === 0 || (typeof quarter === 'string' && quarter.startsWith('summary'))}
+                            disabled={!selectedSubject || sectionStudents.length === 0}
                             className="h-7.5 px-2 bg-emerald-600 text-white text-[8.5px] font-black uppercase tracking-wider rounded-lg shadow-xs hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-1 group disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed whitespace-nowrap cursor-pointer"
                             title={!selectedSubject ? "Please select a subject first to publish grades" : "Publish grades to Grade Management"}
                         >
@@ -2874,27 +3139,27 @@ export function EClassRecord() {
                                                     {formatStudentFullName(student)}
                                                 </td>
                                                 {summary.isMapeh ? (
-                                                    (summary as any).mapehMode === 'final' ? (
+                                                    summary.mapehMode === 'final' ? (
                                                         <>
-                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t1, sectionGradeLevel)}</td>
-                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t2, sectionGradeLevel)}</td>
-                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t3, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t1, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t2, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t3, sectionGradeLevel)}</td>
                                                             <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
                                                             <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).ma, sectionGradeLevel)}</td>
-                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).pe, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.ma, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.pe, sectionGradeLevel)}</td>
                                                             <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
                                                             <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
                                                         </>
                                                     )
                                                 ) : (
                                                     <>
-                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t1, sectionGradeLevel)}</td>
-                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t2, sectionGradeLevel)}</td>
-                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t3, sectionGradeLevel)}</td>
+                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t1, sectionGradeLevel)}</td>
+                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t2, sectionGradeLevel)}</td>
+                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t3, sectionGradeLevel)}</td>
                                                         <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
                                                         <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
                                                         <td className={`border border-black text-center font-bold text-[9px] ${summary.final !== '' && Number(summary.final) >= 75 ? 'text-green-700' : 'text-red-600'}`}>
@@ -2917,27 +3182,27 @@ export function EClassRecord() {
                                                     {formatStudentFullName(student)}
                                                 </td>
                                                 {summary.isMapeh ? (
-                                                    (summary as any).mapehMode === 'final' ? (
+                                                    summary.mapehMode === 'final' ? (
                                                         <>
-                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t1, sectionGradeLevel)}</td>
-                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t2, sectionGradeLevel)}</td>
-                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t3, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t1, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t2, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t3, sectionGradeLevel)}</td>
                                                             <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
                                                             <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).ma, sectionGradeLevel)}</td>
-                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).pe, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.ma, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.pe, sectionGradeLevel)}</td>
                                                             <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
                                                             <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
                                                         </>
                                                     )
                                                 ) : (
                                                     <>
-                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t1, sectionGradeLevel)}</td>
-                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t2, sectionGradeLevel)}</td>
-                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t3, sectionGradeLevel)}</td>
+                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t1, sectionGradeLevel)}</td>
+                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t2, sectionGradeLevel)}</td>
+                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t3, sectionGradeLevel)}</td>
                                                         <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
                                                         <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
                                                         <td className={`border border-black text-center font-bold text-[9px] ${summary.final !== '' && Number(summary.final) >= 75 ? 'text-green-700' : 'text-red-600'}`}>
@@ -2953,7 +3218,7 @@ export function EClassRecord() {
                         </div>
                     ) : (
                     <div className="bg-slate-50/50 dark:bg-[#070a12] p-3 md:p-4 overflow-x-auto">
-                        <div id="printable-class-record" className="bg-white text-black p-4 md:p-6 shadow-xl border border-gray-100 mx-auto transition-all duration-300" style={{ width: isGMRCSubject ? `${optimalNameColumnWidth + 1330}px` : PAPER_SIZES[paperSize].previewWidthLandscape, minWidth: isGMRCSubject ? `${optimalNameColumnWidth + 1280}px` : undefined }}>
+                        <div id="printable-class-record" ref={containerRef} className="bg-white text-black p-4 md:p-6 shadow-xl border border-gray-100 mx-auto transition-all duration-300" style={{ width: isGMRCSubject ? `${optimalNameColumnWidth + 1330}px` : PAPER_SIZES[paperSize].previewWidthLandscape, minWidth: isGMRCSubject ? `${optimalNameColumnWidth + 1280}px` : undefined }}>
                             {[
                                 { gender: 'MALE' as const, students: maleStudents },
                                 { gender: 'FEMALE' as const, students: femaleStudents }
@@ -3020,7 +3285,7 @@ export function EClassRecord() {
 
                             <div className="flex border-2 border-black mb-px text-[10px] leading-none bg-white">
                                 <div className="h-9 px-3 border-r-2 border-black font-bold bg-yellow-100 flex items-center justify-center text-center shrink-0 min-w-28 text-[10.5px] uppercase tracking-wide">
-                                    {(typeof quarter === 'string' && quarter.startsWith('summary')) ? 'SUMMARY OF GRADES' : getTermUpperLabel(quarter as any)}
+                                    {(typeof quarter === 'string' && quarter.startsWith('summary')) ? 'SUMMARY OF GRADES' : getTermUpperLabel(Number(quarter))}
                                 </div>
                                 <div className="h-9 px-4 border-r-2 border-black flex items-center justify-center whitespace-nowrap flex-1 text-[10.5px]">
                                     <span className="font-bold mr-1.5 shrink-0">GRADE & SECTION:</span>
@@ -3045,11 +3310,11 @@ export function EClassRecord() {
                                 </div>
                             )}
 
-                            <table className="w-full table-fixed border-collapse border-2 border-black text-[10px] text-center">
+                            <table className="crosshair-table w-full table-fixed border-collapse border-2 border-black text-[10px] text-center">
                                 {isGMRCSubject ? (
                                     <thead>
                                         <tr className="h-10">
-                                            <th rowSpan={3} className="border border-black p-1 align-middle text-[9px] tracking-wide bg-gray-200" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>LEARNERS' NAMES</th>
+                                            <th rowSpan={3} className="border border-black p-1 align-middle text-[9px] tracking-wide bg-gray-200" data-col-key="learner-name" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>LEARNERS' NAMES</th>
                                             <th colSpan={16} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8.5px] bg-gray-200" style={{ letterSpacing: '0.02em' }}>WRITTEN / ORAL WORKS (WWs) - 20%</th>
                                             <th colSpan={18} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8.5px] leading-tight bg-gray-200" style={{ letterSpacing: '0.02em' }}>
                                                 PRODUCT / PERFORMANCE TASKS (PTs) - 50%
@@ -3057,9 +3322,9 @@ export function EClassRecord() {
                                             <th colSpan={8} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8.5px] leading-tight bg-gray-200" style={{ letterSpacing: '0.02em' }}>
                                                 EXAMINATIONS (EXs) - 30%
                                             </th>
-                                            <th rowSpan={4} className="border border-black w-14 min-w-14 max-w-14 p-1 align-middle bg-yellow-50 font-bold leading-none text-[8px]">INITIAL GRADE</th>
-                                            <th rowSpan={4} className="border border-black w-16 min-w-16 max-w-16 p-1 align-middle bg-green-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word">TERM GRADE</th>
-                                            <th rowSpan={4} className="border border-black w-20 min-w-20 max-w-20 p-1 align-middle bg-blue-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word">DESCRIPTOR</th>
+                                            <th rowSpan={4} className="border border-black w-14 min-w-14 max-w-14 p-1 align-middle bg-yellow-50 font-bold leading-none text-[8px]" data-col-key="initial-grade">INITIAL GRADE</th>
+                                            <th rowSpan={4} className="border border-black w-16 min-w-16 max-w-16 p-1 align-middle bg-green-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word" data-col-key="term-grade">TERM GRADE</th>
+                                            <th rowSpan={4} className="border border-black w-20 min-w-20 max-w-20 p-1 align-middle bg-blue-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word" data-col-key="descriptor">DESCRIPTOR</th>
                                         </tr>
                                         <tr className="h-6">
                                             <th colSpan={8} className="border border-black text-[7.5px] font-bold bg-gray-100">COGNITIVE DOMAIN</th>
@@ -3070,41 +3335,41 @@ export function EClassRecord() {
                                             <th colSpan={8} className="border border-black text-[7.5px] font-bold bg-gray-100">SUMMATIVE AND TERM EXAMS</th>
                                         </tr>
                                         <tr className="h-7 text-[8px]">
-                                            {[1, 2, 3, 4, 5].map(i => <th key={`ww-cog-${i}`} className="border border-black w-6 min-w-6 text-[8px] font-bold bg-gray-100">{i}</th>)}
-                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">Total</th>
-                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">PS</th>
-                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] leading-none">WS<br/><span className="text-[6px] font-normal">(10%)</span></th>
-                                            {[1, 2, 3, 4, 5].map(i => <th key={`ww-aff-${i}`} className="border border-black w-6 min-w-6 text-[8px] font-bold bg-gray-100">{i}</th>)}
-                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">Total</th>
-                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">PS</th>
-                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] leading-none">WS<br/><span className="text-[6px] font-normal">(10%)</span></th>
+                                            {[1, 2, 3, 4, 5].map(i => <th key={`ww-cog-${i}`} className="border border-black w-6 min-w-6 text-[8px] font-bold bg-gray-100" data-col-key={`ww-cog-${i - 1}`}>{i}</th>)}
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]" data-col-key="ww-cog-total">Total</th>
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]" data-col-key="ww-cog-ps">PS</th>
+                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] leading-none" data-col-key="ww-cog-ws">WS<br/><span className="text-[6px] font-normal">(10%)</span></th>
+                                            {[1, 2, 3, 4, 5].map(i => <th key={`ww-aff-${i}`} className="border border-black w-6 min-w-6 text-[8px] font-bold bg-gray-100" data-col-key={`ww-aff-${i - 1}`}>{i}</th>)}
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]" data-col-key="ww-aff-total">Total</th>
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]" data-col-key="ww-aff-ps">PS</th>
+                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] leading-none" data-col-key="ww-aff-ws">WS<br/><span className="text-[6px] font-normal">(10%)</span></th>
 
-                                            {[1, 2, 3].map(i => <th key={`pt-cog-${i}`} className="border border-black w-6 min-w-6 text-[8px] font-bold bg-gray-100">{i}</th>)}
-                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">Total</th>
-                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">PS</th>
-                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] leading-none">WS<br/><span className="text-[6px] font-normal">(10%)</span></th>
-                                            {[1, 2, 3].map(i => <th key={`pt-aff-${i}`} className="border border-black w-6 min-w-6 text-[8px] font-bold bg-gray-100">{i}</th>)}
-                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">Total</th>
-                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">PS</th>
-                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] leading-none">WS<br/><span className="text-[6px] font-normal">(10%)</span></th>
-                                            {[1, 2, 3].map(i => <th key={`pt-beh-${i}`} className="border border-black w-6 min-w-6 text-[8px] font-bold bg-gray-100">{i}</th>)}
-                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">Total</th>
-                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">PS</th>
-                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] leading-none">WS<br/><span className="text-[6px] font-normal">(30%)</span></th>
+                                            {[1, 2, 3].map(i => <th key={`pt-cog-${i}`} className="border border-black w-6 min-w-6 text-[8px] font-bold bg-gray-100" data-col-key={`pt-cog-${i - 1}`}>{i}</th>)}
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]" data-col-key="pt-cog-total">Total</th>
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]" data-col-key="pt-cog-ps">PS</th>
+                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] leading-none" data-col-key="pt-cog-ws">WS<br/><span className="text-[6px] font-normal">(10%)</span></th>
+                                            {[1, 2, 3].map(i => <th key={`pt-aff-${i}`} className="border border-black w-6 min-w-6 text-[8px] font-bold bg-gray-100" data-col-key={`pt-aff-${i - 1}`}>{i}</th>)}
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]" data-col-key="pt-aff-total">Total</th>
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]" data-col-key="pt-aff-ps">PS</th>
+                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] leading-none" data-col-key="pt-aff-ws">WS<br/><span className="text-[6px] font-normal">(10%)</span></th>
+                                            {[1, 2, 3].map(i => <th key={`pt-beh-${i}`} className="border border-black w-6 min-w-6 text-[8px] font-bold bg-gray-100" data-col-key={`pt-beh-${i - 1}`}>{i}</th>)}
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]" data-col-key="pt-beh-total">Total</th>
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]" data-col-key="pt-beh-ps">PS</th>
+                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] leading-none" data-col-key="pt-beh-ws">WS<br/><span className="text-[6px] font-normal">(30%)</span></th>
 
-                                            <th className="border border-black w-7 min-w-7 text-[8px] font-bold bg-gray-100">ST1</th>
-                                            <th className="border border-black w-7 min-w-7 text-[8px] font-bold bg-gray-100">ST2</th>
-                                            <th className="border border-black w-7 min-w-7 text-[8px] font-bold bg-gray-100">TE</th>
-                                            <th className="border border-black w-9 min-w-9 text-[7px] font-bold leading-none bg-yellow-100/70">WS ST1<br/><span className="text-[6px] font-normal">(30%)</span></th>
-                                            <th className="border border-black w-9 min-w-9 text-[7px] font-bold leading-none bg-yellow-100/70">WS ST2<br/><span className="text-[6px] font-normal">(30%)</span></th>
-                                            <th className="border border-black w-9 min-w-9 text-[7px] font-bold leading-none bg-yellow-100/70">WS TE<br/><span className="text-[6px] font-normal">(40%)</span></th>
-                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] font-bold leading-none">PS<br/><span className="text-[6px] font-normal">(100)</span></th>
-                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] font-bold leading-none">WS<br/><span className="text-[6px] font-normal">(30%)</span></th>
+                                            <th className="border border-black w-7 min-w-7 text-[8px] font-bold bg-gray-100" data-col-key="qa-0">ST1</th>
+                                            <th className="border border-black w-7 min-w-7 text-[8px] font-bold bg-gray-100" data-col-key="qa-1">ST2</th>
+                                            <th className="border border-black w-7 min-w-7 text-[8px] font-bold bg-gray-100" data-col-key="qa-2">TE</th>
+                                            <th className="border border-black w-9 min-w-9 text-[7px] font-bold leading-none bg-yellow-100/70" data-col-key="st1-ws">WS ST1<br/><span className="text-[6px] font-normal">(30%)</span></th>
+                                            <th className="border border-black w-9 min-w-9 text-[7px] font-bold leading-none bg-yellow-100/70" data-col-key="st2-ws">WS ST2<br/><span className="text-[6px] font-normal">(30%)</span></th>
+                                            <th className="border border-black w-9 min-w-9 text-[7px] font-bold leading-none bg-yellow-100/70" data-col-key="te-ws">WS TE<br/><span className="text-[6px] font-normal">(40%)</span></th>
+                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] font-bold leading-none" data-col-key="qa-ps">PS<br/><span className="text-[6px] font-normal">(100)</span></th>
+                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] font-bold leading-none" data-col-key="qa-ws">WS<br/><span className="text-[6px] font-normal">(30%)</span></th>
                                         </tr>
                                         <tr className="font-bold h-8 text-[8px]">
-                                            <td className="border border-black p-1 text-left whitespace-nowrap tracking-wide text-[7px] bg-gray-100" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>HIGHEST POSSIBLE SCORE</td>
+                                            <td className="border border-black p-1 text-left whitespace-nowrap tracking-wide text-[7px] bg-gray-100" data-col-key="learner-name" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>HIGHEST POSSIBLE SCORE</td>
                                             {hps.ww.slice(0, 5).map((val, i) => (
-                                                <td key={`hps-ww-cog-${i}`} className="border border-black p-0 bg-white">
+                                                <td key={`hps-ww-cog-${i}`} className="border border-black p-0 bg-white" data-col-key={`ww-cog-${i}`}>
                                                     <DebouncedInput
                                                         type="number"
                                                         value={val === '' ? '' : val}
@@ -3116,12 +3381,12 @@ export function EClassRecord() {
                                                     />
                                                 </td>
                                             ))}
-                                            <td className="border border-black bg-gray-100 text-[7.5px]">{hps.ww.slice(0, 5).some(v => v !== '') ? hps.ww.slice(0, 5).reduce((a, b) => a + Number(b), 0) : ''}</td>
-                                            <td className="border border-black bg-gray-100 text-[7.5px]">100.00</td>
-                                            <td className="border border-black bg-gray-100 text-[7.5px]">10%</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]" data-col-key="ww-cog-total">{hps.ww.slice(0, 5).some(v => v !== '') ? hps.ww.slice(0, 5).reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]" data-col-key="ww-cog-ps">100.00</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]" data-col-key="ww-cog-ws">10%</td>
 
                                             {hps.ww.slice(5, 10).map((val, i) => (
-                                                <td key={`hps-ww-aff-${i}`} className="border border-black p-0 bg-white">
+                                                <td key={`hps-ww-aff-${i}`} className="border border-black p-0 bg-white" data-col-key={`ww-aff-${i}`}>
                                                     <DebouncedInput
                                                         type="number"
                                                         value={val === '' ? '' : val}
@@ -3133,12 +3398,12 @@ export function EClassRecord() {
                                                     />
                                                 </td>
                                             ))}
-                                            <td className="border border-black bg-gray-100 text-[7.5px]">{hps.ww.slice(5, 10).some(v => v !== '') ? hps.ww.slice(5, 10).reduce((a, b) => a + Number(b), 0) : ''}</td>
-                                            <td className="border border-black bg-gray-100 text-[7.5px]">100.00</td>
-                                            <td className="border border-black bg-gray-100 text-[7.5px]">10%</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]" data-col-key="ww-aff-total">{hps.ww.slice(5, 10).some(v => v !== '') ? hps.ww.slice(5, 10).reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]" data-col-key="ww-aff-ps">100.00</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]" data-col-key="ww-aff-ws">10%</td>
 
                                             {hps.pt.slice(0, 3).map((val, i) => (
-                                                <td key={`hps-pt-cog-${i}`} className="border border-black p-0 bg-white">
+                                                <td key={`hps-pt-cog-${i}`} className="border border-black p-0 bg-white" data-col-key={`pt-cog-${i}`}>
                                                     <DebouncedInput
                                                         type="number"
                                                         value={val === '' ? '' : val}
@@ -3150,12 +3415,12 @@ export function EClassRecord() {
                                                     />
                                                 </td>
                                             ))}
-                                            <td className="border border-black bg-gray-100 text-[7.5px]">{hps.pt.slice(0, 3).some(v => v !== '') ? hps.pt.slice(0, 3).reduce((a, b) => a + Number(b), 0) : ''}</td>
-                                            <td className="border border-black bg-gray-100 text-[7.5px]">100.00</td>
-                                            <td className="border border-black bg-gray-100 text-[7.5px]">10%</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]" data-col-key="pt-cog-total">{hps.pt.slice(0, 3).some(v => v !== '') ? hps.pt.slice(0, 3).reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]" data-col-key="pt-cog-ps">100.00</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]" data-col-key="pt-cog-ws">10%</td>
 
                                             {hps.pt.slice(3, 6).map((val, i) => (
-                                                <td key={`hps-pt-aff-${i}`} className="border border-black p-0 bg-white">
+                                                <td key={`hps-pt-aff-${i}`} className="border border-black p-0 bg-white" data-col-key={`pt-aff-${i}`}>
                                                     <DebouncedInput
                                                         type="number"
                                                         value={val === '' ? '' : val}
@@ -3167,12 +3432,12 @@ export function EClassRecord() {
                                                     />
                                                 </td>
                                             ))}
-                                            <td className="border border-black bg-gray-100 text-[7.5px]">{hps.pt.slice(3, 6).some(v => v !== '') ? hps.pt.slice(3, 6).reduce((a, b) => a + Number(b), 0) : ''}</td>
-                                            <td className="border border-black bg-gray-100 text-[7.5px]">100.00</td>
-                                            <td className="border border-black bg-gray-100 text-[7.5px]">10%</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]" data-col-key="pt-aff-total">{hps.pt.slice(3, 6).some(v => v !== '') ? hps.pt.slice(3, 6).reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]" data-col-key="pt-aff-ps">100.00</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]" data-col-key="pt-aff-ws">10%</td>
 
                                             {hps.pt.slice(6, 9).map((val, i) => (
-                                                <td key={`hps-pt-beh-${i}`} className="border border-black p-0 bg-white">
+                                                <td key={`hps-pt-beh-${i}`} className="border border-black p-0 bg-white" data-col-key={`pt-beh-${i}`}>
                                                     <DebouncedInput
                                                         type="number"
                                                         value={val === '' ? '' : val}
@@ -3184,12 +3449,12 @@ export function EClassRecord() {
                                                     />
                                                 </td>
                                             ))}
-                                            <td className="border border-black bg-gray-100 text-[7.5px]">{hps.pt.slice(6, 9).some(v => v !== '') ? hps.pt.slice(6, 9).reduce((a, b) => a + Number(b), 0) : ''}</td>
-                                            <td className="border border-black bg-gray-100 text-[7.5px]">100.00</td>
-                                            <td className="border border-black bg-gray-100 text-[7.5px]">30%</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]" data-col-key="pt-beh-total">{hps.pt.slice(6, 9).some(v => v !== '') ? hps.pt.slice(6, 9).reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]" data-col-key="pt-beh-ps">100.00</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]" data-col-key="pt-beh-ws">30%</td>
 
                                             {hps.qa.map((val, i) => (
-                                                <td key={`hps-qa-${i}`} className="border border-black p-0 bg-white">
+                                                <td key={`hps-qa-${i}`} className="border border-black p-0 bg-white" data-col-key={`qa-${i}`}>
                                                     <DebouncedInput
                                                         type="number"
                                                         value={val === '' ? '' : val}
@@ -3201,52 +3466,52 @@ export function EClassRecord() {
                                                     />
                                                 </td>
                                             ))}
-                                            <td className="border border-black bg-yellow-100/70 text-[7.5px]">30</td>
-                                            <td className="border border-black bg-yellow-100/70 text-[7.5px]">30</td>
-                                            <td className="border border-black bg-yellow-100/70 text-[7.5px]">40</td>
-                                            <td className="border border-black bg-gray-100 text-[7.5px]">100.00</td>
-                                            <td className="border border-black bg-gray-100 text-[7.5px]">30%</td>
+                                            <td className="border border-black bg-yellow-100/70 text-[7.5px]" data-col-key="st1-ws">30</td>
+                                            <td className="border border-black bg-yellow-100/70 text-[7.5px]" data-col-key="st2-ws">30</td>
+                                            <td className="border border-black bg-yellow-100/70 text-[7.5px]" data-col-key="te-ws">40</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]" data-col-key="qa-ps">100.00</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]" data-col-key="qa-ws">30%</td>
                                         </tr>
                                     </thead>
                                 ) : (
                                     <thead>
                                         <tr className="h-11">
-                                            <th rowSpan={2} className="border border-black p-1 align-middle text-[9px] tracking-wide bg-gray-200" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>LEARNERS' NAMES</th>
-                                            <th colSpan={8} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] bg-gray-200" style={{ letterSpacing: '0.02em' }}>WRITTEN / ORAL WORKS ({Math.round(currentWeights.written_works * 100)}%)</th>
+                                            <th rowSpan={2} className="border border-black p-1 align-middle text-[9px] tracking-wide bg-gray-200" data-col-key="learner-name" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>LEARNERS' NAMES</th>
+                                            <th colSpan={8} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] bg-gray-200" style={{ letterSpacing: '0.02em' }}>WRITTEN / ORAL WORKS ({normalizeWeightPercent(currentWeights.written_works)}%)</th>
                                             <th colSpan={6} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] leading-tight bg-gray-200" style={{ letterSpacing: '0.02em' }}>
                                                 <span>PRODUCT / PERFORMANCE</span><br />
-                                                <span>TASKS ({Math.round(currentWeights.performance_tasks * 100)}%)</span>
+                                                <span>TASKS ({normalizeWeightPercent(currentWeights.performance_tasks)}%)</span>
                                             </th>
                                             <th colSpan={8} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] leading-tight bg-gray-200" style={{ letterSpacing: '0.02em' }}>
                                                 <span>SUMMATIVE TESTS AND TERM</span><br />
-                                                <span>EXAMINATIONS ({Math.round(currentWeights.quarterly_exam * 100)}%)</span>
+                                                <span>EXAMINATIONS ({normalizeWeightPercent(currentWeights.quarterly_exam)}%)</span>
                                             </th>
-                                            <th rowSpan={3} className="border border-black w-16 min-w-16 max-w-16 p-1 align-middle bg-yellow-50 font-bold leading-none text-[9px]">INITIAL GRADE</th>
-                                            <th rowSpan={3} className="border border-black w-20 min-w-20 max-w-20 p-1 align-middle bg-green-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word">TERM GRADE</th>
-                                            <th rowSpan={3} className="border border-black w-24 min-w-24 max-w-24 p-1 align-middle bg-blue-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word">DESCRIPTOR</th>
+                                            <th rowSpan={3} className="border border-black w-16 min-w-16 max-w-16 p-1 align-middle bg-yellow-50 font-bold leading-none text-[9px]" data-col-key="initial-grade">INITIAL GRADE</th>
+                                            <th rowSpan={3} className="border border-black w-20 min-w-20 max-w-20 p-1 align-middle bg-green-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word" data-col-key="term-grade">TERM GRADE</th>
+                                            <th rowSpan={3} className="border border-black w-24 min-w-24 max-w-24 p-1 align-middle bg-blue-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word" data-col-key="descriptor">DESCRIPTOR</th>
                                         </tr>
                                         <tr className="h-8">
-                                            {[1, 2, 3, 4, 5].map(i => <th key={`ww-${i}`} className="border border-black w-6 text-[9px] font-bold bg-gray-100">{i}</th>)}
-                                            <th className="border border-black w-10 bg-gray-200">Total</th>
-                                            <th className="border border-black w-14 bg-gray-200">PS</th>
-                                            <th className="border border-black w-12 bg-gray-200">WS</th>
-                                            {[1, 2, 3].map(i => <th key={`pt-${i}`} className="border border-black w-6 text-[9px] font-bold bg-gray-100">{i}</th>)}
-                                            <th className="border border-black w-10 bg-gray-200">Total</th>
-                                            <th className="border border-black w-14 bg-gray-200">PS</th>
-                                            <th className="border border-black w-12 bg-gray-200">WS</th>
-                                            <th className="border border-black w-8 text-[9px] font-bold bg-gray-100">ST1</th>
-                                            <th className="border border-black w-8 text-[9px] font-bold bg-gray-100">ST2</th>
-                                            <th className="border border-black w-8 text-[9px] font-bold bg-gray-100">TE</th>
-                                            <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS ST1<br/><span className="text-[6.5px] font-normal">(30%)</span></th>
-                                            <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS ST2<br/><span className="text-[6.5px] font-normal">(30%)</span></th>
-                                            <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS TE<br/><span className="text-[6.5px] font-normal">(40%)</span></th>
-                                            <th className="border border-black w-14 bg-gray-200 text-[8px] font-bold leading-none">PS<br/><span className="text-[6.5px] font-normal">(ST & TE)</span></th>
-                                            <th className="border border-black w-12 bg-gray-200 text-[8px] font-bold leading-none">WS<br/><span className="text-[6.5px] font-normal">(ST & TE)</span></th>
+                                            {[1, 2, 3, 4, 5].map(i => <th key={`ww-${i}`} className="border border-black w-6 text-[9px] font-bold bg-gray-100" data-col-key={`ww-${i - 1}`}>{i}</th>)}
+                                            <th className="border border-black w-10 bg-gray-200" data-col-key="ww-total">Total</th>
+                                            <th className="border border-black w-14 bg-gray-200" data-col-key="ww-ps">PS</th>
+                                            <th className="border border-black w-12 bg-gray-200" data-col-key="ww-ws">WS</th>
+                                            {[1, 2, 3].map(i => <th key={`pt-${i}`} className="border border-black w-6 text-[9px] font-bold bg-gray-100" data-col-key={`pt-${i - 1}`}>{i}</th>)}
+                                            <th className="border border-black w-10 bg-gray-200" data-col-key="pt-total">Total</th>
+                                            <th className="border border-black w-14 bg-gray-200" data-col-key="pt-ps">PS</th>
+                                            <th className="border border-black w-12 bg-gray-200" data-col-key="pt-ws">WS</th>
+                                            <th className="border border-black w-8 text-[9px] font-bold bg-gray-100" data-col-key="qa-0">ST1</th>
+                                            <th className="border border-black w-8 text-[9px] font-bold bg-gray-100" data-col-key="qa-1">ST2</th>
+                                            <th className="border border-black w-8 text-[9px] font-bold bg-gray-100" data-col-key="qa-2">TE</th>
+                                            <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70" data-col-key="st1-ws">WS ST1<br/><span className="text-[6.5px] font-normal">(30%)</span></th>
+                                            <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70" data-col-key="st2-ws">WS ST2<br/><span className="text-[6.5px] font-normal">(30%)</span></th>
+                                            <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70" data-col-key="te-ws">WS TE<br/><span className="text-[6.5px] font-normal">(40%)</span></th>
+                                            <th className="border border-black w-14 bg-gray-200 text-[8px] font-bold leading-none" data-col-key="qa-ps">PS<br/><span className="text-[6.5px] font-normal">(ST & TE)</span></th>
+                                            <th className="border border-black w-12 bg-gray-200 text-[8px] font-bold leading-none" data-col-key="qa-ws">WS<br/><span className="text-[6.5px] font-normal">(ST & TE)</span></th>
                                         </tr>
                                         <tr className="font-bold h-9">
-                                            <td className="border border-black p-1 text-left whitespace-nowrap tracking-wide text-[7px] bg-gray-100" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>HIGHEST POSSIBLE SCORE</td>
+                                            <td className="border border-black p-1 text-left whitespace-nowrap tracking-wide text-[7px] bg-gray-100" data-col-key="learner-name" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>HIGHEST POSSIBLE SCORE</td>
                                             {hps.ww.map((val, i) => (
-                                                <td key={`hps-ww-${i}`} className="border border-black p-0 bg-white">
+                                                <td key={`hps-ww-${i}`} className="border border-black p-0 bg-white" data-col-key={`ww-${i}`}>
                                                     <DebouncedInput
                                                         type="number"
                                                         value={val === '' ? '' : val}
@@ -3258,11 +3523,11 @@ export function EClassRecord() {
                                                     />
                                                 </td>
                                             ))}
-                                            <td className="border border-black bg-gray-100 text-[8px]">{hps.ww.some(v => v !== '') ? hps.ww.reduce((a, b) => a + Number(b), 0) : ''}</td>
-                                            <td className="border border-black bg-gray-100 text-[8px]">100.00</td>
-                                            <td className="border border-black bg-gray-100 text-[8px]">{currentWeights.written_works * 100}%</td>
+                                            <td className="border border-black bg-gray-100 text-[8px]" data-col-key="ww-total">{hps.ww.some(v => v !== '') ? hps.ww.reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                            <td className="border border-black bg-gray-100 text-[8px]" data-col-key="ww-ps">100.00</td>
+                                            <td className="border border-black bg-gray-100 text-[8px]" data-col-key="ww-ws">{normalizeWeightPercent(currentWeights.written_works)}%</td>
                                             {hps.pt.map((val, i) => (
-                                                <td key={`hps-pt-${i}`} className="border border-black p-0 bg-white">
+                                                <td key={`hps-pt-${i}`} className="border border-black p-0 bg-white" data-col-key={`pt-${i}`}>
                                                     <DebouncedInput
                                                         type="number"
                                                         value={val === '' ? '' : val}
@@ -3274,11 +3539,11 @@ export function EClassRecord() {
                                                     />
                                                 </td>
                                             ))}
-                                            <td className="border border-black bg-gray-100 text-[8px]">{hps.pt.some(v => v !== '') ? hps.pt.reduce((a, b) => a + Number(b), 0) : ''}</td>
-                                            <td className="border border-black bg-gray-100 text-[8px]">100.00</td>
-                                            <td className="border border-black bg-gray-100 text-[8px]">{currentWeights.performance_tasks * 100}%</td>
+                                            <td className="border border-black bg-gray-100 text-[8px]" data-col-key="pt-total">{hps.pt.some(v => v !== '') ? hps.pt.reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                            <td className="border border-black bg-gray-100 text-[8px]" data-col-key="pt-ps">100.00</td>
+                                            <td className="border border-black bg-gray-100 text-[8px]" data-col-key="pt-ws">{normalizeWeightPercent(currentWeights.performance_tasks)}%</td>
                                             {hps.qa.map((val, i) => (
-                                                <td key={`hps-qa-${i}`} className="border border-black p-0 bg-white">
+                                                <td key={`hps-qa-${i}`} className="border border-black p-0 bg-white" data-col-key={`qa-${i}`}>
                                                     <DebouncedInput
                                                         type="number"
                                                         value={val === '' ? '' : val}
@@ -3290,11 +3555,11 @@ export function EClassRecord() {
                                                     />
                                                 </td>
                                             ))}
-                                            <td className="border border-black bg-yellow-100/70 text-[8px]">30</td>
-                                            <td className="border border-black bg-yellow-100/70 text-[8px]">30</td>
-                                            <td className="border border-black bg-yellow-100/70 text-[8px]">40</td>
-                                            <td className="border border-black bg-gray-100 text-[8px]">100.00</td>
-                                            <td className="border border-black bg-gray-100 text-[8px]">{Math.round(currentWeights.quarterly_exam * 100)}%</td>
+                                            <td className="border border-black bg-yellow-100/70 text-[8px]" data-col-key="st1-ws">30</td>
+                                            <td className="border border-black bg-yellow-100/70 text-[8px]" data-col-key="st2-ws">30</td>
+                                            <td className="border border-black bg-yellow-100/70 text-[8px]" data-col-key="te-ws">40</td>
+                                            <td className="border border-black bg-gray-100 text-[8px]" data-col-key="qa-ps">100.00</td>
+                                            <td className="border border-black bg-gray-100 text-[8px]" data-col-key="qa-ws">{normalizeWeightPercent(currentWeights.quarterly_exam)}%</td>
                                         </tr>
                                     </thead>
                                 )}
@@ -3303,12 +3568,7 @@ export function EClassRecord() {
                                         <td colSpan={isGMRCSubject ? 46 : 26} className="border border-black text-left px-2 py-1">{section.gender}</td>
                                     </tr>
                                     {section.students.map((student, idx) => {
-                                        const record = classRecords.find(r =>
-                                            r.student_lrn === student.lrn &&
-                                            (r.subject_id === effectiveSubjectId || isSameSubject(r.subject_id, r.subject_name, effectiveSubjectId, subjectName)) &&
-                                            Number(r.quarter) === quarter &&
-                                            (!activeSchoolYear || !r.school_year || r.school_year === activeSchoolYear || r.school_year.includes(activeSchoolYear))
-                                        );
+                                        const record = studentRecordMap.get(student.lrn);
                                         return (
                                             <StudentGradeRow
                                                 key={student.lrn}
@@ -3590,9 +3850,9 @@ export function EClassRecord() {
                                                     ].map((item, idx) => (
                                                         <tr key={idx} className={`border-b border-black ${idx % 2 === 0 ? '' : 'bg-slate-50'}`}>
                                                             <td className="p-1 border-r border-black text-left pl-2">{item.label}</td>
-                                                            <td className="p-1 border-r border-black">{item.key === 'mps' ? summativeAnalysis.st1.norm.mps.toFixed(1) + '%' : (summativeAnalysis.st1.norm as any)[item.key].toFixed(1)}</td>
-                                                            <td className="p-1 border-r border-black">{item.key === 'mps' ? summativeAnalysis.st2.norm.mps.toFixed(1) + '%' : (summativeAnalysis.st2.norm as any)[item.key].toFixed(1)}</td>
-                                                            <td className="p-1">{item.key === 'mps' ? summativeAnalysis.te.norm.mps.toFixed(1) + '%' : (summativeAnalysis.te.norm as any)[item.key].toFixed(1)}</td>
+                                                            <td className="p-1 border-r border-black">{item.key === 'mps' ? summativeAnalysis.st1.norm.mps.toFixed(1) + '%' : (summativeAnalysis.st1.norm as Record<string, number>)[item.key].toFixed(1)}</td>
+                                                            <td className="p-1 border-r border-black">{item.key === 'mps' ? summativeAnalysis.st2.norm.mps.toFixed(1) + '%' : (summativeAnalysis.st2.norm as Record<string, number>)[item.key].toFixed(1)}</td>
+                                                            <td className="p-1">{item.key === 'mps' ? summativeAnalysis.te.norm.mps.toFixed(1) + '%' : (summativeAnalysis.te.norm as Record<string, number>)[item.key].toFixed(1)}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>

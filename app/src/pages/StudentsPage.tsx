@@ -387,7 +387,7 @@ export function StudentsPage() {
             if (activeCategory) {
                 const num = parseInt(grade.replace(/\D/g, '')) || 0;
                 isMatch = false;
-                if (activeCategory === 'ELEMENTARY' && (grade.toLowerCase().includes('kinder') || (num >= 1 && num <= 6))) isMatch = true;
+                if (activeCategory === 'ELEMENTARY' && (grade.toLowerCase().includes('kinder') || (num >= 1 && num <= 6) || (num === 0 && !grade.toLowerCase().includes('grade')))) isMatch = true;
                 else if (activeCategory === 'JUNIOR HIGH SCHOOL' && (num >= 7 && num <= 10)) isMatch = true;
                 else if (activeCategory === 'SENIOR HIGH SCHOOL' && (num >= 11 && num <= 12)) isMatch = true;
             }
@@ -667,6 +667,8 @@ export function StudentsPage() {
                 groups['JUNIOR HIGH SCHOOL'].push(s);
             } else if (num >= 11 && num <= 12) {
                 groups['SENIOR HIGH SCHOOL'].push(s);
+            } else {
+                groups['ELEMENTARY'].push(s);
             }
         });
         
@@ -845,10 +847,11 @@ export function StudentsPage() {
                                     All Levels
                                 </button>
 
-                                {Object.entries(groupedSectionsByCategory).map(([group, _groupSections]) => {
+                                {Object.entries(groupedSectionsByCategory).map(([group, groupSections]) => {
                                     const isActive = activeCategory === group;
                                     const label = group === 'ELEMENTARY' ? 'Elementary' :
                                                   group === 'JUNIOR HIGH SCHOOL' ? 'Junior High' : 'Senior High';
+                                    const count = groupSections.length;
                                     return (
                                         <button 
                                             key={group} 
@@ -856,7 +859,7 @@ export function StudentsPage() {
                                                 setActiveCategory(group);
                                                 setOverviewSearch('');
                                             }}
-                                            className={`relative px-6 py-2.5 text-xs font-black rounded-xl transition-all duration-300 z-10 select-none cursor-pointer whitespace-nowrap ${
+                                            className={`relative px-4 sm:px-6 py-2.5 text-xs font-black rounded-xl transition-all duration-300 z-10 select-none cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                                                 isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
                                             }`}
                                         >
@@ -867,7 +870,12 @@ export function StudentsPage() {
                                                     className="absolute inset-0 rounded-xl shadow-md bg-[#527083] dark:bg-blue-600 -z-10"
                                                 />
                                             )}
-                                            {label}
+                                            <span>{label}</span>
+                                            {count > 0 && (
+                                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${isActive ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-300'}`}>
+                                                    {count}
+                                                </span>
+                                            )}
                                         </button>
                                     );
                                 })}

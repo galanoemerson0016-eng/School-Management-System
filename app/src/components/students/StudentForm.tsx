@@ -5,6 +5,7 @@ import { db } from '../../services/database';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { PhotoUploadCrop } from '../id-card/PhotoUploadCrop';
 import { SSHS_ACADEMIC_CLUSTERS_LIST, SSHS_TECHPRO_CLUSTERS_LIST } from '../../lib/curriculum';
+import { isGhostEinsteinStudent } from '../../utils/ghost-data-purge';
 
 interface StudentFormProps {
     student: Student | null;
@@ -122,6 +123,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
     const [isLoading, setIsLoading] = useState(false);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
     const [pendingProfile, setPendingProfile] = useState<Student | null>(null);
+    const [hydratedLrn, setHydratedLrn] = useState<string | null>(null);
 
     const waitForStudentPersistence = async (payload: Student, timeoutMs = 6000) => {
         const start = Date.now();
@@ -424,6 +426,13 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
         try {
             const existing = await db.getRecord<Student>('students', lrn);
             if (!existing) return;
+
+            // If existing record is from ghost section 'Einstein', purge it and do NOT prompt!
+            if (isGhostEinsteinStudent(existing, sections)) {
+                void db.deleteRecord('students', lrn).catch(() => {});
+                return;
+            }
+
             setPendingProfile(existing);
         } catch (error) {
             console.error('Failed to load existing student profile', error);
@@ -433,6 +442,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
     const applyPendingProfile = () => {
         if (!pendingProfile) return;
 
+        setHydratedLrn(pendingProfile.lrn);
         const mappedStrand = STRAND_MAPPING[pendingProfile.strand || ''] || pendingProfile.strand || '';
         setFormData((prev) => ({
             ...prev,
@@ -475,11 +485,25 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
 
         // Check for duplicates (prevent multiple students from having the same LRN)
         const duplicate = students.find((s) => s.lrn === finalLrn);
+        let isExistingStudentToUpdate = false;
+
         if (duplicate && (!student || student.lrn !== finalLrn)) {
-            showNotification(`A student named ${duplicate.first_name} ${duplicate.last_name} already has the LRN ${finalLrn}.`, 'error');
-            setIsLoading(false);
-            setSaveStatus('idle');
-            return;
+            if (isGhostEinsteinStudent(duplicate, sections)) {
+                // Silently purge the ghost duplicate and proceed with adding the real learner
+                void db.deleteRecord('students', finalLrn).catch(() => {});
+                useAppStore.setState((state) => ({
+                    students: state.students.filter((s) => s.lrn !== finalLrn),
+                    studentProfiles: state.studentProfiles.filter((s) => s.lrn !== finalLrn),
+                }));
+            } else if (hydratedLrn === finalLrn) {
+                // User explicitly approved hydrating/transferring this student to this section
+                isExistingStudentToUpdate = true;
+            } else {
+                showNotification(`A student named ${duplicate.first_name} ${duplicate.last_name} already has the LRN ${finalLrn}.`, 'error');
+                setIsLoading(false);
+                setSaveStatus('idle');
+                return;
+            }
         }
 
         const studentData: Student = {
@@ -570,8 +594,8 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
         };
 
         try {
-            const savePromise = student
-                ? updateStudent(student.lrn, studentData)
+            const savePromise = (student || isExistingStudentToUpdate)
+                ? updateStudent(finalLrn, studentData)
                 : addStudent(studentData);
 
             const result = await Promise.race<"resolved" | "verified" | "timeout">([

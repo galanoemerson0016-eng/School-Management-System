@@ -49,6 +49,8 @@ import { useAppStore, useAuthStore } from '../stores';
 import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2Sheet, SchoolProfile, CalendarEvent, SF9SignatureSettings, AttendanceRecord } from '../types';
 import { db } from '../services/database';
 import { resolveStudentQuarterGrade, isMatchingSubject, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
+import { getStandardSubjectPriority } from '../lib/subjectConfig';
+import { reconcileOrphanedGradesAndSubjects } from '../utils/grade-reconciliation';
 import { computeStudentAttendance } from '../utils/sf9-attendance';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3, FileSpreadsheet, Bug, RefreshCcw } from 'lucide-react';
@@ -2921,6 +2923,48 @@ export function SF9Page() {
         return selectedSectionObj.section_metadata?.sf9SignatureSettings || {};
     }, [selectedSectionObj]);
 
+    const layoutModalCandidates = useMemo(() => {
+        if (!selectedSectionObj) return [];
+        const secGradeNum = parseInt(selectedSectionObj.section_grade_level?.replace(/\D/g, '') || '0');
+        const taught = selectedSectionObj.taught_subjects || [];
+        
+        // 1. All subjects matching this section's grade level or assigned to this section
+        const sectionAndGradeSubs = subjects.filter(s => {
+            const sGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
+            const isMatchGrade = sGradeNum === secGradeNum;
+            const isMatchSection = s.section_id === selectedSectionObj.id;
+            const isTaught = taught.some(t => isMatchingSubject(t, s.id, s.subject_name));
+            return (isMatchGrade || isMatchSection || isTaught) && s.term !== 'none';
+        });
+
+        // 2. Also ensure any explicitly taught subjects are represented
+        const list: Subject[] = [...sectionAndGradeSubs];
+        for (const t of taught) {
+            if (!list.some(s => isMatchingSubject(t, s.id, s.subject_name))) {
+                list.push({
+                    id: `virtual_${t.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+                    subject_name: t,
+                    grade_level: selectedSectionObj.section_grade_level,
+                    section_id: selectedSectionObj.id
+                } as Subject);
+            }
+        }
+
+        // 3. Deduplicate candidates by canonical subject key so no duplicate entries appear
+        const seen = new Set<string>();
+        const uniqueList: Subject[] = [];
+        for (const item of list) {
+            const canon = getCanonicalSubjectKey(item.subject_name, secGradeNum) || normalizeSubjectName(item.subject_name);
+            if (seen.has(canon)) continue;
+            seen.add(canon);
+            uniqueList.push(item);
+        }
+
+        // 4. Sort by standard DepEd curriculum priority
+        uniqueList.sort((a, b) => getStandardSubjectPriority(a.subject_name) - getStandardSubjectPriority(b.subject_name));
+        return uniqueList;
+    }, [selectedSectionObj, subjects]);
+
     const handleUpdateLayout = async (selections: Record<number, string>, sigSettings?: SF9SignatureSettings) => {
         if (!selectedSectionObj) return;
         
@@ -3165,36 +3209,94 @@ export function SF9Page() {
                 subjects: freshSubjects
             });
 
-            // 2. Find the current section from fresh sections
-            const latestSection = freshSections.find(s => s.id === selectedSectionObj.id) || selectedSectionObj;
+            // 2. Run reconciliation to auto-heal duplicate subjects & consolidate grades
+            const recon = reconcileOrphanedGradesAndSubjects({
+                subjects: freshSubjects,
+                sections: freshSections,
+                students: useAppStore.getState().students,
+                classRecords: freshClassRecords,
+                hpsRecords: useAppStore.getState().hpsRecords,
+                gradingSheetRecords: freshGradingRecords
+            });
 
-            // 3. Synchronize subject order & custom layout:
-            // Reset static slot overrides so SF9 dynamically adopts Grade Management's taught_subjects and ordering
-            const currentTaught = latestSection.taught_subjects || [];
-
-            if (latestSection.section_metadata?.sf9SubjectSelections) {
-                const updatedSection = {
-                    ...latestSection,
-                    section_metadata: {
-                        ...latestSection.section_metadata,
-                        sf9SubjectSelections: undefined
-                    }
-                };
-                await useAppStore.getState().updateSection(updatedSection);
+            if (recon.subjectsModified && recon.subjects) {
+                await db.putRecordsBulk('subjects', recon.subjects);
+            }
+            if (recon.deletedSubjectIds.length > 0) {
+                await db.deleteRecordsBulk('subjects', recon.deletedSubjectIds);
+            }
+            if (recon.modified) {
+                if (recon.classRecords) await db.putRecordsBulk('classRecords', recon.classRecords);
+                if (recon.hpsRecords) await db.putRecordsBulk('hpsRecords', recon.hpsRecords);
+                if (recon.gradingSheetRecords) await db.putRecordsBulk('gradingSheetRecords', recon.gradingSheetRecords);
             }
 
-            // 4. Force re-calculation by incrementing syncVersion
+            const reconciledSubjects = recon.subjects || freshSubjects;
+            const reconciledSections = recon.sections || freshSections;
+            const reconciledGradingRecords = recon.gradingSheetRecords || freshGradingRecords;
+            const reconciledClassRecords = recon.classRecords || freshClassRecords;
+
+            // 3. Find the current section from reconciled sections
+            const baseSection = reconciledSections.find(s => s.id === selectedSectionObj.id) || selectedSectionObj;
+
+            // 4. Sanitize and deduplicate taught_subjects & teaching_subjects
+            const sanitizeSubjectList = (list?: string[]): string[] | undefined => {
+                if (!list) return undefined;
+                const mapped = list.map(t => {
+                    const trimmed = t.trim();
+                    const matchedDb = reconciledSubjects.find(s => isMatchingSubject(trimmed, s.id, s.subject_name));
+                    if (matchedDb && matchedDb.subject_name) {
+                        return matchedDb.subject_name;
+                    }
+                    return trimmed;
+                });
+                const seenKeys = new Set<string>();
+                const deduped: string[] = [];
+                for (const item of mapped) {
+                    const k = getCanonicalSubjectKey(item, baseSection.section_grade_level) || normalizeSubjectName(item);
+                    if (k && seenKeys.has(k)) continue;
+                    if (k) seenKeys.add(k);
+                    deduped.push(item);
+                }
+                return deduped;
+            };
+
+            const cleanTaught = sanitizeSubjectList(baseSection.taught_subjects) || [];
+            const cleanTeaching = sanitizeSubjectList(baseSection.teaching_subjects);
+
+            const updatedSection = {
+                ...baseSection,
+                taught_subjects: cleanTaught,
+                ...(cleanTeaching !== undefined ? { teaching_subjects: cleanTeaching } : {}),
+                section_metadata: {
+                    ...baseSection.section_metadata,
+                    sf9SubjectSelections: undefined
+                }
+            };
+            await useAppStore.getState().updateSection(updatedSection);
+
+            // Update app store state so all components immediately have the latest records
+            useAppStore.setState({
+                gradingSheetRecords: reconciledGradingRecords,
+                classRecords: reconciledClassRecords,
+                sections: reconciledSections.map(s => s.id === updatedSection.id ? updatedSection : s),
+                subjects: reconciledSubjects
+            });
+
+            // 5. Force re-calculation by incrementing syncVersion
             setSyncVersion(v => v + 1);
 
-            // 5. Count total synchronized grades for this section
-            const sectionGradesCount = freshGradingRecords.filter(r =>
-                (r.section_id === latestSection.id || r.section_id === latestSection.section_name) &&
+            // 6. Count total synchronized grades for this section
+            const sectionGradesCount = reconciledGradingRecords.filter(r =>
+                (r.section_id === updatedSection.id || r.section_id === updatedSection.section_name) &&
                 (!activeSchoolYear || !r.school_year || r.school_year === activeSchoolYear) &&
                 Number(r.final_grade) > 0
             ).length;
 
+            const currentTaught = cleanTaught;
+
             // 6. Calculate official learning areas count (combining MAPEH components into 1 official subject for Grades 1-10)
-            const sectionGradeNum = parseInt((latestSection.section_grade_level || '').replace(/\D/g, '')) || 0;
+            const sectionGradeNum = parseInt((updatedSection.section_grade_level || '').replace(/\D/g, '')) || 0;
             const isSHS = sectionGradeNum === 11 || sectionGradeNum === 12;
 
             const isMapehComp = (name: string) => {
@@ -3724,7 +3826,7 @@ export function SF9Page() {
     }, []);
 
     return (
-        <div className="flex flex-col h-full bg-linear-to-br from-slate-50 via-blue-50/40 to-indigo-50/30 dark:from-[#080d1a] dark:via-[#0b1329] dark:to-[#0d1630] relative overflow-hidden font-sans">
+        <div className="flex flex-col h-full min-h-0 bg-linear-to-br from-slate-50 via-blue-50/40 to-indigo-50/30 dark:from-[#080d1a] dark:via-[#0b1329] dark:to-[#0d1630] relative overflow-hidden font-sans">
              {/* Sticky Premium Top Toolbar */}
              <div className="z-20 bg-white/80 dark:bg-[#0d1225]/90 backdrop-blur-2xl border-b border-slate-200/70 dark:border-white/10 shadow-[0_4px_20px_rgba(15,23,42,0.04)] relative print:hidden shrink-0 w-full">
                 <div className="absolute top-0 left-0 right-0 h-0.5 bg-linear-to-r from-blue-500 via-indigo-500 to-cyan-500 z-30" />
@@ -4852,7 +4954,7 @@ export function SF9Page() {
                     <SF9LayoutModal 
                         onClose={handleCloseLayoutModal}
                         currentSelections={currentSubjectSelections}
-                        subjects={subjects.filter(s => s.section_id === selectedSectionObj?.id)}
+                        subjects={layoutModalCandidates}
                         signatureSettings={currentSignatureSettings}
                         initialTab={layoutModalInitialTab}
                         

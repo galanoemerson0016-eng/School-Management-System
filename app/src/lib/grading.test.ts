@@ -21,6 +21,8 @@ import {
   formatGradeForDisplay,
   isSHS,
   isKeyStage1,
+  normalizeWeightFraction,
+  normalizeWeightPercent,
   type SubjectCluster,
 } from './grading';
 
@@ -152,6 +154,24 @@ describe('computeExamsWeightedScore', () => {
 
     const transmuted = transmuteGrade(initialGrade, TRANSITION_SY);
     expect(transmuted).toBe(88);
+  });
+
+  it('accurately computes Grade 12 Core (e.g. Physical Science) 3-exam layout matching Excel', () => {
+    // Bonilla, Jade: ST1: 20/30 (20.00), ST2: 20/30 (20.00), TE: 60/60 (40.00) -> PS = 80.00
+    const psBonilla = computeExamsWeightedScore(20, 30, 20, 30, 60, 60, 'g12_core');
+    expect(psBonilla).toBeCloseTo(80, 2);
+
+    const weights = getWeights('g12_core'); // WW: 0.25, PT: 0.50, QA: 0.25
+    const wwWS = 20.10; // 164/204 * 100 * 0.25 = 20.098
+    const ptWS = 47.50; // 285/300 * 100 * 0.50 = 47.50
+    const qaWS = psBonilla * weights.quarterly_exam; // 80 * 0.25 = 20.00
+    const initialGrade = Math.round((wwWS + ptWS + qaWS) * 100) / 100;
+    expect(initialGrade).toBe(87.60);
+    expect(transmuteGrade(initialGrade, '2026-2027')).toBe(89);
+
+    // Clariz, Angelo: ST1: 15/30 (15.00), ST2: 18/30 (18.00), TE: 25/60 (16.67) -> PS = 49.67
+    const psClariz = computeExamsWeightedScore(15, 30, 18, 30, 25, 60, 'g12_core');
+    expect(psClariz).toBeCloseTo(49.667, 2);
   });
 });
 
@@ -365,3 +385,69 @@ describe('getSubjectCluster — Grade 12 Old K-12 vs SSHS Pilot', () => {
     expect(getSubjectCluster('Art Criticism and Creative Markets', 'Grade 12')).toBe('shs_arts_sports');
   });
 });
+
+describe('Weight Normalization & 100x Unnormalized Score Self-Healing', () => {
+  it('normalizes whole percentage weights (> 1) to fractions (<= 1.0)', () => {
+    expect(normalizeWeightFraction(40)).toBe(0.40);
+    expect(normalizeWeightFraction(20)).toBe(0.20);
+    expect(normalizeWeightFraction(60)).toBe(0.60);
+    expect(normalizeWeightFraction(15)).toBe(0.15);
+    expect(normalizeWeightFraction(0.40)).toBe(0.40);
+    expect(normalizeWeightFraction(0.20)).toBe(0.20);
+  });
+
+  it('normalizes fraction weights (<= 1.0) to whole percentages (0-100)', () => {
+    expect(normalizeWeightPercent(0.40)).toBe(40);
+    expect(normalizeWeightPercent(0.20)).toBe(20);
+    expect(normalizeWeightPercent(0.60)).toBe(60);
+    expect(normalizeWeightPercent(40)).toBe(40);
+    expect(normalizeWeightPercent(20)).toBe(20);
+  });
+
+  it('getWeights returns decimal fractions even when database subject has whole integer weights', () => {
+    const mathSubj = {
+      written_weight: 40,
+      performance_weight: 40,
+      exam_weight: 20
+    };
+    const weights = getWeights('science_math', mathSubj);
+    expect(weights.written_works).toBe(0.40);
+    expect(weights.performance_tasks).toBe(0.40);
+    expect(weights.quarterly_exam).toBe(0.20);
+
+    const tvlSubj = {
+      written_weight: 20,
+      performance_weight: 60,
+      exam_weight: 20
+    };
+    const tvlWeights = getWeights('shs_techpro', tvlSubj);
+    expect(tvlWeights.written_works).toBe(0.20);
+    expect(tvlWeights.performance_tasks).toBe(0.60);
+    expect(tvlWeights.quarterly_exam).toBe(0.20);
+  });
+
+  it('self-heals 100x unnormalized initial grades from client screenshots instead of clamping to 100', () => {
+    // Image 1 (Science E-Class Record):
+    // Student with Initial Grade 7153.94 (real initial grade was 71.54)
+    expect(transmuteGrade(7153.94, TRANSITION_SY)).toBe(76);
+    // Student with Initial Grade 986.67 (real initial grade was 9.87 -> 9.35-14.00 range is grade 62 in transition table)
+    expect(transmuteGrade(986.67, TRANSITION_SY)).toBe(62);
+    // Student with Initial Grade 4120.00 (real initial grade was 41.20)
+    expect(transmuteGrade(4120.00, TRANSITION_SY)).toBe(68);
+    // Student with Initial Grade 3066.67 (real initial grade was 30.67)
+    expect(transmuteGrade(3066.67, TRANSITION_SY)).toBe(66);
+
+    // Image 2 (Grade 11 Emerald Hotel Operations - TVL):
+    // Tapales with Initial Grade 3004.60 (real initial grade was 30.05)
+    expect(transmuteGrade(3004.60, TRANSITION_SY)).toBe(66);
+    // Michael Marquez with Initial Grade 9232.07 (real initial grade was 92.32 -> 91.24-92.41 range is grade 93)
+    expect(transmuteGrade(9232.07, TRANSITION_SY)).toBe(93);
+    // Nuñez with Initial Grade 8106.00 (real initial grade was 81.06 -> 80.62-81.79 range is grade 84)
+    expect(transmuteGrade(8106.00, TRANSITION_SY)).toBe(84);
+
+    // Image 3 (Mobile photo):
+    // Student with Initial Grade 8489.50 (real initial grade was 84.90 -> 84.16-85.33 range is grade 87)
+    expect(transmuteGrade(8489.50, TRANSITION_SY)).toBe(87);
+  });
+});
+

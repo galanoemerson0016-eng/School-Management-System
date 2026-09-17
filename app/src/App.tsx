@@ -203,19 +203,22 @@ function App() {
 
   // Keep background Express server memory updated with active students & sections 24/7
   useEffect(() => {
-    const doPush = () => {
+    const timer = setTimeout(() => {
       const state = useAppStore.getState();
       if (state.students.length > 0 || state.sections.length > 0) {
+        // Mobile attendance companion only needs today's records for active roll call
+        const today = new Date().toISOString().split('T')[0];
+        const todaysRecords = (state.attendanceRecords || []).filter(r => r.date === today);
         pushAttendanceSessionToBackend({
           students: state.students,
           sections: state.sections,
-          records: state.attendanceRecords,
+          records: todaysRecords,
           schoolProfile: state.schoolProfile
         });
       }
-    };
+    }, 1500);
 
-    doPush();
+    return () => clearTimeout(timer);
   }, [students, sections, attendanceRecords, schoolProfile]);
 
   // Globally subscribe to mobile attendance updates so taps are never missed
@@ -670,11 +673,11 @@ function App() {
         <div className="print:hidden h-full flex flex-col">
           <Sidebar />
         </div>
-        <main data-tour="workspace" className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-[#0B0F19] rounded-none border-l border-slate-200 dark:border-slate-800 relative print:bg-white print:border-none print:shadow-none print:rounded-none print:block print:overflow-visible">
+        <main data-tour="workspace" className="flex-1 flex flex-col min-h-0 overflow-hidden bg-slate-50 dark:bg-[#0B0F19] rounded-none border-l border-slate-200 dark:border-slate-800 relative print:bg-white print:border-none print:shadow-none print:rounded-none print:block print:overflow-visible">
           <div className="print:hidden">
             <Header />
           </div>
-          <div className={`flex-1 flex flex-col ${['sf9', 'sf10', 'sf8', 'sf5', 'sf6', 'attendance', 'lir', 'certificates', 'name-tags', 'class-record', 'eclass', 'student-id-generator', 'consolidated-grades', 'tgs', 'pace'].includes(currentView) ? 'overflow-hidden p-0' : 'overflow-y-auto p-3 lg:p-4 custom-scrollbar'} print:p-0 print:overflow-visible`}>
+          <div className={`flex-1 flex flex-col min-h-0 ${['sf9', 'sf10', 'sf8', 'sf5', 'sf6', 'attendance', 'lir', 'certificates', 'name-tags', 'class-record', 'eclass', 'student-id-generator', 'consolidated-grades', 'tgs', 'pace'].includes(currentView) ? 'overflow-hidden p-0' : 'overflow-y-auto p-3 lg:p-4 custom-scrollbar'} print:p-0 print:overflow-visible`}>
             <ErrorBoundary>
               <Suspense fallback={<ContentLoading />}>
                 {renderContent()}

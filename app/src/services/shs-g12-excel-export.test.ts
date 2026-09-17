@@ -534,6 +534,161 @@ describe('SHS Grade 12 E-Class Record Export Service', () => {
     expect(s6Xml).toMatch(/<c r="J68"[^>]*><f[^>]*>[\s\S]*?<\/f><v>PASSED<\/v><\/c>/);
   });
 
+  it('correctly registers ST1 and ST2 HPS in row 14 and populates Final Grades matching Term 1 in updated template', async () => {
+    const updatedTemplatePath = path.join(templatesDir, TEMPLATE_SHS_G12_UPDATED);
+    if (!fs.existsSync(updatedTemplatePath)) return;
+
+    const archimedesSection: Section = {
+      id: 'section_1789451336249',
+      section_name: 'Archimedes',
+      section_grade_level: 'Grade 12',
+      adviser_name: 'Teacher Galileo',
+      strand: 'GAS',
+      track: 'Academic'
+    };
+
+    const physicalScienceSubj: Subject = {
+      id: 'subject-grade12-physicalscience-section1789451336249',
+      subject_name: 'Physical Science',
+      grade_level: 'Grade 12',
+      category: 'CORE'
+    } as any;
+
+    const studentBonilla: Student = {
+      lrn: '106777140026',
+      first_name: 'Prince Aron',
+      last_name: 'Briones',
+      gender: 'Male'
+    } as any;
+
+    const hpsRecord: HPSRecord = {
+      id: 'hps_subject-grade12-physicalscience-section1789451336249_section_1789451336249_Q1_2026-2027',
+      subject_id: 'subject-grade12-physicalscience-section1789451336249',
+      subject_name: 'Physical Science',
+      section_id: 'section_1789451336249',
+      school_year: '2026-2027',
+      quarter: 1,
+      written_works: [64, 20, 70, 50, '', '', '', '', '', ''],
+      performance_tasks: [100, 100, 100, '', '', '', '', '', '', ''],
+      quarterly_exam: 60,
+      summative_tests: [30, 30, 60]
+    } as any;
+
+    const classRecord: ClassRecord = {
+      id: 'cr-106777140026',
+      student_lrn: '106777140026',
+      subject_id: 'subject-grade12-physicalscience-section1789451336249',
+      section_id: 'section_1789451336249',
+      school_year: '2026-2027',
+      quarter: 1,
+      written_works: [64, 20, 59, 41, '', '', '', '', '', ''],
+      performance_tasks: [100, 95, 95, '', '', '', '', '', '', ''],
+      quarterly_exam: 60,
+      summative_tests: [20, 29, 60]
+    } as any;
+
+    const templateBuffer = fs.readFileSync(updatedTemplatePath);
+    const populatedZip = await populateSHSG12WorkbookZip(templateBuffer, {
+      schoolProfile: mockSchoolProfile,
+      schoolYear: '2026-2027',
+      section: archimedesSection,
+      subject: physicalScienceSubj,
+      students: [studentBonilla],
+      classRecords: [classRecord],
+      hpsRecords: [hpsRecord],
+      teacherName: 'Teacher Galileo'
+    });
+
+    // Term 1 (sheet3.xml)
+    const t1Xml = await populatedZip.file('xl/worksheets/sheet3.xml')!.async('string');
+    // Row 14: ST1 HPS (AD14) should be 30, ST2 HPS (AE14) should be 30, TE HPS (AF14) should be 60
+    expect(t1Xml).toMatch(/<c r="AD14"[^>]*><v>30<\/v><\/c>/);
+    expect(t1Xml).toMatch(/<c r="AE14"[^>]*><v>30<\/v><\/c>/);
+    expect(t1Xml).toMatch(/<c r="AF14"[^>]*><v>60<\/v><\/c>/);
+    // Student scores: AD17=20, AE17=29, AF17=60
+    expect(t1Xml).toMatch(/<c r="AD17"[^>]*><v>20<\/v><\/c>/);
+    expect(t1Xml).toMatch(/<c r="AE17"[^>]*><v>29<\/v><\/c>/);
+    expect(t1Xml).toMatch(/<c r="AF17"[^>]*><v>60<\/v><\/c>/);
+
+    // FINAL GRADES (sheet6.xml)
+    const fgXml = await populatedZip.file('xl/worksheets/sheet6.xml')!.async('string');
+    // Header D9=12, G9=PHYSICAL SCIENCE
+    expect(fgXml).toMatch(/<c r="D9"[^>]*><f[^>]*>.*?<\/f><v>12<\/v><\/c>/);
+    expect(fgXml).toMatch(/<c r="G9"[^>]*><f[^>]*>.*?<\/f><v>PHYSICAL SCIENCE<\/v><\/c>/);
+
+    // Extract student's Term 1 grade from AM17 in sheet3.xml
+    const t1Match = t1Xml.match(/<c r="AM17"[^>]*><f[^>]*>.*?<\/f><v>(\d+)<\/v><\/c>/);
+    expect(t1Match).toBeTruthy();
+    const t1Grade = t1Match![1];
+
+    // Final Grades E17 should match Term 1 AM17 grade exactly!
+    expect(fgXml).toMatch(new RegExp(`<c r="E17"[^>]*><f[^>]*>.*?</f><v>${t1Grade}</v></c>`));
+
+    // HELPER (sheet7.xml)
+    const helperXml = await populatedZip.file('xl/worksheets/sheet7.xml')!.async('string');
+    expect(helperXml).not.toContain('>#N/A<');
+    expect(helperXml).not.toContain('t="e"');
+  });
+
+  it('correctly exports the Archimedes Physical Science real backup data with matching grades', async () => {
+    const updatedTemplatePath = path.join(templatesDir, TEMPLATE_SHS_G12_UPDATED);
+    if (!fs.existsSync(updatedTemplatePath)) return;
+
+    const backupsDir = path.join(process.env.APPDATA || '', 'form-ease-pro', 'backups');
+    if (!fs.existsSync(backupsDir)) return;
+    const files = fs.readdirSync(backupsDir).filter(f => f.endsWith('.json')).sort();
+    if (files.length === 0) return;
+    const latestBackup = path.join(backupsDir, files[files.length - 1]);
+    const backupData = JSON.parse(fs.readFileSync(latestBackup, 'utf8'));
+    const payload = backupData.payload || backupData;
+
+    const section = (payload.sections || []).find((s: any) => s.id === 'section_1789451336249');
+    const subject = (payload.subjects || []).find((s: any) => s.id === 'subject-grade12-physicalscience-section1789451336249');
+    const students = (payload.students || []).filter((s: any) => s.student_section === 'Archimedes');
+    const classRecords = payload.classRecords || [];
+    const hpsRecords = payload.hpsRecords || [];
+
+    if (!section || !subject || students.length === 0) return;
+
+    const templateBuffer = fs.readFileSync(updatedTemplatePath);
+    const populatedZip = await populateSHSG12WorkbookZip(templateBuffer, {
+      schoolProfile: payload.schoolProfile || mockSchoolProfile,
+      schoolYear: '2026-2027',
+      section,
+      subject,
+      students,
+      classRecords,
+      hpsRecords,
+      teacherName: 'Teacher Galileo'
+    });
+
+    const exportBuf = await populatedZip.generateAsync({ type: 'nodebuffer' });
+    const outPath = path.resolve(__dirname, '../../../scratch/exported_archimedes_verified.xlsx');
+    fs.writeFileSync(outPath, exportBuf);
+
+    // Verify Term 1 sheet XML
+    const t1Xml = await populatedZip.file('xl/worksheets/sheet3.xml')!.async('string');
+    // HPS row 14
+    expect(t1Xml).toMatch(/<c r="AD14"[^>]*><v>30<\/v><\/c>/);
+    expect(t1Xml).toMatch(/<c r="AE14"[^>]*><v>30<\/v><\/c>/);
+    expect(t1Xml).toMatch(/<c r="AF14"[^>]*><v>60<\/v><\/c>/);
+
+    // Final Grades sheet XML
+    const fgXml = await populatedZip.file('xl/worksheets/sheet6.xml')!.async('string');
+    // Subject name in G9
+    expect(fgXml).toMatch(/<c r="G9"[^>]*><f[^>]*>.*?<\/f><v>PHYSICAL SCIENCE<\/v><\/c>/);
+
+    // Extract student 1 (row 17) Term 1 grade
+    const t1Row17Match = t1Xml.match(/<c r="AM17"[^>]*><f[^>]*>.*?<\/f><v>(\d+)<\/v><\/c>/);
+    expect(t1Row17Match).toBeTruthy();
+    const student1T1Grade = t1Row17Match![1];
+
+    // Final Grades E17 should match student 1 Term 1 grade
+    expect(fgXml).toMatch(new RegExp(`<c r="E17"[^>]*><f[^>]*>.*?</f><v>${student1T1Grade}</v></c>`));
+    // Final Grade in H17 should also match
+    expect(fgXml).toMatch(new RegExp(`<c r="H17"[^>]*><f[^>]*>.*?</f><v>${student1T1Grade}</v></c>`));
+  });
+
   describe('getSHSG12Descriptor', () => {
     it('accurately maps grades to official DepEd qualitative descriptors', () => {
       expect(getSHSG12Descriptor(95)).toBe('Advancing');

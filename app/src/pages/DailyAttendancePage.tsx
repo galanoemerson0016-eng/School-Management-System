@@ -13,7 +13,7 @@ import {
 import { generateQrDataUrl } from '../services/id-card/codes';
 import { triggerParentAttendanceSms } from '../services/sms-gateway';
 import { formatLearnerName } from '../utils/student-name';
-import { broadcastAttendanceUpdate } from '../services/mobile-attendance-sync';
+import { broadcastAttendanceUpdate, pushAttendanceSessionToBackend } from '../services/mobile-attendance-sync';
 import { PhoneAttendanceModal } from '../components/attendance/PhoneAttendanceModal';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
@@ -427,13 +427,8 @@ export function DailyAttendancePage() {
             await upsertAttendanceRecords(records);
             showNotification(`Marked ${roster.length} student(s) as ${status}`, 'success');
 
-            // Broadcast real-time sync update for each record to mobile clients
-            roster.forEach((student, idx) => {
-                const rec = records[idx];
-                if (rec) {
-                    broadcastAttendanceUpdate(rec, composeName(student));
-                }
-            });
+            // Sync real-time session update in a single batch to mobile clients
+            pushAttendanceSessionToBackend({ date, records, students: roster });
 
             // Trigger SMS to parents for ALL statuses (present, absent, late, cutting, excused)
             const schoolName = schoolProfile?.name || 'Calibungan High School';
@@ -467,13 +462,8 @@ export function DailyAttendancePage() {
             await upsertAttendanceRecords(records);
             showNotification(`Marked ${unmarkedStudents.length} unmarked student(s) as Present`, 'success');
 
-            // Broadcast real-time sync update for each record to mobile clients
-            unmarkedStudents.forEach((student, idx) => {
-                const rec = records[idx];
-                if (rec) {
-                    broadcastAttendanceUpdate(rec, composeName(student));
-                }
-            });
+            // Sync real-time session update in a single batch to mobile clients
+            pushAttendanceSessionToBackend({ date, records, students: roster });
 
             const schoolName = schoolProfile?.name || 'Calibungan High School';
             let smsCount = 0;

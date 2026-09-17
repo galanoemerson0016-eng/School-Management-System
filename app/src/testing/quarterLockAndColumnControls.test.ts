@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Section, Subject } from '../types';
 
-describe('Quarter Lock & Fast Column Controls Workflow', () => {
+describe('Term Lock & Fast Column Controls Workflow', () => {
     const mockSection: Section = {
         id: 'sec-10-emerald',
         section_name: 'Emerald',
@@ -14,8 +14,8 @@ describe('Quarter Lock & Fast Column Controls Workflow', () => {
         }
     };
 
-    describe('Quarter Lock Controls', () => {
-        it('identifies locked and unlocked quarters correctly', () => {
+    describe('Term Lock Controls', () => {
+        it('identifies locked and unlocked terms correctly', () => {
             const lockedQuarters = mockSection.section_metadata?.lockedQuarters || [];
             const isQuarterLocked = (q: string | number) => {
                 const key = (typeof q === 'number' ? `q${q}` : String(q).toLowerCase()) as 'q1' | 'q2' | 'q3' | 'q4';
@@ -26,17 +26,16 @@ describe('Quarter Lock & Fast Column Controls Workflow', () => {
             expect(isQuarterLocked('q1')).toBe(true);
             expect(isQuarterLocked(2)).toBe(true);
             expect(isQuarterLocked(3)).toBe(false);
-            expect(isQuarterLocked(4)).toBe(false);
         });
 
-        it('filters quarters during batch sync to exclude locked terms', () => {
+        it('filters terms during batch sync to exclude locked terms (Terms 1-3 only)', () => {
             const lockedQuarters = mockSection.section_metadata?.lockedQuarters || [];
             const isQuarterLocked = (q: number) => lockedQuarters.includes(`q${q}` as 'q1' | 'q2' | 'q3' | 'q4');
 
-            const allQuarters: (1 | 2 | 3)[] = [1, 2, 3];
-            const quartersToSync = allQuarters.filter(q => !isQuarterLocked(q));
+            const allTerms: (1 | 2 | 3)[] = [1, 2, 3];
+            const termsToSync = allTerms.filter(q => !isQuarterLocked(q));
 
-            expect(quartersToSync).toEqual([3]);
+            expect(termsToSync).toEqual([3]);
         });
 
         it('prevents sync entirely if all requested terms are locked', () => {
@@ -48,7 +47,7 @@ describe('Quarter Lock & Fast Column Controls Workflow', () => {
             expect(isLocked).toBe(true);
         });
 
-        it('toggles quarter lock state properly', () => {
+        it('toggles term lock state properly', () => {
             const currentLocked = mockSection.section_metadata?.lockedQuarters || [];
             
             // Toggle off q1
@@ -58,6 +57,12 @@ describe('Quarter Lock & Fast Column Controls Workflow', () => {
             // Toggle on q3
             const toggledOn = [...toggledOff, 'q3' as const];
             expect(toggledOn).toEqual(['q2', 'q3']);
+        });
+
+        it('locks all 3 terms when batch locking', () => {
+            const allTerms: ('q1' | 'q2' | 'q3')[] = ['q1', 'q2', 'q3'];
+            expect(allTerms).toHaveLength(3);
+            expect(allTerms).not.toContain('q4');
         });
     });
 

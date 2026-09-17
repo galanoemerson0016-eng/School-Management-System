@@ -668,7 +668,7 @@ export function InstitutePage() {
         );
     }
     return (
-        <div className="h-[calc(100vh-120px)] max-w-7xl mx-auto w-full flex flex-col gap-3.5 overflow-hidden select-none relative">
+        <div className="min-h-full max-w-7xl mx-auto w-full flex flex-col gap-3.5 select-none relative pb-6">
             {/* School Logo Background Watermark */}
             <div className="absolute inset-0 flex items-center justify-center opacity-[0.035] dark:opacity-[0.05] pointer-events-none select-none z-0 overflow-hidden">
                 <img 
@@ -752,12 +752,12 @@ export function InstitutePage() {
                 variants={containerVariants} 
                 initial="hidden" 
                 animate="visible" 
-                className="flex-1 min-h-0 grid grid-cols-12 gap-3 relative z-10"
+                className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-3 relative z-10"
             >
                 {/* Left Column: Institutional Data */}
                 <motion.div 
                     variants={itemVariants}
-                    className="col-span-7 bg-white dark:bg-[#0f172a] border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm flex flex-col overflow-hidden"
+                    className="col-span-1 lg:col-span-7 bg-white dark:bg-[#0f172a] border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm flex flex-col overflow-hidden"
                 >
                     <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
                         <div className="w-8 h-8 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-500/20">
@@ -787,7 +787,7 @@ export function InstitutePage() {
                 {/* Right Column: Advisory & Teacher Profile */}
                 <motion.div 
                     variants={itemVariants}
-                    className="col-span-5 bg-white dark:bg-[#0f172a] border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-4.5 shadow-sm flex flex-col justify-between overflow-y-auto custom-scrollbar relative"
+                    className="col-span-1 lg:col-span-5 bg-white dark:bg-[#0f172a] border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-4.5 shadow-sm flex flex-col justify-between overflow-y-auto custom-scrollbar relative"
                 >
                     <div className="absolute top-0 right-0 w-36 h-36 bg-blue-500/5 dark:bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
                     <div className="absolute bottom-0 left-0 w-44 h-44 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
