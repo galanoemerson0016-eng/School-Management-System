@@ -589,10 +589,10 @@ export const ALL_CURRICULUM_PRESETS: CurriculumPreset[] = [
  * Find the official DepEd curriculum preset matching a section's configuration.
  */
 export function getCurriculumPreset(
-    gradeLevel?: string,
-    track?: string,
-    strandOrCluster?: string,
-    program?: string
+    gradeLevel?: string | null,
+    track?: string | null,
+    strandOrCluster?: string | null,
+    program?: string | null
 ): CurriculumPreset | null {
     if (!gradeLevel) return null;
     const cleanGrade = gradeLevel.trim();
@@ -675,8 +675,8 @@ export function getAvailablePresetsForGrade(gradeLevel: string): CurriculumPrese
  */
 export function getDepEdWeightsForSubject(
     subjectName: string,
-    gradeLevel?: string,
-    track?: string
+    gradeLevel?: string | null,
+    track?: string | null
 ): { written_weight: number; performance_weight: number; exam_weight: number } {
     const nameNorm = subjectName.toLowerCase();
     const cleanNorm = nameNorm.replace(/[^a-z0-9]/g, '');

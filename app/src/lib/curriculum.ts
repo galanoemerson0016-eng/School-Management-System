@@ -769,10 +769,10 @@ export const SPTVE_SPECIALIZATIONS: SpecialSubjectItem[] = [
  */
 export function getCurriculumTemplatesForSection(
     gradeLevel: string,
-    program?: string,
-    spaMajors?: string[],
-    track?: string,
-    strand?: string
+    program?: string | null,
+    spaMajors?: string[] | null,
+    track?: string | null,
+    strand?: string | null
 ): SpecialSubjectItem[] {
     const standard = STANDARD_SUBJECTS[gradeLevel as keyof typeof STANDARD_SUBJECTS] || [];
     const result: SpecialSubjectItem[] = [...standard];
@@ -1597,8 +1597,8 @@ export function getTraditionalShsStrandForSubject(subjectName: string): string {
 export function isSubjectMatchingSectionTrackAndStrand(
     subjectName: string,
     gradeLevel: string,
-    track?: string,
-    strandOrCluster?: string
+    track?: string | null,
+    strandOrCluster?: string | null
 ): boolean {
     const gradeNum = parseInt(gradeLevel.replace(/\D/g, '')) || 0;
     const norm = (subjectName || '').trim().toLowerCase();
@@ -2421,8 +2421,8 @@ export function classifyJhsSubjectTrack(subjectName: string, gradeLevel: string 
  */
 export function getDepEdStandardWeights(
     subjectName: string,
-    gradeLevel?: string,
-    track?: string
+    gradeLevel?: string | null,
+    track?: string | null
 ): { written_weight: number; performance_weight: number; exam_weight: number } {
     const norm = (subjectName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const isG11 = (gradeLevel || '').includes('11');
