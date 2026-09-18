@@ -2554,6 +2554,8 @@ export function EClassRecord() {
                             </button>
                         </div>
                         <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
                             onClick={toggleCrosshair}
                             className={`h-7.5 px-2 rounded-lg border text-[8.5px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs transition-all cursor-pointer shrink-0 ${
                                 isCrosshairEnabled
@@ -2946,6 +2948,7 @@ export function EClassRecord() {
                     )}
                     <div className="w-full min-h-full flex justify-center overflow-x-auto py-2">
                     <div
+                        ref={containerRef}
                         className="eclass-zoom-shell origin-top transition-all duration-300 m-auto"
                         style={{ transform: `scale(${zoom})` }}
                     >
@@ -3219,7 +3222,7 @@ export function EClassRecord() {
                         </div>
                     ) : (
                     <div className="bg-slate-50/50 dark:bg-[#070a12] p-3 md:p-4 overflow-x-auto">
-                        <div id="printable-class-record" ref={containerRef} className="bg-white text-black p-4 md:p-6 shadow-xl border border-gray-100 mx-auto transition-all duration-300" style={{ width: isGMRCSubject ? `${optimalNameColumnWidth + 1330}px` : PAPER_SIZES[paperSize].previewWidthLandscape, minWidth: isGMRCSubject ? `${optimalNameColumnWidth + 1280}px` : undefined }}>
+                        <div id="printable-class-record" className="bg-white text-black p-4 md:p-6 shadow-xl border border-gray-100 mx-auto transition-all duration-300" style={{ width: isGMRCSubject ? `${optimalNameColumnWidth + 1330}px` : PAPER_SIZES[paperSize].previewWidthLandscape, minWidth: isGMRCSubject ? `${optimalNameColumnWidth + 1280}px` : undefined }}>
                             {[
                                 { gender: 'MALE' as const, students: maleStudents },
                                 { gender: 'FEMALE' as const, students: femaleStudents }

@@ -20,9 +20,13 @@ export function useTableCrosshair(options: UseTableCrosshairOptions = {}) {
         }
     });
 
-    const containerRef = useRef<HTMLDivElement | null>(null);
+    const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
     const activeColKeyRef = useRef<string | null>(null);
     const activeRowKeyRef = useRef<string | null>(null);
+
+    const containerRef = useCallback((node: HTMLDivElement | null) => {
+        setContainerEl(node);
+    }, []);
 
     const toggleCrosshair = useCallback(() => {
         setIsEnabled((prev) => {
@@ -36,25 +40,25 @@ export function useTableCrosshair(options: UseTableCrosshairOptions = {}) {
         });
     }, [storageKey]);
 
-    useEffect(() => {
-        const container = containerRef.current;
-        if (!container) return;
+    const clearHighlights = useCallback(() => {
+        activeColKeyRef.current = null;
+        activeRowKeyRef.current = null;
+        if (!containerEl) return;
+        const highlightedCols = containerEl.querySelectorAll('.crosshair-col-active, .crosshair-th-active');
+        highlightedCols.forEach((el) => el.classList.remove('crosshair-col-active', 'crosshair-th-active'));
+        const highlightedRows = containerEl.querySelectorAll('.crosshair-row-active');
+        highlightedRows.forEach((el) => el.classList.remove('crosshair-row-active'));
+    }, [containerEl]);
 
-        const clearHighlights = () => {
-            activeColKeyRef.current = null;
-            activeRowKeyRef.current = null;
-            const highlightedCols = container.querySelectorAll('.crosshair-col-active, .crosshair-th-active');
-            highlightedCols.forEach((el) => el.classList.remove('crosshair-col-active', 'crosshair-th-active'));
-            const highlightedRows = container.querySelectorAll('.crosshair-row-active');
-            highlightedRows.forEach((el) => el.classList.remove('crosshair-row-active'));
-        };
+    useEffect(() => {
+        if (!containerEl) return;
+        const container = containerEl;
+        if (!container) return;
 
         if (!isEnabled) {
             clearHighlights();
             return;
         }
-
-        const lastPointerPosRef = { current: null as { x: number; y: number } | null };
 
         const applyHighlights = (target: HTMLElement) => {
             // 1. Column Highlighting
@@ -81,6 +85,15 @@ export function useTableCrosshair(options: UseTableCrosshairOptions = {}) {
                         }
                     });
                 }
+            } else if (newColKey) {
+                // Check if React re-render stripped class on active columns
+                const matchingCells = container.querySelectorAll<HTMLElement>(`[data-col-key="${CSS.escape(newColKey)}"]`);
+                matchingCells.forEach((el) => {
+                    const cls = el.tagName.toLowerCase() === 'th' ? 'crosshair-th-active' : 'crosshair-col-active';
+                    if (!el.classList.contains(cls)) {
+                        el.classList.add(cls);
+                    }
+                });
             }
 
             // 2. Row Highlighting
@@ -98,6 +111,9 @@ export function useTableCrosshair(options: UseTableCrosshairOptions = {}) {
                 if (tr) {
                     tr.classList.add('crosshair-row-active');
                 }
+            } else if (tr && !tr.classList.contains('crosshair-row-active')) {
+                // Row key unchanged, but class stripped by React re-render
+                tr.classList.add('crosshair-row-active');
             }
         };
 
@@ -110,17 +126,12 @@ export function useTableCrosshair(options: UseTableCrosshairOptions = {}) {
             const isInputFocused = activeEl && container.contains(activeEl) && (activeEl.tagName === 'INPUT' || activeEl.isContentEditable);
 
             if (isInputFocused) {
-                // If an input is focused, only update hover if mouse physically moved (not stationary / scroll event)
-                const lastPos = lastPointerPosRef.current;
-                const hasMoved = lastPos && (Math.abs(e.clientX - lastPos.x) > 3 || Math.abs(e.clientY - lastPos.y) > 3);
-                lastPointerPosRef.current = { x: e.clientX, y: e.clientY };
-
-                if (!hasMoved) {
-                    // Ignore stationary mouse or scroll synthetic mouseover
+                // Strict Focus Authority: while typing into a cell, mouse hovering other rows must NOT steal highlight
+                const cellWithCol = target.closest<HTMLElement>('[data-col-key]');
+                const activeCell = activeEl.closest<HTMLElement>('[data-col-key]');
+                if (cellWithCol !== activeCell) {
                     return;
                 }
-            } else {
-                lastPointerPosRef.current = { x: e.clientX, y: e.clientY };
             }
 
             applyHighlights(target);
@@ -130,6 +141,13 @@ export function useTableCrosshair(options: UseTableCrosshairOptions = {}) {
             const target = e.target as HTMLElement | null;
             if (!target) return;
             applyHighlights(target);
+        };
+
+        const handleInput = (e: Event) => {
+            const target = e.target as HTMLElement | null;
+            if (target && container.contains(target)) {
+                applyHighlights(target);
+            }
         };
 
         const handleMouseLeave = () => {
@@ -152,21 +170,30 @@ export function useTableCrosshair(options: UseTableCrosshairOptions = {}) {
 
         container.addEventListener('mouseover', handleMouseOver);
         container.addEventListener('focusin', handleFocusIn);
+        container.addEventListener('input', handleInput);
         container.addEventListener('mouseleave', handleMouseLeave);
         container.addEventListener('focusout', handleFocusOut);
+
+        // If an element is already focused upon mount/update, highlight it immediately
+        const currentActive = document.activeElement as HTMLElement | null;
+        if (currentActive && container.contains(currentActive)) {
+            applyHighlights(currentActive);
+        }
 
         return () => {
             container.removeEventListener('mouseover', handleMouseOver);
             container.removeEventListener('focusin', handleFocusIn);
+            container.removeEventListener('input', handleInput);
             container.removeEventListener('mouseleave', handleMouseLeave);
             container.removeEventListener('focusout', handleFocusOut);
             clearHighlights();
         };
-    }, [isEnabled]);
+    }, [isEnabled, containerEl, clearHighlights]);
 
     return {
         containerRef,
         isCrosshairEnabled: isEnabled,
         toggleCrosshair,
+        clearHighlights,
     };
 }

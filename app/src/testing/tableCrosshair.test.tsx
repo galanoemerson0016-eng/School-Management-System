@@ -254,5 +254,91 @@ describe('Table Crosshair Highlighter (useTableCrosshair)', () => {
             expect(row1.classList.contains('crosshair-row-active')).toBe(false);
             expect(ww1Header.classList.contains('crosshair-th-active')).toBe(false);
         });
+
+        it('attaches listeners seamlessly when container is mounted conditionally after hook initialization', () => {
+            const ConditionalTable = ({ mounted }: { mounted: boolean }) => {
+                const { containerRef } = useTableCrosshair({ storageKey: TEST_STORAGE_KEY });
+
+                if (!mounted) {
+                    return <div data-testid="placeholder">No section selected</div>;
+                }
+
+                return (
+                    <div ref={containerRef} data-testid="delayed-container">
+                        <table>
+                            <tbody>
+                                <tr className="grade-row" data-row-key="learner-delayed">
+                                    <td data-col-key="ww-delayed">Score</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                );
+            };
+
+            const { getByTestId, queryByTestId, rerender } = render(<ConditionalTable mounted={false} />);
+            expect(queryByTestId('delayed-container')).toBeNull();
+
+            // Mount the container conditionally (simulating selecting section in Consolidated Grades)
+            rerender(<ConditionalTable mounted={true} />);
+
+            const container = getByTestId('delayed-container');
+            const row = container.querySelector('tr[data-row-key="learner-delayed"]') as HTMLTableRowElement;
+            const cell = container.querySelector('td[data-col-key="ww-delayed"]') as HTMLTableCellElement;
+
+            cell.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+            expect(row.classList.contains('crosshair-row-active')).toBe(true);
+            expect(cell.classList.contains('crosshair-col-active')).toBe(true);
+        });
+
+        it('preserves and restores highlights upon user input events', () => {
+            const { getByTestId } = render(<TestTable />);
+            const shell = getByTestId('table-container');
+
+            const row1 = shell.querySelector('tr[data-row-key="learner-1"]') as HTMLTableRowElement;
+            const ww1Cell1 = row1.querySelector('td[data-col-key="ww-1"]') as HTMLTableCellElement;
+            const input = ww1Cell1.querySelector('input')!;
+
+            // Focus and highlight
+            input.focus();
+            input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+            expect(row1.classList.contains('crosshair-row-active')).toBe(true);
+            expect(ww1Cell1.classList.contains('crosshair-col-active')).toBe(true);
+
+            // Simulate React re-rendering and stripping the classes
+            row1.classList.remove('crosshair-row-active');
+            ww1Cell1.classList.remove('crosshair-col-active');
+            expect(row1.classList.contains('crosshair-row-active')).toBe(false);
+
+            // Trigger input event (user types a number)
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+
+            // Classes are restored
+            expect(row1.classList.contains('crosshair-row-active')).toBe(true);
+            expect(ww1Cell1.classList.contains('crosshair-col-active')).toBe(true);
+        });
+
+        it('strictly prevents mouse hover on other rows from stealing focus highlight while input is focused', () => {
+            const { getByTestId } = render(<TestTable />);
+            const shell = getByTestId('table-container');
+
+            const row1 = shell.querySelector('tr[data-row-key="learner-1"]') as HTMLTableRowElement;
+            const row2 = shell.querySelector('tr[data-row-key="learner-2"]') as HTMLTableRowElement;
+            const inputRow1 = row1.querySelector('td[data-col-key="ww-1"] input') as HTMLInputElement;
+            const cellRow2 = row2.querySelector('td[data-col-key="ww-1"]') as HTMLTableCellElement;
+
+            // Focus Row 1 input
+            inputRow1.focus();
+            inputRow1.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+            expect(row1.classList.contains('crosshair-row-active')).toBe(true);
+            expect(row2.classList.contains('crosshair-row-active')).toBe(false);
+
+            // Mouse wanders over Row 2 while Row 1 is focused
+            cellRow2.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, clientX: 300, clientY: 400 }));
+
+            // Row 1 remains highlighted; Row 2 was NOT stolen by wandering mouse
+            expect(row1.classList.contains('crosshair-row-active')).toBe(true);
+            expect(row2.classList.contains('crosshair-row-active')).toBe(false);
+        });
     });
 });

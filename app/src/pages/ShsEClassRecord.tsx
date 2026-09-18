@@ -2334,6 +2334,7 @@ export function ShsEClassRecord() {
                         {/* 1. Dedicated Standalone Guide Button */}
                         <button
                             type="button"
+                            onMouseDown={(e) => e.preventDefault()}
                             onClick={toggleCrosshair}
                             className={`h-7.5 px-2.5 rounded-lg border text-[8.5px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
                                 isCrosshairEnabled

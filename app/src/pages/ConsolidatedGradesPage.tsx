@@ -4454,6 +4454,7 @@ const groupedSections = useMemo(() => {
                     {selectedSection && (
                         <button
                             type="button"
+                            onMouseDown={(e) => e.preventDefault()}
                             onClick={toggleCrosshair}
                             className={`h-7.5 px-2 rounded-md border text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer ${
                                 isCrosshairEnabled
