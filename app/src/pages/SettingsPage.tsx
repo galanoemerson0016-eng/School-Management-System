@@ -2657,7 +2657,7 @@ export function SettingsPage() {
                                                         <tr key={b.id} className="hover:bg-slate-50/60 dark:hover:bg-white/2 transition-colors">
                                                             <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200 align-top">
                                                                 <div className="flex items-center gap-2">
-                                                                    <span className="truncate max-w-[200px] text-xs font-black">{b.label}</span>
+                                                                    <span className="truncate max-w-50 text-xs font-black">{b.label}</span>
                                                                     <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/5 text-slate-500 font-medium shrink-0">
                                                                         {formatBytes(b.fileSize)}
                                                                     </span>
@@ -2767,7 +2767,7 @@ export function SettingsPage() {
                                                         <tr key={fb.filename} className="hover:bg-slate-50/60 dark:hover:bg-white/2 transition-colors">
                                                             <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200 align-top">
                                                                 <div className="flex items-center gap-2">
-                                                                    <span className="truncate max-w-[200px] text-xs font-black">{fb.filename}</span>
+                                                                    <span className="truncate max-w-50 text-xs font-black">{fb.filename}</span>
                                                                     <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/5 text-slate-500 font-medium shrink-0">
                                                                         {formatBytes(fb.size)}
                                                                     </span>
