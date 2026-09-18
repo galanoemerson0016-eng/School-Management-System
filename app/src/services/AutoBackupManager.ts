@@ -184,7 +184,7 @@ export const AutoBackupManager = {
       // Update localStorage timestamp
       localStorage.setItem('formease_last_autobackup_time', timestamp.toString());
 
-      // Rotate automated backups: Keep only the 5 most recent
+      // Rotate automated backups: Keep only the 10 most recent
       await this.rotateBackups();
 
       console.log('✅ Automated daily database backup complete:', backupId);
@@ -232,13 +232,13 @@ export const AutoBackupManager = {
   },
 
   /**
-   * Cleans up older backups to enforce a maximum of 5 rotating snapshots.
+   * Cleans up older backups to enforce a maximum of 10 rotating snapshots.
    */
   async rotateBackups(): Promise<void> {
     try {
       const backups = await this.getAutomatedBackups();
-      if (backups.length > 5) {
-        const oldBackups = backups.slice(5);
+      if (backups.length > 10) {
+        const oldBackups = backups.slice(10);
         for (const ob of oldBackups) {
           await this.deleteBackup(ob.id);
           console.log(`Rotated (deleted) old automated backup: ${ob.id}`);

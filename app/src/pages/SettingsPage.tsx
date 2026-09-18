@@ -2555,7 +2555,7 @@ export function SettingsPage() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                            {autoBackups.slice(0, 10).map((b) => (
+                                            {autoBackups.map((b) => (
                                                 <tr key={b.id} className="hover:bg-slate-50/60 dark:hover:bg-white/2 transition-colors">
                                                     <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-slate-200">
                                                         {b.label}
@@ -2586,7 +2586,7 @@ export function SettingsPage() {
                                                     </td>
                                                 </tr>
                                             ))}
-                                            {fsBackups.slice(0, 10).map((fb) => (
+                                            {fsBackups.map((fb) => (
                                                 <tr key={fb.filename} className="hover:bg-slate-50/60 dark:hover:bg-white/2 transition-colors">
                                                     <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-slate-200">
                                                         {fb.filename}
