@@ -3,7 +3,7 @@ import { useAuthStore } from '../stores/auth-store';
 import { useAppStore, initializeAppStore } from '../stores/app-store';
 import { useUpdateStore } from '../stores/update-store';
 import { db } from '../services/database';
-import { Database, User, Shield, Upload, Cloud, Info, Sparkles, Sun, Moon, Monitor, Download, MessageSquare, FileSpreadsheet, RefreshCw, CheckCircle2, Archive } from 'lucide-react';
+import { Database, User, Shield, Upload, Cloud, Info, Sparkles, Sun, Moon, Monitor, Download, MessageSquare, FileSpreadsheet, RefreshCw, CheckCircle2, Archive, Search } from 'lucide-react';
 import { AboutPage } from './AboutPage';
 import { VersionHistoryTimeline } from '../components/settings/VersionHistoryTimeline';
 import { SmsGatewaySettings } from '../components/settings/SmsGatewaySettings';
@@ -26,7 +26,7 @@ import {
     exportAllDirectDatabaseStoresToCSV,
     type DatabaseRecordCounts
 } from '../services/database-rescue-export';
-import type { Student, AttendanceRecord, ClassRecord } from '../types';
+import type { Student, AttendanceRecord, ClassRecord, Section } from '../types';
 import { downloadMasterExcelBackup } from '../services/master-excel-backup';
 import { generatePreUpdateSafetyVault } from '../services/pre-update-safety';
 
@@ -42,6 +42,8 @@ interface FsBackupEntry {
         sections: number;
         subjects: number;
         grades: number;
+        attendanceRecords?: number;
+        gradingSheetRecords?: number;
     };
 }
 
@@ -82,6 +84,22 @@ export function SettingsPage() {
 
     const [autoBackups, setAutoBackups] = useState<AutomatedBackupEntry[]>([]);
     const [fsBackups, setFsBackups] = useState<FsBackupEntry[]>([]);
+    const [snapshotSearchQuery, setSnapshotSearchQuery] = useState("");
+    const [inspectingSnapshot, setInspectingSnapshot] = useState<{
+        title: string;
+        timestamp: number;
+        type: 'auto' | 'fs';
+        size: number;
+        schoolYear: string;
+        students: number;
+        sections: number;
+        sectionNames?: string[];
+        grades: number;
+        gradingSheets?: number;
+        attendance: number;
+        subjects: number;
+        onRestore: () => void;
+    } | null>(null);
     const updateStore = useUpdateStore();
     const [activeTab, setActiveTab] = useState<'general' | 'account' | 'backups' | 'cloud' | 'sms' | 'maintenance' | 'versions' | 'about'>('general');
     const [aboutSubTab, setAboutSubTab] = useState<'highlights' | 'history' | 'innovator'>('highlights');
@@ -414,18 +432,62 @@ export function SettingsPage() {
         }
     };
 
-    const handleRestoreAutoBackup = (backupId: string, label: string) => {
+    const formatRelativeTime = (timestamp: number): string => {
+        const diffMs = Date.now() - timestamp;
+        const diffMinutes = Math.floor(diffMs / (1000 * 60));
+        const diffHours = Math.floor(diffMinutes / 60);
+        const diffDays = Math.floor(diffHours / 24);
+
+        if (diffMinutes < 1) return 'Just now';
+        if (diffMinutes < 60) return `${diffMinutes}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        if (diffDays === 1) return 'Yesterday';
+        if (diffDays < 30) return `${diffDays}d ago`;
+        return new Date(timestamp).toLocaleDateString();
+    };
+
+    const getAutoBackupSections = (b: AutomatedBackupEntry): string[] => {
+        try {
+            const payload = (b.data as ComprehensiveBackup)?.payload;
+            if (payload?.sections && Array.isArray(payload.sections)) {
+                return payload.sections.map((s: Section) => s.section_name).filter(Boolean);
+            }
+        } catch {
+            // ignore
+        }
+        return [];
+    };
+
+    const getAutoBackupSchoolYear = (b: AutomatedBackupEntry): string => {
+        try {
+            const cb = b.data as ComprehensiveBackup;
+            return cb?.summary?.activeSchoolYear || cb?.payload?.activeSchoolYear || activeSchoolYear || 'Active S.Y.';
+        } catch {
+            return activeSchoolYear || 'Active S.Y.';
+        }
+    };
+
+    const handleRestoreAutoBackup = (backupId: string, label: string, entry?: AutomatedBackupEntry) => {
+        const b = entry || autoBackups.find(item => item.id === backupId);
+        const studentsCount = b?.recordCounts?.students ?? 0;
+        const sectionsCount = b?.recordCounts?.sections ?? 0;
+        const gradesCount = b?.recordCounts?.classRecords ?? 0;
+        const attendanceCount = b?.recordCounts?.attendanceRecords ?? 0;
+        const sy = b ? getAutoBackupSchoolYear(b) : activeSchoolYear;
+        const secList = b ? getAutoBackupSections(b) : [];
+        const secPreview = secList.length > 0 ? ` [${secList.slice(0, 3).join(', ')}${secList.length > 3 ? '...' : ''}]` : '';
+
         setPendingConfirmation({
-            title: 'Restore Automated Backup?',
-            message: `Are you sure you want to restore the system state from the snapshot "${label}"?`,
-            details: 'This will replace all current students, sections, subjects, grades, and attendance data with the backup snapshot. Current unsaved changes will be overwritten.',
+            title: 'Restore Automated Backup Snapshot?',
+            message: `Revert system data to "${label}" from ${b ? new Date(b.timestamp).toLocaleString() : 'saved state'}?`,
+            details: `📦 Checkpoint Contents:\n• School Year: S.Y. ${sy}\n• Enrolled Learners: ${studentsCount}\n• Sections: ${sectionsCount}${secPreview}\n• Recorded Grades: ${gradesCount}\n• Attendance Logs: ${attendanceCount}\n\n⚠️ Warning: Restoring will overwrite any changes made after this snapshot.`,
             confirmLabel: 'Restore Snapshot',
             intent: 'warning',
             onConfirm: async () => {
                 try {
                     await AutoBackupManager.restoreFromBackup(backupId);
                     await initializeAppStore();
-                    alert('Database state successfully restored from automated backup!');
+                    alert('✅ Database state successfully restored from automated backup!');
                     loadAutoBackups();
                 } catch (err) {
                     alert('Restore failed: ' + err);
@@ -2524,17 +2586,34 @@ export function SettingsPage() {
                                         <Database className="h-5 w-5" />
                                     </div>
                                     <div>
-                                        <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Local Snapshot Vault</h3>
-                                        <p className="text-xs font-medium text-slate-400 mt-0.5">Automated hourly checkpoints and local file system snapshots.</p>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Local Snapshot Vault</h3>
+                                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300">
+                                                10 Checkpoints Retained
+                                            </span>
+                                        </div>
+                                        <p className="text-xs font-medium text-slate-400 mt-0.5">Automated hourly checkpoints with detailed learner, section, and grade record breakdown.</p>
                                     </div>
                                 </div>
-                                <button
-                                    onClick={handleManualAutoBackup}
-                                    className="inline-flex items-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white px-3.5 py-2 text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer self-start sm:self-auto"
-                                >
-                                    <Database className="w-3.5 h-3.5" />
-                                    Take Instant Snapshot
-                                </button>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <div className="relative">
+                                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            value={snapshotSearchQuery}
+                                            onChange={(e) => setSnapshotSearchQuery(e.target.value)}
+                                            placeholder="Search by date, class, or S.Y...."
+                                            className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:border-purple-500 font-medium w-48 sm:w-60"
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={handleManualAutoBackup}
+                                        className="inline-flex items-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white px-3.5 py-2 text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer self-start sm:self-auto"
+                                    >
+                                        <Database className="w-3.5 h-3.5" />
+                                        Take Instant Snapshot
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Snapshots Table */}
@@ -2550,78 +2629,331 @@ export function SettingsPage() {
                                                 <th className="py-2.5 px-3">Snapshot Name / Date</th>
                                                 <th className="py-2.5 px-3">Type</th>
                                                 <th className="py-2.5 px-3">School Year</th>
-                                                <th className="py-2.5 px-3">Scope</th>
+                                                <th className="py-2.5 px-3">Data Scope & Records</th>
                                                 <th className="py-2.5 px-3 text-right">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                            {autoBackups.map((b) => (
-                                                <tr key={b.id} className="hover:bg-slate-50/60 dark:hover:bg-white/2 transition-colors">
-                                                    <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-slate-200">
-                                                        {b.label}
-                                                        <span className="block text-[10px] text-slate-400 font-medium">{new Date(b.timestamp).toLocaleString()}</span>
-                                                    </td>
-                                                    <td className="py-2.5 px-3">
-                                                        <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
-                                                            Auto Snapshot
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-2.5 px-3 font-semibold text-slate-500">Auto</td>
-                                                    <td className="py-2.5 px-3 text-[11px] text-slate-500">
-                                                        {b.recordCounts?.students ?? 0} students • {b.recordCounts?.sections ?? 0} sections
-                                                    </td>
-                                                    <td className="py-2.5 px-3 text-right space-x-2">
-                                                        <button
-                                                            onClick={() => handleRestoreAutoBackup(b.id, b.label)}
-                                                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer"
-                                                        >
-                                                            Restore
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeleteAutoBackup(b.id, b.label)}
-                                                            className="px-2 py-1 text-slate-400 hover:text-rose-600 text-[10px] font-bold cursor-pointer"
-                                                        >
-                                                            Delete
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                            {fsBackups.map((fb) => (
-                                                <tr key={fb.filename} className="hover:bg-slate-50/60 dark:hover:bg-white/2 transition-colors">
-                                                    <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-slate-200">
-                                                        {fb.filename}
-                                                        <span className="block text-[10px] text-slate-400 font-medium">{new Date(fb.mtime).toLocaleString()} • {formatBytes(fb.size)}</span>
-                                                    </td>
-                                                    <td className="py-2.5 px-3">
-                                                        <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
-                                                            Disk File
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-2.5 px-3 font-semibold text-slate-500">{fb.summary?.activeSchoolYear || 'Active'}</td>
-                                                    <td className="py-2.5 px-3 text-[11px] text-slate-500">
-                                                        {fb.summary?.students ?? 0} students • {fb.summary?.sections ?? 0} sections
-                                                    </td>
-                                                    <td className="py-2.5 px-3 text-right space-x-2">
-                                                        <button
-                                                            onClick={() => handleRestoreFsBackup(fb.filename)}
-                                                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer"
-                                                        >
-                                                            Restore
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeleteFsBackup(fb.filename)}
-                                                            className="px-2 py-1 text-slate-400 hover:text-rose-600 text-[10px] font-bold cursor-pointer"
-                                                        >
-                                                            Delete
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                            {autoBackups
+                                                .filter((b) => {
+                                                    if (!snapshotSearchQuery.trim()) return true;
+                                                    const q = snapshotSearchQuery.toLowerCase();
+                                                    const sections = getAutoBackupSections(b).join(" ").toLowerCase();
+                                                    const sy = getAutoBackupSchoolYear(b).toLowerCase();
+                                                    return b.label.toLowerCase().includes(q) ||
+                                                        new Date(b.timestamp).toLocaleString().toLowerCase().includes(q) ||
+                                                        sections.includes(q) ||
+                                                        sy.includes(q);
+                                                })
+                                                .map((b) => {
+                                                    const sy = getAutoBackupSchoolYear(b);
+                                                    const sections = getAutoBackupSections(b);
+                                                    const gradeCount = b.recordCounts?.classRecords ?? 0;
+                                                    const attendanceCount = b.recordCounts?.attendanceRecords ?? 0;
+                                                    const subjectCount = b.recordCounts?.subjects ?? 0;
+                                                    const studentCount = b.recordCounts?.students ?? 0;
+                                                    const sectionCount = b.recordCounts?.sections ?? 0;
+                                                    return (
+                                                        <tr key={b.id} className="hover:bg-slate-50/60 dark:hover:bg-white/2 transition-colors">
+                                                            <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200 align-top">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="truncate max-w-[200px] text-xs font-black">{b.label}</span>
+                                                                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/5 text-slate-500 font-medium shrink-0">
+                                                                        {formatBytes(b.fileSize)}
+                                                                    </span>
+                                                                </div>
+                                                                <span className="block text-[10px] text-slate-400 font-medium mt-0.5">
+                                                                    {new Date(b.timestamp).toLocaleString()} • <strong className="text-slate-500 dark:text-slate-400">{formatRelativeTime(b.timestamp)}</strong>
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3 px-3 align-top">
+                                                                <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
+                                                                    Auto Snapshot
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3 px-3 align-top">
+                                                                <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                                                                    S.Y. {sy}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3 px-3 align-top">
+                                                                <div className="space-y-1.5 max-w-sm">
+                                                                    <div className="flex flex-wrap items-center gap-1.5">
+                                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300" title="Enrolled Students">
+                                                                            👥 {studentCount} learners
+                                                                        </span>
+                                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300" title="Class Sections">
+                                                                            🏫 {sectionCount} {sectionCount === 1 ? 'section' : 'sections'}
+                                                                        </span>
+                                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                                                            gradeCount > 0
+                                                                                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/40'
+                                                                                : 'bg-slate-100 dark:bg-white/5 text-slate-400'
+                                                                        }`} title="Encoded Grades / Class Records">
+                                                                            📝 {gradeCount} grades
+                                                                        </span>
+                                                                        {attendanceCount > 0 && (
+                                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400" title="Attendance Logs">
+                                                                                📅 {attendanceCount} logs
+                                                                            </span>
+                                                                        )}
+                                                                        {subjectCount > 0 && (
+                                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400" title="Subjects">
+                                                                                📚 {subjectCount} subjects
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    {sections.length > 0 && (
+                                                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate" title={sections.join(", ")}>
+                                                                            <span className="font-bold text-slate-600 dark:text-slate-300">Sections:</span> {sections.join(", ")}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-3 px-3 text-right space-x-1.5 align-top whitespace-nowrap">
+                                                                <button
+                                                                    onClick={() => setInspectingSnapshot({
+                                                                        title: b.label,
+                                                                        timestamp: b.timestamp,
+                                                                        type: 'auto',
+                                                                        size: b.fileSize,
+                                                                        schoolYear: sy,
+                                                                        students: studentCount,
+                                                                        sections: sectionCount,
+                                                                        sectionNames: sections,
+                                                                        grades: gradeCount,
+                                                                        gradingSheets: b.recordCounts?.gradingSheetRecords,
+                                                                        attendance: attendanceCount,
+                                                                        subjects: subjectCount,
+                                                                        onRestore: () => handleRestoreAutoBackup(b.id, b.label, b),
+                                                                    })}
+                                                                    className="px-2.5 py-1 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors"
+                                                                >
+                                                                    Inspect
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleRestoreAutoBackup(b.id, b.label, b)}
+                                                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer shadow-xs"
+                                                                >
+                                                                    Restore
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeleteAutoBackup(b.id, b.label)}
+                                                                    className="px-2 py-1 text-slate-400 hover:text-rose-600 text-[10px] font-bold cursor-pointer transition-colors"
+                                                                >
+                                                                    Delete
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            {fsBackups
+                                                .filter((fb) => {
+                                                    if (!snapshotSearchQuery.trim()) return true;
+                                                    const q = snapshotSearchQuery.toLowerCase();
+                                                    const sy = (fb.summary?.activeSchoolYear || "").toLowerCase();
+                                                    return fb.filename.toLowerCase().includes(q) ||
+                                                        new Date(fb.mtime).toLocaleString().toLowerCase().includes(q) ||
+                                                        sy.includes(q);
+                                                })
+                                                .map((fb) => {
+                                                    const studentCount = fb.summary?.students ?? 0;
+                                                    const sectionCount = fb.summary?.sections ?? 0;
+                                                    const gradeCount = fb.summary?.grades ?? 0;
+                                                    const subjectCount = fb.summary?.subjects ?? 0;
+                                                    const attendanceCount = fb.summary?.attendanceRecords ?? 0;
+                                                    const sy = fb.summary?.activeSchoolYear || "Active S.Y.";
+                                                    return (
+                                                        <tr key={fb.filename} className="hover:bg-slate-50/60 dark:hover:bg-white/2 transition-colors">
+                                                            <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200 align-top">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="truncate max-w-[200px] text-xs font-black">{fb.filename}</span>
+                                                                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/5 text-slate-500 font-medium shrink-0">
+                                                                        {formatBytes(fb.size)}
+                                                                    </span>
+                                                                </div>
+                                                                <span className="block text-[10px] text-slate-400 font-medium mt-0.5">
+                                                                    {new Date(fb.mtime).toLocaleString()} • <strong className="text-slate-500 dark:text-slate-400">{formatRelativeTime(fb.mtime)}</strong>
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3 px-3 align-top">
+                                                                <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
+                                                                    Disk File
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3 px-3 align-top">
+                                                                <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                                                                    S.Y. {sy}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3 px-3 align-top">
+                                                                <div className="space-y-1.5 max-w-sm">
+                                                                    <div className="flex flex-wrap items-center gap-1.5">
+                                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300">
+                                                                            👥 {studentCount} learners
+                                                                        </span>
+                                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300">
+                                                                            🏫 {sectionCount} {sectionCount === 1 ? 'section' : 'sections'}
+                                                                        </span>
+                                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                                                            gradeCount > 0
+                                                                                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/40'
+                                                                                : 'bg-slate-100 dark:bg-white/5 text-slate-400'
+                                                                        }`}>
+                                                                            📝 {gradeCount} grades
+                                                                        </span>
+                                                                        {attendanceCount > 0 && (
+                                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400">
+                                                                                📅 {attendanceCount} logs
+                                                                            </span>
+                                                                        )}
+                                                                        {subjectCount > 0 && (
+                                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400">
+                                                                                📚 {subjectCount} subjects
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-3 px-3 text-right space-x-1.5 align-top whitespace-nowrap">
+                                                                <button
+                                                                    onClick={() => setInspectingSnapshot({
+                                                                        title: fb.filename,
+                                                                        timestamp: fb.mtime,
+                                                                        type: 'fs',
+                                                                        size: fb.size,
+                                                                        schoolYear: sy,
+                                                                        students: studentCount,
+                                                                        sections: sectionCount,
+                                                                        grades: gradeCount,
+                                                                        gradingSheets: fb.summary?.gradingSheetRecords,
+                                                                        attendance: attendanceCount,
+                                                                        subjects: subjectCount,
+                                                                        onRestore: () => handleRestoreFsBackup(fb.filename),
+                                                                    })}
+                                                                    className="px-2.5 py-1 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors"
+                                                                >
+                                                                    Inspect
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleRestoreFsBackup(fb.filename)}
+                                                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer shadow-xs"
+                                                                >
+                                                                    Restore
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeleteFsBackup(fb.filename)}
+                                                                    className="px-2 py-1 text-slate-400 hover:text-rose-600 text-[10px] font-bold cursor-pointer transition-colors"
+                                                                >
+                                                                    Delete
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
                                         </tbody>
                                     </table>
                                 </div>
                             )}
                         </div>
+
+                        {/* Snapshot Inspection & Comparison Modal */}
+                        {inspectingSnapshot && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+                                <div className="bg-white dark:bg-[#0d1225] border border-slate-200 dark:border-white/10 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
+                                    <div className="flex items-start justify-between gap-3 border-b border-slate-150 dark:border-white/5 pb-4">
+                                        <div>
+                                            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
+                                                {inspectingSnapshot.type === 'auto' ? 'Automated Checkpoint' : 'Disk File Backup'}
+                                            </span>
+                                            <h3 className="text-base font-black text-slate-900 dark:text-white mt-1.5 truncate max-w-sm">
+                                                {inspectingSnapshot.title}
+                                            </h3>
+                                            <p className="text-xs text-slate-400 font-medium">
+                                                Captured {new Date(inspectingSnapshot.timestamp).toLocaleString()} ({formatRelativeTime(inspectingSnapshot.timestamp)})
+                                            </p>
+                                        </div>
+                                        <span className="text-xs font-mono font-bold px-2 py-1 rounded-lg bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 shrink-0">
+                                            {formatBytes(inspectingSnapshot.size)}
+                                        </span>
+                                    </div>
+
+                                    {/* Scope Details Grid */}
+                                    <div className="space-y-3">
+                                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                                            Checkpoint Scope & Data Contents
+                                        </h4>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/2 border border-slate-150 dark:border-white/5 space-y-0.5">
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase">School Year</span>
+                                                <p className="text-xs font-extrabold text-slate-800 dark:text-slate-200">S.Y. {inspectingSnapshot.schoolYear}</p>
+                                            </div>
+                                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/2 border border-slate-150 dark:border-white/5 space-y-0.5">
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Learners</span>
+                                                <p className="text-xs font-extrabold text-slate-800 dark:text-slate-200">{inspectingSnapshot.students} enrolled</p>
+                                            </div>
+                                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/2 border border-slate-150 dark:border-white/5 space-y-0.5">
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Class Sections</span>
+                                                <p className="text-xs font-extrabold text-slate-800 dark:text-slate-200">{inspectingSnapshot.sections} active</p>
+                                            </div>
+                                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/2 border border-slate-150 dark:border-white/5 space-y-0.5">
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Subject Grades</span>
+                                                <p className={`text-xs font-extrabold ${inspectingSnapshot.grades > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}`}>
+                                                    {inspectingSnapshot.grades} encoded
+                                                </p>
+                                            </div>
+                                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/2 border border-slate-150 dark:border-white/5 space-y-0.5">
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Attendance Logs</span>
+                                                <p className="text-xs font-extrabold text-slate-800 dark:text-slate-200">{inspectingSnapshot.attendance} records</p>
+                                            </div>
+                                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/2 border border-slate-150 dark:border-white/5 space-y-0.5">
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Subjects</span>
+                                                <p className="text-xs font-extrabold text-slate-800 dark:text-slate-200">{inspectingSnapshot.subjects} subjects</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Section Tags */}
+                                        {inspectingSnapshot.sectionNames && inspectingSnapshot.sectionNames.length > 0 && (
+                                            <div className="space-y-1.5 pt-1">
+                                                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">Classes Included:</span>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {inspectingSnapshot.sectionNames.map((name, i) => (
+                                                        <span key={i} className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/40">
+                                                            {name}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Teacher Guidance Note */}
+                                        <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/30 text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed font-medium">
+                                            💡 <strong>Teacher Guidance:</strong> Compare the <strong>{inspectingSnapshot.grades} recorded grades</strong> and <strong>{inspectingSnapshot.students} enrolled learners</strong> against your intended recovery point to ensure you are restoring the exact version needed.
+                                        </div>
+                                    </div>
+
+                                    {/* Modal Buttons */}
+                                    <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-150 dark:border-white/5">
+                                        <button
+                                            onClick={() => setInspectingSnapshot(null)}
+                                            className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+                                        >
+                                            Close
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const restoreFn = inspectingSnapshot.onRestore;
+                                                setInspectingSnapshot(null);
+                                                restoreFn();
+                                            }}
+                                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                        >
+                                            Restore This Snapshot
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Maintenance Logs (Audit Trail) */}
                         {maintenanceLogs.length > 0 && (
