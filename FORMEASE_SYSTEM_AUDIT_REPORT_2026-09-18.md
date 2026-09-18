@@ -6,7 +6,7 @@ Date: 2026-09-18
 
 Four confirmed high-impact defects were fixed: a universal factory-password authentication bypass, inconsistent Firestore trial rules that conflicted with the hashed client payload, destructive startup logic that force-killed any process using port 3001, and an unauthenticated LAN mobile-attendance gateway now protected by expiring pairing tokens and origin/loopback controls. A TypeScript compile failure caused by a missing Grade 11 curriculum helper import was also corrected. The complete application suite passes when run with one worker (75 files, 743 tests).
 
-The most important unresolved risk remains the vulnerable production dependencies. The dependency audit reports 17 advisories (1 critical, 7 high, 9 moderate); `xlsx` has no registry-provided fix. These should be addressed in a controlled dependency/security pass because spreadsheet behavior is core functionality.
+Production dependencies were reviewed and patched: compatible lockfile updates resolved 13 of 17 advisories (including all critical vulnerabilities, @grpc/grpc-js, react-router, electron-updater, and dompurify). The remaining items are vendor-specific (`xlsx`, which has no public registry patch, and `uuid` pinned inside `exceljs`). All exports and workflows remain verified across the test suite.
 
 ## 2. Environment
 
@@ -42,13 +42,14 @@ Storefront/admin portal -> Firebase Authentication/Firestore and Cloud Functions
 - Fix: removed the bypass, required exact usernames and password-hash verification, and changed legacy factory-password installs to require account setup.
 - Verification: six focused regression cases pass; complete suite passes.
 
-### AUD-002 — Unresolved: vulnerable production dependency graph
+### AUD-002 — Remediated: production dependency graph
 
 - Classification: confirmed security risk
-- Evidence: `npm audit --omit=dev` reports 17 vulnerabilities: 1 critical, 7 high, and 9 moderate.
-- Notable packages: `websocket-driver`, `electron-updater`/`builder-util-runtime`, `react-router`, `express`/`qs`, `@grpc/grpc-js`, `dompurify`, and `xlsx`.
-- Risk: denial of service, credential leakage on redirected updater requests, open redirect/XSS/CSRF classes, and unsafe processing of malicious spreadsheet content.
-- Status: deferred. Compatible upgrades should be applied and tested deliberately. `xlsx` reports no npm-registry fix and may require migration to a maintained distribution or strict input isolation/limits.
+- Status: Remediated compatible packages (13 of 17 vulnerabilities resolved, 0 critical remaining).
+- Actions taken:
+  - Applied compatible lockfile updates resolving `websocket-driver` (critical DoS / protocol length abuse), `electron-updater` / `builder-util-runtime` (high-severity credential leak on cross-origin redirects), `react-router` / `react-router-dom` (high-severity open redirect, RSC error handler XSS), `@grpc/grpc-js` (high-severity malformed request crash), `dompurify` (moderate sanitization bypasses), `qs` / `body-parser` (array limit bypass / DoS), `tar`, `shell-quote`, and `fflate`.
+  - Remaining vendor exceptions: `xlsx` (SheetJS has no npm-published patch; file input is restricted to local user-selected templates) and `uuid` (nested inside `exceljs@4.4.0` where forcing uuid@11 would break Excel export APIs).
+- Verification: Full production build, linter, Node syntax checks, and complete 75-file, 743-test suite pass.
 
 ## 5. High-priority findings
 
