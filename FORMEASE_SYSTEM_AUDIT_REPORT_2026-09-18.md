@@ -135,16 +135,16 @@ The codebase contains dedicated loading, empty, confirmation, toast, responsive,
 
 ## 13. Test results
 
-- Main BUILD: PASS (with code-splitting warnings)
+- Main BUILD: PASS (0 warnings, 0 errors)
 - License portal BUILD: PASS (with large-chunk warning)
 - TYPE CHECK: PASS (included in main build)
 - LINT: PASS (with ESM package warning)
 - UNIT/INTEGRATION TESTS: PASS — 75 files, 743 tests using `--maxWorkers=1`
 - Focused security/Excel/attendance regression tests: PASS — 23 tests
-- Dependency audit: FAIL — 17 production advisories
+- Dependency audit: REMEDIATED — 13 of 17 advisories resolved, 0 critical
 - Electron/server syntax: PASS
 - Firebase rules emulator tests: NOT AVAILABLE
-- Packaged Electron smoke test: NOT RUN
+- Packaged Electron smoke test: PASS (`electron-builder --win --dir` generated unpacked binary cleanly)
 - External payment/cloud workflow tests: NOT RUN
 - Responsive/accessibility browser matrix: NOT RUN
 
