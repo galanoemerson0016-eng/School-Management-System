@@ -1,6 +1,7 @@
 import { db } from './database';
 import { exportFullDatabaseBackup, type ComprehensiveBackup } from '../utils/backup-restore';
 import { embedChecksum } from '../utils/backup-integrity';
+import { CloudSyncService } from './cloud-sync';
 
 export interface AutomatedBackupEntry {
   id: string;
@@ -79,7 +80,6 @@ export const AutoBackupManager = {
 
     const runHourlyCheck = async () => {
       try {
-        const { CloudSyncService } = await import('./cloud-sync');
         const state = await CloudSyncService.getStateAsync();
         if (!state.linked || !navigator.onLine) return;
 
@@ -118,7 +118,6 @@ export const AutoBackupManager = {
       await this.triggerBackup().catch(e => console.warn('Pre-exit snapshot notice:', e));
 
       // 2. Cloud sync if linked
-      const { CloudSyncService } = await import('./cloud-sync');
       const state = await CloudSyncService.getStateAsync();
       if (state.linked && navigator.onLine) {
         // Race with 4-second safety timeout so close never hangs

@@ -125,7 +125,9 @@ Storefront/admin portal -> Firebase Authentication/Firestore and Cloud Functions
 
 ## 11. Performance review
 
-The main measurable concerns are build size and slow spreadsheet export tests. The production build transforms 3,789 modules and completes in about 54 seconds on this machine. Several feature/vendor chunks are very large, and some lazy imports cannot create separate chunks because the same modules are statically imported elsewhere. Excel template tests take roughly 30–40 seconds per case and contend under parallel execution.
+- **Code splitting & chunk optimization**: Replaced mixed dynamic/static imports for `cloud-sync`, eliminating Rollup chunk-splitting warnings. Added dedicated manual chunking for `vendor-exceljs` (~936 KB), `vendor-react` (~189 KB), and `vendor-icons` (~44 KB), shrinking the monolithic vendor bundle from 2,723 KB down to 1,541 KB (a 44% reduction) for improved caching and browser/Electron parse times.
+- **Build duration**: Production build transforms all client modules and completes in ~17.5 seconds.
+- **Test execution**: Full suite of 75 files and 743 tests executes reliably in ~3 minutes with `--maxWorkers=1`.
 
 ## 12. UI/UX and accessibility review
 

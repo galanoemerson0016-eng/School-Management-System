@@ -21,6 +21,7 @@ import { BroadcastBannerModal } from './components/broadcasts/BroadcastBannerMod
 import { pushAttendanceSessionToBackend, revokeAttendancePairing, subscribeToAttendanceUpdates } from './services/mobile-attendance-sync';
 import { triggerParentAttendanceSms } from './services/sms-gateway';
 import { formatLearnerName } from './utils/student-name';
+import { CloudSyncService } from './services/cloud-sync';
 
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const AccountSetupPage = lazy(() => import('./pages/AccountSetupPage').then(m => ({ default: m.AccountSetupPage })));
@@ -272,7 +273,6 @@ function App() {
     if (isAuthenticated && isSyncReady) {
       const timer = setTimeout(async () => {
         try {
-          const { CloudSyncService } = await import('./services/cloud-sync');
           const state = await CloudSyncService.getStateAsync();
           if (!state.linked && CloudSyncService.shouldShowOnboarding()) {
             setShowGDriveOnboarding(true);
