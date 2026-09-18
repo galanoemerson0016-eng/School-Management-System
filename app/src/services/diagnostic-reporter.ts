@@ -40,7 +40,7 @@ export class DiagnosticReporter {
       ticket_id: ticketId,
       created_at: new Date().toISOString(),
       timestamp: Date.now(),
-      app_version: '3.2.0',
+      app_version: '3.5.14',
       machine_id: machineId,
       status: 'open',
       category: payload.category,
