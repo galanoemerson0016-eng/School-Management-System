@@ -191,5 +191,28 @@ describe('GradingSlice - bulkUpdateGradingSheetRecords', () => {
     await slice.bulkUpdateGradingSheetRecords([]);
     expect(state.gradingSheetRecords).toHaveLength(2);
   });
+
+  it('does not overwrite a same-subject record that belongs to another section', async () => {
+    state.gradingSheetRecords = [
+      {
+        id: 'old-section-grade', student_lrn: '1001', subject_id: 'sub1', section_id: 'section-old',
+        quarter: 1, school_year: '2026-2027', final_grade: 81, written_works: [], performance_tasks: [], quarterly_exam: 0,
+      },
+      {
+        id: 'current-section-grade', student_lrn: '1001', subject_id: 'sub1', section_id: 'section-current',
+        quarter: 1, school_year: '2026-2027', final_grade: 90, written_works: [], performance_tasks: [], quarterly_exam: 0,
+      },
+    ];
+    const slice = createGradingSlice(set, get);
+
+    await slice.bulkUpdateGradingSheetRecords([{
+      id: 'current-section-grade', student_lrn: '1001', subject_id: 'sub1', section_id: 'section-current',
+      quarter: 1, school_year: '2026-2027', final_grade: 94, written_works: [], performance_tasks: [], quarterly_exam: 0,
+    }]);
+
+    expect(state.gradingSheetRecords).toHaveLength(2);
+    expect(state.gradingSheetRecords.find(r => r.id === 'old-section-grade')?.final_grade).toBe(81);
+    expect(state.gradingSheetRecords.find(r => r.id === 'current-section-grade')?.final_grade).toBe(94);
+  });
 });
 

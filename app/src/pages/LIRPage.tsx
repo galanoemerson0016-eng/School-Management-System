@@ -1,14 +1,14 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import { useAuthStore } from '../stores/auth-store';
 import type { Student, Section, Subject } from '../types';
 import { 
     ArrowLeft, Printer, FileText, Plus, Minus, ChevronDown, 
     Download, Users, CheckSquare, Square, X, Loader2, Filter
 } from 'lucide-react';
-import { filterSubjectsForSection } from '../lib/rbac';
+import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
 import { normalizeSubjectName } from '../lib/subjectConfig';
-import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
+import { resolveStudentQuarterGrade, isStudentInSection, isMaleStudent, isFemaleStudent } from '../utils/grading-helpers';
 import { LIRRenderer } from '../components/LIRRenderer';
 import { exportElementsToPdf, printElements } from '../utils/pdf-export';
 
@@ -63,12 +63,12 @@ export function LIRPage() {
     }, [selectedSubjectObj, teachers, selectedSectionObj]);
 
     const sortedSections = useMemo(() => {
-        return [...sections].sort((a, b) => {
+        return [...filterSectionsForUser(user, sections, subjects)].sort((a, b) => {
             const glCompare = (a.section_grade_level || '').localeCompare(b.section_grade_level || '', undefined, { numeric: true });
             if (glCompare !== 0) return glCompare;
             return (a.section_name || '').localeCompare(b.section_name || '');
         });
-    }, [sections]);
+    }, [sections, subjects, user]);
 
     const groupedSections = useMemo(() => {
         const groups: Record<string, Section[]> = {
@@ -98,7 +98,7 @@ export function LIRPage() {
     useEffect(() => {
         if (!selectedSection && sortedSections.length === 1) {
             const timer = setTimeout(() => {
-                setSelectedSection(sortedSections[0].section_name);
+                setSelectedSection(sortedSections[0].id);
             }, 0);
             return () => clearTimeout(timer);
         }
@@ -114,13 +114,12 @@ export function LIRPage() {
     }, [selectedSection]);
 
     const sectionStudents = useMemo(() => {
-        if (!selectedSection) return [];
-        const sectionId = sections.find(s => s.section_name === selectedSection || s.id === selectedSection)?.id;
-        return students.filter(s => s.student_section === selectedSection || (sectionId && s.student_section === sectionId));
-    }, [students, selectedSection, sections]);
+        if (!selectedSection && !selectedSectionObj) return [];
+        return students.filter(s => isStudentInSection(s, selectedSectionObj, selectedSection));
+    }, [students, selectedSection, selectedSectionObj]);
 
-    const males = useMemo(() => sectionStudents.filter(s => (s.gender || '').toLowerCase() === 'male').sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`)), [sectionStudents]);
-    const females = useMemo(() => sectionStudents.filter(s => (s.gender || '').toLowerCase() !== 'male').sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`)), [sectionStudents]);
+    const males = useMemo(() => sectionStudents.filter(s => isMaleStudent(s) || !isFemaleStudent(s)).sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`)), [sectionStudents]);
+    const females = useMemo(() => sectionStudents.filter(s => isFemaleStudent(s)).sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`)), [sectionStudents]);
 
     const handleOpenBulkModal = () => {
         if (selectedBulkLrns.size === 0 && sectionStudents.length > 0) {
@@ -446,7 +445,7 @@ export function LIRPage() {
                                 groupSections.length > 0 && (
                                     <optgroup key={group} label={group}>
                                         {groupSections.map(s => (
-                                            <option key={s.id} value={s.section_name}>
+                                            <option key={s.id} value={s.id}>
                                                 {s.section_grade_level} - {s.section_name}
                                             </option>
                                         ))}

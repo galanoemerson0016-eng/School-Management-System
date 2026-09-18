@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import type { Student, SchoolProfile, Subject } from '../types';
+import { isZipTemplate, readNodeTemplateFallback } from '../utils/node-template-fallback';
 
 export interface SF9Grade4to10ExportOptions {
   student: Student;
@@ -494,29 +495,11 @@ export async function fetchGrade4to10TemplateBuffer(): Promise<ArrayBuffer> {
     }
   }
 
-  // Node environment fallback
-  if (typeof process !== 'undefined' && process.versions && process.versions.node) {
-    try {
-      const fs = await import('fs');
-      const nodePath = await import('path');
-      const localPaths = [
-        nodePath.resolve(process.cwd(), 'public/templates/G4-10  School Form 9 (SY 26-27).xlsx'),
-        nodePath.resolve(process.cwd(), 'app/public/templates/G4-10  School Form 9 (SY 26-27).xlsx'),
-      ];
-      for (const lp of localPaths) {
-        if (fs.existsSync(lp)) {
-          const buf = fs.readFileSync(lp);
-          if (buf.length >= 1000 && buf[0] === 0x50 && buf[1] === 0x4b) {
-            const u8 = new Uint8Array(buf.byteLength);
-            for (let i = 0; i < buf.byteLength; i++) u8[i] = buf[i];
-            return u8.buffer;
-          }
-        }
-      }
-    } catch (fsErr) {
-      lastError = fsErr instanceof Error ? fsErr : new Error(String(fsErr));
-    }
-  }
+  const nodeBytes = await readNodeTemplateFallback(
+    ['G4-10  School Form 9 (SY 26-27).xlsx'],
+    1000,
+  );
+  if (isZipTemplate(nodeBytes)) return nodeBytes.slice().buffer as ArrayBuffer;
 
   throw new Error(`Failed to load official Grade 4-10 SF9 Excel template: ${lastError?.message || 'Template file not found or corrupted'}`);
 }

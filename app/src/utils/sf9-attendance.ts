@@ -5,7 +5,7 @@
  */
 
 import type { Student, SF2Sheet, Section, AttendanceRecord, CalendarEvent } from '../types';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import { getSf2TotalColumns } from './sf2-sync';
 
 const SCHOOL_CALENDAR_2026_2027: Record<string, number[]> = {

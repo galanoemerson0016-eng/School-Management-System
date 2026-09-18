@@ -11,7 +11,7 @@ import {
     Filter,
     AlertCircle
 } from 'lucide-react';
-import { useAppStore } from '../../stores';
+import { useAppStore } from '../../stores/app-store';
 import type { Subject } from '../../types';
 import { isSubjectAllowedForProgram } from '../../lib/curriculum';
 
@@ -314,7 +314,7 @@ export const TeachingLoadMatrixModal: React.FC<TeachingLoadMatrixModalProps> = (
                         <div className="flex flex-col items-center justify-center p-12 text-center text-slate-400">
                             <BookOpen className="w-10 h-10 mb-2 opacity-50 text-slate-400" />
                             <p className="font-semibold text-sm">No subjects registered for this grade level.</p>
-                            <p className="text-xs mt-1">Add subjects in the Subjects page first.</p>
+                            <p className="text-xs mt-1">Add subjects in Subject Library first.</p>
                         </div>
                     ) : (
                         <table className="w-full border-collapse text-left text-xs">

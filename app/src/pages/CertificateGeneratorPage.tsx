@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import { useAuthStore } from '../stores/auth-store';
 import { Printer, ArrowLeft, Calendar as CalendarIcon, Search, GraduationCap, FileText, CheckCircle2, RefreshCcw, Layers, Download } from 'lucide-react';
 import { CertificateRenderer } from '../components/certificates/CertificateRenderer';

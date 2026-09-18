@@ -237,12 +237,12 @@ const createJHSSTEPreset = (grade: 'Grade 7' | 'Grade 8' | 'Grade 9' | 'Grade 10
  * Each core subject earns 2 units per term = 6 units/year (80 hours/year).
  */
 export const SSHS_G11_CORE_SUBJECTS: PresetSubjectItem[] = [
-    { name: 'Effective Communication', term: 'all', category: 'Core', weightCategory: 'SHSCore', units: 6, hoursPerYear: 80, ...DEPED_WEIGHT_PROFILES.SHSCore },
-    { name: 'Mabisang Komunikasyon', term: 'all', category: 'Core', weightCategory: 'SHSCore', units: 6, hoursPerYear: 80, ...DEPED_WEIGHT_PROFILES.SHSCore },
-    { name: 'General Mathematics', term: 'all', category: 'Core', weightCategory: 'SHSCore', units: 6, hoursPerYear: 80, ...DEPED_WEIGHT_PROFILES.SHSCore },
-    { name: 'General Science', term: 'all', category: 'Core', weightCategory: 'SHSCore', units: 6, hoursPerYear: 80, ...DEPED_WEIGHT_PROFILES.SHSCore },
-    { name: 'Life and Career Skills', term: 'all', category: 'Core', weightCategory: 'SHSCore', units: 6, hoursPerYear: 80, ...DEPED_WEIGHT_PROFILES.SHSCore },
-    { name: 'Pag-aaral ng Kasaysayan at Lipunang Pilipino', term: 'all', category: 'Core', weightCategory: 'SHSCore', units: 6, hoursPerYear: 80, ...DEPED_WEIGHT_PROFILES.SHSCore }
+    { name: 'Effective Communication', term: 'all', category: 'Core', weightCategory: 'SHSCore', units: 2, hoursPerYear: 160, ...DEPED_WEIGHT_PROFILES.SHSCore },
+    { name: 'Mabisang Komunikasyon', term: 'all', category: 'Core', weightCategory: 'SHSCore', units: 2, hoursPerYear: 160, ...DEPED_WEIGHT_PROFILES.SHSCore },
+    { name: 'General Mathematics', term: 'all', category: 'Core', weightCategory: 'SHSCore', units: 2, hoursPerYear: 160, ...DEPED_WEIGHT_PROFILES.SHSCore },
+    { name: 'General Science', term: 'all', category: 'Core', weightCategory: 'SHSCore', units: 2, hoursPerYear: 160, ...DEPED_WEIGHT_PROFILES.SHSCore },
+    { name: 'Life and Career Skills', term: 'all', category: 'Core', weightCategory: 'SHSCore', units: 2, hoursPerYear: 160, ...DEPED_WEIGHT_PROFILES.SHSCore },
+    { name: 'Pag-aaral ng Kasaysayan at Lipunang Pilipino', term: 'all', category: 'Core', weightCategory: 'SHSCore', units: 2, hoursPerYear: 160, ...DEPED_WEIGHT_PROFILES.SHSCore }
 ];
 
 export const SSHS_G11_STEM_PRESET: CurriculumPreset = {
@@ -592,9 +592,14 @@ export function getCurriculumPreset(
         if (trackNorm.includes('tech') || trackNorm.includes('tvl')) {
             if (clusterNorm.includes('auto')) return SSHS_G11_TECHPRO_AUTOMOTIVE_PRESET;
             if (clusterNorm.includes('hosp') || clusterNorm.includes('tourism')) return SSHS_G11_TECHPRO_HOSPITALITY_PRESET;
-            return SSHS_G11_TECHPRO_ICT_PRESET;
+            if (clusterNorm.includes('ict') || clusterNorm.includes('computer') || clusterNorm.includes('programming')) {
+                return SSHS_G11_TECHPRO_ICT_PRESET;
+            }
+            return null;
         }
-        return SSHS_G11_STEM_PRESET; // Default fallback for G11 Academic
+        // A missing or unrecognised SSHS cluster is not a reason to assign
+        // STEM subjects.  The adviser must make an explicit offering choice.
+        return null;
     }
 
     // 2. Grade 12 SHS Matching (DO 8, s. 2015)

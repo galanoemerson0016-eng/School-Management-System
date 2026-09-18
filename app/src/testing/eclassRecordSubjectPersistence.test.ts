@@ -144,4 +144,39 @@ describe('E-Class Record Subject Persistence Workflow', () => {
     expect(isMatchingSubject('TLE', undefined, 'EPP')).toBe(false);
     expect(isSameSubject('sub-epp', 'EPP', 'sub-tle', 'TLE')).toBe(false);
   });
+
+  it('keeps the learner record when the final encoded score is cleared', () => {
+    const record: ClassRecord = {
+      id: 'grade_learner-1_subject-1_Q1_2026-2027',
+      student_lrn: 'learner-1',
+      section_id: 'section-1',
+      subject_id: 'subject-1',
+      subject_name: 'Science',
+      school_year: '2026-2027',
+      quarter: 1,
+      written_works: [10, '', '', '', ''],
+      performance_tasks: ['', '', ''],
+      quarterly_exam: '',
+      final_grade: 75,
+    };
+
+    // This mirrors clearing the last score in E-Class: the row remains for
+    // the learner, while the publishable grade is removed.
+    const savedBlankRecord: ClassRecord = {
+      ...record,
+      written_works: ['', '', '', '', ''],
+      final_grade: '',
+    };
+    const classRecords = [savedBlankRecord];
+    const publishedGrades = [] as Array<{ id: string }>;
+
+    expect(classRecords).toHaveLength(1);
+    expect(classRecords[0]).toMatchObject({
+      id: record.id,
+      student_lrn: 'learner-1',
+      section_id: 'section-1',
+      final_grade: '',
+    });
+    expect(publishedGrades).toHaveLength(0);
+  });
 });

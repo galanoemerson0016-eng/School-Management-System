@@ -296,7 +296,9 @@ describe('SSHS Electronic Class Record Export Service (Grade 11 & Grade 12)', ()
       students: unsortedStudents,
       classRecords: [],
       hpsRecords: [],
-      teacherName: 'EMERSON M. GALANO'
+      teacherName: 'EMERSON M. GALANO',
+      termBlock: 'FIRST TERM',
+      numTerms: 1
     });
 
     const sheet2Xml = await zip.file('xl/worksheets/sheet2.xml')!.async('text');
@@ -500,18 +502,18 @@ describe('SSHS Electronic Class Record Export Service (Grade 11 & Grade 12)', ()
       code: 11
     });
 
-    // 5. Default curriculum sequence (Chemistry 1 -> Term 1, Chemistry 2 -> Term 2)
+    // 5. An unscheduled non-Core subject must not be assigned a term by name.
     expect(resolveSSHSTerms({ subject_name: 'Chemistry 1' } as Subject, undefined, undefined, undefined, '2026-2027')).toEqual({
-      numTerms: 1,
-      termBlock: 'FIRST TERM',
-      termDesc: '1ST',
-      code: 11
+      numTerms: 0,
+      termBlock: '',
+      termDesc: '',
+      code: 0
     });
     expect(resolveSSHSTerms({ subject_name: 'Chemistry 2' } as Subject, undefined, undefined, undefined, '2026-2027')).toEqual({
-      numTerms: 1,
-      termBlock: 'SECOND TERM',
-      termDesc: '2ND',
-      code: 12
+      numTerms: 0,
+      termBlock: '',
+      termDesc: '',
+      code: 0
     });
   });
 
@@ -608,5 +610,3 @@ describe('SSHS Electronic Class Record Export Service (Grade 11 & Grade 12)', ()
     expect(sheet6Xml).toMatch(/<c r="E17"[^>]*><f[^>]*>.*?<\/f><v>\d+<\/v><\/c>/);
   });
 });
-
-

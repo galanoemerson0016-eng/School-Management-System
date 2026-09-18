@@ -1,5 +1,5 @@
 import { useMemo, useState, Fragment } from 'react';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import { isDescriptiveGrading } from '../lib/grading';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, Calendar, Bell, Trophy, AlertTriangle, ChevronLeft, ChevronRight, Clock, ListChecks, Search, Plus, Activity, HelpCircle, Layers, X } from 'lucide-react';
@@ -1912,7 +1912,7 @@ export function Dashboard() {
                                                     whileTap={{ scale: 0.95 }}
                                                     onClick={() => {
                                                         const secObj = sections.find(sec => sec.id === student.student_section || sec.section_name === student.student_section);
-                                                        setSelectedSection(secObj ? secObj.section_name : (student.student_section || ''));
+                                                        setSelectedSection(secObj ? secObj.id : (student.student_section || ''));
                                                         setCurrentView('consolidated-grades');
                                                         setSelectedMetric(null);
                                                     }}
@@ -2151,7 +2151,7 @@ export function Dashboard() {
                                                                 whileTap={{ scale: 0.98 }}
                                                                 onClick={() => {
                                                                     const secObj = sections.find(sec => sec.id === student.student_section || sec.section_name === student.student_section);
-                                                                    setSelectedSection(secObj ? secObj.section_name : (student.student_section || ''));
+                                                                    setSelectedSection(secObj ? secObj.id : (student.student_section || ''));
                                                                     setCurrentView('consolidated-grades');
                                                                     setSelectedMetric(null);
                                                                 }}

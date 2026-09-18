@@ -266,14 +266,14 @@ describe('Grade 11 Subject & Term Resolution in Grade Management', () => {
         expect(isMatchingSubject('General Chemistry 2', undefined, 'Chemistry 2')).toBe(true);
     });
 
-    it('getDefaultTermForSubject correctly assigns terms for Grade 11', () => {
+    it('only gives Grade 11 Core subjects an automatic offering', () => {
         expect(getDefaultTermForSubject('General Mathematics', 11)).toBe('all');
         expect(getDefaultTermForSubject('General Science', 11)).toBe('all');
         expect(getDefaultTermForSubject('Effective Communication', 11)).toBe('all');
-        expect(getDefaultTermForSubject('Chemistry 1', 11)).toBe(1);
-        expect(getDefaultTermForSubject('Chemistry 2', 11)).toBe(2);
-        expect(getDefaultTermForSubject('Pre-Calculus', 11)).toBe(1);
-        expect(getDefaultTermForSubject('Basic Calculus', 11)).toBe(2);
+        expect(getDefaultTermForSubject('Chemistry 1', 11)).toBe('none');
+        expect(getDefaultTermForSubject('Chemistry 2', 11)).toBe('none');
+        expect(getDefaultTermForSubject('Pre-Calculus', 11)).toBe('none');
+        expect(getDefaultTermForSubject('Basic Calculus', 11)).toBe('none');
         expect(getDefaultTermForSubject('Philippine Politics and Governance', 11)).toBe('none');
     });
 
@@ -357,7 +357,7 @@ describe('Grade 11 Subject & Term Resolution in Grade Management', () => {
         expect(term2Subjects.length).toBe(7);
     });
 
-    it('recovers gracefully even if imported subjects previously had term: "all" or term: "none"', () => {
+    it('does not invent an offering for legacy imported subjects without a schedule', () => {
         const corruptedSubjects: Subject[] = [
             { id: 'sub-chem1', subject_name: 'Chemistry 1', grade_level: 'Grade 11', term: 'all', section_id: 'sec-g11-curie' },
             { id: 'sub-chem2', subject_name: 'Chemistry 2', grade_level: 'Grade 11', term: 'all', section_id: 'sec-g11-curie' },
@@ -392,11 +392,10 @@ describe('Grade 11 Subject & Term Resolution in Grade Management', () => {
         const term1Names = term1Subjects.map(s => s.subject_name);
         const term2Names = term2Subjects.map(s => s.subject_name);
 
-        expect(term1Names).toContain('Chemistry 1');
+        expect(term1Names).not.toContain('Chemistry 1');
         expect(term1Names).not.toContain('Chemistry 2');
-
-        expect(term2Names).toContain('Chemistry 2');
         expect(term2Names).not.toContain('Chemistry 1');
+        expect(term2Names).not.toContain('Chemistry 2');
     });
 
     it('accurately resolves units and terms for SSHS Grade 11 Biology 1 and Core subjects (DO 015 & 017 s. 2026)', () => {

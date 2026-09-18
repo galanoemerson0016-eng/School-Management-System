@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, Printer, Plus, Minus, ChevronDown, Download, ShieldCheck } from 'lucide-react';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import type { Subject } from '../types';
 import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
 

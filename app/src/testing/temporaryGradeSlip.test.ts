@@ -253,7 +253,7 @@ describe('Temporary Grade Slip grading and general average rules', () => {
     });
 
     describe('Senior High School (SHS)', () => {
-        it('for SHS: 1-term electives show final grade when their term is graded, multi-term subjects do not, and term general average is shown when complete', () => {
+        it('for SHS: no subject final grade is shown until the complete three-term school year is finished', () => {
             const shsSubjects: (Subject & { term: 1 | 2 | 3 | 'all' })[] = [
                 { id: 'shs-math', subject_name: 'General Mathematics', grade_level: 'Grade 11', term: 'all' },
                 { id: 'shs-sci', subject_name: 'General Science', grade_level: 'Grade 11', term: 'all' },
@@ -280,7 +280,6 @@ describe('Temporary Grade Slip grading and general average rules', () => {
                 const q2 = entry.q2 || 0;
                 const q3 = entry.q3 || 0;
 
-                const isSingleTerm = subj.term === 1 || subj.term === 2 || subj.term === 3;
                 let final = 0;
                 if (subj.term === 1) final = q1;
                 else if (subj.term === 2) final = q2;
@@ -293,9 +292,7 @@ describe('Temporary Grade Slip grading and general average rules', () => {
                     final = cnt === 3 ? Math.round(sum / 3) : 0;
                 }
 
-                // Rule: If single-term elective and its term has a grade, put final grade and remarks!
-                // Multi-term subjects require areAll3TermsCompleteShs.
-                const showFinal = (isSingleTerm && final > 0) || (areAll3TermsCompleteShs && final > 0);
+                const showFinal = areAll3TermsCompleteShs && final > 0;
 
                 gradesLookup[subj.id] = {
                     q1: q1 > 0 ? q1.toString() : '',
@@ -315,10 +312,10 @@ describe('Temporary Grade Slip grading and general average rules', () => {
             const genT3 = '';
             const genAverageRowUnderTerms = { t1: genT1, t2: genT2, t3: genT3 };
 
-            // 1. Single-term elective offered in Term 1 (Pre-Calculus) HAS final grade and remarks
+            // 1. The Term 1 grade remains visible, but its Final Grade and remarks stay blank.
             expect(gradesLookup['shs-precalc'].q1).toBe('89');
-            expect(gradesLookup['shs-precalc'].final).toBe('89');
-            expect(gradesLookup['shs-precalc'].remarks).toBe('Passed');
+            expect(gradesLookup['shs-precalc'].final).toBe('');
+            expect(gradesLookup['shs-precalc'].remarks).toBe('');
 
             // 2. Single-term elective offered in Term 2 (Basic Calculus) has NO final grade yet
             expect(gradesLookup['shs-bascalc'].final).toBe('');

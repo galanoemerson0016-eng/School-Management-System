@@ -24,24 +24,13 @@ describe('resolveSubjectOfferedTerms for SHS single-term electives vs core subje
         });
     });
 
-    it('identifies single-term electives correctly based on sequence / catalog', () => {
-        // Biology 1 is offered in Term 1
-        expect(resolveSubjectOfferedTerms({ subject_name: 'Biology 1' }, grade11Section)).toEqual([1]);
-
-        // Biology 2 is offered in Term 2
-        expect(resolveSubjectOfferedTerms({ subject_name: 'Biology 2' }, grade11Section)).toEqual([2]);
-
-        // Biology 3 is offered in Term 3
-        expect(resolveSubjectOfferedTerms({ subject_name: 'Biology 3' }, grade11Section)).toEqual([3]);
-
-        // Chemistry 1 is offered in Term 1
-        expect(resolveSubjectOfferedTerms({ subject_name: 'Chemistry 1' }, grade11Section)).toEqual([1]);
-
-        // Pre-Calculus is offered in Term 1
-        expect(resolveSubjectOfferedTerms({ subject_name: 'Pre-Calculus' }, grade11Section)).toEqual([1]);
-
-        // Basic Calculus is offered in Term 2
-        expect(resolveSubjectOfferedTerms({ subject_name: 'Basic Calculus' }, grade11Section)).toEqual([2]);
+    it('uses adviser-selected offerings for non-Core subjects', () => {
+        expect(resolveSubjectOfferedTerms({ subject_name: 'Biology 1', offered_terms: [1] }, grade11Section)).toEqual([1]);
+        expect(resolveSubjectOfferedTerms({ subject_name: 'Biology 2', offered_terms: [2] }, grade11Section)).toEqual([2]);
+        expect(resolveSubjectOfferedTerms({ subject_name: 'Biology 3', offered_terms: [3] }, grade11Section)).toEqual([3]);
+        expect(resolveSubjectOfferedTerms({ subject_name: 'Chemistry 1', offered_terms: [1] }, grade11Section)).toEqual([1]);
+        expect(resolveSubjectOfferedTerms({ subject_name: 'Pre-Calculus', offered_terms: [1] }, grade11Section)).toEqual([1]);
+        expect(resolveSubjectOfferedTerms({ subject_name: 'Basic Calculus', offered_terms: [2] }, grade11Section)).toEqual([2]);
     });
 
     it('respects explicit section metadata subjectTerms override when configured by teacher', () => {

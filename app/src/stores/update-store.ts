@@ -3,6 +3,7 @@ import { db } from '../services/database';
 import { generatePreUpdateSafetyVault } from '../services/pre-update-safety';
 import { exportFullDatabaseBackup } from '../utils/backup-restore';
 import { embedChecksum } from '../utils/backup-integrity';
+import { initializeAppStore } from './app-store';
 import type { Student } from '../types';
 
 export interface UpdateChecklist {
@@ -461,10 +462,13 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
 
         // Restore data using database importFromBackup
         await db.importFromBackup(backupData.data || backupData);
-        set({ reconciliationReport: null });
+        // Immediately rehydrate in-memory Zustand store so data appears instantly in UI
+        await initializeAppStore();
+        set({ updateStep: 'idle', reconciliationReport: null });
         alert('🔄 Rollback successful! System restored to pre-update state.');
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
+        set({ updateStep: 'failed', errorMessage: errMsg });
         alert(`❌ Rollback failed: ${errMsg}`);
       }
     },

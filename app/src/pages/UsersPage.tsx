@@ -1,4 +1,4 @@
-import { useAuthStore } from '../stores';
+import { useAuthStore } from '../stores/auth-store';
 
 export function UsersPage() {
     const { user } = useAuthStore();

@@ -44,6 +44,7 @@ export function createGradingSlice(set: (state: any) => void, get: () => any): G
       }
     },
     updateClassRecord: async (record) => {
+      const previousRecords = get().classRecords as ClassRecord[];
       try {
         const existing = get().classRecords.find((r: ClassRecord) => r.id === record.id);
         if (existing) {
@@ -58,6 +59,7 @@ export function createGradingSlice(set: (state: any) => void, get: () => any): G
         await db.putRecord('classRecords', record);
       } catch (error) {
         console.error('Error updating class record:', error);
+        set({ classRecords: previousRecords });
         get().showNotification('Failed to update grade', 'error');
         throw error;
       }
@@ -80,6 +82,7 @@ export function createGradingSlice(set: (state: any) => void, get: () => any): G
     gradingSheetRecords: [],
     setGradingSheetRecords: (records) => set({ gradingSheetRecords: records }),
     updateGradingSheetRecord: async (record) => {
+      const previousRecords = get().gradingSheetRecords as ClassRecord[];
       try {
         const state = get();
         const currentRecords = state.gradingSheetRecords as ClassRecord[];
@@ -90,7 +93,11 @@ export function createGradingSlice(set: (state: any) => void, get: () => any): G
           const sameSubject = isSameSubject(r.subject_id, r.subject_name, record.subject_id, record.subject_name);
           const sameQuarter = Number(r.quarter) === Number(record.quarter) || String(r.quarter).toLowerCase() === String(record.quarter).toLowerCase();
           const sameSy = !r.school_year || !record.school_year || r.school_year === record.school_year;
-          return sameStudent && sameSubject && sameQuarter && sameSy;
+          // Do not consolidate records from different sections. An empty
+          // section is treated as a legacy record and may be safely upgraded
+          // into the current section-owned record.
+          const sameSection = !r.section_id || !record.section_id || r.section_id === record.section_id;
+          return sameStudent && sameSubject && sameQuarter && sameSy && sameSection;
         };
 
         const matchingOldRecords = currentRecords.filter(isMatch);
@@ -106,30 +113,33 @@ export function createGradingSlice(set: (state: any) => void, get: () => any): G
         await db.putRecord('gradingSheetRecords', record);
       } catch (error) {
         console.error('Error updating grading sheet record:', error);
+        set({ gradingSheetRecords: previousRecords });
         throw error;
       }
     },
     bulkUpdateGradingSheetRecords: async (records) => {
       if (!records || records.length === 0) return;
+      const previousRecords = get().gradingSheetRecords as ClassRecord[];
       try {
         const state = get();
         const currentRecords = state.gradingSheetRecords as ClassRecord[];
 
         const newRecordMap = new Map<string, ClassRecord>();
         for (const r of records) {
-          const key = `${String(r.student_lrn).trim()}_${r.subject_id}_${r.quarter}_${r.school_year || ''}`;
+          const key = `${String(r.student_lrn).trim()}_${r.subject_id}_${r.quarter}_${r.school_year || ''}_${r.section_id || ''}`;
           newRecordMap.set(key, r);
         }
 
         const isOverwritten = (r: ClassRecord) => {
-          const key = `${String(r.student_lrn).trim()}_${r.subject_id}_${r.quarter}_${r.school_year || ''}`;
+          const key = `${String(r.student_lrn).trim()}_${r.subject_id}_${r.quarter}_${r.school_year || ''}_${r.section_id || ''}`;
           if (newRecordMap.has(key)) return true;
           return records.some((newRec) => {
             const sameStudent = r.student_lrn === newRec.student_lrn || String(r.student_lrn).trim() === String(newRec.student_lrn).trim();
             const sameSubject = isSameSubject(r.subject_id, r.subject_name, newRec.subject_id, newRec.subject_name);
             const sameQuarter = Number(r.quarter) === Number(newRec.quarter) || String(r.quarter).toLowerCase() === String(newRec.quarter).toLowerCase();
             const sameSy = !r.school_year || !newRec.school_year || r.school_year === newRec.school_year;
-            return sameStudent && sameSubject && sameQuarter && sameSy;
+            const sameSection = !r.section_id || !newRec.section_id || r.section_id === newRec.section_id;
+            return sameStudent && sameSubject && sameQuarter && sameSy && sameSection;
           });
         };
 
@@ -146,6 +156,7 @@ export function createGradingSlice(set: (state: any) => void, get: () => any): G
         await db.putRecordsBulk('gradingSheetRecords', records);
       } catch (error) {
         console.error('Error bulk updating grading sheet records:', error);
+        set({ gradingSheetRecords: previousRecords });
         throw error;
       }
     },

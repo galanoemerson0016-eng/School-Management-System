@@ -31,6 +31,79 @@ const CHANNEL_NAME = 'formease_mobile_attendance_sync';
 const STORAGE_SYNC_KEY = 'formease_mobile_sync_event';
 const SESSION_CACHE_KEY = 'formease_mobile_session_cache';
 
+let activePairingToken = '';
+let activePairingExpiresAt = 0;
+let activePairingTransport: 'http' | 'ipc' | null = null;
+
+function usesHttpGateway(): boolean {
+    return typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol);
+}
+
+function tokenFromCurrentUrl(): string {
+    if (typeof window === 'undefined') return '';
+    const hashQuery = window.location.hash.includes('?')
+        ? window.location.hash.slice(window.location.hash.indexOf('?') + 1)
+        : '';
+    return new URLSearchParams(hashQuery).get('pair')
+        || new URLSearchParams(window.location.search).get('pair')
+        || '';
+}
+
+export function getAttendancePairingToken(): string {
+    return activePairingToken || tokenFromCurrentUrl();
+}
+
+export function getAttendancePairingHeaders(): Record<string, string> {
+    const token = getAttendancePairingToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export async function startAttendancePairing(): Promise<{ token: string; expiresAt: number }> {
+    if (activePairingToken && activePairingExpiresAt > Date.now()) {
+        return { token: activePairingToken, expiresAt: activePairingExpiresAt };
+    }
+    let pairing: { token?: string; expiresAt?: number; error?: string };
+    if (!usesHttpGateway() && window.electronAPI?.startAttendancePairing) {
+        pairing = await window.electronAPI.startAttendancePairing();
+        activePairingTransport = 'ipc';
+    } else {
+        const response = await fetch('/api/attendance/pairing', { method: 'POST' });
+        if (!response.ok) throw new Error('Unable to start mobile attendance pairing');
+        pairing = await response.json();
+        activePairingTransport = 'http';
+    }
+    if (!pairing.token || !pairing.expiresAt) {
+        throw new Error(pairing.error || 'Mobile attendance pairing did not return a valid token');
+    }
+    activePairingToken = pairing.token;
+    activePairingExpiresAt = pairing.expiresAt;
+    return { token: pairing.token, expiresAt: pairing.expiresAt };
+}
+
+export async function revokeAttendancePairing(token = activePairingToken): Promise<void> {
+    if (!token) return;
+    try {
+        if (activePairingTransport === 'ipc' && window.electronAPI?.revokeAttendancePairing) {
+            await window.electronAPI.revokeAttendancePairing(token);
+        } else {
+            await fetch('/api/attendance/pairing', {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` },
+            });
+        }
+    } finally {
+        if (token === activePairingToken) {
+            activePairingToken = '';
+            activePairingExpiresAt = 0;
+            activePairingTransport = null;
+        }
+    }
+}
+
+export function getAttendancePairingExpiry(): number {
+    return activePairingExpiresAt;
+}
+
 let channel: BroadcastChannel | null = null;
 try {
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -46,18 +119,19 @@ try {
 export function broadcastAttendanceUpdate(
     record: AttendanceRecord, 
     studentName?: string, 
-    serverHost?: string
+    serverHost?: string,
+    sourceDevice?: 'Smartphone' | 'Desktop PC'
 ): void {
     const event: MobileAttendanceSyncEvent = {
         type: 'ATTENDANCE_UPDATE',
         record,
         studentName,
         timestamp: Date.now(),
-        sourceDevice: window.navigator?.userAgent?.includes('Mobile') ? 'Smartphone' : 'Desktop PC',
+        sourceDevice: sourceDevice || (window.navigator?.userAgent?.includes('Mobile') ? 'Smartphone' : 'Desktop PC'),
     };
 
     // 0. Electron IPC — direct main-process bridge (zero-CORS, instant, EXE only)
-    if (window.electronAPI && window.electronAPI.pushAttendanceUpdate) {
+    if (!usesHttpGateway() && window.electronAPI && window.electronAPI.pushAttendanceUpdate) {
         window.electronAPI.pushAttendanceUpdate(event).catch(() => {});
         return;
     }
@@ -87,7 +161,7 @@ export function broadcastAttendanceUpdate(
 
     fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAttendancePairingHeaders() },
         body: JSON.stringify(event),
     }).catch(() => {
         // Silently fail if local REST API server endpoint is unreachable
@@ -172,7 +246,7 @@ export function subscribeToAttendanceUpdates(
 
     const intervalId = setInterval(async () => {
         // Electron IPC path — direct main-process query, zero network overhead
-        if (window.electronAPI && window.electronAPI.getAttendanceUpdates) {
+        if (!usesHttpGateway() && window.electronAPI && window.electronAPI.getAttendanceUpdates) {
             try {
                 const data = await window.electronAPI.getAttendanceUpdates(lastCheckTimestamp);
                 if (data) {
@@ -196,7 +270,9 @@ export function subscribeToAttendanceUpdates(
 
         // HTTP Polling fallback
         try {
-            const res = await fetch(`${pollUrl}?since=${lastCheckTimestamp}`);
+            const res = await fetch(`${pollUrl}?since=${lastCheckTimestamp}`, {
+                headers: getAttendancePairingHeaders(),
+            });
             if (res.ok) {
                 const data = await res.json();
                 if (data.events && Array.isArray(data.events) && data.events.length > 0) {
@@ -267,17 +343,47 @@ export function pushAttendanceSessionToBackend(data: {
     const now = new Date();
     const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
+    // Only expose fields required by the phone roll-call UI. Full learner
+    // profiles contain addresses, birthdays, parent contacts and other PII;
+    // the school profile also contains licensing and signature data.
+    const mobileStudents = (data.students || []).map((student) => ({
+        lrn: student.lrn,
+        first_name: student.first_name,
+        last_name: student.last_name,
+        middle_name: student.middle_name,
+        name_extension: student.name_extension,
+        gender: student.gender,
+        grade_level: student.grade_level,
+        student_section: student.student_section,
+    }));
+    const mobileSections = (data.sections || []).map((section) => ({
+        id: section.id,
+        section_name: section.section_name,
+        is_advisory: section.is_advisory,
+    }));
+    const mobileRecords = (data.records || []).map((record) => ({
+        id: record.id,
+        student_lrn: record.student_lrn,
+        section_id: record.section_id,
+        date: record.date,
+        status: record.status,
+        time_in: record.time_in,
+        time_out: record.time_out,
+    }));
+
     const sessionObj = {
         date: data.date || todayIso,
-        students: data.students || [],
-        sections: data.sections || [],
-        records: data.records || [],
-        schoolProfile: data.schoolProfile || null,
+        students: mobileStudents,
+        sections: mobileSections,
+        records: mobileRecords,
+        schoolProfile: data.schoolProfile && typeof data.schoolProfile === 'object'
+            ? { name: String((data.schoolProfile as { name?: unknown }).name || '') }
+            : null,
         lastUpdated: Date.now()
     };
 
     // 1. Direct Electron Native Main Process Bridge (Zero-CORS, 100% Reliable)
-    if (window.electronAPI && window.electronAPI.pushAttendanceSession) {
+    if (!usesHttpGateway() && window.electronAPI && window.electronAPI.pushAttendanceSession) {
         window.electronAPI.pushAttendanceSession(sessionObj).catch(() => {});
         return;
     }
@@ -292,7 +398,7 @@ export function pushAttendanceSessionToBackend(data: {
 
     fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAttendancePairingHeaders() },
         body: payload,
     }).catch(() => {
         // Silently ignore unreachable endpoint

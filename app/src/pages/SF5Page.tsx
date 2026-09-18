@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useAppStore, useAuthStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
+import { useAuthStore } from '../stores/auth-store';
 import { ArrowLeft, FileText, Plus, Minus, Printer, ChevronDown, Layout as AppLogo, Download, ShieldCheck } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatLearnerName } from '../utils/student-name';
@@ -51,7 +52,7 @@ export function SF5Page() {
     // Auto-select section if only one is available
     useEffect(() => {
         if (!selectedSection && sortedSections.length === 1) {
-            setSelectedSection(sortedSections[0].section_name);
+            setSelectedSection(sortedSections[0].id);
         }
     }, [sortedSections, selectedSection]);
 
@@ -392,7 +393,7 @@ export function SF5Page() {
     const totalPages = pages.length;
 
     const handlePrintSF5 = () => {
-        const sectionName = sortedSections.find(s => s.section_name === selectedSection)?.section_name || 'Record';
+        const sectionName = sortedSections.find(s => s.id === selectedSection || s.section_name === selectedSection)?.section_name || 'Record';
         const originalTitle = document.title;
         document.title = `SF5_${schoolProfile.name || 'School'}_${sectionName}_${activeSchoolYear}`;
         window.print();
@@ -400,7 +401,7 @@ export function SF5Page() {
     };
 
     const handleDownloadSF5 = async () => {
-        const selectedSectionName = sortedSections.find(s => s.section_name === selectedSection)?.section_name || 'Record';
+        const selectedSectionName = sortedSections.find(s => s.id === selectedSection || s.section_name === selectedSection)?.section_name || 'Record';
         const filename = `SF5_${schoolProfile.name || 'School'}_${selectedSectionName}_${activeSchoolYear}.pdf`;
 
         const printPages = Array.from(document.querySelectorAll('.sf5-print-page')) as HTMLElement[];
@@ -546,7 +547,7 @@ export function SF5Page() {
                                 >
                                     <option value="">Section</option>
                                     {sortedSections.map(s => (
-                                        <option key={s.id} value={s.section_name}>
+                                        <option key={s.id} value={s.id}>
                                             {s.section_grade_level} - {s.section_name}
                                         </option>
                                     ))}

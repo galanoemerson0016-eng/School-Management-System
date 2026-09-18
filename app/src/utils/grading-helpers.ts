@@ -6,7 +6,8 @@ import { ACTIVE_TERMS } from '../lib/terms';
 import { isDescriptiveGrading, getSubjectCluster, getWeights, computeExamsWeightedScore, transmuteGrade, normalizeScores, normalizeWeightFraction, type SubjectCluster } from '../lib/grading';
 import { getCanonicalSubjectKey } from '../lib/subjectConfig';
 import { isGmrcVeSubject } from '../services/ecr-excel-export';
-import { useAppStore } from '../stores';
+import { isGrade11CoreSubject, resolveSubjectOfferedTerms } from '../lib/curriculum';
+import { useAppStore } from '../stores/app-store';
 
 export function isQuarterMatch(recQuarter: unknown, targetQuarter: number): boolean {
     if (recQuarter === undefined || recQuarter === null || recQuarter === '') return false;
@@ -43,6 +44,23 @@ export function cleanSubjectQuery(input: string): string {
         if (stripped.startsWith('pe_health') || stripped.startsWith('pe-health') || stripped.startsWith('pehealth')) {
             return 'physical education and health';
         }
+
+        // Handle virtual_${section.id}_${key} (e.g. from rbac.ts: virtual_sec-g7-rizal_science)
+        const secPrefixMatch = stripped.match(/^(?:sec|section)[-_].+?[-_]([a-z0-9_]+)$/i);
+        if (secPrefixMatch && secPrefixMatch[1]) {
+            return secPrefixMatch[1].replace(/_/g, ' ');
+        }
+
+        // Handle virtual-${subject}-${sectionId} (e.g. virtual-science-sec-iris-7 or virtual-science-6a1b2c3d-...)
+        const secSuffixMatch = stripped.match(/^(.+?)[-_](?:sec|section|sec_id|section_id)[-_].+$/i);
+        if (secSuffixMatch && secSuffixMatch[1]) {
+            return secSuffixMatch[1].replace(/[-_]/g, ' ');
+        }
+        const uuidSuffixMatch = stripped.match(/^(.+?)[-_][0-9a-f]{8,}(?:[-_][0-9a-f]+)*$/i);
+        if (uuidSuffixMatch && uuidSuffixMatch[1]) {
+            return uuidSuffixMatch[1].replace(/[-_]/g, ' ');
+        }
+
         const lastHyphen = stripped.lastIndexOf('-');
         if (lastHyphen > 0) {
             str = stripped.substring(0, lastHyphen);
@@ -795,6 +813,7 @@ export interface ResolveStudentQuarterGradeOptions {
     subjectIdOrName?: string;
     subjectId?: string;
     subjectName?: string;
+    sectionId?: string;
     quarter: number;
     schoolYear: string;
     classRecords?: ClassRecord[];
@@ -803,6 +822,8 @@ export interface ResolveStudentQuarterGradeOptions {
     sectionGradeLevel?: string;
     sectionTrack?: string;
     depth?: number;
+    subjectObj?: Subject;
+    weights?: { written_works?: number; performance_tasks?: number; quarterly_exam?: number };
 }
 
 export function resolveStudentQuarterGrade(
@@ -828,8 +849,19 @@ export function resolveStudentQuarterGrade(
     let sectionTrack: string | undefined;
     let depth: number;
 
+    let targetSectionId: string | undefined;
+    let targetSubjectObj: Subject | undefined;
+    let customWeights: { written_works?: number; performance_tasks?: number; quarterly_exam?: number } | undefined;
+
     if (typeof studentLrnOrOptions === 'object' && studentLrnOrOptions !== null) {
         studentLrn = studentLrnOrOptions.studentLrn;
+        targetSectionId = studentLrnOrOptions.sectionId;
+        targetSubjectObj = studentLrnOrOptions.subjectObj;
+        customWeights = studentLrnOrOptions.weights || (targetSubjectObj ? {
+            written_works: targetSubjectObj.written_weight,
+            performance_tasks: targetSubjectObj.performance_weight,
+            quarterly_exam: targetSubjectObj.exam_weight
+        } : undefined);
         subjectIdOrName = studentLrnOrOptions.subjectName || studentLrnOrOptions.subjectIdOrName || studentLrnOrOptions.subjectId || '';
         quarter = studentLrnOrOptions.quarter;
         schoolYear = studentLrnOrOptions.schoolYear;
@@ -858,8 +890,14 @@ export function resolveStudentQuarterGrade(
     const normLrn = String(studentLrn).trim();
 
     // Student-specific records (typically 5 to 15 items)
-    const studentClassRecords = classRecords.filter(r => r.student_lrn === studentLrn || String(r.student_lrn).trim() === normLrn);
-    const studentGradingRecords = gradingSheetRecords.filter(r => r.student_lrn === studentLrn || String(r.student_lrn).trim() === normLrn);
+    const studentClassRecords = classRecords.filter(r =>
+        (r.student_lrn === studentLrn || String(r.student_lrn).trim() === normLrn) &&
+        (!targetSectionId || !r.section_id || r.section_id === targetSectionId)
+    );
+    const studentGradingRecords = gradingSheetRecords.filter(r =>
+        (r.student_lrn === studentLrn || String(r.student_lrn).trim() === normLrn) &&
+        (!targetSectionId || !r.section_id || r.section_id === targetSectionId)
+    );
 
     // Fast exit if student has no records and not a composite parent
     const isCompositeCandidate = depth <= 1 && (
@@ -978,9 +1016,7 @@ export function resolveStudentQuarterGrade(
     // Priority 2: Check classRecords for saved transmuted final_grade (Authoritative from E-Class Record)
     if (cRecord && cRecord.final_grade && Number(cRecord.final_grade) > 0) {
         if (!isGhostRecord(cRecord)) {
-            if (Number(cRecord.final_grade) !== 100) {
-                return Number(cRecord.final_grade);
-            }
+            return Number(cRecord.final_grade);
         }
     }
 
@@ -1052,10 +1088,13 @@ export function resolveStudentQuarterGrade(
             const liveTransmuted = computeLiveTransmutedGradeFromRecord(
                 cRecord,
                 hpsRec,
-                subjectName,
-                sectionGradeLevel,
-                sectionTrack,
-                schoolYear || cRecord.school_year
+                {
+                    subjectName,
+                    sectionGradeLevel,
+                    sectionTrack,
+                    schoolYear: schoolYear || cRecord.school_year,
+                    weights: customWeights,
+                }
             );
             if (liveTransmuted > 0) {
                 return liveTransmuted;
@@ -1092,18 +1131,7 @@ export function resolveStudentQuarterGrade(
             }
 
             if (ma > 0 && pe > 0) return Math.round((ma + pe) / 2);
-            if (ma > 0) return ma;
-            if (pe > 0) return pe;
-
-            // Fallback across all 4 individual components if neither half resolved cleanly
-            const m = resolveStudentQuarterGrade(studentLrn, 'Music', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
-            const a = resolveStudentQuarterGrade(studentLrn, 'Arts', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
-            const p = resolveStudentQuarterGrade(studentLrn, 'Physical Education', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
-            const h = resolveStudentQuarterGrade(studentLrn, 'Health', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
-            const components = [m, a, p, h].filter(v => v > 0);
-            if (components.length > 0) {
-                return Math.round(components.reduce((x, y) => x + y, 0) / components.length);
-            }
+            return 0;
         }
 
         // Music and Arts composite from individual Music and Arts
@@ -1130,8 +1158,7 @@ export function resolveStudentQuarterGrade(
             const ec = resolveStudentQuarterGrade(studentLrn, 'Effective Communication', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
             const mk = resolveStudentQuarterGrade(studentLrn, 'Mabisang Komunikasyon', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, depth + 1);
             if (ec > 0 && mk > 0) return Math.round((ec + mk) / 2);
-            if (ec > 0) return ec;
-            if (mk > 0) return mk;
+            return 0;
         }
     }
 
@@ -1401,7 +1428,7 @@ export function getSubjectAwardees(
         const sectionStudents = students.filter(s => {
             // Exclude descriptive grading levels from Subject Excellence Awards
             if (isDescriptiveGrading(s.grade_level, sy)) return false;
-            return s.student_section === section.section_name || s.student_section === section.id;
+            return isStudentInSection(s, section);
         });
         if (sectionStudents.length === 0) continue;
 
@@ -1602,3 +1629,202 @@ export function normalizeGrade12PESubjectName(name: string, isSSHS: boolean = fa
     return name;
 }
 
+
+
+/**
+ * Universal matcher to check if a learner belongs to a section.
+ * Handles:
+ * 1. section.id
+ * 2. section.section_name (exact and trimmed case-insensitive)
+ * 3. selectedSection string fallback (e.g. if an ID or name string is passed)
+ * 4. Grade-level combined labels: "Grade 7 - Diamond", "Grade 7-Diamond", "G7 - Diamond", "G7-Diamond", "Grade 7 Diamond"
+ */
+export function isStudentInSection(
+    student: Pick<Student, 'student_section'> | null | undefined,
+    section: (Pick<Section, 'id' | 'section_name'> & Partial<Pick<Section, 'section_grade_level'>>) | null | undefined,
+    selectedSectionFallback?: string | null
+): boolean {
+    if (!student) return false;
+    const sSec = (student.student_section || '').trim();
+    if (!sSec) return false;
+
+    // Direct match against selectedSection fallback string (ID or Name)
+    if (selectedSectionFallback) {
+        const cleanFallback = selectedSectionFallback.trim();
+        if (cleanFallback) {
+            if (sSec === cleanFallback || sSec.toLowerCase() === cleanFallback.toLowerCase()) {
+                return true;
+            }
+        }
+    }
+
+    if (!section) return false;
+
+    // 1. Direct ID match
+    if (section.id && sSec === section.id) return true;
+
+    // 2. Direct section name match
+    if (section.section_name && sSec === section.section_name) return true;
+
+    // 3. Case-insensitive name match
+    const sSecLower = sSec.toLowerCase();
+    const secNameLower = (section.section_name || '').trim().toLowerCase();
+    if (secNameLower && sSecLower === secNameLower) return true;
+
+    // 4. Formatted name with grade level (e.g. "Grade 7 - Diamond", "Grade 7-Diamond", "Grade 7 Diamond")
+    const gradeLevel = (section.section_grade_level || '').trim();
+    if (gradeLevel && section.section_name) {
+        const full1 = `${gradeLevel} - ${section.section_name}`.toLowerCase();
+        const full2 = `${gradeLevel}-${section.section_name}`.toLowerCase();
+        const full3 = `${gradeLevel} ${section.section_name}`.toLowerCase();
+        if (sSecLower === full1 || sSecLower === full2 || sSecLower === full3) return true;
+
+        // 5. Short grade format (e.g. "G7 - Diamond", "G7-Diamond", "G7 Diamond")
+        const gradeNum = gradeLevel.match(/\d+/)?.[0];
+        if (gradeNum) {
+            const short1 = `g${gradeNum} - ${section.section_name}`.toLowerCase();
+            const short2 = `g${gradeNum}-${section.section_name}`.toLowerCase();
+            const short3 = `g${gradeNum} ${section.section_name}`.toLowerCase();
+            const short4 = `grade ${gradeNum} - ${section.section_name}`.toLowerCase();
+            if (sSecLower === short1 || sSecLower === short2 || sSecLower === short3 || sSecLower === short4) return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Checks if a student is categorized as Male.
+ * Supports "Male", "MALE", "male", "M", "m", "Boy", "BOY".
+ */
+export function isMaleStudent(student: { gender?: string | null } | null | undefined): boolean {
+    if (!student) return false;
+    const g = (student.gender || '').trim().toUpperCase();
+    return g === 'MALE' || g === 'M' || g === 'BOY';
+}
+
+/**
+ * Checks if a student is categorized as Female.
+ * Supports "Female", "FEMALE", "female", "F", "f", "Girl", "GIRL".
+ */
+export function isFemaleStudent(student: { gender?: string | null } | null | undefined): boolean {
+    if (!student) return false;
+    const g = (student.gender || '').trim().toUpperCase();
+    return g === 'FEMALE' || g === 'F' || g === 'GIRL';
+}
+
+
+/**
+ * Undefined enrollment means the offering applies to the whole section.
+ * An empty list is intentional: it is an elective with no enrolled learners,
+ * not a regular-class subject.
+ */
+export function isStudentEnrolledInSubject(
+    studentLrn: string,
+    subject: Pick<Subject, 'enrolled_student_lrns'> | null | undefined
+): boolean {
+    if (!subject) return true;
+    const enrolledLearners = subject.enrolled_student_lrns;
+    return enrolledLearners === undefined || enrolledLearners.includes(studentLrn);
+}
+
+export interface Grade11ElectiveEnrollmentTermAudit {
+    term: 1 | 2 | 3;
+    offeredSubjects: Subject[];
+    missingLearnerLrns: string[];
+    conflictingLearnerLrns: string[];
+}
+
+/**
+ * Checks the Grade 11 SSHS rule: a section may offer several electives in a term,
+ * while each learner must be in exactly one of those offerings.
+ */
+export function auditGrade11ElectiveEnrollment(
+    section: Section,
+    students: Student[],
+    subjects: Subject[]
+): Grade11ElectiveEnrollmentTermAudit[] {
+    const gradeNumber = parseInt((section.section_grade_level || '').replace(/\D/g, ''), 10);
+    if (gradeNumber !== 11) return [];
+
+    const offeredNames = new Set((section.taught_subjects || []).map(name => name.trim().toLowerCase()));
+    const sectionLearners = students.filter(student => isStudentInSection(student, section));
+    const electives = subjects.filter(subject =>
+        subject.section_id === section.id &&
+        !isGrade11CoreSubject(subject.subject_name) &&
+        (offeredNames.size === 0 || offeredNames.has(subject.subject_name.trim().toLowerCase()))
+    );
+
+    return ([1, 2, 3] as const).map(term => {
+        const offeredSubjects = electives.filter(subject =>
+            resolveSubjectOfferedTerms(subject, section).includes(term)
+        );
+        const missingLearnerLrns: string[] = [];
+        const conflictingLearnerLrns: string[] = [];
+
+        if (offeredSubjects.length === 0) {
+            return {
+                term,
+                offeredSubjects,
+                missingLearnerLrns,
+                conflictingLearnerLrns,
+            };
+        }
+
+        for (const learner of sectionLearners) {
+            const enrolledInTerm = offeredSubjects.filter(sub =>
+                isStudentEnrolledInSubject(learner.lrn, sub)
+            );
+            if (enrolledInTerm.length === 0) {
+                missingLearnerLrns.push(learner.lrn);
+            } else if (enrolledInTerm.length > 1) {
+                conflictingLearnerLrns.push(learner.lrn);
+            }
+        }
+
+        return {
+            term,
+            offeredSubjects,
+            missingLearnerLrns,
+            conflictingLearnerLrns,
+        };
+    });
+}
+
+/**
+ * Checks if a student is eligible for a specific section subject without scheduling conflicts.
+ */
+export function isStudentEligibleForSectionSubject(
+    studentLrn: string,
+    section: Section | null | undefined,
+    subject: Subject,
+    allSectionSubjects: Subject[]
+): boolean {
+    if (isGrade11CoreSubject(subject.subject_name)) return true;
+    if (!section) return isStudentEnrolledInSubject(studentLrn, subject);
+    const gradeNumber = parseInt((section.section_grade_level || '').replace(/\D/g, ''), 10);
+    if (gradeNumber !== 11) return isStudentEnrolledInSubject(studentLrn, subject);
+
+    // If learner is not enrolled in this subject, not eligible
+    if (!isStudentEnrolledInSubject(studentLrn, subject)) return false;
+
+    // Check if enrolled in conflicting elective in same term
+    const subjectTerms = resolveSubjectOfferedTerms(subject, section);
+    const peerElectives = allSectionSubjects.filter(s =>
+        s.id !== subject.id &&
+        s.section_id === section.id &&
+        !isGrade11CoreSubject(s.subject_name)
+    );
+
+    for (const peer of peerElectives) {
+        if (isStudentEnrolledInSubject(studentLrn, peer)) {
+            const peerTerms = resolveSubjectOfferedTerms(peer, section);
+            const hasOverlappingTerm = subjectTerms.some(t => peerTerms.includes(t));
+            if (hasOverlappingTerm) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}

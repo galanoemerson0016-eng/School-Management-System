@@ -1,4 +1,5 @@
-import { useAppStore, useAuthStore } from '../../stores';
+import { useAppStore } from '../../stores/app-store';
+import { useAuthStore } from '../../stores/auth-store';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { exportFullDatabaseBackup } from '../../utils/backup-restore';
@@ -128,8 +129,8 @@ export function Sidebar() {
         {
             title: 'Academic Management',
             items: [
-                { id: 'subjects', label: 'Subjects', icon: GraduationCap },
                 { id: 'sections', label: 'Classes & Sections', icon: Layers },
+                { id: 'subjects', label: 'Subject Library', icon: GraduationCap },
                 { id: 'eclass', label: 'E-Class Record', icon: FileSpreadsheet },
                 { id: 'consolidated-grades', label: 'Grade Management', icon: BarChart3 },
             ],

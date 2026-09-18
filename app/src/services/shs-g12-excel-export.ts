@@ -14,13 +14,14 @@ import JSZip from 'jszip';
 import type { SchoolProfile, Section, Subject, Student, ClassRecord, HPSRecord } from '../types';
 import { normalizeRegionForECR } from './ecr-excel-export';
 import { getSubjectCluster, transmuteGrade } from '../lib/grading';
+import { isZipTemplate, readNodeTemplateFallback } from '../utils/node-template-fallback';
 
 export const TEMPLATE_SHS_G12 = 'SHS E-Class Record SY 2026-2027.xlsx';
 export const TEMPLATE_SHS_G12_LEGACY = 'ECR_3Term - SHS G12 - SY2026-2027.xlsx';
 export const TEMPLATE_SHS_G12_UPDATED = 'ECR_3Term - SHS G12 - SY2026-2027 - Updated_2.xlsx';
 export type SHSG12TemplateLayout = 'legacy' | 'updated';
 
-const MAX_STUDENTS_PER_GENDER = 50;
+export const MAX_STUDENTS_PER_GENDER = 50;
 const _G12_WW_COUNT = 10;
 const _G12_PT_COUNT = 10;
 
@@ -395,8 +396,9 @@ export function resolveSHSG12Terms(
     return { numTerms: 3, termBlock: 'FIRST TERM', termDesc: '1ST, 2ND, 3RD', code: 33 };
   }
 
-  // Default to 1 term in First Term
-  return { numTerms: 1, termBlock: 'FIRST TERM', termDesc: '1ST', code: 11 };
+  // Grade 12 offerings are school-selected. Do not silently label an
+  // unconfigured subject as a First Term subject in an official record.
+  return { numTerms: 0, termBlock: '', termDesc: '', code: 0 };
 }
 
 /**
@@ -1517,41 +1519,11 @@ export async function fetchSHSG12TemplateBuffer(layout: SHSG12TemplateLayout = '
     }
   }
 
-  // Node / Electron filesystem fallback
-  if (typeof process !== 'undefined' && process.versions?.node) {
-    try {
-      const fs = await import('fs');
-      const nodePath = await import('path');
-      const possibleDirs = [
-        nodePath.resolve(process.cwd(), 'app', 'public', 'templates'),
-        nodePath.resolve(process.cwd(), 'public', 'templates'),
-        ...(typeof __dirname !== 'undefined' ? [
-          nodePath.resolve(__dirname, '../../public/templates'),
-          nodePath.resolve(__dirname, '../public/templates')
-        ] : []),
-        ...(typeof (process as unknown as { resourcesPath?: string }).resourcesPath !== 'undefined' ? [
-          nodePath.resolve((process as unknown as { resourcesPath: string }).resourcesPath, 'templates'),
-          nodePath.resolve((process as unknown as { resourcesPath: string }).resourcesPath, 'app', 'public', 'templates')
-        ] : [])
-      ];
-
-      for (const dir of possibleDirs) {
-        for (const f of [templateName, TEMPLATE_SHS_G12_UPDATED, TEMPLATE_SHS_G12]) {
-          const fullPath = nodePath.join(dir, f);
-          if (fs.existsSync(fullPath)) {
-            const buf = fs.readFileSync(fullPath);
-            if (buf.length >= 1000 && buf[0] === 0x50 && buf[1] === 0x4b) {
-              const u8 = new Uint8Array(buf.byteLength);
-              for (let i = 0; i < buf.byteLength; i++) u8[i] = buf[i];
-              return u8;
-            }
-          }
-        }
-      }
-    } catch {
-      // Ignore
-    }
-  }
+  const nodeBytes = await readNodeTemplateFallback(
+    [templateName, TEMPLATE_SHS_G12_UPDATED, TEMPLATE_SHS_G12],
+    1000,
+  );
+  if (isZipTemplate(nodeBytes)) return nodeBytes;
 
   throw new Error(`Failed to load valid SHS Grade 12 template: ${templateName}. Please ensure the template file exists in public/templates.`);
 }
@@ -1582,8 +1554,17 @@ export async function populateSHSG12WorkbookZip(
     options.schoolYear
   );
 
-  const numTerms = options.numTerms || resolvedTermsBase.numTerms;
-  const termBlock = options.termBlock || resolvedTermsBase.termBlock;
+  const numTerms = options.numTerms ?? resolvedTermsBase.numTerms;
+  const termBlock = options.termBlock ?? resolvedTermsBase.termBlock;
+
+  if (numTerms < 1) {
+    throw new Error('Set the offered term(s) for this Grade 12 subject before exporting its E-Class Record.');
+  }
+  const maleCount = options.students.filter(s => String(s.gender || '').trim().toLowerCase() === 'male').length;
+  const femaleCount = options.students.filter(s => String(s.gender || '').trim().toLowerCase() === 'female').length;
+  if (maleCount > MAX_STUDENTS_PER_GENDER || femaleCount > MAX_STUDENTS_PER_GENDER) {
+    throw new Error(`This official E-Class Record supports up to ${MAX_STUDENTS_PER_GENDER} male and ${MAX_STUDENTS_PER_GENDER} female learners. The selected roster has ${maleCount} male and ${femaleCount} female learners. Split the class before exporting.`);
+  }
 
   const resolvedTerms: SHSG12TermsConfig = {
     ...resolvedTermsBase,

@@ -14,11 +14,89 @@ import {
     validateSectionCurriculumHealth
 } from '../lib/curriculumPresets';
 import { normalizeSubjectName } from '../lib/subjectConfig';
+import { getDefaultTermForSubject, isGrade11CoreSubject, normalizeOfferedTerms } from '../lib/curriculum';
 
 export interface CurriculumSyncResult {
     updatedSection: Section;
     createdSubjectsCount: number;
     updatedSubjectsCount: number;
+}
+
+export interface SectionOfferingRepairResult {
+    createdSubjectsCount: number;
+    existingSubjectsCount: number;
+}
+
+/**
+ * Safely materializes a section's existing curriculum as section-owned
+ * Subject rows.  It never changes the section, existing subjects, grades, or
+ * learner rosters.  This is the migration path for older client data that
+ * used a shared Subject Library row as its live offering.
+ */
+export async function repairSectionOwnedSubjectOfferings(
+    section: Section,
+    existingSubjects: Subject[],
+    callbacks: { addSubject: (subject: Subject) => Promise<void> },
+): Promise<SectionOfferingRepairResult> {
+    const subjectNames = Array.from(new Map(
+        (section.taught_subjects || []).map(name => [normalizeSubjectName(name), name.trim()])
+    ).values()).filter(Boolean);
+    const configuredTerms = (section.section_metadata?.subjectTerms || {}) as Record<string, unknown>;
+    const gradeLevel = section.section_grade_level;
+    const isShs = /(?:11|12)/.test(gradeLevel || '');
+    let createdSubjectsCount = 0;
+    let existingSubjectsCount = 0;
+
+    for (const subjectName of subjectNames) {
+        const normalized = normalizeSubjectName(subjectName);
+        const sectionOwned = existingSubjects.find(subject =>
+            subject.section_id === section.id &&
+            normalizeSubjectName(subject.subject_name) === normalized
+        );
+        if (sectionOwned) {
+            existingSubjectsCount++;
+            continue;
+        }
+
+        const libraryDefinition = existingSubjects.find(subject =>
+            !subject.section_id &&
+            (subject.grade_level || '').trim() === (gradeLevel || '').trim() &&
+            normalizeSubjectName(subject.subject_name) === normalized
+        );
+        const configuredTerm = configuredTerms[subjectName] ?? configuredTerms[libraryDefinition?.subject_name || ''];
+        const fallbackTerm = isGrade11CoreSubject(subjectName)
+            ? 'all'
+            : (getDefaultTermForSubject(subjectName, gradeLevel) || (isShs ? 1 : 'all'));
+        const termSource = configuredTerm ?? libraryDefinition?.offered_terms ?? libraryDefinition?.term ?? fallbackTerm;
+        const offeredTerms = normalizeOfferedTerms(termSource);
+        const term: Subject['term'] = offeredTerms.length === 3
+            ? 'all'
+            : offeredTerms.length === 1
+                ? offeredTerms[0]
+                : isShs ? 'none' : 'all';
+
+        await callbacks.addSubject({
+            id: generateUUID(),
+            subject_name: subjectName,
+            subject_code: libraryDefinition?.subject_code,
+            grade_level: gradeLevel,
+            section_id: section.id,
+            term,
+            offered_terms: offeredTerms,
+            written_weight: libraryDefinition?.written_weight,
+            performance_weight: libraryDefinition?.performance_weight,
+            exam_weight: libraryDefinition?.exam_weight,
+            units: libraryDefinition?.units,
+            hours: libraryDefinition?.hours,
+            counts_in_general_average: libraryDefinition?.counts_in_general_average ?? true,
+            is_component: libraryDefinition?.is_component,
+            is_special_program: libraryDefinition?.is_special_program,
+            program_type: libraryDefinition?.program_type,
+        });
+        createdSubjectsCount++;
+    }
+
+    return { createdSubjectsCount, existingSubjectsCount };
 }
 
 /**
@@ -37,19 +115,31 @@ export async function applyCurriculumPresetToSection(
         updateSection: (section: Section) => Promise<void>;
     }
 ): Promise<CurriculumSyncResult> {
-    const subjectNames = preset.subjects.map(s => s.name);
+    const isGrade11Sshs = (section.section_grade_level || preset.gradeLevel || '').includes('11') && preset.curriculumType === 'SSHS';
+    // Grade 11 SSHS presets describe the permitted cluster catalog.  A section
+    // starts with the mandatory cores; its adviser deliberately adds the
+    // elective offerings that the section will run later.
+    const offeredPresetSubjects = isGrade11Sshs
+        ? preset.subjects.filter(subject => isGrade11CoreSubject(subject.name))
+        : preset.subjects;
+    const subjectNames = offeredPresetSubjects.map(s => s.name);
     const subjectTerms: Record<string, 1 | 2 | 3 | 'all'> = {};
 
-    for (const item of preset.subjects) {
+    for (const item of offeredPresetSubjects) {
         subjectTerms[item.name] = item.term;
     }
 
     const updatedMetadata = {
         ...(section.section_metadata || {}),
-        subjectTerms: {
-            ...((section.section_metadata?.subjectTerms as Record<string, 1 | 2 | 3 | 'all'>) || {}),
-            ...subjectTerms
-        }
+        // Keep older term metadata for other curricula, but a Grade 11 repair
+        // deliberately returns to the core-only baseline and must remove stale
+        // elective entries that are no longer in the section offering.
+        subjectTerms: isGrade11Sshs
+            ? subjectTerms
+            : {
+                ...((section.section_metadata?.subjectTerms as Record<string, 1 | 2 | 3 | 'all'>) || {}),
+                ...subjectTerms
+            }
     };
 
     const updatedSection: Section = {
@@ -64,11 +154,14 @@ export async function applyCurriculumPresetToSection(
     const gradeLevel = section.section_grade_level || preset.gradeLevel;
 
     // Synchronize Subject database records
-    for (const item of preset.subjects) {
+    for (const item of offeredPresetSubjects) {
         const normName = normalizeSubjectName(item.name);
+        // Keep the library definition separate from this section's actual
+        // offering.  A section-owned row is where roster and term decisions
+        // live, so a global record must not be updated in its place.
         const existing = existingSubjects.find(s =>
             (s.grade_level || '').trim() === gradeLevel.trim() &&
-            (!s.section_id || s.section_id === section.id) &&
+            s.section_id === section.id &&
             normalizeSubjectName(s.subject_name) === normName
         );
 
@@ -83,6 +176,8 @@ export async function applyCurriculumPresetToSection(
                 written_weight: item.written_weight,
                 performance_weight: item.performance_weight,
                 exam_weight: item.exam_weight,
+                units: item.units,
+                hours: item.hoursPerYear,
                 counts_in_general_average: item.counts_in_general_average !== false,
                 is_component: item.is_component || false,
                 is_special_program: preset.program !== 'Regular',
@@ -91,12 +186,16 @@ export async function applyCurriculumPresetToSection(
             await callbacks.addSubject(newSubj);
             createdCount++;
         } else {
-            // Update term or weights if divergent
-            const needsTermUpdate = existing.term !== item.term && item.term !== 'all';
-            if (needsTermUpdate) {
+            // Update the schedule and curriculum metadata if divergent.
+            const needsTermUpdate = existing.term !== item.term;
+            const needsUnitUpdate = item.units !== undefined && existing.units !== item.units;
+            const needsHoursUpdate = item.hoursPerYear !== undefined && existing.hours !== item.hoursPerYear;
+            if (needsTermUpdate || needsUnitUpdate || needsHoursUpdate) {
                 await callbacks.updateSubject({
                     ...existing,
-                    term: item.term
+                    term: needsTermUpdate ? item.term : existing.term,
+                    units: item.units ?? existing.units,
+                    hours: item.hoursPerYear ?? existing.hours
                 });
                 updatedCount++;
             }
@@ -159,7 +258,7 @@ export async function autoRepairSectionCurriculum(
 
     return {
         success: true,
-        message: `Successfully applied ${preset.label}: ${result.createdSubjectsCount} subjects created, ${preset.subjects.length} subjects configured.`,
+        message: `Successfully applied ${preset.label}: ${result.createdSubjectsCount} subjects created, ${result.updatedSection.taught_subjects?.length || 0} subjects configured.`,
         updatedSection: result.updatedSection
     };
 }

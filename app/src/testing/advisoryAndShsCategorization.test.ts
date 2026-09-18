@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
     filterSF9Sections,
     filterAttendanceSections,
-    filterOfficialSectionsForUser
+    filterOfficialSectionsForUser,
+    filterSectionsForUser
 } from '../lib/rbac';
 import {
     getSshsCategoryForSubject,
@@ -75,6 +76,12 @@ describe('Advisory Section Filtering for Official Forms & Grade Management', () 
         const result = filterOfficialSectionsForUser(mockUser, mockSections);
         expect(result.map(s => s.id)).toEqual(['sec-adv-1', 'sec-adv-2']);
         expect(result.some(s => s.id === 'sec-nonadv-teaching-only')).toBe(false);
+    });
+
+    it('E-Class section filtering excludes advisory-only classes and keeps explicit teaching loads', () => {
+        const result = filterSectionsForUser(mockUser, mockSections, []);
+        expect(result.map(s => s.id)).toEqual(['sec-adv-2', 'sec-nonadv-teaching-only']);
+        expect(result.some(s => s.id === 'sec-adv-1')).toBe(false);
     });
 });
 

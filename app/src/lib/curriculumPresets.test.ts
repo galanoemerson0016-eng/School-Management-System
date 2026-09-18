@@ -61,6 +61,7 @@ describe('DepEd Curriculum Presets Engine (Universal 3-Term)', () => {
         it('contains 6 core subjects spanning all 3 terms', () => {
             expect(SSHS_G11_CORE_SUBJECTS).toHaveLength(6);
             expect(SSHS_G11_CORE_SUBJECTS.every(s => s.term === 'all')).toBe(true);
+            expect(SSHS_G11_CORE_SUBJECTS.every(s => s.units === 2 && s.hoursPerYear === 160)).toBe(true);
             expect(SSHS_G11_CORE_SUBJECTS.map(s => s.name)).toEqual([
                 'Effective Communication',
                 'Mabisang Komunikasyon',
@@ -98,6 +99,11 @@ describe('DepEd Curriculum Presets Engine (Universal 3-Term)', () => {
             expect(preset?.subjects.some(s => s.name === 'Computer Systems Servicing' && s.term === 1)).toBe(true);
             expect(preset?.subjects.some(s => s.name === 'Broadband Installation' && s.term === 2)).toBe(true);
             expect(preset?.subjects.some(s => s.name === 'Computer Programming (.Net Technology)' && s.term === 3)).toBe(true);
+        });
+
+        it('does not guess STEM or ICT when the Grade 11 SSHS cluster is unrecognised', () => {
+            expect(getCurriculumPreset('Grade 11', 'Academic', 'Unconfigured Cluster')).toBeNull();
+            expect(getCurriculumPreset('Grade 11', 'TechPro', 'Unconfigured Cluster')).toBeNull();
         });
     });
 

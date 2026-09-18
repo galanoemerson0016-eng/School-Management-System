@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback, type Ref } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import { useAuthStore } from '../stores/auth-store';
 import { Printer, ArrowLeft, ArrowRight, ChevronDown, Plus, Minus, Search, Download, ShieldCheck, Eye, FileSpreadsheet, X } from 'lucide-react';
 import { canEditAttendanceSection, filterAttendanceSections } from '../lib/rbac';
@@ -319,9 +319,13 @@ const getCurrentSF2Month = (): string => {
 
 export function AttendancePage() {
 
-    const { students, sections, saveSF2Sheet, schoolProfile, teachers, setCurrentView, activeSchoolYear, showNotification } = useAppStore();
+    const {
+        students, sections, saveSF2Sheet, schoolProfile, teachers, setCurrentView,
+        activeSchoolYear, showNotification, selectedSection: globalSelectedSection,
+        setSelectedSection: setGlobalSelectedSection
+    } = useAppStore();
     const { user } = useAuthStore();
-    const [selectedSection, setSelectedSection] = useState('');
+    const [selectedSection, setSelectedSectionState] = useState(globalSelectedSection || '');
     const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentSF2Month);
     const [paperSize, setPaperSize] = useState<'letter' | 'a4' | 'folio'>('folio');
     const [zoom, setZoom] = useState(0.85);
@@ -603,12 +607,19 @@ export function AttendancePage() {
     }, [sortedSections]);
 
     useEffect(() => {
-        if (sortedSections.length !== 1) return;
-        const onlySectionName = sortedSections[0].section_name;
-        if (selectedSection !== onlySectionName) {
-            setSelectedSection(onlySectionName);
-        }
-    }, [sortedSections, selectedSection]);
+        if (sortedSections.length === 0) return;
+        const selectedMatch = sortedSections.find(s => s.id === selectedSection || s.section_name === selectedSection);
+        const globalMatch = globalSelectedSection
+            ? sortedSections.find(s => s.id === globalSelectedSection || s.section_name === globalSelectedSection)
+            : undefined;
+        const nextId = globalMatch?.id || selectedMatch?.id || sortedSections[0].id;
+        if (nextId && selectedSection !== nextId) setSelectedSectionState(nextId);
+    }, [sortedSections, selectedSection, globalSelectedSection]);
+
+    const setSelectedSection = (sectionId: string) => {
+        setSelectedSectionState(sectionId);
+        setGlobalSelectedSection(sectionId);
+    };
 
     const selectedSectionObj = useMemo(() => {
         return sections.find((s) => s.section_name === selectedSection || s.id === selectedSection);
@@ -793,7 +804,7 @@ export function AttendancePage() {
 
     const sectionStudents = useMemo(() => {
         if (!selectedSection) return [];
-        const sectionId = sections.find(s => s.section_name === selectedSection)?.id;
+        const sectionId = sections.find(s => s.id === selectedSection || s.section_name === selectedSection)?.id;
         return students.filter((s) => s.student_section === selectedSection || (sectionId && s.student_section === sectionId));
     }, [selectedSection, students, sections]);
 
@@ -1355,7 +1366,7 @@ export function AttendancePage() {
     const effectiveZoom = zoom * fitZoom;
 
     const adviserName = useMemo(() => {
-        const sec = sections.find(s => s.section_name === selectedSection);
+        const sec = sections.find(s => s.id === selectedSection || s.section_name === selectedSection);
         const fromProfile = (schoolProfile?.adviser_name || '').trim();
         const isGenericProfile = fromProfile.toLowerCase() === 'admin' || fromProfile === '';
 
@@ -1396,7 +1407,7 @@ export function AttendancePage() {
     }, [displayStudents]);
 
     const renderHeaderBlock = () => {
-        const gradeLevelText = sections.find(s => s.section_name === selectedSection)?.section_grade_level || 'Grade 7';
+        const gradeLevelText = sections.find(s => s.id === selectedSection || s.section_name === selectedSection)?.section_grade_level || 'Grade 7';
         return (
             <>
                 <div className="flex items-center mb-2">
@@ -1980,7 +1991,7 @@ export function AttendancePage() {
                                         groupSections.length > 0 && (
                                             <optgroup key={group} label={group}>
                                                 {groupSections.map(s => (
-                                                    <option key={s.id} value={s.section_name}>
+                                                    <option key={s.id} value={s.id}>
                                                         {s.section_grade_level} - {s.section_name}
                                                     </option>
                                                 ))}

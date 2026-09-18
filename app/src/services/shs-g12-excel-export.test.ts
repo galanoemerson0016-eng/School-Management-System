@@ -6,6 +6,7 @@ import {
   TEMPLATE_SHS_G12,
   TEMPLATE_SHS_G12_UPDATED,
   resolveSHSG12Track,
+  resolveSHSG12Terms,
   populateSHSG12WorkbookZip,
   getSHSG12Descriptor
 } from './shs-g12-excel-export';
@@ -704,6 +705,15 @@ describe('SHS Grade 12 E-Class Record Export Service', () => {
       expect(getSHSG12Descriptor(64)).toBe('Emerging');
       expect(getSHSG12Descriptor(60)).toBe('Emerging');
       expect(getSHSG12Descriptor('')).toBe('');
+    });
+  });
+
+  it('does not assign an unconfigured Grade 12 offering to First Term', () => {
+    expect(resolveSHSG12Terms({ id: 'elective', subject_name: 'School-selected elective' } as Subject, [], [], '2026-2027')).toEqual({
+      numTerms: 0,
+      termBlock: '',
+      termDesc: '',
+      code: 0
     });
   });
 });

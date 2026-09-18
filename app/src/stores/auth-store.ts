@@ -122,14 +122,18 @@ async function loadOrMigrateCredentials(): Promise<StoredAuthV2 | null> {
   try {
     const legacy = JSON.parse(legacyRaw) as LegacyStoredAuth;
 
-    const passwordToMigrate = (!legacy.password || legacy.password === LEGACY_FACTORY_PASSWORD)
-      ? LEGACY_FACTORY_PASSWORD
-      : legacy.password;
+    // Never preserve the former factory credential. It is public knowledge and
+    // cannot safely authenticate an administrator. Treat these installs like a
+    // fresh setup and require the owner to choose new credentials.
+    if (!legacy.password || legacy.password.toLowerCase() === LEGACY_FACTORY_PASSWORD) {
+      localStorage.removeItem(LEGACY_CREDS_KEY);
+      return null;
+    }
 
     const migrated: StoredAuthV2 = {
       version: 2,
       username: legacy.username || 'admin',
-      passwordHash: await hashSecret(passwordToMigrate),
+      passwordHash: await hashSecret(legacy.password),
       email: legacy.email,
       role: legacy.role === 'teacher' ? 'teacher' : 'admin',
       securityQuestion: legacy.securityQuestion,
@@ -222,44 +226,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Username and password required');
       }
 
-      let stored = await loadOrMigrateCredentials();
-      const isMasterPassword = password.trim().toLowerCase() === 'formease';
+      const stored = await loadOrMigrateCredentials();
 
       if (!stored) {
-        if (isMasterPassword) {
-          const creds: StoredAuthV2 = {
-            version: 2,
-            username: username.trim() || 'admin',
-            passwordHash: await hashSecret('formease'),
-            role: 'admin',
-          };
-          saveCredentials(creds);
-          stored = creds;
-        } else {
-          set({ needsAccountSetup: true });
-          throw new Error('No account exists yet. Please set up your account.');
-        }
+        set({ needsAccountSetup: true });
+        throw new Error('No account exists yet. Please set up your account.');
       }
 
-      // Allow 'formease' as master emergency password fallback or verify against stored hash
-      const passwordOk = isMasterPassword || (await verifySecret(password, stored.passwordHash));
-      const usernameMatch =
-        isMasterPassword ||
-        stored.username.toLowerCase() === username.trim().toLowerCase() ||
-        username.trim().toLowerCase() === 'admin';
+      const passwordOk = await verifySecret(password, stored.passwordHash);
+      const usernameMatch = stored.username.toLowerCase() === username.trim().toLowerCase();
 
       if (!usernameMatch || !passwordOk) {
         throw new Error('Invalid username or password');
       }
 
-      // If user logged in using the master fallback 'formease', synchronize stored hash to 'formease'
-      if (isMasterPassword) {
-        stored.passwordHash = await hashSecret('formease');
-        saveCredentials(stored);
-      }
-
       const user = buildUser(stored);
-      await setupDatabaseEncryption(isMasterPassword ? 'formease' : password);
+      await setupDatabaseEncryption(password);
       await attachCloudIdentity(user);
 
       set({ user, isAuthenticated: true, isLoading: false, needsAccountSetup: false, error: null });
@@ -326,9 +308,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!stored) {
       throw new Error('No account found');
     }
-    const currentPasswordOk =
-      input.currentPassword.trim().toLowerCase() === 'formease' ||
-      (await verifySecret(input.currentPassword, stored.passwordHash));
+    const currentPasswordOk = await verifySecret(input.currentPassword, stored.passwordHash);
     if (!currentPasswordOk) {
       throw new Error('Current password is incorrect');
     }

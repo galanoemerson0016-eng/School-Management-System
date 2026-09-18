@@ -51,6 +51,7 @@ export interface SchoolProfile {
     trial_activated_at?: string;
     subscription_end_date?: string;
     id_card_config?: IdCardConfig;
+    school_year?: string;
 }
 
 // Preset DepEd-style student ID layouts + per-school branding overrides.
@@ -294,6 +295,9 @@ export interface SF9SignatureSettings {
     hideHeadName?: boolean;
 }
 
+/** A section's explicit SSHS offering schedule for one subject. */
+export type SubjectTermSelection = 1 | 2 | 3 | 'all' | 'none' | '1,2' | '1,3' | '2,3';
+
 export interface Section {
     id: string;
     section_name: string;
@@ -318,7 +322,7 @@ export interface Section {
         hiddenConsolidatedSubjects?: string[];
         lockedQuarters?: ('q1' | 'q2' | 'q3' | 'q4')[];
         customColumnWidths?: Record<string, number>;
-        subjectTerms?: Record<string, 1 | 2 | 3 | 'all'>;
+        subjectTerms?: Record<string, SubjectTermSelection>;
     };
 }
 
@@ -331,7 +335,9 @@ export interface Subject {
     teacher_id?: string; // Assigned teacher
     order?: number; // Display order for reordering
     is_teaching_load?: boolean; // Flag for separate E-Class subjects
-    term?: 1 | 2 | 3 | 'all' | 'none'; // The term this subject is offered in
+    term?: 1 | 2 | 3 | 'all' | 'none'; // Legacy single-term representation
+    /** Explicit SSHS schedule; undefined lets the section configuration decide. */
+    offered_terms?: (1 | 2 | 3)[];
     semester?: 1 | 2 | 'all' | 'none'; // The semester this subject is offered in (for 2-Semester SHS layout)
     units?: number; // SSHS Units per term (e.g. 2 for Core, 3 for Academic, 4 for Tech-Pro, 12 for Immersion)
     hours?: number; // Total subject hours (e.g. 80, 160, 320)
@@ -359,6 +365,12 @@ export interface ClassRecord {
     quarterly_exam: number | string;
     final_grade?: number | string;
     is_teaching_load?: boolean; // Flag for records created as part of teaching load
+    /**
+     * Grades copied from an E-Class Record are recalculated from its raw scores.
+     * A manual override is an intentional Grade Management entry and is the only
+     * grading-sheet value allowed to supersede a fresh E-Class calculation.
+     */
+    grade_source?: 'eclass_sync' | 'manual_override' | 'subject_teacher' | 'legacy_fallback';
 }
 
 export interface Enrollment {

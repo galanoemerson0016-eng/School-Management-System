@@ -1022,23 +1022,25 @@ export function getDefaultTermForSubject(subjectName: string, gradeLevel: string
         return 'all';
     }
     
-    // For Grade 11 electives: intelligently infer term 1, 2, or 3 based on sequence / progression
-    const clean = (subjectName || '').trim().toLowerCase()
-        .replace(/\bgrade\s*\d+\b/gi, '')
-        .replace(/\bgr\.?\s*\d+\b/gi, '')
-        .replace(/\bg\d+\b/gi, '')
-        .replace(/\b(?:nc|coc)\s*(?:i{1,3}|iv|\d+)\b/gi, '')
-        .replace(/\b21st\b/gi, '')
-        .trim();
-
-    if (clean.includes('pre-calculus') || clean.includes('precalculus')) return 1;
-    if (clean.includes('basic calculus') || clean.includes('basiccalculus')) return 2;
-
-    if (/\b(iii|3)\b/i.test(clean) || /(?:^|\D)3$/i.test(clean)) return 3;
-    if (/\b(ii|2)\b/i.test(clean) || /(?:^|\D)2$/i.test(clean)) return 2;
-    if (/\b(i|1)\b/i.test(clean) || /(?:^|\D)1$/i.test(clean)) return 1;
-
+    // A non-Core SSHS subject's name must never decide its schedule.  The
+    // adviser explicitly selects its offered term(s) for this section.
     return 'none';
+}
+
+/** Converts every persisted schedule representation into a canonical term list. */
+export function normalizeOfferedTerms(value: unknown): (1 | 2 | 3)[] {
+    if (value === 'all') return [1, 2, 3];
+    if (value === 'none' || value === undefined || value === null) return [];
+
+    const entries = Array.isArray(value)
+        ? value
+        : typeof value === 'string' && value.includes(',')
+            ? value.split(',')
+            : [value];
+    const terms = entries
+        .map((entry) => Number(entry))
+        .filter((entry): entry is 1 | 2 | 3 => entry === 1 || entry === 2 || entry === 3);
+    return Array.from(new Set(terms)).sort((a, b) => a - b) as (1 | 2 | 3)[];
 }
 
 /**
@@ -1048,7 +1050,7 @@ export function getDefaultTermForSubject(subjectName: string, gradeLevel: string
  * For Elementary and Junior High School, all subjects run across all terms [1, 2, 3].
  */
 export function resolveSubjectOfferedTerms(
-    sub: { subject_name: string; term?: string | number | null; id?: string },
+    sub: { subject_name: string; term?: string | number | null; offered_terms?: (1 | 2 | 3)[]; id?: string },
     sectionObj?: { id?: string; section_grade_level?: string; section_metadata?: Record<string, unknown> } | null,
     hasGradesInTerm?: (termNum: number) => boolean
 ): number[] {
@@ -1061,43 +1063,37 @@ export function resolveSubjectOfferedTerms(
         return [1, 2, 3];
     }
 
-    // 1. Check section metadata subjectTerms override (explicitly configured by teacher)
-    const subjectTermsMeta = (sectionObj?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, unknown> | undefined;
-    if (subjectTermsMeta) {
-        const override = subjectTermsMeta[sub.subject_name];
-        if (override !== undefined) {
-            if (override === 'all') return [1, 2, 3];
-            if (typeof override === 'string' && override.includes(',')) {
-                return override.split(',').map(n => Number(n.trim())).filter(n => n >= 1 && n <= 3);
-            }
-            const num = Number(override);
-            if (num === 1) return [1];
-            if (num === 2) return [2];
-            if (num === 3) return [3];
-        }
-    }
-
-    // 2. Check subject.term stored on subject record
-    const sTerm = sub.term;
-    if (sTerm === 'all') return [1, 2, 3];
-    if (sTerm === 1 || sTerm === '1') return [1];
-    if (sTerm === 2 || sTerm === '2') return [2];
-    if (sTerm === 3 || sTerm === '3') return [3];
-    if (typeof sTerm === 'string' && sTerm.includes(',')) {
-        return (sTerm as string).split(',').map(n => Number(n.trim())).filter(n => n >= 1 && n <= 3);
-    }
-
-    // 3. For Grade 11 Core subjects: DO 017 s. 2026 mandates all 3 terms
+    // Grade 11 SSHS core learning areas are full-year offerings.  Older
+    // imports sometimes persisted a single term on the Subject row; allowing
+    // that stale value to win makes Grade Management and SF9 disagree.
     if (gradeNum === 11 && isGrade11CoreSubject(sub.subject_name)) {
         return [1, 2, 3];
     }
 
-    // 4. Default curriculum term based on sequence / catalog
+    // 1. Check the section schedule explicitly configured by the adviser.
+    const subjectTermsMeta = (sectionObj?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, unknown> | undefined;
+    if (subjectTermsMeta) {
+        const override = subjectTermsMeta[sub.subject_name];
+        if (override !== undefined) {
+            return normalizeOfferedTerms(override);
+        }
+    }
+
+    // 2. Check an explicit multi-term schedule saved on the subject record.
+    if (sub.offered_terms !== undefined) {
+        return normalizeOfferedTerms(sub.offered_terms);
+    }
+
+    // 3. Check the legacy single-term setting saved on the subject record.
+    const sTerm = sub.term;
+    if (sTerm !== undefined && sTerm !== null) {
+        return normalizeOfferedTerms(sTerm);
+    }
+
+    // 4. Grade 11 Core is the only automatic SSHS offering.  Every other
+    // subject remains unscheduled until the adviser decides its term(s).
     const defTerm = getDefaultTermForSubject(sub.subject_name, gradeLevel);
-    if (defTerm === 1) return [1];
-    if (defTerm === 2) return [2];
-    if (defTerm === 3) return [3];
-    if (defTerm === 'all') return [1, 2, 3];
+    if (defTerm !== 'none') return normalizeOfferedTerms(defTerm);
 
     // 5. Smart check: If hasGradesInTerm callback is provided, check which quarters actually have non-zero grades
     if (hasGradesInTerm) {
@@ -1107,7 +1103,7 @@ export function resolveSubjectOfferedTerms(
         }
     }
 
-    return [1, 2, 3];
+    return [];
 }
 
 /**

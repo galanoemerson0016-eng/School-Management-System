@@ -23,7 +23,7 @@ import {
 import { RestoreStrategyPanel } from './RestoreStrategyPanel';
 import type { RestoreStrategy } from '../utils/restore-options';
 import type { ComprehensiveBackup } from '../utils/backup-restore';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import { decryptBackup } from '../utils/backup-encryption';
 
 interface RestoreSummary {

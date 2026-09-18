@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, memo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useAppStore, useAuthStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
+import { useAuthStore } from '../stores/auth-store';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, FileSpreadsheet, Bug, ArrowRight, Shield, SlidersHorizontal, Crosshair, ChevronDown, Sparkles, Database } from 'lucide-react';
 import type { ClassRecord, HPSRecord, Subject, Student } from '../types';
@@ -10,7 +11,7 @@ import { exportSSHSEClassRecord, resolveSSHSMetadata, resolveSSHSTerms, SSHS_GRA
 import { exportSHSG12EClassRecord, resolveSHSG12Terms } from '../services/shs-g12-excel-export';
 import { exportDirectDatabaseToExcel } from '../services/database-rescue-export';
 import { isGrade11CoreSubject, getDefaultTermForSubject, getShsSubjectUnitInfo, SSHS_ELECTIVE_CATALOG } from '../lib/curriculum';
-import { isMatchingSubject, isSameSubject, findHpsRecord, resolveStudentQuarterGrade, computeLiveTransmutedGradeFromRecord } from '../utils/grading-helpers';
+import { isMatchingSubject, isSameSubject, findHpsRecord, resolveStudentQuarterGrade, computeLiveTransmutedGradeFromRecord, isStudentInSection, isMaleStudent, isFemaleStudent } from '../utils/grading-helpers';
 
 import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore, normalizeWeightFraction, normalizeWeightPercent, type SubjectCluster } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
@@ -662,8 +663,8 @@ export function ShsEClassRecord() {
     }, [selectedSubject, selectedSubjectObj, selectedSectionObj]);
 
     const sectionStudents = useMemo(() => {
-        if (!selectedSection) return [];
-        const baseStudents = students.filter((s) => s.student_section === selectedSection || (selectedSectionObj?.id && s.student_section === selectedSectionObj.id));
+        if (!selectedSection && !selectedSectionObj) return [];
+        const baseStudents = students.filter((s) => isStudentInSection(s, selectedSectionObj, selectedSection));
         
         // Find subject enrollment if defined
         const subj = subjects.find(s => s.id === selectedSubject);
@@ -1213,11 +1214,11 @@ export function ShsEClassRecord() {
         fetchTeacher();
     }, [selectedSubjectObj, effectiveSubjectId, selectedSectionObj, user, teachers, schoolProfile, subjects]);
 
-    const maleStudents = useMemo(() => sectionStudents.filter(s => s.gender === 'Male').sort((a, b) => {
+    const maleStudents = useMemo(() => sectionStudents.filter(s => isMaleStudent(s) || !isFemaleStudent(s)).sort((a, b) => {
         return `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`);
     }), [sectionStudents]);
 
-    const femaleStudents = useMemo(() => sectionStudents.filter(s => s.gender === 'Female').sort((a, b) => {
+    const femaleStudents = useMemo(() => sectionStudents.filter(s => isFemaleStudent(s)).sort((a, b) => {
         return `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`);
     }), [sectionStudents]);
 

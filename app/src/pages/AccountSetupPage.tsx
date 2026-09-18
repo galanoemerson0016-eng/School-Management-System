@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useAuthStore, useAppStore } from '../stores';
+import { useAuthStore } from '../stores/auth-store';
+import { useAppStore } from '../stores/app-store';
 import { ShieldCheck, User, Lock, Mail, KeyRound, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 /**

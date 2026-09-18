@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import type { Section } from '../types';
 
 const SOURCE_GRADES = [

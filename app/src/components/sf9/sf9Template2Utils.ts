@@ -15,6 +15,8 @@ export interface SF9Template2SubjectItem {
   isHeader?: boolean;
   isReserved?: boolean;
   subject_name?: string;
+  term?: Subject['term'];
+  offered_terms?: Subject['offered_terms'];
 }
 
 export interface SF9Template2LearnerData {

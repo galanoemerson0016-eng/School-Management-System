@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import { ArrowLeft, Printer, Layout, Sparkles, GraduationCap, ChevronDown } from 'lucide-react';
 import type { Student, Section, SchoolProfile } from '../types';
 

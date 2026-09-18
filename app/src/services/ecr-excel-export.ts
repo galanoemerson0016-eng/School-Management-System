@@ -15,11 +15,12 @@
 import JSZip from 'jszip';
 import type { SchoolProfile, Student, Section, Subject, ClassRecord, HPSRecord } from '../types';
 import { formatLearnerName } from '../utils/student-name';
+import { isZipTemplate, readNodeTemplateFallback } from '../utils/node-template-fallback';
 
 const WW_COUNT = 5;
 const PT_COUNT = 3;
 const ST_COUNT = 3;
-const MAX_STUDENTS_PER_GENDER = 50;
+export const MAX_STUDENTS_PER_GENDER = 50;
 
 export const TEMPLATE_ACADEMIC = '[Grades 2-10] 3Term E-Class Record (for Science, Math, English, Filipino, Araling Panlipunan).xlsx';
 export const TEMPLATE_GMRC_VE = '[Grades 2-10] 3Term E-Class Record (for GMRC - Values Education).xlsx';
@@ -485,41 +486,8 @@ export async function fetchECRTemplateBuffer(templateFilename: string): Promise<
     }
   }
 
-  // Node / Electron filesystem fallback
-  if (typeof process !== 'undefined' && process.versions?.node) {
-    try {
-      const fs = await import('fs');
-      const nodePath = await import('path');
-      const possibleDirs = [
-        nodePath.resolve(process.cwd(), 'app', 'public', 'templates'),
-        nodePath.resolve(process.cwd(), 'public', 'templates'),
-        ...(typeof __dirname !== 'undefined' ? [
-          nodePath.resolve(__dirname, '../../public/templates'),
-          nodePath.resolve(__dirname, '../public/templates')
-        ] : []),
-        ...(typeof (process as unknown as { resourcesPath?: string }).resourcesPath !== 'undefined' ? [
-          nodePath.resolve((process as unknown as { resourcesPath: string }).resourcesPath, 'templates'),
-          nodePath.resolve((process as unknown as { resourcesPath: string }).resourcesPath, 'app', 'public', 'templates')
-        ] : [])
-      ];
-
-      for (const dir of possibleDirs) {
-        for (const f of [aliasFilename, templateFilename]) {
-          const fullPath = nodePath.join(dir, f);
-          if (fs.existsSync(fullPath)) {
-            const buf = fs.readFileSync(fullPath);
-            if (buf.length >= 1000 && buf[0] === 0x50 && buf[1] === 0x4b) {
-              const u8 = new Uint8Array(buf.byteLength);
-              for (let i = 0; i < buf.byteLength; i++) u8[i] = buf[i];
-              return u8.buffer;
-            }
-          }
-        }
-      }
-    } catch {
-      // Ignore
-    }
-  }
+  const nodeBytes = await readNodeTemplateFallback([aliasFilename, templateFilename], 1000);
+  if (isZipTemplate(nodeBytes)) return nodeBytes.slice().buffer as ArrayBuffer;
 
   throw new Error(`Could not load official DepEd Excel template binary for "${templateFilename}". Please ensure template files exist in public/templates.`);
 }
@@ -783,10 +751,12 @@ function populateTermGradingXml(
   };
 
   const isSyMatch = (sy?: string) => {
-    if (!sy || !schoolYear) return true;
+    // A missing school year must never pull a record from an unknown year into an
+    // official export. The caller always supplies the active school year.
+    if (!sy || !schoolYear) return false;
     const cleanR = String(sy).trim().replace(/\s+/g, '');
     const cleanTarget = String(schoolYear).trim().replace(/\s+/g, '');
-    return cleanR === cleanTarget || cleanR.includes(cleanTarget) || cleanTarget.includes(cleanR);
+    return cleanR === cleanTarget;
   };
 
   const isTermMatch = (q?: string | number) => {
@@ -797,10 +767,9 @@ function populateTermGradingXml(
   const secName = section.section_name;
   const fullSecName = `${section.section_grade_level} - ${section.section_name}`;
 
-  const isSecMatch = (sId?: string, recId?: string) => {
-    if (!sId && !recId) return false;
+  const isSecMatch = (sId?: string) => {
+    if (!sId) return false;
     if (sId === secId || sId === secName || sId === fullSecName) return true;
-    if (recId && (recId.includes(secId) || recId.includes(secName))) return true;
     return false;
   };
 
@@ -809,22 +778,7 @@ function populateTermGradingXml(
       isTargetSubject(r.subject_id) &&
       isTermMatch(r.quarter) &&
       isSyMatch(r.school_year) &&
-      isSecMatch(r.section_id, r.id)
-  ) || hpsRecords.find(
-    r =>
-      isTargetSubject(r.subject_id) &&
-      isTermMatch(r.quarter) &&
-      isSyMatch(r.school_year) &&
-      !r.section_id
-  ) || hpsRecords.find(
-    r =>
-      isTargetSubject(r.subject_id) &&
-      isTermMatch(r.quarter) &&
-      isSecMatch(r.section_id, r.id)
-  ) || hpsRecords.find(
-    r =>
-      isTargetSubject(r.subject_id) &&
-      isTermMatch(r.quarter)
+      isSecMatch(r.section_id)
   );
 
   const rawQaHps = (hpsRecord as (HPSRecord & { summative_tests?: (number | string)[] }) | undefined)?.summative_tests;
@@ -897,12 +851,8 @@ function populateTermGradingXml(
             (r.student_lrn === st.lrn || String(r.student_lrn).trim() === String(st.lrn).trim()) &&
             isTargetSubject(r.subject_id) &&
             isTermMatch(r.quarter) &&
-            isSyMatch(r.school_year)
-        ) || classRecords.find(
-          r =>
-            (r.student_lrn === st.lrn || String(r.student_lrn).trim() === String(st.lrn).trim()) &&
-            isTargetSubject(r.subject_id) &&
-            isTermMatch(r.quarter)
+            isSyMatch(r.school_year) &&
+            isSecMatch(r.section_id)
         );
 
         const rawQa = (rec as (ClassRecord & { summative_tests?: (number | string)[] }) | undefined)?.summative_tests;
@@ -1002,15 +952,17 @@ export async function populateECRWorkbookZip(
     sectionStudents = sectionStudents.filter(s => subject.enrolled_student_lrns?.includes(s.lrn));
   }
 
-  const maleStudents = sectionStudents
-    .filter(s => s.gender === 'Male')
-    .sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`))
-    .slice(0, MAX_STUDENTS_PER_GENDER);
+  const maleRoster = sectionStudents.filter(s => String(s.gender || '').trim().toLowerCase() === 'male');
+  const femaleRoster = sectionStudents.filter(s => String(s.gender || '').trim().toLowerCase() === 'female');
+  if (maleRoster.length > MAX_STUDENTS_PER_GENDER || femaleRoster.length > MAX_STUDENTS_PER_GENDER) {
+    throw new Error(`This official E-Class Record supports up to ${MAX_STUDENTS_PER_GENDER} male and ${MAX_STUDENTS_PER_GENDER} female learners. The selected roster has ${maleRoster.length} male and ${femaleRoster.length} female learners. Split the class before exporting.`);
+  }
 
-  const femaleStudents = sectionStudents
-    .filter(s => s.gender === 'Female')
-    .sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`))
-    .slice(0, MAX_STUDENTS_PER_GENDER);
+  const maleStudents = maleRoster
+    .sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`));
+
+  const femaleStudents = femaleRoster
+    .sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`));
 
   // 1. Populate INPUT DATA (sheet1.xml)
   const sheet1File = zip.file('xl/worksheets/sheet1.xml');

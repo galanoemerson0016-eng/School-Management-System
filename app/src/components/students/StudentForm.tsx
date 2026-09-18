@@ -1,5 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { useAppStore } from '../../stores';
+import { useAppStore } from '../../stores/app-store';
 import type { Student } from '../../types';
 import { db } from '../../services/database';
 import { ConfirmationModal } from '../ui/ConfirmationModal';

@@ -4,7 +4,7 @@ import {
     Columns3, X, ArrowUp, ArrowDown, Plus, Trash2, Eye, EyeOff, 
     RotateCcw, Save, Info
 } from 'lucide-react';
-import type { Section, Subject } from '../../types';
+import type { Section, Subject, SubjectTermSelection } from '../../types';
 import { sortSubjects, normalizeSubjectName } from '../../lib/subjectConfig';
 import { getDefaultTermForSubject } from '../../lib/curriculum';
 
@@ -16,7 +16,7 @@ interface ManageColumnsModalProps {
     onSave: (
         updatedTaughtSubjects: string[], 
         hiddenSubjects: string[], 
-        subjectTerms?: Record<string, 1 | 2 | 3 | 'all'>
+        subjectTerms?: Record<string, SubjectTermSelection>
     ) => Promise<void>;
 }
 
@@ -32,7 +32,7 @@ export const ManageColumnsModal: React.FC<ManageColumnsModalProps> = ({
     const [selectedToAdd, setSelectedToAdd] = useState<string>('');
     const [customSubjectName, setCustomSubjectName] = useState<string>('');
     const [customSubjectTerm, setCustomSubjectTerm] = useState<1 | 2 | 3 | 'all'>(1);
-    const [subjectTerms, setSubjectTerms] = useState<Record<string, 1 | 2 | 3 | 'all'>>({});
+    const [subjectTerms, setSubjectTerms] = useState<Record<string, SubjectTermSelection>>({});
     const [isSaving, setIsSaving] = useState(false);
     const [deleteConfirmSubject, setDeleteConfirmSubject] = useState<string | null>(null);
 

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useAppStore, useAuthStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
+import { useAuthStore } from '../stores/auth-store';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BarChart3, TrendingUp, PieChart as PieChartIcon, ArrowRight, ArrowLeft, Award, AlertTriangle, Download, Users, AlertCircle, ChevronDown, Trophy, Medal, Sparkles, Target, ArrowUp, ArrowDown, Minus, Heart, Clock3, ClipboardList, Layers, GraduationCap, FileSpreadsheet } from 'lucide-react';
@@ -1530,7 +1531,7 @@ export function ReportsPage() {
                                                             onClick={() => {
                                                                 const secObj = sections.find(s => s.section_name === item.student.student_section);
                                                                 if (secObj) {
-                                                                    setSelectedSection(secObj.section_name);
+                                                                    setSelectedSection(secObj.id);
                                                                     setCurrentView('eclass');
                                                                 }
                                                             }}
@@ -1590,7 +1591,7 @@ export function ReportsPage() {
                                                             const secObj = sections.find(s => s.section_name === item.student.student_section);
                                                             const subObj = subjects.find(s => s.subject_name === item.subjectName && s.section_id === secObj?.id);
                                                             if (subObj && secObj) {
-                                                                setSelectedSection(secObj.section_name);
+                                                                setSelectedSection(secObj.id);
                                                                 setSelectedSubject(subObj.id);
                                                                 setCurrentView('eclass');
                                                             }

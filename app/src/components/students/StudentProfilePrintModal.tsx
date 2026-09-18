@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Printer, Download } from 'lucide-react';
 import type { Student, Section } from '../../types';
-import { useAppStore } from '../../stores';
+import { useAppStore } from '../../stores/app-store';
 import { exportElementsToPdf } from '../../utils/pdf-export';
 
 interface Props {

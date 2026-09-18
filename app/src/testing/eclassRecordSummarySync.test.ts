@@ -261,7 +261,7 @@ describe('E-Class Record Summary Sync & Consistency', () => {
     });
 
     describe('resolveStudentQuarterGrade backward compatibility and priority', () => {
-        it('prioritizes gradingSheetRecords when published', () => {
+        it('prioritizes an explicitly published manual Grade Management override', () => {
             const gradingSheetRecord = {
                 id: 'gs-1',
                 student_lrn: '1005',
@@ -271,6 +271,7 @@ describe('E-Class Record Summary Sync & Consistency', () => {
                 quarter: 1,
                 school_year: schoolYear,
                 final_grade: 89,
+                grade_source: 'manual_override',
                 written_works: [],
                 performance_tasks: [],
                 quarterly_exam: 0

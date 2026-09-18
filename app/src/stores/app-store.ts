@@ -12,6 +12,7 @@ import { backup } from '../services/backup';
 import { normalizeSubjectName } from '../lib/subjectConfig';
 import { STANDARD_SUBJECTS, getDefaultTermForSubject, isGrade11CoreSubject } from '../lib/curriculum';
 import { normalizeGrade12PESubjectName } from '../utils/grading-helpers';
+import { getCurriculumPreset } from '../lib/curriculumPresets';
 import { reconcileOrphanedGradesAndSubjects, generateDeterministicSubjectId } from '../utils/grade-reconciliation';
 import { purgeGhostEinsteinData } from '../utils/ghost-data-purge';
 import {
@@ -912,6 +913,14 @@ export const useAppStore = create<AppState>((set, get) => ({
         } else if (gNum === 12) {
           gradeSubjects = [];
         }
+        if (gradeSubjects.length === 0) {
+          const preset = getCurriculumPreset(section.section_grade_level, section.track, section.cluster || section.strand, section.program || 'Regular');
+          if (preset && preset.subjects.length > 0) {
+            gradeSubjects = (gNum === 11)
+              ? preset.subjects.filter(s => isGrade11CoreSubject(s.name)).map(s => s.name)
+              : preset.subjects.map(s => s.name);
+          }
+        }
         if (gradeSubjects.length > 0) {
           sectionToSave = { ...section, taught_subjects: gradeSubjects };
         }
@@ -927,16 +936,29 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
   updateSection: async (section) => {
-    const oldSection = get().sections.find((s) => s.id === section.id);
+    let sectionToUpdate = section;
+    if (section.is_advisory && (!section.taught_subjects || section.taught_subjects.length === 0)) {
+      const gNum = parseInt(section.section_grade_level?.replace(/\D/g, '') || '0');
+      const preset = getCurriculumPreset(section.section_grade_level, section.track, section.cluster || section.strand, section.program || 'Regular');
+      if (preset && preset.subjects.length > 0) {
+        const gradeSubjects = (gNum === 11)
+          ? preset.subjects.filter(s => isGrade11CoreSubject(s.name)).map(s => s.name)
+          : preset.subjects.map(s => s.name);
+        if (gradeSubjects.length > 0) {
+          sectionToUpdate = { ...section, taught_subjects: gradeSubjects };
+        }
+      }
+    }
+    const oldSection = get().sections.find((s) => s.id === sectionToUpdate.id);
     const oldName = oldSection?.section_name;
     const newName = section.section_name;
     const nameChanged = oldName && oldName !== newName;
 
     try {
       set((state) => ({
-        sections: state.sections.map((s) => (s.id === section.id ? section : s)),
+        sections: state.sections.map((s) => (s.id === sectionToUpdate.id ? sectionToUpdate : s)),
       }));
-      await db.putRecord('sections', section);
+      await db.putRecord('sections', sectionToUpdate);
 
       if (nameChanged) {
         // Cascade changes to students list
@@ -1688,9 +1710,20 @@ export async function initializeAppStore() {
       loadStore<ObservedValues>('observedValues'),
     ]);
 
+    // Backward compatibility: resolve school year from school profile, stored preferences, or restored records
+    const resolvedSchoolYear = (schoolProfile?.school_year || '').trim()
+      || getLocalStorageValue('activeSchoolYear')
+      || getLocalStorageValue('formease_active_school_year')
+      || (classRecords.find(r => r.school_year)?.school_year || '').trim()
+      || (gradingSheetRecords.find(r => r.school_year)?.school_year || '').trim()
+      || useAppStore.getState().activeSchoolYear
+      || '2026-2027';
+    setLocalStorageValue('activeSchoolYear', resolvedSchoolYear);
+    setLocalStorageValue('formease_active_school_year', resolvedSchoolYear);
+
     const shouldRepairSf2Attendance = getLocalStorageValue(SF2_ATTENDANCE_REPAIR_KEY) !== 'true';
     const repaired = shouldRepairSf2Attendance
-      ? reconcileAttendanceAndSf2Data(attendanceRecords, sf2Sheets, (useAppStore.getState().activeSchoolYear || '2026-2027'))
+      ? reconcileAttendanceAndSf2Data(attendanceRecords, sf2Sheets, resolvedSchoolYear)
       : { attendanceRecords, sf2Sheets };
 
     if (shouldRepairSf2Attendance) {
@@ -1736,6 +1769,16 @@ export async function initializeAppStore() {
       const isSSHS = (sec.track || '').toLowerCase().includes('sshs') || (sec.track || '').toLowerCase().includes('cluster');
       let newTaught = cleanedTaught;
       let newTeaching = cleanedTeaching;
+
+      if (sec.is_advisory && (!sec.program || sec.program === 'Regular') && cleanedTaught.length === 0) {
+        const preset = getCurriculumPreset(sec.section_grade_level, sec.track, sec.cluster || sec.strand, 'Regular');
+        if (preset && preset.subjects.length > 0) {
+          newTaught = gNum === 11
+            ? preset.subjects.filter(s => isGrade11CoreSubject(s.name)).map(s => s.name)
+            : preset.subjects.map(s => s.name);
+          secChanged = true;
+        }
+      }
 
       if (gNum === 12 && !isSSHS) {
         newTaught = cleanedTaught.map(s => {
@@ -1855,7 +1898,10 @@ export async function initializeAppStore() {
       : null;
     const resolvedActiveSection = hasPersistedSection
       ? persistedSelectedSection
-      : (primarySectionObj ? primarySectionObj.section_name : (advisorySection ? advisorySection.section_name : null));
+      : (primarySectionObj ? primarySectionObj.section_name : (advisorySection ? advisorySection.section_name : (finalSections[0]?.section_name || finalSections[0]?.id || null)));
+    if (resolvedActiveSection) {
+      setLocalStorageValue(SELECTED_SECTION_STORAGE_KEY, resolvedActiveSection);
+    }
 
     // Transparent Self-Healing: Reconnect any orphaned class records, HPS, and grading sheet records
     // caused by deleted, edited, or re-templated subjects, and resurrect missing/unhidden subjects
@@ -1894,6 +1940,7 @@ export async function initializeAppStore() {
     }
 
     useAppStore.setState({
+      activeSchoolYear: resolvedSchoolYear,
       students: finalStudents,
       studentProfiles: finalStudents,
       sections: finalSections,

@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import { useAuthStore } from '../stores/auth-store';
 import { useSF10Store } from '../stores/sf10-store';
 import { db } from '../services/database';
@@ -66,13 +66,13 @@ export function SF10Page() {
 
     const selectedSection = useMemo(() => {
         if (selectedSectionState && sortedSections?.some(s => s.section_name === selectedSectionState || s.id === selectedSectionState)) {
-            return selectedSectionState;
+            return sortedSections.find(s => s.id === selectedSectionState || s.section_name === selectedSectionState)?.id || '';
         }
         if (globalSelectedSection && sortedSections?.some(s => s.section_name === globalSelectedSection || s.id === globalSelectedSection)) {
             const match = sortedSections.find(s => s.section_name === globalSelectedSection || s.id === globalSelectedSection);
-            return match ? match.section_name : globalSelectedSection;
+            return match?.id || '';
         }
-        return sortedSections?.[0]?.section_name || '';
+        return sortedSections?.[0]?.id || '';
     }, [selectedSectionState, globalSelectedSection, sortedSections]);
 
     const setSelectedSection = (val: string) => {
@@ -131,10 +131,12 @@ export function SF10Page() {
     }, [user, selectedSectionObj]);
 
     const sectionStudents = useMemo(() => {
-        if (!selectedSection) return [];
-        const sectionId = sections.find(s => s.section_name === selectedSection)?.id;
-        return students.filter(s => s.student_section === selectedSection || (sectionId && s.student_section === sectionId));
-    }, [students, selectedSection, sections]);
+        if (!selectedSectionObj) return [];
+        return students.filter(s =>
+            s.student_section === selectedSectionObj.id ||
+            s.student_section === selectedSectionObj.section_name
+        );
+    }, [students, selectedSectionObj]);
 
     const males = sectionStudents.filter(s => (s.gender || '').toLowerCase() === 'male').sort((a, b) => a.last_name.localeCompare(b.last_name));
     const females = sectionStudents.filter(s => (s.gender || '').toLowerCase() === 'female').sort((a, b) => a.last_name.localeCompare(b.last_name));
@@ -400,7 +402,7 @@ export function SF10Page() {
                                         groupSections.length > 0 && (
                                             <optgroup key={group} label={group}>
                                                 {groupSections.map(s => (
-                                                    <option key={s.id} value={s.section_name}>
+                                                    <option key={s.id} value={s.id}>
                                                         {s.section_grade_level} - {s.section_name}
                                                     </option>
                                                 ))}

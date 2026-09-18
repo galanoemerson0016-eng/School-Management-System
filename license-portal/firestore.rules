@@ -55,18 +55,18 @@ service cloud.firestore {
 
     // Trial Devices
     match /artifacts/g7-special/public/data/trials/{trialId} {
-      // Anyone can check if their device has already claimed a trial.
+      // Anyone can check if their device has already claimed a trial (by hash).
       allow get: if true;
 
       // A device may register exactly one trial for itself. The document id
-      // must match the claimed machine id and only these fields are allowed
+      // must match the machine_id_hash field and only these fields are allowed
       // — this is a `create` only, so a device cannot later edit/delete its
       // own record to reset the "already claimed" flag.
-      allow create: if request.resource.data.machine_id == trialId
-        && request.resource.data.machine_id is string
+      allow create: if request.resource.data.machine_id_hash == trialId
+        && request.resource.data.machine_id_hash is string
         && request.resource.data.started_at is timestamp
         && request.resource.data.platform in ['windows', 'mac']
-        && request.resource.data.keys().hasOnly(['machine_id', 'started_at', 'platform']);
+        && request.resource.data.keys().hasOnly(['machine_id_hash', 'started_at', 'platform']);
 
       // Browsing/removing trial records (e.g. to manually reset a device's
       // trial) is admin-only.

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAppStore } from '../../stores';
+import { useAppStore } from '../../stores/app-store';
 import type { Section, Student } from '../../types';
 import { motion } from 'framer-motion';
 import { X, Save, UserPlus, Info, Download, FileSpreadsheet } from 'lucide-react';

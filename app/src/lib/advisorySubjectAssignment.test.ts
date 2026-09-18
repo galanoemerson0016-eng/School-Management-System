@@ -128,6 +128,110 @@ describe('Advisory Subject Assignment for SF9, SF10 & Grade Management', () => {
         expect(allSf10SubjectTitles).not.toContain('Shielded Metal Arc Welding (SMAW)');
     });
 
+    it('excludes a learner-specific elective from both SF9 and SF10 for learners not enrolled in it', () => {
+        const learnerSpecificElective: Subject = {
+            id: 'sub-research',
+            subject_name: 'Community Research Elective',
+            grade_level: 'Grade 11',
+            section_id: mockAdvisorySection.id,
+            term: 1,
+            enrolled_student_lrns: ['other-learner-lrn'],
+        };
+        const sectionWithElective: Section = {
+            ...mockAdvisorySection,
+            taught_subjects: [...(mockAdvisorySection.taught_subjects || []), learnerSpecificElective.subject_name],
+        };
+        const allSubjects = [...mockAllGradeSubjects, learnerSpecificElective];
+
+        const sf9 = mapStudentToShsSf9Data({
+            student: mockStudent,
+            profile: mockProfile,
+            schoolYear: '2026-2027',
+            sectionObj: sectionWithElective,
+            subjects: allSubjects,
+            gradingSheetRecords: [],
+        });
+        expect(sf9.subjectGrades.map(subject => subject.subjectName)).not.toContain(learnerSpecificElective.subject_name);
+
+        const sf10 = mapStudentToShsSf10Data({
+            student: mockStudent,
+            profile: mockProfile,
+            schoolYear: '2026-2027',
+            sections: [sectionWithElective],
+            subjects: allSubjects,
+            gradingSheetRecords: [],
+        });
+        const sf10Subjects = sf10.scholasticRecords.flatMap(record => record.subjects.map(subject => subject.subjectName));
+        expect(sf10Subjects).not.toContain(learnerSpecificElective.subject_name);
+    });
+
+    it('keeps different Grade 11 elective choices separate within one advisory section', () => {
+        const biology: Subject = {
+            id: 'biology-plato',
+            subject_name: 'Biology 1',
+            grade_level: 'Grade 11',
+            section_id: mockAdvisorySection.id,
+            term: 1,
+            enrolled_student_lrns: [mockStudent.lrn],
+        };
+        const chemistry: Subject = {
+            id: 'chemistry-plato',
+            subject_name: 'Chemistry 1',
+            grade_level: 'Grade 11',
+            section_id: mockAdvisorySection.id,
+            term: 1,
+            enrolled_student_lrns: ['another-learner-lrn'],
+        };
+        const section: Section = {
+            ...mockAdvisorySection,
+            taught_subjects: [...(mockAdvisorySection.taught_subjects || []), biology.subject_name, chemistry.subject_name],
+        };
+
+        const sf9 = mapStudentToShsSf9Data({
+            student: mockStudent,
+            profile: mockProfile,
+            schoolYear: '2026-2027',
+            sectionObj: section,
+            subjects: [...mockAllGradeSubjects, biology, chemistry],
+            gradingSheetRecords: [],
+        });
+
+        const names = sf9.subjectGrades.map(subject => subject.subjectName);
+        expect(names).toContain('Biology 1');
+        expect(names).not.toContain('Chemistry 1');
+    });
+
+    it('withholds conflicting Grade 11 elective choices from SF9 and SF10', () => {
+        const biology: Subject = {
+            id: 'biology-conflict', subject_name: 'Biology 1', grade_level: 'Grade 11',
+            section_id: mockAdvisorySection.id, term: 1, enrolled_student_lrns: [mockStudent.lrn],
+        };
+        const chemistry: Subject = {
+            id: 'chemistry-conflict', subject_name: 'Chemistry 1', grade_level: 'Grade 11',
+            section_id: mockAdvisorySection.id, term: 1, enrolled_student_lrns: [mockStudent.lrn],
+        };
+        const section: Section = {
+            ...mockAdvisorySection,
+            taught_subjects: [...(mockAdvisorySection.taught_subjects || []), biology.subject_name, chemistry.subject_name],
+        };
+        const allSubjects = [...mockAllGradeSubjects, biology, chemistry];
+
+        const sf9 = mapStudentToShsSf9Data({
+            student: mockStudent, profile: mockProfile, schoolYear: '2026-2027', sectionObj: section,
+            subjects: allSubjects, gradingSheetRecords: [],
+        });
+        expect(sf9.subjectGrades.map(subject => subject.subjectName)).not.toContain('Biology 1');
+        expect(sf9.subjectGrades.map(subject => subject.subjectName)).not.toContain('Chemistry 1');
+
+        const sf10 = mapStudentToShsSf10Data({
+            student: mockStudent, profile: mockProfile, schoolYear: '2026-2027', sections: [section],
+            subjects: allSubjects, gradingSheetRecords: [],
+        });
+        const sf10Names = sf10.scholasticRecords.flatMap(record => record.subjects.map(subject => subject.subjectName));
+        expect(sf10Names).not.toContain('Biology 1');
+        expect(sf10Names).not.toContain('Chemistry 1');
+    });
+
     it('filterSubjectsForSection strictly honors teaching_subjects for E-Class Record', () => {
         const mockUser: User = {
             uid: 'user-1',
@@ -319,7 +423,7 @@ describe('Advisory Subject Assignment for SF9, SF10 & Grade Management', () => {
         expect(sf9Names).toContain('Pag-aaral ng Kasaysayan at Lipunang Pilipino');
     });
 
-    it('returns all active grade-level subjects for E-Class Record when section is advisory without restricted teaching load', () => {
+    it('returns no E-Class subjects when a section is advisory-only', () => {
         const mockUser: User = {
             uid: 'user-1',
             email: 'teacher@school.gov.ph',
@@ -335,11 +439,7 @@ describe('Advisory Subject Assignment for SF9, SF10 & Grade Management', () => {
         };
 
         const filtered = filterSubjectsForSection(mockUser, pureAdvisorySection, mockAllGradeSubjects);
-        const filteredNames = filtered.map(s => s.subject_name);
-        expect(filteredNames).toContain('General Mathematics');
-        expect(filteredNames).toContain('General Science');
-        expect(filteredNames).toContain('Effective Communication / Komunikasyon');
-        expect(filteredNames).toContain('Pag-aaral ng Kasaysayan at Lipunang Pilipino');
+        expect(filtered).toHaveLength(0);
     });
 
     it('returns empty list for pure non-advisory teaching load section with 0 subjects selected', () => {
@@ -361,7 +461,7 @@ describe('Advisory Subject Assignment for SF9, SF10 & Grade Management', () => {
         expect(filtered).toHaveLength(0);
     });
 
-    it('preserves all Grade 7 subjects in E-Class Record and SF10 even if section had a single teaching load', () => {
+    it('does not infer a Grade 7 E-Class teaching load from advisory curriculum subjects', () => {
         const mockUser: User = {
             uid: 'user-1',
             email: 'teacher@school.gov.ph',
@@ -393,16 +493,7 @@ describe('Advisory Subject Assignment for SF9, SF10 & Grade Management', () => {
 
         // E-Class Record access for pure advisory class:
         const filtered = filterSubjectsForSection(mockUser, mockG7AdvisorySection, mockG7Subjects);
-        const filteredNames = filtered.map(s => s.subject_name);
-        expect(filteredNames).toContain('English');
-        expect(filteredNames).toContain('Mathematics');
-        expect(filteredNames).toContain('Science');
-        expect(filteredNames).toContain('Filipino');
-        expect(filteredNames).toContain('Araling Panlipunan');
-        expect(filteredNames).toContain('Values Education');
-        expect(filteredNames).toContain('Technology and Livelihood Education');
-        expect(filteredNames).toContain('Music and Arts');
-        expect(filteredNames).toContain('Physical Education and Health');
+        expect(filtered).toHaveLength(0);
     });
 
     it('strictly returns only Science when teaching_subjects has Science for Grade 7 section', () => {
@@ -505,6 +596,43 @@ describe('Advisory Subject Assignment for SF9, SF10 & Grade Management', () => {
         const mathRow = sf10.scholasticRecords[0]?.subjects.find(s => s.subjectName === 'General Mathematics');
         expect(mathRow).toBeDefined();
         expect(mathRow?.quarter1Grade).toBe('91');
+    });
+
+    it('never reuses another section\'s offering when resolving a teaching subject', () => {
+        const mockUser: User = {
+            uid: 'user-1',
+            email: 'teacher@school.gov.ph',
+            displayName: 'Teacher Emerson',
+            role: 'teacher',
+        };
+        const teachingSection: Section = {
+            id: 'sec-plato',
+            section_name: 'Plato',
+            section_grade_level: 'Grade 11',
+            is_teaching_load: true,
+            teaching_subjects: ['Biology 1'],
+        };
+        const subjects: Subject[] = [
+            {
+                id: 'biology-einstein',
+                subject_name: 'Biology 1',
+                grade_level: 'Grade 11',
+                section_id: 'sec-einstein',
+                term: 1,
+                enrolled_student_lrns: ['einstein-learner'],
+            },
+            {
+                id: 'biology-library',
+                subject_name: 'Biology 1',
+                grade_level: 'Grade 11',
+                term: 1,
+            },
+        ];
+
+        const resolved = filterSubjectsForSection(mockUser, teachingSection, subjects);
+
+        expect(resolved.map(subject => subject.id)).toEqual(['biology-library']);
+        expect(resolved[0].enrolled_student_lrns).toBeUndefined();
     });
 });
 

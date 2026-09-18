@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import {
     Plus,
     Search,
@@ -20,6 +20,7 @@ import { SectionForm } from '../components/sections/SectionForm';
 import { TeachingLoadMatrixModal } from '../components/sections/TeachingLoadMatrixModal';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { AnimatePresence, motion } from 'framer-motion';
+import { isStudentInSection } from '../utils/grading-helpers';
 import type { Section } from '../types';
 
 const getShortSubjectName = (name: string): string => {
@@ -157,7 +158,7 @@ export function SectionsPage() {
     }, [sections, searchTerm]);
 
     const getStudentStats = (sec: Section) => {
-        const secStudents = students.filter(s => s.student_section === sec.section_name || s.student_section === sec.id);
+        const secStudents = students.filter(s => isStudentInSection(s, sec));
         const total = secStudents.length;
         let males = 0;
         let females = 0;

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { normalizeSubjectName } from '../lib/subjectConfig';
-import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
+import { isMatchingSubject, resolveStudentQuarterGrade } from '../utils/grading-helpers';
 import type { Subject, ClassRecord } from '../types';
 
 describe('Grade 11 - Mabisang Komunikasyon Input in Grade Management', () => {
@@ -166,6 +166,31 @@ describe('Grade 11 - Mabisang Komunikasyon Input in Grade Management', () => {
             gradingSheetRecords
         );
         expect(compositeGrade).toBe(Math.round((92 + 88) / 2)); // 90
+    });
+
+    it('never shows an Effective Communication grade in Mabisang Komunikasyon', () => {
+        const studentLrn = '123456789012';
+        const sy = '2026-2027';
+        const gradingSheetRecords: ClassRecord[] = [{
+            id: `${studentLrn}_ecmk_ec_sec-123_1_${sy}`,
+            student_lrn: studentLrn,
+            section_id: 'sec-123',
+            subject_id: 'ecmk_ec_sec-123',
+            subject_name: 'Effective Communication',
+            quarter: 1,
+            school_year: sy,
+            written_works: [],
+            performance_tasks: [],
+            quarterly_exam: 0,
+            final_grade: 98
+        }];
+
+        expect(resolveStudentQuarterGrade(studentLrn, 'Effective Communication', 1, sy, [], gradingSheetRecords)).toBe(98);
+        expect(resolveStudentQuarterGrade(studentLrn, 'Mabisang Komunikasyon', 1, sy, [], gradingSheetRecords)).toBe(0);
+        expect(resolveStudentQuarterGrade(studentLrn, 'Effective Communication & Mabisang Komunikasyon', 1, sy, [], gradingSheetRecords)).toBe(0);
+        expect(isMatchingSubject('Effective Communication', 'ecmk_mk_sec-123', 'Mabisang Komunikasyon')).toBe(false);
+        expect(isMatchingSubject('Mabisang Komunikasyon', 'ecmk_ec_sec-123', 'Effective Communication')).toBe(false);
+        expect(isMatchingSubject('Effective Communication & Mabisang Komunikasyon', 'ecmk_ec_sec-123', 'Effective Communication')).toBe(false);
     });
 
     it('areEqual detects changes to mabisangKom and forces re-render', () => {

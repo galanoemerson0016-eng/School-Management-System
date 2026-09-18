@@ -4,6 +4,7 @@ import type { SchoolProfile } from '../../types';
 import { formatLearnerName } from '../../utils/student-name';
 import { formatGradeForDisplay } from '../../lib/grading';
 import { normalizeSubjectName } from '../../lib/subjectConfig';
+import { resolveSubjectOfferedTerms } from '../../lib/curriculum';
 
 Font.registerHyphenationCallback((word) => [word]);
 
@@ -670,8 +671,6 @@ function resolveGradesForSubject(name: string, isComponent: boolean, grades: Rec
       const v1 = ec[t] || 0;
       const v2 = mk[t] || 0;
       if (v1 > 0 && v2 > 0) result.push(Math.round((v1 + v2) / 2));
-      else if (v1 > 0) result.push(v1);
-      else if (v2 > 0) result.push(v2);
       else result.push(0);
     }
     return result;
@@ -680,10 +679,10 @@ function resolveGradesForSubject(name: string, isComponent: boolean, grades: Rec
   return [0, 0, 0];
 }
 
-function calculateFinalGrade(terms: number[]): number | null {
-  const valid = terms.filter((g) => g > 0);
-  if (valid.length === 0) return null;
-  return Math.round(valid.reduce((a, b) => a + b, 0) / valid.length);
+function calculateFinalGrade(terms: number[], offeredTerms: number[]): number | null {
+  const offeredGrades = offeredTerms.map((term) => terms[term - 1] || 0);
+  if (offeredGrades.length === 0 || !offeredGrades.every((grade) => grade > 0)) return null;
+  return Math.round(offeredGrades.reduce((a, b) => a + b, 0) / offeredGrades.length);
 }
 
 // Single Slip Front Component (fits half of portrait sheet)
@@ -731,6 +730,8 @@ export function SF9Template2SlipFront({
             isComponent: Boolean(s.isComponent),
             isHeader: Boolean(s.isHeader),
             isReserved: Boolean(s.isReserved),
+            term: s.term as string | number | undefined,
+            offered_terms: s.offered_terms as (1 | 2 | 3)[] | undefined,
           };
         })
         .filter((subItem) => !subItem.isReserved && subItem.name)
@@ -747,13 +748,28 @@ export function SF9Template2SlipFront({
       };
     }
     const row = resolveGradesForSubject(sub.name, sub.isComponent || false, grades);
-    const finalGrade = calculateFinalGrade(row);
+    const isCommunicationComposite = normalizeSubjectName(sub.name) === 'effectivecommunicationmabisangkomunikasyon';
+    const subjectOffering = sub as typeof sub & {
+      term?: string | number;
+      offered_terms?: (1 | 2 | 3)[];
+    };
+    const offeredTerms = isCommunicationComposite
+      ? [1, 2, 3]
+      : resolveSubjectOfferedTerms(
+        { subject_name: sub.name, term: subjectOffering.term, offered_terms: subjectOffering.offered_terms },
+        { section_grade_level: gradeLevel }
+      );
+    const finalGrade = calculateFinalGrade(row, offeredTerms);
     const remarks = finalGrade ? getTemplate2Remarks(finalGrade) : '';
     return { ...sub, row, finalGrade, remarks };
   });
 
-  const mainAreas = subjectRowsWithGrades.filter((sub) => !sub.isComponent && !sub.isHeader && sub.finalGrade !== null);
-  const genAvg = mainAreas.length > 0
+  const learningAreas = subjectRowsWithGrades.filter((sub) => !sub.isComponent && !sub.isHeader);
+  // The report card must not publish a yearly General Average from only the
+  // completed electives while other required offerings are still in progress.
+  const areAllOfferingsComplete = learningAreas.length > 0 && learningAreas.every((sub) => sub.finalGrade !== null);
+  const mainAreas = learningAreas.filter((sub) => sub.finalGrade !== null);
+  const genAvg = areAllOfferingsComplete && mainAreas.length > 0
     ? Math.round(mainAreas.reduce((sum, item) => sum + (item.finalGrade || 0), 0) / mainAreas.length)
     : null;
   const genAvgRemarks = genAvg ? getTemplate2Remarks(genAvg) : '';

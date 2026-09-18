@@ -147,6 +147,7 @@ export function collectBackupLocalStorage(): Record<string, string> {
                 key === 'formease_backup_history' ||
                 key === 'formease_db_salt' ||
                 key === 'formease-db-salt-key' ||
+                key === 'formease-db-salt-v1' ||
                 key === 'disable-animations';
 
             if (isWhitelisted) {

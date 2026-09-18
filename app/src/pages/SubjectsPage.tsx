@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, type FormEvent, Fragment } from 'react';
-import { useAppStore, useAuthStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
+import { useAuthStore } from '../stores/auth-store';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     BookOpen, Binary, Beaker, Globe, Compass, GraduationCap, 

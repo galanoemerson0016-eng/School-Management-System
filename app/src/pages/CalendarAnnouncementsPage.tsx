@@ -5,7 +5,7 @@
  * matching tab).
  */
 import { useState } from 'react';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import { Calendar, Megaphone } from 'lucide-react';
 import { CalendarPage } from './CalendarPage';
 import { AnnouncementsPage } from './AnnouncementsPage';

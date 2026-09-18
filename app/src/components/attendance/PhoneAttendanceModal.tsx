@@ -8,9 +8,11 @@ import { generateQrDataUrl } from '../../services/id-card/codes';
 import { 
     subscribeToAttendanceUpdates, 
     pushAttendanceSessionToBackend,
+    startAttendancePairing,
+    revokeAttendancePairing,
     type MobileAttendanceSyncEvent 
 } from '../../services/mobile-attendance-sync';
-import { useAppStore } from '../../stores';
+import { useAppStore } from '../../stores/app-store';
 import { 
     Smartphone, X, Wifi, Copy, Check, ExternalLink, RefreshCw, Activity
 } from 'lucide-react';
@@ -32,6 +34,40 @@ export function PhoneAttendanceModal({ isOpen, onClose }: PhoneAttendanceModalPr
     const [fullMobileUrl, setFullMobileUrl] = useState<string>('');
     const [copied, setCopied] = useState(false);
     const [recentScans, setRecentScans] = useState<MobileAttendanceSyncEvent[]>([]);
+    const [pairingToken, setPairingToken] = useState('');
+    const [pairingExpiresAt, setPairingExpiresAt] = useState(0);
+    const [pairingError, setPairingError] = useState('');
+
+    useEffect(() => {
+        if (!isOpen) return;
+        let cancelled = false;
+        void startAttendancePairing()
+            .then((pairing) => {
+                if (cancelled) {
+                    void revokeAttendancePairing(pairing.token);
+                    return;
+                }
+                setPairingError('');
+                setPairingToken(pairing.token);
+                setPairingExpiresAt(pairing.expiresAt);
+            })
+            .catch((error) => {
+                if (!cancelled) setPairingError(error instanceof Error ? error.message : 'Unable to secure the mobile gateway');
+            });
+        return () => { cancelled = true; };
+    }, [isOpen]);
+
+    const handleClose = () => {
+        onClose();
+    };
+
+    const handleStopAccess = () => {
+        const token = pairingToken;
+        setPairingToken('');
+        setPairingExpiresAt(0);
+        if (token) void revokeAttendancePairing(token);
+        onClose();
+    };
 
     // Fetch local network IP & candidate interfaces from Electron or browser location
     useEffect(() => {
@@ -97,14 +133,14 @@ export function PhoneAttendanceModal({ isOpen, onClose }: PhoneAttendanceModalPr
 
     // Re-generate QR code whenever localIp changes
     useEffect(() => {
-        if (!isOpen || !localIp) return;
+        if (!isOpen || !localIp || !pairingToken) return;
         let cancelled = false;
 
         async function updateQr() {
             const port = window.location.port || '3001';
             const protocol = window.location.protocol.startsWith('http') ? window.location.protocol : 'http:';
             // Build direct mobile link URL
-            const url = `${protocol}//${localIp}:${port}/#/mobile-attendance`;
+            const url = `${protocol}//${localIp}:${port}/#/mobile-attendance?pair=${encodeURIComponent(pairingToken)}`;
             setFullMobileUrl(url);
 
             const qrUrl = await generateQrDataUrl(url, { size: 400, margin: 1 });
@@ -113,11 +149,11 @@ export function PhoneAttendanceModal({ isOpen, onClose }: PhoneAttendanceModalPr
 
         void updateQr();
         return () => { cancelled = true; };
-    }, [isOpen, localIp]);
+    }, [isOpen, localIp, pairingToken]);
 
     // Push active desktop session data (students, sections, records) to Express server for mobile phone clients
     useEffect(() => {
-        if (!isOpen) return;
+        if (!isOpen || !pairingToken) return;
         pushAttendanceSessionToBackend({
             students,
             sections,
@@ -125,7 +161,7 @@ export function PhoneAttendanceModal({ isOpen, onClose }: PhoneAttendanceModalPr
             schoolProfile,
             localIp
         });
-    }, [isOpen, localIp, students, sections, attendanceRecords, schoolProfile]);
+    }, [isOpen, localIp, students, sections, attendanceRecords, schoolProfile, pairingToken]);
 
     // Subscribe to live phone scans & updates
     useEffect(() => {
@@ -166,7 +202,7 @@ export function PhoneAttendanceModal({ isOpen, onClose }: PhoneAttendanceModalPr
                         </div>
                     </div>
                     <button
-                        onClick={onClose}
+                        onClick={handleClose}
                         className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
                     >
                         <X className="w-5 h-5" />
@@ -175,6 +211,18 @@ export function PhoneAttendanceModal({ isOpen, onClose }: PhoneAttendanceModalPr
 
                 {/* Modal Body */}
                 <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
+                    {pairingError && (
+                        <div role="alert" className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-xs font-bold text-rose-700 dark:text-rose-300">
+                            Secure pairing could not start: {pairingError}
+                        </div>
+                    )}
+
+                    {pairingToken && pairingExpiresAt > 0 && (
+                        <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-[11px] font-semibold text-emerald-800 dark:text-emerald-300">
+                            Secure paired session active until {new Date(pairingExpiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Reopen this panel to view the same QR code.
+                            <button type="button" onClick={handleStopAccess} className="ml-2 underline font-black text-rose-700 dark:text-rose-300">Stop phone access</button>
+                        </div>
+                    )}
                     {/* Step-by-Step Instructions */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                         <div className="p-3 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/30 space-y-1">

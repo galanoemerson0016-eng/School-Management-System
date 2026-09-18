@@ -123,7 +123,7 @@ async function decryptRecordIfNeeded<T>(storeName: string, record: unknown): Pro
 
 // IndexedDB database name and stores
 const DB_NAME = 'FormEaseDB';
-const DB_VERSION = 11;
+const DB_VERSION = 12;
 
 export interface BackupMetadata {
   id: string;
@@ -206,12 +206,43 @@ function openDatabase(): Promise<IDBDatabase> {
       const db = (event.target as IDBOpenDBRequest).result;
       const transaction = (event.target as IDBOpenDBRequest).transaction;
 
-      // Special check for students store keyPath mismatch
+      // A keyPath cannot be changed in place.  Never delete a store before
+      // copying its contents: an update must either preserve every learner or
+      // abort without changing the user's existing database.
       if (db.objectStoreNames.contains('students')) {
           const studentStore = transaction?.objectStore('students');
           if (studentStore && studentStore.keyPath !== 'lrn') {
-              console.warn('Student store keyPath mismatch detected. Recreating store...');
-              db.deleteObjectStore('students');
+              console.warn('Student store keyPath mismatch detected. Migrating learner records to the lrn keyPath...');
+              const readLegacyStudents = studentStore.getAll();
+
+              readLegacyStudents.onerror = () => {
+                  console.error('Unable to read legacy learner records. Aborting migration to protect existing data.', readLegacyStudents.error);
+                  transaction?.abort();
+              };
+
+              readLegacyStudents.onsuccess = () => {
+                  const legacyStudents = Array.isArray(readLegacyStudents.result) ? readLegacyStudents.result : [];
+                  const invalidRecords = legacyStudents.filter(record => {
+                      const lrn = (record as Record<string, unknown>)?.lrn;
+                      return typeof lrn !== 'string' || lrn.trim() === '';
+                  });
+
+                  // A record without an LRN cannot be mapped safely into the
+                  // corrected store. Abort the schema upgrade so IndexedDB
+                  // rolls back and the client can recover from a backup.
+                  if (invalidRecords.length > 0) {
+                      console.error(`Found ${invalidRecords.length} legacy learner record(s) without an LRN. Aborting migration to prevent data loss.`);
+                      transaction?.abort();
+                      return;
+                  }
+
+                  db.deleteObjectStore('students');
+                  const correctedStore = db.createObjectStore('students', { keyPath: 'lrn' });
+                  for (const record of legacyStudents) {
+                      correctedStore.put(record);
+                  }
+                  console.info(`Migrated ${legacyStudents.length} learner record(s) to the corrected students store.`);
+              };
           }
       }
 
@@ -500,20 +531,30 @@ async function exportAllData() {
 }
 
 export interface BackupImportPayload {
-  schoolProfile?: SchoolProfile[] | SchoolProfile;
-  students?: Student[];
-  studentProfiles?: Student[];
-  sections?: Section[];
-  subjects?: Subject[];
-  classRecords?: ClassRecord[];
-  grades?: ClassRecord[];
-  enrollments?: Enrollment[];
-  announcements?: Announcement[];
-  attendanceRecords?: AttendanceRecord[];
-  sf2Sheets?: SF2Sheet[];
-  hpsRecords?: HPSRecord[];
-  gradingSheetRecords?: ClassRecord[];
-  observedValues?: ObservedValues[];
+  schoolProfile?: SchoolProfile[] | SchoolProfile | Record<string, unknown>;
+  students?: unknown[];
+  studentProfiles?: unknown[];
+  learners?: unknown[];
+  sections?: unknown[];
+  classes?: unknown[];
+  subjects?: unknown[];
+  learningAreas?: unknown[];
+  classRecords?: unknown[];
+  grades?: unknown[];
+  class_records?: unknown[];
+  enrollments?: unknown[];
+  announcements?: unknown[];
+  attendanceRecords?: unknown[];
+  attendance?: unknown[];
+  sf2Sheets?: unknown[];
+  sf2?: unknown[];
+  hpsRecords?: unknown[];
+  hps?: unknown[];
+  gradingSheetRecords?: unknown[];
+  grading_sheets?: unknown[];
+  consolidatedGrades?: unknown[];
+  observedValues?: unknown[];
+  coreValues?: unknown[];
   users?: unknown[];
   activityLog?: unknown[];
   localStorageData?: Record<string, string>;
@@ -523,11 +564,56 @@ export interface BackupImportPayload {
 }
 
 /**
- * Import data from backup JSON
+ * Extract true payload from arbitrary nested backup structures
+ * (handles ComprehensiveBackup, AutomatedBackupEntry, raw dumps, etc.)
+ */
+export function extractBackupPayload(rawBackupData: unknown): Record<string, unknown> | null {
+  if (!rawBackupData || typeof rawBackupData !== 'object') return null;
+
+  let current: unknown = rawBackupData;
+  for (let depth = 0; depth < 6; depth++) {
+    if (!current || typeof current !== 'object') break;
+    const obj = current as Record<string, unknown>;
+
+    // Detect if current level holds direct table collections
+    const hasPrimaryTables = (
+      Array.isArray(obj.students) ||
+      Array.isArray(obj.studentProfiles) ||
+      Array.isArray(obj.learners) ||
+      Array.isArray(obj.sections) ||
+      Array.isArray(obj.classes) ||
+      Array.isArray(obj.subjects) ||
+      Array.isArray(obj.learningAreas) ||
+      Array.isArray(obj.classRecords) ||
+      Array.isArray(obj.grades) ||
+      obj.schoolProfile !== undefined ||
+      obj.school_profile !== undefined
+    );
+
+    if (hasPrimaryTables) {
+      return obj;
+    }
+
+    if (obj.payload && typeof obj.payload === 'object' && !Array.isArray(obj.payload)) {
+      current = obj.payload;
+    } else if (obj.data && typeof obj.data === 'object' && !Array.isArray(obj.data)) {
+      current = obj.data;
+    } else if (obj.backup && typeof obj.backup === 'object' && !Array.isArray(obj.backup)) {
+      current = obj.backup;
+    } else {
+      break;
+    }
+  }
+
+  return (current && typeof current === 'object') ? (current as Record<string, unknown>) : null;
+}
+
+/**
+ * Import data from backup JSON with 100% backward compatibility
  */
 async function importFromBackup(rawBackupData: BackupImportPayload) {
-  const backupData = (rawBackupData?.payload || rawBackupData?.data || rawBackupData) as BackupImportPayload;
-  if (!backupData) return;
+  const payload = extractBackupPayload(rawBackupData);
+  if (!payload) return;
 
   // Clear hard reset flag when restoring from a backup
   try {
@@ -562,55 +648,237 @@ async function importFromBackup(rawBackupData: BackupImportPayload) {
     }
   }
 
-  // Import new data
-  if (backupData.schoolProfile) {
-    const profiles = Array.isArray(backupData.schoolProfile) ? backupData.schoolProfile : [backupData.schoolProfile];
-    await putRecordsBulk('schoolProfile', profiles);
-  }
-  if (backupData.students) {
-    await putRecordsBulk('students', backupData.students);
-  }
-  if (backupData.sections) {
-    await putRecordsBulk('sections', backupData.sections);
-  }
-  if (backupData.subjects) {
-    await putRecordsBulk('subjects', backupData.subjects);
-  }
-  const classRecordsToImport = backupData.classRecords || backupData.grades;
-  if (classRecordsToImport) {
-    await putRecordsBulk('classRecords', classRecordsToImport);
-  }
-  if (backupData.enrollments) {
-    await putRecordsBulk('enrollments', backupData.enrollments);
-  }
-  if (backupData.announcements) {
-    await putRecordsBulk('announcements', backupData.announcements);
-  }
-  if (backupData.attendanceRecords) {
-    await putRecordsBulk('attendanceRecords', backupData.attendanceRecords);
-  }
-  if (backupData.sf2Sheets) {
-    await putRecordsBulk('sf2Sheets', backupData.sf2Sheets);
-  }
-  if (backupData.hpsRecords) {
-    await putRecordsBulk('hpsRecords', backupData.hpsRecords);
-  }
-  if (backupData.gradingSheetRecords) {
-    await putRecordsBulk('gradingSheetRecords', backupData.gradingSheetRecords);
-  }
-  if (backupData.observedValues) {
-    await putRecordsBulk('observedValues', backupData.observedValues);
-  }
-  if (backupData.users && backupData.users.length > 0) {
-    await putRecordsBulk('users', backupData.users);
-  }
-  if (backupData.activityLog && backupData.activityLog.length > 0) {
-    await putRecordsBulk('activityLog', backupData.activityLog);
+  // 1. School Profile
+  const rawProfile = payload.schoolProfile || payload.school_profile || payload.school || payload.profile;
+  let profileRecord: SchoolProfile | undefined;
+  if (rawProfile) {
+    const rawObj = Array.isArray(rawProfile) ? rawProfile[0] : rawProfile;
+    if (rawObj && typeof rawObj === 'object') {
+      const p = rawObj as Record<string, unknown>;
+      const school_id = String(p.school_id || p.id || '300001').trim() || '300001';
+      profileRecord = { ...p, school_id } as unknown as SchoolProfile;
+      await putRecordsBulk('schoolProfile', [profileRecord]);
+    }
   }
 
-  // Restore localStorage items if present
-  if (backupData.localStorageData) {
-    restoreBackupLocalStorage(backupData.localStorageData);
+  // 2. Students (support students, studentProfiles, learners)
+  const rawStudents = (payload.students || payload.studentProfiles || payload.learners) as unknown[] | undefined;
+  if (Array.isArray(rawStudents) && rawStudents.length > 0) {
+    const sanitizedStudents: Student[] = rawStudents
+      .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object')
+      .map((s, idx) => {
+        const rawLrn = s.lrn ?? s.student_lrn ?? s.LRN ?? s.id ?? `TEMP-RESTORE-${idx}`;
+        const lrn = String(rawLrn).trim() || `TEMP-RESTORE-${idx}`;
+        return {
+          ...s,
+          lrn,
+          student_section: typeof s.student_section === 'string' ? s.student_section.trim() : (s.student_section || ''),
+        } as unknown as Student;
+      });
+    if (sanitizedStudents.length > 0) {
+      await putRecordsBulk('students', sanitizedStudents);
+    }
+  }
+
+  // 3. Sections (support sections, classes)
+  const rawSections = (payload.sections || payload.classes) as unknown[] | undefined;
+  if (Array.isArray(rawSections) && rawSections.length > 0) {
+    const sanitizedSections: Section[] = rawSections
+      .filter((sec): sec is Record<string, unknown> => !!sec && typeof sec === 'object')
+      .map((sec, idx) => {
+        const sectionName = String(sec.section_name ?? sec.name ?? `Section ${idx + 1}`).trim();
+        const rawId = sec.id ?? sec.section_id ?? (sectionName ? `sec-${sectionName.toLowerCase().replace(/[^a-z0-9]/g, '-')}` : `sec-${idx}`);
+        const id = String(rawId).trim() || `sec-${idx}`;
+        return {
+          ...sec,
+          id,
+          section_name: sectionName,
+        } as unknown as Section;
+      });
+    if (sanitizedSections.length > 0) {
+      await putRecordsBulk('sections', sanitizedSections);
+    }
+  }
+
+  // 4. Subjects (support subjects, learningAreas)
+  const rawSubjects = (payload.subjects || payload.learningAreas) as unknown[] | undefined;
+  if (Array.isArray(rawSubjects) && rawSubjects.length > 0) {
+    const sanitizedSubjects: Subject[] = rawSubjects
+      .filter((sub): sub is Record<string, unknown> => !!sub && typeof sub === 'object')
+      .map((sub, idx) => {
+        const subjectName = String(sub.subject_name ?? sub.name ?? `Subject ${idx + 1}`).trim();
+        const rawId = sub.id ?? sub.subject_id ?? `sub-${idx}`;
+        return {
+          ...sub,
+          id: String(rawId).trim() || `sub-${idx}`,
+          subject_name: subjectName,
+        } as unknown as Subject;
+      });
+    if (sanitizedSubjects.length > 0) {
+      await putRecordsBulk('subjects', sanitizedSubjects);
+    }
+  }
+
+  // 5. Class Records (support classRecords, grades, class_records)
+  const rawClassRecords = (payload.classRecords || payload.grades || payload.class_records) as unknown[] | undefined;
+  let importedClassRecords: ClassRecord[] = [];
+  if (Array.isArray(rawClassRecords) && rawClassRecords.length > 0) {
+    importedClassRecords = rawClassRecords
+      .filter((cr): cr is Record<string, unknown> => !!cr && typeof cr === 'object')
+      .map((cr, idx) => {
+        const lrn = String(cr.student_lrn ?? cr.lrn ?? '').trim();
+        const subId = String(cr.subject_id ?? '').trim();
+        const q = cr.quarter ?? 1;
+        const rawId = cr.id ?? cr.class_record_id ?? (lrn && subId ? `grade_${lrn}_${subId}_Q${q}` : `cr_${Date.now()}_${idx}`);
+        return {
+          ...cr,
+          id: String(rawId).trim(),
+          student_lrn: lrn || (cr.student_lrn as string),
+          subject_id: subId || (cr.subject_id as string),
+        } as unknown as ClassRecord;
+      });
+    if (importedClassRecords.length > 0) {
+      await putRecordsBulk('classRecords', importedClassRecords);
+    }
+  }
+
+  // 6. Enrollments
+  const rawEnrollments = payload.enrollments as unknown[] | undefined;
+  if (Array.isArray(rawEnrollments) && rawEnrollments.length > 0) {
+    const sanitized = rawEnrollments
+      .filter((e): e is Record<string, unknown> => !!e && typeof e === 'object')
+      .map((e, idx) => ({
+        ...e,
+        id: String(e.id || `enr_${idx}`).trim(),
+      })) as unknown as Enrollment[];
+    await putRecordsBulk('enrollments', sanitized);
+  }
+
+  // 7. Announcements
+  const rawAnnouncements = payload.announcements as unknown[] | undefined;
+  if (Array.isArray(rawAnnouncements) && rawAnnouncements.length > 0) {
+    const sanitized = rawAnnouncements
+      .filter((a): a is Record<string, unknown> => !!a && typeof a === 'object')
+      .map((a, idx) => ({
+        ...a,
+        id: String(a.id || `anc_${idx}`).trim(),
+      })) as unknown as Announcement[];
+    await putRecordsBulk('announcements', sanitized);
+  }
+
+  // 8. Attendance Records (support attendanceRecords, attendance)
+  const rawAttendance = (payload.attendanceRecords || payload.attendance) as unknown[] | undefined;
+  if (Array.isArray(rawAttendance) && rawAttendance.length > 0) {
+    const sanitized = rawAttendance
+      .filter((a): a is Record<string, unknown> => !!a && typeof a === 'object')
+      .map((a, idx) => ({
+        ...a,
+        id: String(a.id || `att_${idx}`).trim(),
+      })) as unknown as AttendanceRecord[];
+    await putRecordsBulk('attendanceRecords', sanitized);
+  }
+
+  // 9. SF2 Sheets (support sf2Sheets, sf2)
+  const rawSf2 = (payload.sf2Sheets || payload.sf2) as unknown[] | undefined;
+  if (Array.isArray(rawSf2) && rawSf2.length > 0) {
+    const sanitized = rawSf2
+      .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object')
+      .map((s, idx) => ({
+        ...s,
+        id: String(s.id || `sf2_${idx}`).trim(),
+      })) as unknown as SF2Sheet[];
+    await putRecordsBulk('sf2Sheets', sanitized);
+  }
+
+  // 10. HPS Records (support hpsRecords, hps)
+  const rawHps = (payload.hpsRecords || payload.hps) as unknown[] | undefined;
+  if (Array.isArray(rawHps) && rawHps.length > 0) {
+    const sanitized = rawHps
+      .filter((h): h is Record<string, unknown> => !!h && typeof h === 'object')
+      .map((h, idx) => ({
+        ...h,
+        id: String(h.id || `hps_${idx}`).trim(),
+      })) as unknown as HPSRecord[];
+    await putRecordsBulk('hpsRecords', sanitized);
+  }
+
+  // 11. Grading Sheet Records (support gradingSheetRecords, consolidatedGrades, grading_sheets)
+  const rawGradingSheets = (payload.gradingSheetRecords || payload.consolidatedGrades || payload.grading_sheets) as unknown[] | undefined;
+  if (Array.isArray(rawGradingSheets) && rawGradingSheets.length > 0) {
+    const sanitized = rawGradingSheets
+      .filter((g): g is Record<string, unknown> => !!g && typeof g === 'object')
+      .map((g, idx) => {
+        const lrn = String(g.student_lrn ?? g.lrn ?? '').trim();
+        const subId = String(g.subject_id ?? '').trim();
+        const q = g.quarter ?? 1;
+        const rawId = g.id || (lrn && subId ? `gs_${lrn}_${subId}_Q${q}` : `gs_${idx}`);
+        return {
+          ...g,
+          id: String(rawId).trim(),
+        } as unknown as ClassRecord;
+      });
+    await putRecordsBulk('gradingSheetRecords', sanitized);
+  }
+
+  // 12. Observed Values (support observedValues, coreValues)
+  const rawObserved = (payload.observedValues || payload.coreValues) as unknown[] | undefined;
+  if (Array.isArray(rawObserved) && rawObserved.length > 0) {
+    const sanitized = rawObserved
+      .filter((o): o is Record<string, unknown> => !!o && typeof o === 'object')
+      .map((o, idx) => ({
+        ...o,
+        id: String(o.id || `obs_${idx}`).trim(),
+      })) as unknown as ObservedValues[];
+    await putRecordsBulk('observedValues', sanitized);
+  }
+
+  // 13. Users
+  const rawUsers = payload.users as unknown[] | undefined;
+  if (Array.isArray(rawUsers) && rawUsers.length > 0) {
+    const sanitized = rawUsers
+      .filter((u): u is Record<string, unknown> => !!u && typeof u === 'object' && ('id' in u || 'uid' in u))
+      .map((u) => ({
+        ...u,
+        id: String(u.id || u.uid).trim(),
+      }));
+    if (sanitized.length > 0) {
+      await putRecordsBulk('users', sanitized);
+    }
+  }
+
+  // 14. Activity Log
+  const rawActivity = payload.activityLog as unknown[] | undefined;
+  if (Array.isArray(rawActivity) && rawActivity.length > 0) {
+    const sanitized = rawActivity
+      .filter((a): a is Record<string, unknown> => !!a && typeof a === 'object' && 'id' in a);
+    if (sanitized.length > 0) {
+      await putRecordsBulk('activityLog', sanitized);
+    }
+  }
+
+  // 15. Restore localStorage items if present
+  const localData = (payload.localStorageData || (rawBackupData as Record<string, unknown>).localStorageData) as Record<string, string> | undefined;
+  if (localData) {
+    restoreBackupLocalStorage(localData);
+  }
+
+  // 16. School Year Resynchronization
+  // Automatically detect active school year from payload, schoolProfile, or records
+  const detectedSchoolYear = (
+    (typeof payload.activeSchoolYear === 'string' && payload.activeSchoolYear.trim()) ||
+    (localData && typeof localData.activeSchoolYear === 'string' && localData.activeSchoolYear.trim()) ||
+    (profileRecord && typeof profileRecord.school_year === 'string' && profileRecord.school_year.trim()) ||
+    (importedClassRecords.find(r => r.school_year && typeof r.school_year === 'string')?.school_year) ||
+    undefined
+  );
+
+  if (detectedSchoolYear && typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem('activeSchoolYear', detectedSchoolYear);
+      localStorage.setItem('formease_active_school_year', detectedSchoolYear);
+    } catch (_e) {
+      // Ignore in non-browser environments
+    }
   }
 }
 
@@ -795,6 +1063,7 @@ export const db = {
   getStoreCount,
   exportAllData,
   importFromBackup,
+  extractBackupPayload,
   getBackups,
   saveBackupMetadata,
   deleteBackup,

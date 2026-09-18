@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { applyCurriculumPresetToSection, autoRepairSectionCurriculum } from './curriculumSync';
-import { getCurriculumPreset } from '../lib/curriculumPresets';
+import { applyCurriculumPresetToSection, autoRepairSectionCurriculum, repairSectionOwnedSubjectOfferings } from './curriculumSync';
+import { getCurriculumPreset, SSHS_G11_CORE_SUBJECTS } from '../lib/curriculumPresets';
 import type { Section, Subject } from '../types';
 
 describe('Curriculum Sync & In-Situ Auto-Repair Service', () => {
-    it('applies SSHS G11 STEM preset to section and creates Subject records with DepEd weights', async () => {
+    it('applies only the required SSHS G11 cores while keeping the STEM preset as an elective catalog', async () => {
         const section: Section = {
             id: 'sec_g11_stem',
             section_name: 'Grade 11 - Einstein',
@@ -31,8 +31,10 @@ describe('Curriculum Sync & In-Situ Auto-Repair Service', () => {
 
         const result = await applyCurriculumPresetToSection(section, preset!, [], callbacks);
 
-        expect(result.createdSubjectsCount).toBe(preset!.subjects.length);
-        expect(result.updatedSection.taught_subjects?.length).toBe(preset!.subjects.length);
+        expect(result.createdSubjectsCount).toBe(SSHS_G11_CORE_SUBJECTS.length);
+        expect(result.updatedSection.taught_subjects?.length).toBe(SSHS_G11_CORE_SUBJECTS.length);
+        expect(result.updatedSection.taught_subjects).toEqual(SSHS_G11_CORE_SUBJECTS.map(subject => subject.name));
+        expect(result.updatedSection.taught_subjects).not.toContain('Chemistry 1');
         expect(updatedSectionRecord).not.toBeNull();
         expect(updatedSectionRecord!.section_metadata?.subjectTerms).toBeDefined();
 
@@ -42,6 +44,8 @@ describe('Curriculum Sync & In-Situ Auto-Repair Service', () => {
         expect(mathSubject!.written_weight).toBe(25);
         expect(mathSubject!.performance_weight).toBe(50);
         expect(mathSubject!.exam_weight).toBe(25);
+        expect(mathSubject!.units).toBe(2);
+        expect(mathSubject!.hours).toBe(160);
 
         // Core subjects should have term === 'all'
         const mabisang = addedSubjects.find(s => s.subject_name.includes('Mabisang Komunikasyon'));
@@ -49,7 +53,7 @@ describe('Curriculum Sync & In-Situ Auto-Repair Service', () => {
         expect(mabisang?.term).toBe('all');
     });
 
-    it('auto-repairs a Grade 11 section with missing Term 2 and Term 3 subjects', async () => {
+    it('auto-repairs a Grade 11 section with the mandatory cores without inventing electives', async () => {
         const unhealthySection: Section = {
             id: 'sec_unhealthy_g11',
             section_name: 'Grade 11 - Newton',
@@ -78,14 +82,13 @@ describe('Curriculum Sync & In-Situ Auto-Repair Service', () => {
         expect(repairResult.message).toContain('Grade 11 SSHS');
         expect(repairResult.updatedSection).toBeDefined();
 
-        // Term 2 and Term 3 should now have subjects configured
+        // The six cores cover every term.  An auto-repair must not select
+        // elective subjects on the adviser's behalf.
         const terms = (repairResult.updatedSection!.section_metadata?.subjectTerms || {}) as Record<string, 1 | 2 | 3 | 'all'>;
         expect(terms).toBeDefined();
-
-        const term2Subjects = Object.entries(terms).filter(([, t]) => t === 2);
-        const term3Subjects = Object.entries(terms).filter(([, t]) => t === 3);
-        expect(term2Subjects.length).toBeGreaterThan(0);
-        expect(term3Subjects.length).toBeGreaterThan(0);
+        expect(repairResult.updatedSection?.taught_subjects).toEqual(SSHS_G11_CORE_SUBJECTS.map(subject => subject.name));
+        expect(Object.values(terms).every(term => term === 'all')).toBe(true);
+        expect(repairResult.updatedSection?.taught_subjects).not.toContain('Chemistry 1');
     });
 
     it('identifies healthy Elementary section and skips redundant auto-repair', async () => {
@@ -113,5 +116,32 @@ describe('Curriculum Sync & In-Situ Auto-Repair Service', () => {
         expect(result.success).toBe(true);
         expect(result.message).toContain('already healthy');
         expect(callbacks.addSubject).not.toHaveBeenCalled();
+    });
+
+    it('creates only missing section-owned offerings without changing the shared library or existing rows', async () => {
+        const section: Section = {
+            id: 'sec-plato',
+            section_name: 'Plato',
+            section_grade_level: 'Grade 11',
+            taught_subjects: ['Effective Communication', 'Biology 1'],
+            section_metadata: { subjectTerms: { 'Effective Communication': 'all', 'Biology 1': 1 } },
+        };
+        const existing: Subject[] = [
+            { id: 'library-bio', subject_name: 'Biology 1', grade_level: 'Grade 11', term: 1, written_weight: 35, performance_weight: 40, exam_weight: 25 },
+            { id: 'plato-core', subject_name: 'Effective Communication', grade_level: 'Grade 11', section_id: 'sec-plato', term: 'all' },
+        ];
+        const created: Subject[] = [];
+
+        const result = await repairSectionOwnedSubjectOfferings(section, existing, {
+            addSubject: async subject => { created.push(subject); },
+        });
+
+        expect(result).toEqual({ createdSubjectsCount: 1, existingSubjectsCount: 1 });
+        expect(created[0]).toMatchObject({
+            subject_name: 'Biology 1', section_id: 'sec-plato', term: 1,
+            written_weight: 35, performance_weight: 40, exam_weight: 25,
+        });
+        expect(created[0].enrolled_student_lrns).toBeUndefined();
+        expect(existing).toHaveLength(2);
     });
 });

@@ -1,6 +1,6 @@
 import type { Student, SchoolProfile, Section, ClassRecord, Subject, User } from '../types';
 import { getShsSubjectUnitInfo, getStandardShsSemester } from '../lib/curriculum';
-import { isMatchingSubject, normalizeGrade12PESubjectName } from './grading-helpers';
+import { isMatchingSubject, normalizeGrade12PESubjectName, isStudentEligibleForSectionSubject } from './grading-helpers';
 
 interface ShsMapperParams {
   student: Student;
@@ -83,7 +83,8 @@ export function mapStudentToShsSf10Data({
   // 4. Map Academic Semester Records
   // 4. Map Academic Semester Records with Strict Semester Isolation (Zero Cross-Semester Leakage)
   const buildSemesterAcademicRecord = (gradeLevelNum: number, targetSemester: 1 | 2) => {
-    const taughtRaw = studentSection?.taught_subjects || [];
+    const studentSecGradeNum = parseInt(studentSection?.section_grade_level?.replace(/\D/g, '') || '0', 10);
+    const taughtRaw = (studentSecGradeNum === 0 || studentSecGradeNum === gradeLevelNum) ? (studentSection?.taught_subjects || []) : [];
     const sectionTrack = (effectiveTrack || '').toLowerCase();
 
     // Filter candidate subjects for this grade level
@@ -167,6 +168,12 @@ export function mapStudentToShsSf10Data({
       if (s.term === 1) return targetSemester === 1;
       if (s.term === 2 || s.term === 3) return targetSemester === 2;
       return getStandardShsSemester(s.subject_name, gradeLevelNum) === targetSemester;
+    });
+
+    // Strict learner-specific & elective conflict filtering for SF10
+    candidateSubjects = candidateSubjects.filter(s => {
+      const actualSubject = subjects.find(sub => sub.id === s.id || isMatchingSubject(s.subject_name, sub.id, sub.subject_name)) || s;
+      return isStudentEligibleForSectionSubject(student.lrn, studentSection, actualSubject, subjects);
     });
 
     return candidateSubjects.map(dbSubject => {

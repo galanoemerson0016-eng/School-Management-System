@@ -164,7 +164,22 @@ export function canEditReport(user: User | null | undefined, _report: ReportType
 
 export function filterSectionsForUser(user: User | null | undefined, sections: Section[], _subjects: Subject[]): Section[] {
     if (!user) return [];
-    return sections;
+
+    // E-Class Record is a teaching workspace, not an advisory-form workspace.
+    // An adviser must explicitly enable Teaching and select the subjects they
+    // personally handle. This prevents the adviser's full official curriculum
+    // from appearing as their teaching load.
+    return sections.filter((section) => {
+        if (!section.is_teaching_load) return false;
+
+        if (section.teaching_subjects !== undefined) {
+            return section.teaching_subjects.length > 0;
+        }
+
+        // Compatibility for older teaching-load records created before the
+        // teaching_subjects field existed.
+        return Boolean(section.subject_name || (section.taught_subjects && section.taught_subjects.length > 0));
+    });
 }
 
 export function filterSubjectsForSection(user: User | null | undefined, section: Section | null | undefined, subjects: Subject[]): Subject[] {
@@ -187,12 +202,18 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
         return s.term !== 'none';
     });
 
+    if (!section.is_teaching_load) return [];
+
     // Determine the teacher's explicit teaching load subjects
     let teachingList: string[] = [];
     if (section.teaching_subjects !== undefined) {
         teachingList = section.teaching_subjects;
-    } else if (section.is_teaching_load && !section.is_advisory && section.taught_subjects !== undefined) {
-        // Fallback only if this section was specifically designated as a pure teaching load in older legacy records
+        // An explicitly empty teaching list always means the user teaches no
+        // E-Class subjects here, even when this is also an advisory section.
+        if (teachingList.length === 0) return [];
+    } else if (section.is_teaching_load && section.taught_subjects !== undefined) {
+        // Compatibility for legacy teaching-load records which stored the
+        // teacher's subjects in taught_subjects.
         teachingList = section.taught_subjects;
     }
 
@@ -222,8 +243,12 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
         };
 
         const directlyLinked = activeSubjects.filter((subject) => subject.section_id === section.id && isRegistered(subject));
+        // A section may borrow a reusable *library* definition, but it must
+        // never borrow another section's offering.  The latter can carry a
+        // different enrolment roster and would leak learners between classes.
         const gradeMatches = activeSubjects.filter(s => 
-            s.grade_level === section.section_grade_level && 
+            s.grade_level === section.section_grade_level &&
+            !s.section_id &&
             isRegistered(s)
         );
 
@@ -242,14 +267,17 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
         return unique.filter(s => isRegistered(s));
     }
 
-    // If marked purely as a teaching load but 0 subjects selected: return empty
-    if (section.is_teaching_load && !section.is_advisory) {
+    // Advisory status alone never grants E-Class access. The teaching role is
+    // the sole authority for which sections and subjects appear here.
+    if (teachingList.length === 0) {
         return [];
     }
 
-    // Fallback for advisory sections without explicit teaching load restrictions: return subjects for that grade level
+    // Legacy fallback for a teaching-load record with configured subject names.
     const directlyLinked = activeSubjects.filter((subject) => subject.section_id === section.id);
-    let gradeMatches = activeSubjects.filter(s => s.grade_level === section.section_grade_level);
+    let gradeMatches = activeSubjects.filter(s =>
+        s.grade_level === section.section_grade_level && !s.section_id
+    );
 
     if (section.taught_subjects && section.taught_subjects.length > 1) {
         const taughtSet = new Set(section.taught_subjects.map(t => t.trim().toLowerCase()));

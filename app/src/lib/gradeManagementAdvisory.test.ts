@@ -35,20 +35,9 @@ describe('Grade Management & E-Class Record Advisory Subject Integration', () =>
         { id: 'sub-peh', subject_name: 'Physical Education and Health', grade_level: 'Grade 7', term: 'all' }
     ];
 
-    it('E-Class Record: Advisory section allows access to all grade-level subjects when teaching load is not restricted', () => {
+    it('E-Class Record: advisory-only sections expose no subjects without an explicit teaching assignment', () => {
         const filtered = filterSubjectsForSection(mockUser, mockG7AdvisorySection, mockG7Subjects);
-        const names = filtered.map(s => s.subject_name);
-
-        expect(names).toHaveLength(9);
-        expect(names).toContain('English');
-        expect(names).toContain('Mathematics');
-        expect(names).toContain('Science');
-        expect(names).toContain('Filipino');
-        expect(names).toContain('Araling Panlipunan');
-        expect(names).toContain('Values Education');
-        expect(names).toContain('Technology and Livelihood Education');
-        expect(names).toContain('Music and Arts');
-        expect(names).toContain('Physical Education and Health');
+        expect(filtered).toHaveLength(0);
     });
 
     it('Grade Management: Full standard curriculum (8 columns including MAPEH) is rendered even if taught_subjects had only English', () => {

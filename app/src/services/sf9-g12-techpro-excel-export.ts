@@ -13,6 +13,7 @@
 import JSZip from 'jszip';
 import type { Student, SchoolProfile, Subject } from '../types';
 import { formatLearnerName } from '../utils/student-name';
+import { isZipTemplate, readNodeTemplateFallback } from '../utils/node-template-fallback';
 
 export interface SF9Grade12TechProExportOptions {
   student: Student;
@@ -116,26 +117,11 @@ export async function fetchGrade12TechProTemplateBuffer(): Promise<ArrayBuffer> 
     }
   }
 
-  // Node environment fallback for tests
-  if (typeof process !== 'undefined' && process.versions && process.versions.node) {
-    try {
-      const fs = await import('fs');
-      const path = await import('path');
-      const localPaths = [
-        path.resolve(process.cwd(), 'app/public/templates/G12 TechPro School Form 9 (SY 26-27).xlsx'),
-        path.resolve(process.cwd(), 'public/templates/G12 TechPro School Form 9 (SY 26-27).xlsx'),
-        path.resolve(__dirname, '../../public/templates/G12 TechPro School Form 9 (SY 26-27).xlsx'),
-      ];
-      for (const lp of localPaths) {
-        if (fs.existsSync(lp)) {
-          const buf = fs.readFileSync(lp);
-          return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }
+  const nodeBytes = await readNodeTemplateFallback(
+    ['G12 TechPro School Form 9 (SY 26-27).xlsx'],
+    1000,
+  );
+  if (isZipTemplate(nodeBytes)) return nodeBytes.slice().buffer as ArrayBuffer;
 
   throw new Error('Failed to load Grade 12 TechPro template buffer: G12 TechPro School Form 9 (SY 26-27).xlsx');
 }

@@ -127,33 +127,32 @@ app.commandLine.appendSwitch('ignore-gpu-blocklist');
     // Start local Express server for Mobile Attendance Gateway
     try {
       const serverPath = path.join(__dirname, '..', 'server.js');
-      if (fs.existsSync(serverPath)) {
-        const { exec } = require('child_process');
-        
-        // Force kill any process using Port 3001 (e.g., leftover dev server) to prevent conflicts
-        exec('for /f "tokens=5" %a in (\'netstat -aon ^| find "LISTENING" ^| find ":3001"\') do taskkill /f /pid %a', () => {
-          try {
-            expressServer = require(serverPath);
-            global.expressServer = expressServer;
-            if (log && log.info) log.info('[FormEase Pro] Mobile Gateway server started on port 3001');
+      // Vite owns port 3001 and provides the equivalent secured middleware in
+      // development. Start the packaged Express gateway only in production.
+      if (!isDev && fs.existsSync(serverPath)) {
+        try {
+          expressServer = require(serverPath);
+          global.expressServer = expressServer;
+          expressServer.startServer();
+          if (log && log.info) log.info('[FormEase Pro] Mobile Gateway server started on port 3001');
 
-            // Add error listener to check for port conflicts
-            const srv = global.expressServer || expressServer;
-            if (srv && srv.server) {
-              srv.server.on('error', (err) => {
-                if (err.code === 'EADDRINUSE') {
-                   const { dialog } = require('electron');
-                   dialog.showErrorBox(
-                     'Network Port Conflict',
-                     'FormEase Pro could not start the Mobile Attendance Gateway because Port 3001 is already in use.\n\nThis usually happens if you are running the Development Server at the same time as the EXE app.\n\nPlease completely close all background node.exe processes and restart FormEase Pro for mobile sync to work.'
-                   );
-                }
-              });
-            }
-          } catch (reqErr) {
-            console.warn('[FormEase Pro] Express server startup notice:', reqErr.message || reqErr);
+          // Report a conflict without terminating an unrelated process that
+          // happens to own the port.
+          const srv = global.expressServer || expressServer;
+          if (srv && srv.server) {
+            srv.server.on('error', (err) => {
+              if (err.code === 'EADDRINUSE') {
+                const { dialog } = require('electron');
+                dialog.showErrorBox(
+                  'Network Port Conflict',
+                  'FormEase Pro could not start the Mobile Attendance Gateway because Port 3001 is already in use.\n\nClose the application using that port, then restart FormEase Pro to enable mobile sync.'
+                );
+              }
+            });
           }
-        });
+        } catch (reqErr) {
+          console.warn('[FormEase Pro] Express server startup notice:', reqErr.message || reqErr);
+        }
       }
     } catch (err) {
       console.warn('[FormEase Pro] Express server init error:', err.message || err);
@@ -1253,12 +1252,31 @@ ipcMain.handle('push-attendance-session', async (event, sessionData) => {
   try {
     const srv = global.expressServer || expressServer;
     if (srv && srv.updateActiveSession) {
-      srv.updateActiveSession(sessionData);
-      return { success: true };
+      const success = srv.updateActiveSession(sessionData);
+      return success ? { success: true } : { success: false, error: 'Invalid attendance session' };
     }
     return { success: false, error: 'Express server not available' };
   } catch (err) {
     console.warn('[IPC] push-attendance-session warning:', err.message || err);
+    return { success: false, error: err.message || String(err) };
+  }
+});
+
+ipcMain.handle('start-attendance-pairing', async () => {
+  try {
+    const srv = global.expressServer || expressServer;
+    if (srv && srv.startAttendancePairing) return srv.startAttendancePairing();
+    throw new Error('Mobile Attendance Gateway is not available');
+  } catch (err) {
+    return { token: '', expiresAt: 0, error: err.message || String(err) };
+  }
+});
+
+ipcMain.handle('revoke-attendance-pairing', async (_event, token) => {
+  try {
+    const srv = global.expressServer || expressServer;
+    return { success: Boolean(srv && srv.revokeAttendancePairing && srv.revokeAttendancePairing(token)) };
+  } catch (err) {
     return { success: false, error: err.message || String(err) };
   }
 });
@@ -1272,8 +1290,8 @@ ipcMain.handle('push-attendance-update', async (_event, syncEvent) => {
   try {
     const srv = global.expressServer || expressServer;
     if (srv && srv.pushSyncEvent) {
-      srv.pushSyncEvent(syncEvent);
-      return { success: true };
+      const success = srv.pushSyncEvent(syncEvent);
+      return success ? { success: true } : { success: false, error: 'Invalid attendance update' };
     }
     return { success: false, error: 'Express server not available' };
   } catch (err) {

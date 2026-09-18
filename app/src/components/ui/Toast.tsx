@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, CheckCircle2, Info, X, Sparkles } from 'lucide-react';
-import { useAppStore } from '../../stores';
+import { useAppStore } from '../../stores/app-store';
 
 export function Toast() {
     const notification = useAppStore(state => state.notification);

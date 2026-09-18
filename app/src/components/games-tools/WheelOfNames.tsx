@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useAppStore } from '../../stores';
+import { useAppStore } from '../../stores/app-store';
 import { Plus, Trash2, Play, Shuffle, ArrowLeft, Maximize2, Minimize2, Volume2, VolumeX, Trophy, Sparkles, UserCheck } from 'lucide-react';
 import type { Student } from '../../types';
 

@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useAppStore, useAuthStore } from '../../stores';
-import type { Section } from '../../types';
+import { useAppStore } from '../../stores/app-store';
+import { useAuthStore } from '../../stores/auth-store';
+import type { Section, SubjectTermSelection } from '../../types';
 import { 
-    STANDARD_SUBJECTS, 
+    STANDARD_SUBJECTS,
     SPECIAL_SUBJECTS,
     SSHS_G11_CORE_SUBJECTS,
     SSHS_G12_ACADEMIC_SUBJECTS,
@@ -23,6 +24,7 @@ import {
     getTraditionalShsTrackForSubject,
     isSubjectAllowedForProgram,
     getDefaultTermForSubject,
+    normalizeOfferedTerms,
     isGrade11CoreSubject,
     isSubjectMatchingSectionTrackAndStrand,
     SSHS_G12_TECHPRO_SUBJECTS,
@@ -31,11 +33,12 @@ import {
     isTraditionalImmersionSubject,
     getTvlComponentForSubject
 } from '../../lib/curriculum';
-import { normalizeGrade12PESubjectName } from '../../utils/grading-helpers';
+import { auditGrade11ElectiveEnrollment, normalizeGrade12PESubjectName } from '../../utils/grading-helpers';
 import { normalizeSubjectName, sortSubjects } from '../../lib/subjectConfig';
 import { motion } from 'framer-motion';
 import { X, Save, Shield, BookOpen, AlertCircle, ChevronRight, Check, RotateCcw, RefreshCw, Search, Copy, Plus, Sparkles, Calendar, Layers, CheckCircle2, Trash2, CheckSquare } from 'lucide-react';
 import { getCurriculumPreset, getDepEdWeightsForSubject } from '../../lib/curriculumPresets';
+import { repairSectionOwnedSubjectOfferings } from '../../services/curriculumSync';
 import { generateUUID } from '../../utils/idGenerator';
 
 const SSHS_CATEGORY_DISPLAY: Record<string, string> = {
@@ -43,6 +46,8 @@ const SSHS_CATEGORY_DISPLAY: Record<string, string> = {
     'SSHS - ACADEMIC': 'Academic Elective (All Other Electives)',
     'SSHS - TECH-PRO': 'TechPro Elective (All Other Electives)'
 };
+
+type SectionSetupPanel = 'details' | 'curriculum' | 'teaching' | 'review';
 
 interface SectionFormProps {
     section: Section | null;
@@ -100,6 +105,7 @@ const getStrandsForTrack = (trackName: string | undefined, gradeLevel?: string |
     if (normalizedTrack === 'academic') {
         return STRANDS.Academic;
     }
+
     if (normalizedTrack === 'techpro') {
         return [...SSHS_TECHPRO_CLUSTERS_LIST];
     }
@@ -119,12 +125,23 @@ const getStrandsForTrack = (trackName: string | undefined, gradeLevel?: string |
 const normalizeSubjectLabel = (value: string) =>
     value.toLowerCase().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)/g, '').trim();
 
+const grade11CoreNames = SSHS_G11_CORE_SUBJECTS.map(subject => subject.name);
 
+const createGrade11CoreTerms = (): Record<string, SubjectTermSelection> =>
+    Object.fromEntries(grade11CoreNames.map(name => [name, 'all' as const]));
 
+const isGrade11CoreName = (name: string) =>
+    grade11CoreNames.some(core => core.toLowerCase() === name.toLowerCase());
 
+const getGrade11ElectiveTerm = (name: string, terms: Record<string, SubjectTermSelection>) => {
+    const configured = terms[name];
+    if (configured === 1 || configured === 2 || configured === 3) return configured;
+    const defaultTerm = getDefaultTermForSubject(name, 11);
+    return defaultTerm === 2 || defaultTerm === 3 ? defaultTerm : 1;
+};
 
 export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
-    const { addSection, updateSection, subjects, schoolProfile, updateSchoolProfile, showNotification, addSubject, updateSubject } = useAppStore();
+    const { addSection, updateSection, sections, students, subjects, schoolProfile, updateSchoolProfile, showNotification, addSubject, updateSubject } = useAppStore();
     const { user } = useAuthStore();
     const [isLoading, setIsLoading] = useState(false);
     const lastInitializedSectionIdRef = useRef<string | null>(null);
@@ -134,6 +151,13 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
         return schoolProfile?.adviser_name || user?.displayName || '';
     };
 
+    const initialGradePreset = !section ? getCurriculumPreset('Grade 7', '', '', 'Regular') : null;
+    const initialPresetSubjects = initialGradePreset ? initialGradePreset.subjects.map(s => s.name) : [];
+    const initialPresetTerms: Record<string, SubjectTermSelection> = {};
+    if (initialGradePreset) {
+        initialGradePreset.subjects.forEach(s => { initialPresetTerms[s.name] = s.term; });
+    }
+
     const [formData, setFormData] = useState<Partial<Section>>({
         id: '',
         section_name: '',
@@ -141,25 +165,88 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
         adviser_id: user?.uid || '',
         adviser_name: getDefaultTeacherName(),
         subject_name: '',
-        taught_subjects: [],
+        taught_subjects: initialPresetSubjects,
         teaching_subjects: [],
         is_teaching_load: false,
-        is_advisory: false,
+        is_advisory: true,
         track: '',
         strand: '',
         cluster: '',
         program: 'Regular',
-        spa_majors: []
+        spa_majors: [],
+        section_metadata: {
+            subjectTerms: initialPresetTerms
+        }
     });
 
-    const [subjectTerms, setSubjectTerms] = useState<Record<string, 1 | 2 | 3 | 'all'>>(() => {
-        return section?.section_metadata?.subjectTerms || {};
+    const [subjectTerms, setSubjectTerms] = useState<Record<string, SubjectTermSelection>>(() => {
+        return section?.section_metadata?.subjectTerms || initialPresetTerms;
     });
     const [showAddCustomModal, setShowAddCustomModal] = useState(false);
     const [customSubjName, setCustomSubjName] = useState('');
     const [customSubjTerm, setCustomSubjTerm] = useState<1 | 2 | 3 | 'all'>(1);
     const [curriculumViewMode, setCurriculumViewMode] = useState<'matrix' | 'catalog'>('matrix');
     const [hasExplicitlyClearedTaught, setHasExplicitlyClearedTaught] = useState(false);
+    const [activeSetupPanel, setActiveSetupPanel] = useState<SectionSetupPanel>('details');
+
+    // Grade 11 SSHS has a different offering model from a generic preset.  The
+    // six Core subjects are required throughout the year; the cluster catalog is
+    // a list of choices, not a list to automatically offer in one section.
+    const isGrade11SshsSection = () => (formData.section_grade_level || '').includes('11');
+
+    const applyGrade11CoreBaseline = () => {
+        const coreTerms = createGrade11CoreTerms();
+        setHasExplicitlyClearedTaught(false);
+        setFormData(prev => ({
+            ...prev,
+            taught_subjects: [...grade11CoreNames],
+            section_metadata: {
+                ...(prev.section_metadata || {}),
+                subjectTerms: coreTerms
+            }
+        }));
+        setSubjectTerms(coreTerms);
+    };
+
+    /** Adds a Grade 11 SSHS elective offering for a term.  Learner enrolment,
+     * not the section roster, enforces one elective per learner per term. */
+    const setGrade11ElectiveForTerm = (subjectName: string, term: 1 | 2 | 3) => {
+        if (isGrade11CoreName(subjectName)) {
+            showNotification('Grade 11 SSHS Core Subjects are required in all three terms.', 'info');
+            return;
+        }
+
+        const current = formData.taught_subjects || [];
+        const alreadyOffered = current.some(name => name.toLowerCase() === subjectName.toLowerCase());
+        const nextSubjects = [
+            ...grade11CoreNames,
+            ...current.filter(name => !isGrade11CoreName(name)),
+            ...(alreadyOffered ? [] : [subjectName])
+        ];
+        const nextTerms: Record<string, SubjectTermSelection> = createGrade11CoreTerms();
+        nextSubjects.forEach(name => {
+            if (!isGrade11CoreName(name)) {
+                nextTerms[name] = name === subjectName ? term : getGrade11ElectiveTerm(name, subjectTerms);
+            }
+        });
+
+        setHasExplicitlyClearedTaught(false);
+        setFormData(prev => ({
+            ...prev,
+            taught_subjects: nextSubjects,
+            section_metadata: {
+                ...(prev.section_metadata || {}),
+                subjectTerms: nextTerms
+            }
+        }));
+        setSubjectTerms(nextTerms);
+        showNotification(
+            alreadyOffered
+                ? `Moved "${subjectName}" to Term ${term}.`
+                : `Added "${subjectName}" as a Term ${term} offering. Enrol each learner in only one Term ${term} elective.`,
+            'info'
+        );
+    };
 
     const detectedPreset = useMemo(() => {
         return getCurriculumPreset(
@@ -171,13 +258,26 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
     }, [formData.section_grade_level, formData.track, formData.cluster, formData.strand, formData.program]);
 
     const isPresetActive = useMemo(() => {
+        if ((formData.section_grade_level || '').includes('11')) {
+            const selected = formData.taught_subjects || [];
+            const hasAllCores = grade11CoreNames.every(core => selected.some(name => name.toLowerCase() === core.toLowerCase()));
+            const electiveTerms = new Set(selected
+                .filter(name => !isGrade11CoreName(name))
+                .map(name => getGrade11ElectiveTerm(name, subjectTerms)));
+            return hasAllCores && electiveTerms.size === 3;
+        }
         if (!detectedPreset || !formData.taught_subjects || formData.taught_subjects.length === 0) return false;
         return detectedPreset.subjects.length > 0 &&
                detectedPreset.subjects.every(s => (formData.taught_subjects || []).some(t => t.toLowerCase() === s.name.toLowerCase()));
-    }, [detectedPreset, formData.taught_subjects]);
+    }, [detectedPreset, formData.taught_subjects, formData.section_grade_level, subjectTerms]);
 
     const applyDetectedPreset = () => {
         if (!detectedPreset) return;
+        if (isGrade11SshsSection()) {
+            applyGrade11CoreBaseline();
+            showNotification('Applied the 6 required Grade 11 SSHS Core Subjects. Add the elective offerings needed in each term, then enrol learners in their chosen elective.', 'success');
+            return;
+        }
         setHasExplicitlyClearedTaught(false);
         const names = detectedPreset.subjects.map(s => s.name);
         const newTerms: Record<string, 1 | 2 | 3 | 'all'> = {};
@@ -200,13 +300,28 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
     // Handle initial role defaults for NEW sections
     useEffect(() => {
         if (!section) {
-            setFormData(prev => ({
-                ...prev,
-                is_advisory: false,
-                is_teaching_load: false,
-                taught_subjects: [],
-                teaching_subjects: []
-            }));
+            setFormData(prev => {
+                const currentGrade = prev.section_grade_level || 'Grade 7';
+                const preset = getCurriculumPreset(currentGrade, '', '', 'Regular');
+                const defaultSubjects = preset ? preset.subjects.map(s => s.name) : [];
+                const defaultTerms: Record<string, SubjectTermSelection> = {};
+                if (preset) {
+                    preset.subjects.forEach(s => { defaultTerms[s.name] = s.term; });
+                }
+                setSubjectTerms(defaultTerms);
+                return {
+                    ...prev,
+                    is_advisory: true,
+                    is_teaching_load: false,
+                    program: 'Regular',
+                    taught_subjects: defaultSubjects,
+                    teaching_subjects: [],
+                    section_metadata: {
+                        ...(prev.section_metadata || {}),
+                        subjectTerms: defaultTerms
+                    }
+                };
+            });
             setHasExplicitlyClearedTaught(false);
         }
     }, [section]);
@@ -422,13 +537,17 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
         return list;
     }, [subjects, formData.section_grade_level, formData.id, formData.program, formData.track, formData.strand, formData.cluster]);
 
-    // Default advisory curriculum: Prioritize official DepEd preset if detected, then DB subjects, then standard templates
+    // Grade 11 starts with its required cores only. Its matching preset is an
+    // elective catalog and must never become the section's automatic offering.
     const defaultCurriculumSubjectNames = useMemo(() => {
+        if ((formData.section_grade_level || '').includes('11')) {
+            return [...grade11CoreNames];
+        }
         if (detectedPreset && detectedPreset.subjects.length > 0) {
             return detectedPreset.subjects.map(s => s.name);
         }
         return existingDbSubjects.length > 0 ? existingDbSubjects : standardCurriculumSubjectNames;
-    }, [detectedPreset, existingDbSubjects, standardCurriculumSubjectNames]);
+    }, [detectedPreset, existingDbSubjects, standardCurriculumSubjectNames, formData.section_grade_level]);
 
     const activeTaughtList = useMemo(() => {
         const grade = (formData.section_grade_level || 'Grade 7') as GradeLevel;
@@ -470,6 +589,10 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
     };
 
     const selectAllInAdvisoryCategory = (categorySubjects: { name: string }[]) => {
+        if (isGrade11SshsSection()) {
+            showNotification('For Grade 11 SSHS, add only the elective offerings your school will run. Each learner is later enrolled in one elective per term.', 'info');
+            return;
+        }
         setHasExplicitlyClearedTaught(false);
         const current = activeTaughtList;
         const toAdd = categorySubjects.map(s => s.name);
@@ -478,6 +601,10 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
     };
 
     const clearAllInAdvisoryCategory = (categorySubjects: { name: string }[]) => {
+        if (isGrade11SshsSection()) {
+            showNotification('Use the elective term cards to remove Grade 11 SSHS elective offerings.', 'info');
+            return;
+        }
         const current = activeTaughtList;
         const toRemove = new Set(categorySubjects.map(s => s.name));
         const next = current.filter(name => !toRemove.has(name));
@@ -702,7 +829,54 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
         return { allTerms, term1, term2, term3 };
     }, [activeTaughtList, subjectTerms, isSHS, isG11, formData.section_grade_level]);
 
+    const grade11OfferingProgress = useMemo(() => {
+        if (!isG11) return [] as { term: 1 | 2 | 3; subjects: string[]; state: 'ready' | 'empty' | 'review' }[];
+        const lists = [termMatrixData.term1, termMatrixData.term2, termMatrixData.term3];
+        return ([1, 2, 3] as const).map((term, index) => {
+            const subjects = lists[index];
+            return {
+                term,
+                subjects,
+                state: subjects.length === 0 ? 'empty' : 'ready'
+            };
+        });
+    }, [isG11, termMatrixData]);
+
+    // Existing sections can be audited before the adviser generates school
+    // forms.  New sections receive their section-owned offerings on first
+    // save, so their learner audit begins after that save.
+    const grade11EnrollmentAudit = useMemo(() => {
+        const sectionId = section?.id || formData.id;
+        if (!isG11 || !sectionId) return null;
+        const sectionForAudit: Section = {
+            ...(section || {}),
+            ...formData,
+            id: sectionId,
+            section_name: formData.section_name || section?.section_name || '',
+            section_grade_level: formData.section_grade_level || section?.section_grade_level || 'Grade 11',
+            taught_subjects: activeTaughtList,
+            section_metadata: {
+                ...(section?.section_metadata || {}),
+                ...(formData.section_metadata || {}),
+                subjectTerms,
+            },
+        };
+        return auditGrade11ElectiveEnrollment(sectionForAudit, students, subjects);
+    }, [isG11, section, formData, activeTaughtList, subjectTerms, students, subjects]);
+
     const handleSetSubjectTerm = (subjName: string, term: 1 | 2 | 3 | 'all') => {
+        if (isGrade11SshsSection()) {
+            if (isGrade11CoreName(subjName)) {
+                setSubjectTerms(prev => ({ ...prev, [subjName]: 'all' }));
+                return;
+            }
+            if (term === 'all') {
+                showNotification('A Grade 11 SSHS elective can be offered in one term only.', 'info');
+                return;
+            }
+            setGrade11ElectiveForTerm(subjName, term);
+            return;
+        }
         setSubjectTerms(prev => ({
             ...prev,
             [subjName]: term
@@ -713,6 +887,17 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
         const trimmed = customSubjName.trim();
         if (!trimmed) {
             showNotification('Please enter a subject name.', 'error');
+            return;
+        }
+        if (isGrade11SshsSection()) {
+            if (customSubjTerm === 'all') {
+                showNotification('A Grade 11 SSHS elective must be assigned to one term.', 'error');
+                return;
+            }
+            setGrade11ElectiveForTerm(trimmed, customSubjTerm);
+            setCustomSubjName('');
+            setShowAddCustomModal(false);
+            showNotification(`Set custom elective "${trimmed}" for Term ${customSubjTerm}.`, 'success');
             return;
         }
         setHasExplicitlyClearedTaught(false);
@@ -739,6 +924,24 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
         const isG11 = formData.section_grade_level?.includes('Grade 11');
         const isG12 = formData.section_grade_level?.includes('Grade 12');
         const grade = (formData.section_grade_level || 'Grade 11') as GradeLevel;
+
+        if (isG11) {
+            const coreTerms = createGrade11CoreTerms();
+            setSubjectTerms(coreTerms);
+            setFormData(prev => ({
+                ...prev,
+                track: newTrack,
+                strand: '',
+                cluster: '',
+                taught_subjects: [...grade11CoreNames],
+                section_metadata: {
+                    ...(prev.section_metadata || {}),
+                    subjectTerms: coreTerms
+                }
+            }));
+            showNotification('Track changed. Required cores were kept; choose the new cluster and its elective offerings.', 'info');
+            return;
+        }
 
         const preset = getCurriculumPreset(grade, newTrack, '', formData.program);
         let nextTaught: string[] = [];
@@ -778,6 +981,23 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
         const isG11 = formData.section_grade_level?.includes('Grade 11');
         const isG12 = formData.section_grade_level?.includes('Grade 12');
         const grade = (formData.section_grade_level || 'Grade 11') as GradeLevel;
+
+        if (isG11) {
+            const coreTerms = createGrade11CoreTerms();
+            setSubjectTerms(coreTerms);
+            setFormData(prev => ({
+                ...prev,
+                strand: newStrand,
+                cluster: newStrand,
+                taught_subjects: [...grade11CoreNames],
+                section_metadata: {
+                    ...(prev.section_metadata || {}),
+                    subjectTerms: coreTerms
+                }
+            }));
+            showNotification('Cluster changed. Required cores were kept; add the elective offerings your section will run.', 'info');
+            return;
+        }
 
         const preset = getCurriculumPreset(grade, formData.track, newStrand, formData.program);
         let nextTaught: string[] = [];
@@ -854,26 +1074,31 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
 
         let newTaught = formData.taught_subjects;
         const newTerms: Record<string, 1 | 2 | 3 | 'all'> = {};
-        if (!section && formData.is_advisory) {
-            const preset = getCurriculumPreset(newGrade, newTrack, newStrand || newCluster, newProgram);
-            if (preset && preset.subjects.length > 0) {
-                newTaught = preset.subjects.map(s => s.name);
-                preset.subjects.forEach(s => { newTerms[s.name] = s.term; });
+        const isAdvisoryClass = formData.is_advisory || !section;
+        if (isAdvisoryClass) {
+            if (isG11) {
+                newTaught = [...grade11CoreNames];
+                Object.assign(newTerms, createGrade11CoreTerms());
             } else {
-                const newGradeDbSubjects = subjects.filter(s => 
-                    s.grade_level === newGrade && 
-                    !s.is_teaching_load && 
-                    !s.section_id &&
-                    isSubjectMatchingSectionTrackAndStrand(s.subject_name, newGrade, newTrack, newStrand || newCluster)
-                ).map(s => s.subject_name);
-                let standardSubjs = (STANDARD_SUBJECTS[newGrade as GradeLevel] || []).map(s => s.name);
-                if (isG11) {
-                    standardSubjs = SSHS_G11_CORE_SUBJECTS.map(s => s.name);
+                const preset = getCurriculumPreset(newGrade, newTrack, newStrand || newCluster, newProgram);
+                if (preset && preset.subjects.length > 0) {
+                    newTaught = preset.subjects.map(s => s.name);
+                    preset.subjects.forEach(s => { newTerms[s.name] = s.term; });
+                } else {
+                    const newGradeDbSubjects = subjects.filter(s => 
+                        s.grade_level === newGrade && 
+                        !s.is_teaching_load && 
+                        !s.section_id &&
+                        isSubjectMatchingSectionTrackAndStrand(s.subject_name, newGrade, newTrack, newStrand || newCluster)
+                    ).map(s => s.subject_name);
+                    let standardSubjs = (STANDARD_SUBJECTS[newGrade as GradeLevel] || []).map(s => s.name);
+                    if (isG11) {
+                        standardSubjs = SSHS_G11_CORE_SUBJECTS.map(s => s.name);
+                    }
+                    newTaught = newGradeDbSubjects.length > 0 ? newGradeDbSubjects : standardSubjs;
                 }
-                newTaught = newGradeDbSubjects.length > 0 ? newGradeDbSubjects : standardSubjs;
             }
         }
-
         if (Object.keys(newTerms).length > 0) {
             setSubjectTerms(prev => ({ ...prev, ...newTerms }));
         }
@@ -894,33 +1119,39 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
         });
     };
 
-    const handleAdvisoryChange = (checked: boolean) => {
-        setHasExplicitlyClearedTaught(false);
-        setFormData(prev => ({ 
-            ...prev, 
-            is_advisory: checked,
-            adviser_name: checked ? (schoolProfile?.adviser_name || user?.displayName || '') : '',
-            taught_subjects: checked && (!prev.taught_subjects || prev.taught_subjects.length === 0)
-                ? defaultCurriculumSubjectNames
-                : (prev.taught_subjects || [])
-        }));
-    };
-
     const syncTaughtSubjectsWithDb = () => {
         setHasExplicitlyClearedTaught(false);
+        if (isGrade11SshsSection()) {
+            const elected = activeTaughtList.filter(name => !isGrade11CoreName(name));
+            const nextTerms: Record<string, SubjectTermSelection> = createGrade11CoreTerms();
+            elected.forEach(name => { nextTerms[name] = getGrade11ElectiveTerm(name, subjectTerms); });
+            setFormData(prev => ({
+                ...prev,
+                taught_subjects: [...grade11CoreNames, ...elected],
+                section_metadata: { ...(prev.section_metadata || {}), subjectTerms: nextTerms }
+            }));
+            setSubjectTerms(nextTerms);
+            showNotification('Synced the required Grade 11 SSHS Core Subjects without changing elective selections.', 'success');
+            return;
+        }
         if (existingDbSubjects.length > 0) {
             setFormData(prev => ({
                 ...prev,
                 taught_subjects: [...existingDbSubjects]
             }));
-            showNotification(`Synced ${existingDbSubjects.length} subjects from Subjects Page.`, 'success');
+            showNotification(`Loaded ${existingDbSubjects.length} subjects from Subject Library.`, 'success');
         } else {
-            showNotification('No matching subjects found in Subjects Page for this section.', 'info');
+            showNotification('No matching subjects found in Subject Library for this section.', 'info');
         }
     };
 
     const resetTaughtSubjectsToStandard = () => {
         setHasExplicitlyClearedTaught(false);
+        if (isGrade11SshsSection()) {
+            applyGrade11CoreBaseline();
+            showNotification('Restored the 6 required Grade 11 SSHS Core Subjects. Elective selections were cleared.', 'info');
+            return;
+        }
         if (detectedPreset && detectedPreset.subjects.length > 0) {
             applyDetectedPreset();
             return;
@@ -933,6 +1164,11 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
     };
 
     const clearAllTaughtSubjects = () => {
+        if (isGrade11SshsSection()) {
+            applyGrade11CoreBaseline();
+            showNotification('Cleared elective selections. The 6 required Grade 11 SSHS Core Subjects remain active.', 'info');
+            return;
+        }
         setHasExplicitlyClearedTaught(true);
         setFormData(prev => ({
             ...prev,
@@ -942,6 +1178,10 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
     };
 
     const selectAllAvailableSubjects = () => {
+        if (isGrade11SshsSection()) {
+            showNotification('For Grade 11 SSHS, add the elective offerings your section will run, then enrol each learner in one per term.', 'info');
+            return;
+        }
         setHasExplicitlyClearedTaught(false);
         const allNames = availableSubjects.map(s => s.name);
         setFormData(prev => ({
@@ -952,6 +1192,25 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
     };
 
     const toggleTaughtSubject = (subjectName: string) => {
+        if (isGrade11SshsSection()) {
+            if (isGrade11CoreName(subjectName)) {
+                showNotification('Grade 11 SSHS Core Subjects are required and cannot be removed.', 'info');
+                return;
+            }
+            const current = formData.taught_subjects || grade11CoreNames;
+            if (current.some(name => name.toLowerCase() === subjectName.toLowerCase())) {
+                const next = current.filter(name => name.toLowerCase() !== subjectName.toLowerCase());
+                setFormData(prev => ({ ...prev, taught_subjects: next }));
+                setSubjectTerms(prev => {
+                    const updated = { ...prev };
+                    delete updated[subjectName];
+                    return updated;
+                });
+            } else {
+                setGrade11ElectiveForTerm(subjectName, getGrade11ElectiveTerm(subjectName, subjectTerms));
+            }
+            return;
+        }
         setHasExplicitlyClearedTaught(false);
         const current = activeTaughtList;
         if (current.includes(subjectName)) {
@@ -965,12 +1224,71 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
         }
     };
 
-    const handleTeachingChange = (checked: boolean) => {
+    const handleRepairSectionOfferings = async () => {
+        if (!section?.id) {
+            showNotification('Save this new section first, then run the offering repair if needed.', 'info');
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const result = await repairSectionOwnedSubjectOfferings(section, subjects, { addSubject });
+            showNotification(
+                result.createdSubjectsCount > 0
+                    ? `Repair complete: created ${result.createdSubjectsCount} section-owned offering${result.createdSubjectsCount === 1 ? '' : 's'}. Existing grades and enrolments were not changed.`
+                    : 'This section already has its own subject offerings. Nothing was changed.',
+                'success'
+            );
+        } catch (error) {
+            console.error('Failed to repair section subject offerings:', error);
+            showNotification('Could not repair section offerings. No existing grades or subjects were removed.', 'error');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const chooseSectionRole = (role: 'advisory' | 'teaching' | 'both') => {
+        const isAdvisory = role === 'advisory' || role === 'both';
+        const isTeaching = role === 'teaching' || role === 'both';
+        setHasExplicitlyClearedTaught(false);
+
+        let nextTaught = formData.taught_subjects || [];
+        const newTerms: Record<string, SubjectTermSelection> = {};
+
+        if (isAdvisory && (nextTaught.length === 0 || formData.program === 'Regular')) {
+            const grade = formData.section_grade_level || 'Grade 7';
+            const isG11 = grade.includes('11');
+            if (isG11) {
+                nextTaught = [...grade11CoreNames];
+                Object.assign(newTerms, createGrade11CoreTerms());
+            } else {
+                const preset = getCurriculumPreset(grade, formData.track, formData.strand || formData.cluster, formData.program || 'Regular');
+                if (preset && preset.subjects.length > 0) {
+                    nextTaught = preset.subjects.map(s => s.name);
+                    preset.subjects.forEach(s => { newTerms[s.name] = s.term; });
+                } else if (defaultCurriculumSubjectNames.length > 0) {
+                    nextTaught = defaultCurriculumSubjectNames;
+                }
+            }
+            if (Object.keys(newTerms).length > 0) {
+                setSubjectTerms(prev => ({ ...prev, ...newTerms }));
+            }
+        }
+
         setFormData(prev => ({
             ...prev,
-            is_teaching_load: checked,
-            teaching_subjects: checked ? (prev.teaching_subjects && prev.teaching_subjects.length > 0 ? prev.teaching_subjects : []) : []
+            is_advisory: isAdvisory,
+            is_teaching_load: isTeaching,
+            adviser_name: isAdvisory ? (schoolProfile?.adviser_name || user?.displayName || '') : '',
+            taught_subjects: isAdvisory ? nextTaught : (prev.taught_subjects || []),
+            teaching_subjects: isTeaching ? (prev.teaching_subjects || []) : [],
+            section_metadata: {
+                ...(prev.section_metadata || {}),
+                subjectTerms: Object.keys(newTerms).length > 0
+                    ? { ...(prev.section_metadata?.subjectTerms || {}), ...newTerms }
+                    : prev.section_metadata?.subjectTerms
+            }
         }));
+        setActiveSetupPanel(isAdvisory ? 'curriculum' : 'teaching');
     };
 
     const toggleSubject = (subjectName: string) => {
@@ -1076,6 +1394,20 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             return;
         }
 
+        const normalizedSectionName = formData.section_name.trim().toLowerCase();
+        const duplicateSection = sections.find(existing =>
+            existing.id !== formData.id &&
+            existing.section_grade_level === formData.section_grade_level &&
+            existing.section_name.trim().toLowerCase() === normalizedSectionName
+        );
+        if (duplicateSection) {
+            showNotification(
+                `${formData.section_grade_level} already has a section named "${duplicateSection.section_name}". Use a unique name to keep learners, grades, and forms separated.`,
+                'error'
+            );
+            return;
+        }
+
         if (!formData.is_advisory && !formData.is_teaching_load) {
             showNotification('Please select at least one role: Advisory or Teaching.', 'error');
             return;
@@ -1108,7 +1440,17 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                 } else if (section?.taught_subjects && section.taught_subjects.length > 0) {
                     finalTaughtSubjects = section.taught_subjects;
                 } else {
-                    finalTaughtSubjects = defaultCurriculumSubjectNames;
+                    const preset = getCurriculumPreset(gradeLevel, formData.track, formData.strand || formData.cluster, sectionProgram);
+                    if (preset && preset.subjects.length > 0) {
+                        finalTaughtSubjects = preset.subjects.map(s => s.name);
+                        preset.subjects.forEach(s => {
+                            if (!subjectTerms[s.name]) {
+                                subjectTerms[s.name] = s.term;
+                            }
+                        });
+                    } else {
+                        finalTaughtSubjects = defaultCurriculumSubjectNames;
+                    }
                 }
             } else {
                 finalTaughtSubjects = validTeachingSubjects;
@@ -1117,6 +1459,24 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             // Sanitize final taught subjects to only include allowed subjects for this grade & program
             finalTaughtSubjects = finalTaughtSubjects.filter(s => isSubjectAllowedForProgram(s, gradeLevel, sectionProgram));
 
+            // A Grade 11 SSHS section always has the six year-long cores.  It
+            // may offer several electives in a term when learners split into
+            // different choices; the learner roster enforces one choice per
+            // learner in each term.
+            let finalSubjectTerms: Record<string, SubjectTermSelection> = { ...subjectTerms };
+            if (isG11 && isAdvisory) {
+                const electives = finalTaughtSubjects.filter(subjectName => !isGrade11CoreName(subjectName));
+                finalTaughtSubjects = [
+                    ...grade11CoreNames,
+                    ...electives
+                ];
+                finalSubjectTerms = createGrade11CoreTerms();
+                electives.forEach(subjectName => {
+                    finalSubjectTerms[subjectName] = getGrade11ElectiveTerm(subjectName, subjectTerms);
+                });
+                setSubjectTerms(finalSubjectTerms);
+            }
+
             if (isG12 && !isExplicitSSHS) {
                 finalTaughtSubjects = finalTaughtSubjects.map(s => normalizeGrade12PESubjectName(s, false));
             }
@@ -1124,6 +1484,15 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             if (isG11 || isG12) {
                 finalTaughtSubjects = sortSubjects(finalTaughtSubjects, s => s);
             }
+
+            // Ensure every final taught subject has an assigned term in finalSubjectTerms
+            finalTaughtSubjects.forEach(sName => {
+                if (finalSubjectTerms[sName] === undefined) {
+                    const preset = getCurriculumPreset(gradeLevel, formData.track, formData.strand || formData.cluster, sectionProgram);
+                    const match = preset?.subjects.find(s => s.name.toLowerCase() === sName.toLowerCase());
+                    finalSubjectTerms[sName] = match?.term ?? (isSHS ? 1 : 'all');
+                }
+            });
 
             const sectionData: Section = {
                 id: formData.id || `section_${Date.now()}`,
@@ -1154,7 +1523,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                 section_metadata: {
                     ...(section?.section_metadata || {}),
                     ...(formData.section_metadata || {}),
-                    subjectTerms: subjectTerms
+                    subjectTerms: finalSubjectTerms
                 }
             };
 
@@ -1173,29 +1542,52 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             if (isAdvisory && finalTaughtSubjects.length > 0) {
                 for (const subName of finalTaughtSubjects) {
                     const norm = normalizeSubjectName(subName);
+                    // A subject in the library is only a reusable definition.
+                    // Every official section needs its own offering record so
+                    // term settings, teacher work and learner enrolment cannot
+                    // be shared with another section of the same grade.
                     const existing = subjects.find(s => 
                         (s.grade_level || '').trim() === sectionData.section_grade_level.trim() &&
-                        (!s.section_id || s.section_id === sectionData.id) &&
+                        s.section_id === sectionData.id &&
                         normalizeSubjectName(s.subject_name) === norm
                     );
-                    const effTerm = subjectTerms[subName] || (isSHS ? 1 : 'all');
+                    const libraryDefinition = subjects.find(s =>
+                        (s.grade_level || '').trim() === sectionData.section_grade_level.trim() &&
+                        !s.section_id &&
+                        normalizeSubjectName(s.subject_name) === norm
+                    );
+                    const effTerm = finalSubjectTerms[subName] || (isSHS ? 1 : 'all');
+                    const offeredTerms = normalizeOfferedTerms(effTerm);
+                    const legacyTerm = offeredTerms.length === 3
+                        ? 'all'
+                        : offeredTerms.length === 1
+                            ? offeredTerms[0]
+                            : 'none';
                     if (!existing) {
                         const weights = getDepEdWeightsForSubject(subName, sectionData.section_grade_level, sectionData.track);
                         await addSubject({
                             id: generateUUID(),
                             subject_name: subName,
+                            subject_code: libraryDefinition?.subject_code,
                             grade_level: sectionData.section_grade_level,
                             section_id: sectionData.id,
-                            term: effTerm,
-                            written_weight: weights.written_weight,
-                            performance_weight: weights.performance_weight,
-                            exam_weight: weights.exam_weight,
-                            counts_in_general_average: true
+                            term: legacyTerm,
+                            offered_terms: offeredTerms,
+                            written_weight: libraryDefinition?.written_weight ?? weights.written_weight,
+                            performance_weight: libraryDefinition?.performance_weight ?? weights.performance_weight,
+                            exam_weight: libraryDefinition?.exam_weight ?? weights.exam_weight,
+                            units: libraryDefinition?.units,
+                            hours: libraryDefinition?.hours,
+                            counts_in_general_average: libraryDefinition?.counts_in_general_average ?? true
                         });
-                    } else if (existing.term !== effTerm && effTerm !== 'all') {
+                    } else if (
+                        existing.term !== legacyTerm ||
+                        JSON.stringify(existing.offered_terms || []) !== JSON.stringify(offeredTerms)
+                    ) {
                         await updateSubject({
                             ...existing,
-                            term: effTerm
+                            term: legacyTerm,
+                            offered_terms: offeredTerms
                         });
                     }
                 }
@@ -1304,17 +1696,46 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                     onChange={(e) => {
                                         const p = e.target.value;
                                         const grade = (formData.section_grade_level || 'Grade 7') as GradeLevel;
-                                        const templates = getCurriculumTemplatesForSection(grade, p, p === 'SPA' ? (formData.spa_majors && formData.spa_majors.length > 0 ? formData.spa_majors : Object.keys(SPA_MAJORS)) : []);
-                                        const cleanNames = templates
-                                            .map(t => t.name)
-                                            .filter(name => isSubjectAllowedForProgram(name, grade, p));
+                                        let cleanNames: string[] = [];
+                                        const newTerms: Record<string, SubjectTermSelection> = {};
+
+                                        if (p === 'Regular') {
+                                            const preset = getCurriculumPreset(grade, formData.track, formData.strand || formData.cluster, 'Regular');
+                                            if (preset && preset.subjects.length > 0) {
+                                                cleanNames = preset.subjects.map(s => s.name);
+                                                preset.subjects.forEach(s => { newTerms[s.name] = s.term; });
+                                            } else {
+                                                cleanNames = (STANDARD_SUBJECTS[grade] || []).map(s => s.name);
+                                            }
+                                        } else {
+                                            const templates = getCurriculumTemplatesForSection(grade, p, p === 'SPA' ? (formData.spa_majors && formData.spa_majors.length > 0 ? formData.spa_majors : Object.keys(SPA_MAJORS)) : []);
+                                            cleanNames = templates
+                                                .map(t => t.name)
+                                                .filter(name => isSubjectAllowedForProgram(name, grade, p));
+                                        }
+
+                                        if (Object.keys(newTerms).length > 0) {
+                                            setSubjectTerms(prev => ({ ...prev, ...newTerms }));
+                                        }
+
                                         setFormData({
                                             ...formData,
                                             program: p,
                                             taught_subjects: cleanNames,
-                                            spa_majors: p === 'SPA' ? (formData.spa_majors && formData.spa_majors.length > 0 ? formData.spa_majors : Object.keys(SPA_MAJORS)) : []
+                                            spa_majors: p === 'SPA' ? (formData.spa_majors && formData.spa_majors.length > 0 ? formData.spa_majors : Object.keys(SPA_MAJORS)) : [],
+                                            section_metadata: {
+                                                ...(formData.section_metadata || {}),
+                                                subjectTerms: Object.keys(newTerms).length > 0
+                                                    ? { ...(formData.section_metadata?.subjectTerms || {}), ...newTerms }
+                                                    : formData.section_metadata?.subjectTerms
+                                            }
                                         });
-                                        showNotification(`Curricular program changed to ${p} (${cleanNames.length} official subjects loaded).`, 'info');
+                                        showNotification(
+                                            p === 'Regular'
+                                                ? `Applied official DepEd Regular Basic Education (MATATAG) curriculum (${cleanNames.length} subjects loaded).`
+                                                : `Curricular program changed to ${p} (${cleanNames.length} official subjects loaded).`,
+                                            'info'
+                                        );
                                     }}
                                 >
                                     {isElementary ? (
@@ -1434,46 +1855,50 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
 
                         {/* ROLE CONFIGURATION */}
                         <div className="col-span-2 bg-slate-50/50 dark:bg-white/5 rounded-2.5xl p-5 border border-slate-100 dark:border-white/10">
-                            <label className="block text-[9px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest mb-4 ml-1">Role Configuration</label>
+                            <label className="block text-[9px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest mb-1 ml-1">How will you use this section?</label>
+                            <p className="text-[9.5px] text-slate-500 dark:text-slate-400 mb-4 ml-1">Choose one setup. You can add your personal E-Class subjects after the official advisory curriculum is ready.</p>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {/* Advisory Role */}
-                                <label className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all border-2 ${formData.is_advisory ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800/40 shadow-xs' : 'bg-white dark:bg-white/5 border-transparent hover:border-slate-200 dark:hover:border-white/10'}`}>
-                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${formData.is_advisory ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-none' : 'bg-slate-100 dark:bg-white/10 text-slate-400 dark:text-slate-300'}`}>
-                                        <Shield className="w-5 h-5" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className={`text-xs font-black ${formData.is_advisory ? 'text-indigo-900 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300'}`}>Advisory</div>
-                                        <div className="text-[8px] font-bold text-slate-400 dark:text-slate-400 uppercase">Class Adviser</div>
-                                    </div>
-                                    <input 
-                                        type="checkbox" 
-                                        className="w-4 h-4 rounded border-2 border-slate-200 dark:border-white/10 text-indigo-600 focus:ring-indigo-500 transition-all cursor-pointer" 
-                                        checked={formData.is_advisory}
-                                        onChange={(e) => handleAdvisoryChange(e.target.checked)}
-                                    />
-                                </label>
-
-                                {/* Teaching Role */}
-                                <label className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all border-2 ${formData.is_teaching_load ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/40 shadow-xs' : 'bg-white dark:bg-white/5 border-transparent hover:border-slate-200 dark:hover:border-white/10'}`}>
-                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${formData.is_teaching_load ? 'bg-amber-500 text-white shadow-lg shadow-amber-200 dark:shadow-none' : 'bg-slate-100 dark:bg-white/10 text-slate-400 dark:text-slate-300'}`}>
-                                        <BookOpen className="w-5 h-5" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className={`text-xs font-black ${formData.is_teaching_load ? 'text-amber-900 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'}`}>Teaching</div>
-                                        <div className="text-[8px] font-bold text-slate-400 dark:text-slate-400 uppercase">Subject Teacher</div>
-                                    </div>
-                                    <input 
-                                        type="checkbox" 
-                                        className="w-4 h-4 rounded border-2 border-slate-200 dark:border-white/10 text-amber-500 focus:ring-amber-500 transition-all cursor-pointer" 
-                                        checked={formData.is_teaching_load}
-                                        onChange={(e) => handleTeachingChange(e.target.checked)}
-                                    />
-                                </label>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => chooseSectionRole('advisory')}
+                                    className={`text-left p-4 rounded-2xl transition-all border-2 cursor-pointer ${formData.is_advisory && !formData.is_teaching_load ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700 shadow-xs' : 'bg-white dark:bg-white/5 border-transparent hover:border-slate-200 dark:hover:border-white/10'}`}
+                                >
+                                    <Shield className="w-5 h-5 text-indigo-600 dark:text-indigo-300 mb-2" />
+                                    <p className="text-xs font-black text-slate-800 dark:text-white">My advisory class</p>
+                                    <p className="text-[8.5px] text-slate-500 dark:text-slate-400 mt-1">Set official subjects, school forms, and learner grades.</p>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => chooseSectionRole('teaching')}
+                                    className={`text-left p-4 rounded-2xl transition-all border-2 cursor-pointer ${!formData.is_advisory && formData.is_teaching_load ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 shadow-xs' : 'bg-white dark:bg-white/5 border-transparent hover:border-slate-200 dark:hover:border-white/10'}`}
+                                >
+                                    <BookOpen className="w-5 h-5 text-amber-600 dark:text-amber-300 mb-2" />
+                                    <p className="text-xs font-black text-slate-800 dark:text-white">A class I teach</p>
+                                    <p className="text-[8.5px] text-slate-500 dark:text-slate-400 mt-1">Choose only personal E-Class Record and LIR subjects.</p>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => chooseSectionRole('both')}
+                                    className={`text-left p-4 rounded-2xl transition-all border-2 cursor-pointer ${formData.is_advisory && formData.is_teaching_load ? 'bg-violet-50 dark:bg-violet-950/40 border-violet-300 dark:border-violet-700 shadow-xs' : 'bg-white dark:bg-white/5 border-transparent hover:border-slate-200 dark:hover:border-white/10'}`}
+                                >
+                                    <Layers className="w-5 h-5 text-violet-600 dark:text-violet-300 mb-2" />
+                                    <p className="text-xs font-black text-slate-800 dark:text-white">Both</p>
+                                    <p className="text-[8.5px] text-slate-500 dark:text-slate-400 mt-1">Finish the advisory setup first, then choose the subjects you teach.</p>
+                                </button>
                             </div>
 
+                            {(formData.is_advisory || formData.is_teaching_load) && (
+                                <div className="mt-5 pt-4 border-t border-slate-200/70 dark:border-white/10 flex flex-wrap gap-2">
+                                    <button type="button" onClick={() => setActiveSetupPanel('details')} className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider cursor-pointer ${activeSetupPanel === 'details' ? 'bg-slate-800 dark:bg-white text-white dark:text-slate-900' : 'bg-white dark:bg-white/5 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-white/10'}`}>1. Details</button>
+                                    {formData.is_advisory && <button type="button" onClick={() => setActiveSetupPanel('curriculum')} className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider cursor-pointer ${activeSetupPanel === 'curriculum' ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-white/5 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-white/10'}`}>2. Official curriculum</button>}
+                                    {formData.is_teaching_load && <button type="button" onClick={() => setActiveSetupPanel('teaching')} className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider cursor-pointer ${activeSetupPanel === 'teaching' ? 'bg-amber-500 text-white' : 'bg-white dark:bg-white/5 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-white/10'}`}>{formData.is_advisory ? '3. My E-Class subjects' : '2. My E-Class subjects'}</button>}
+                                    <button type="button" onClick={() => setActiveSetupPanel('review')} className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider cursor-pointer ${activeSetupPanel === 'review' ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-white/5 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-white/10'}`}>Review & save</button>
+                                </div>
+                            )}
+
                             {/* ADVISORY CURRICULUM PANEL */}
-                            {formData.is_advisory && (
+                            {formData.is_advisory && activeSetupPanel === 'curriculum' && (
                                 <motion.div 
                                     initial={{ opacity: 0, height: 'auto' }}
                                     animate={{ opacity: 1, height: 'auto' }}
@@ -1484,19 +1909,21 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                         <div>
                                             <div className="flex items-center gap-2">
                                                 <label className="block text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">
-                                                    Official Section Curriculum ({activeTaughtList.length})
+                                                    {isG11 ? 'Grade 11 SSHS Curriculum Plan' : `Official Section Curriculum (${activeTaughtList.length})`}
                                                 </label>
-                                                <span className="px-2 py-0.5 rounded-md text-[8.5px] font-black bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 uppercase tracking-wider">
+                                                {!isG11 && <span className="px-2 py-0.5 rounded-md text-[8.5px] font-black bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 uppercase tracking-wider">
                                                     {formData.program || 'Regular'}
-                                                </span>
-                                                {isSHS && (
+                                                </span>}
+                                                {!isG11 && isSHS && (
                                                     <span className="px-2 py-0.5 rounded-md text-[8.5px] font-black bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 uppercase tracking-wider">
                                                         3-Term Trimestral
                                                     </span>
                                                 )}
                                             </div>
                                             <span className="text-[9.5px] font-medium text-slate-400 dark:text-slate-500">
-                                                Official subjects for this section (powers SF9, SF10, Consolidated Grades, & Grade Slips)
+                                                {isG11
+                                                    ? `6 required cores • elective offerings by term • each learner takes one elective per term • powers school forms`
+                                                    : 'Official subjects for this section (powers SF9, SF10, Consolidated Grades, & Grade Slips)'}
                                             </span>
                                         </div>
 
@@ -1513,7 +1940,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                     }`}
                                                 >
                                                     <Calendar className="w-3 h-3" />
-                                                    Visual Term Matrix
+                                                    {isG11 ? 'Curriculum' : 'Visual Term Matrix'}
                                                 </button>
                                                 <button
                                                     type="button"
@@ -1525,11 +1952,11 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                     }`}
                                                 >
                                                     <Layers className="w-3 h-3" />
-                                                    Catalog Checklist
+                                                    {isG11 ? 'Elective Catalog' : 'Catalog Checklist'}
                                                 </button>
                                             </div>
 
-                                            <button
+                                            {!isG11 && <button
                                                 type="button"
                                                 onClick={() => {
                                                     setCustomSubjTerm(1);
@@ -1540,8 +1967,8 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                             >
                                                 <Plus className="w-3 h-3" />
                                                 Add Elective / Custom
-                                            </button>
-                                            {existingDbSubjects.length > 0 && (
+                                            </button>}
+                                            {!isG11 && existingDbSubjects.length > 0 && (
                                                 <button
                                                     type="button"
                                                     onClick={syncTaughtSubjectsWithDb}
@@ -1551,30 +1978,64 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                     Sync DB
                                                 </button>
                                             )}
-                                            <button
+                                            {!isG11 && <button
                                                 type="button"
                                                 onClick={resetTaughtSubjectsToStandard}
                                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40 hover:bg-indigo-100 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer shadow-xs"
-                                                title="Reset to official DepEd standard preset"
+                                                title={isG11 ? 'Restore the 6 required Core Subjects and clear electives' : 'Reset to official DepEd standard preset'}
                                             >
                                                 <RotateCcw className="w-3 h-3" />
-                                                Reset
-                                            </button>
+                                                {isG11 ? 'Restore Cores' : 'Reset'}
+                                            </button>}
                                             <button
                                                 type="button"
                                                 onClick={clearAllTaughtSubjects}
                                                 disabled={activeTaughtList.length === 0}
                                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
-                                                title="Uncheck all subjects in one click"
+                                                title={isG11 ? 'Clear only Grade 11 SSHS elective selections' : 'Uncheck all subjects in one click'}
                                             >
                                                 <Trash2 className="w-3 h-3" />
-                                                Clear All
+                                                {isG11 ? 'Clear Electives' : 'Clear All'}
                                             </button>
                                         </div>
                                     </div>
 
+                                    {isG11 && (
+                                        <div className="mb-5 rounded-2xl border border-indigo-200/80 dark:border-indigo-800/50 bg-indigo-50/50 dark:bg-indigo-950/20 p-4">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase tracking-wider text-indigo-950 dark:text-indigo-200">Confirm the section offerings</p>
+                                                    <p className="text-[9.5px] text-slate-500 dark:text-slate-400 mt-0.5">The six Core Subjects are locked. Add every elective this section will offer, then use Manage Learners in E-Class to place each learner in one elective per term.</p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCurriculumViewMode('catalog')}
+                                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-black uppercase tracking-wider cursor-pointer"
+                                                >
+                                                    <Layers className="w-3.5 h-3.5" /> Choose electives
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                {grade11OfferingProgress.map(({ term, subjects, state }) => (
+                                                    <div key={term} className={`rounded-xl border px-3 py-2.5 ${
+                                                        state === 'ready'
+                                                            ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/50'
+                                                            : state === 'review'
+                                                                ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50'
+                                                                : 'bg-white/80 dark:bg-white/5 border-slate-200 dark:border-white/10'
+                                                    }`}>
+                                                        <p className="text-[8px] font-black uppercase tracking-wider text-slate-500">Term {term}</p>
+                                                        <p className="text-[10px] font-bold mt-1 text-slate-800 dark:text-slate-100 truncate">
+                                                            {state === 'ready' ? `${subjects.length} elective offering${subjects.length === 1 ? '' : 's'}` : 'No elective offering yet'}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* 2. Detected Official DepEd Preset Banner */}
-                                    {detectedPreset && (
+                                    {!isG11 && detectedPreset && (
                                         <div className="relative overflow-hidden mb-5 p-4 rounded-2xl bg-linear-to-r from-indigo-500/10 via-purple-500/5 to-emerald-500/10 border border-indigo-200/80 dark:border-indigo-800/60 shadow-xs">
                                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                                 <div className="space-y-1">
@@ -1594,10 +2055,12 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                         )}
                                                     </div>
                                                     <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                                                        {detectedPreset.label}
+                                                        {isG11 ? 'Grade 11 SSHS Offering Plan' : detectedPreset.label}
                                                     </h4>
                                                     <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                                                        {detectedPreset.description} • <span className="font-bold text-slate-700 dark:text-slate-300">{detectedPreset.subjects.length} official subjects</span> ({detectedPreset.termStructure || (isSHS ? '3 Terms (Trimester)' : '3 Terms (Whole-Year)')})
+                                                        {isG11
+                                                            ? <>6 required Core Subjects (Terms 1–3) + <span className="font-bold text-slate-700 dark:text-slate-300">adviser-selected elective offerings</span>. A learner is enrolled in one elective per term; the cluster list is a catalog, not an automatic roster.</>
+                                                            : <>{detectedPreset.description} • <span className="font-bold text-slate-700 dark:text-slate-300">{detectedPreset.subjects.length} official subjects</span> ({detectedPreset.termStructure || (isSHS ? '3 Terms (Trimester)' : '3 Terms (Whole-Year)')})</>}
                                                     </p>
                                                 </div>
 
@@ -1612,7 +2075,9 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                         }`}
                                                     >
                                                         <Sparkles className="w-3.5 h-3.5" />
-                                                        {isPresetActive ? 'Re-Apply DepEd Preset' : `1-Click Apply (${detectedPreset.subjects.length} Subjects)`}
+                                                        {isG11
+                                                            ? 'Restore 6 Required Cores'
+                                                            : (isPresetActive ? 'Re-Apply DepEd Preset' : `1-Click Apply (${detectedPreset.subjects.length} Subjects)`)}
                                                     </button>
                                                 </div>
                                             </div>
@@ -1632,7 +2097,9 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                     </h4>
                                                     <p className="text-[10px] text-slate-400 dark:text-slate-500 max-w-sm mx-auto mb-4">
                                                         {detectedPreset 
-                                                            ? `All subjects have been cleared. Click below to load the official ${detectedPreset.label} (${detectedPreset.subjects.length} subjects), or switch to "Catalog Checklist" to pick specific subjects.` 
+                                                            ? (isG11
+                                                                ? 'Restore the 6 required Core Subjects, then add the elective offerings this section will run in each term.'
+                                                                : `All subjects have been cleared. Click below to load the official ${detectedPreset.label} (${detectedPreset.subjects.length} subjects), or switch to "Catalog Checklist" to pick specific subjects.`)
                                                             : 'All subjects have been cleared. Switch to "Catalog Checklist" above to select subjects for this section or add custom electives.'}
                                                     </p>
                                                     {detectedPreset && (
@@ -1642,7 +2109,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                             className="inline-flex items-center gap-2 px-4 py-2 bg-linear-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
                                                         >
                                                             <Sparkles className="w-3.5 h-3.5" />
-                                                            Apply {detectedPreset.label} ({detectedPreset.subjects.length} Subjects)
+                                                            {isG11 ? 'Restore 6 Required Core Subjects' : `Apply ${detectedPreset.label} (${detectedPreset.subjects.length} Subjects)`}
                                                         </button>
                                                     )}
                                                 </div>
@@ -1732,11 +2199,15 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                                                     {subjName}
                                                                                 </div>
                                                                                 <div className="text-[8px] font-bold text-indigo-600/70 dark:text-indigo-400/80 mt-0.5">
-                                                                                    All Terms · WW {weights.written_weight}% · PT {weights.performance_weight}% · QA {weights.exam_weight}%
+                                                                                    {isG11 ? 'Required in Term 1, Term 2, and Term 3' : `All Terms · WW ${weights.written_weight}% · PT ${weights.performance_weight}% · QA ${weights.exam_weight}%`}
                                                                                 </div>
                                                                             </div>
                                                                             <div className="flex items-center gap-1 shrink-0">
-                                                                                {(['all', 1, 2, 3] as const).map(t => (
+                                                                                {isG11 ? (
+                                                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[8px] font-black bg-indigo-600 text-white">
+                                                                                        <Shield className="w-3 h-3" /> Required T1–T3
+                                                                                    </span>
+                                                                                ) : (['all', 1, 2, 3] as const).map(t => (
                                                                                     <button
                                                                                         key={t}
                                                                                         type="button"
@@ -1751,14 +2222,14 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                                                         {t === 'all' ? 'All' : `T${t}`}
                                                                                     </button>
                                                                                 ))}
-                                                                                <button
+                                                                                {!isG11 && <button
                                                                                     type="button"
                                                                                     onClick={() => toggleTaughtSubject(subjName)}
                                                                                     className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
                                                                                     title="Remove from curriculum"
                                                                                 >
                                                                                     <X className="w-3.5 h-3.5" />
-                                                                                </button>
+                                                                                </button>}
                                                                             </div>
                                                                         </div>
                                                                     );
@@ -1785,20 +2256,24 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                                             {title}
                                                                         </span>
                                                                         <span className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400">
-                                                                            ({list.length} {list.length === 1 ? 'subject' : 'subjects'})
+                                                                            {isG11 ? `(${list.length} elective offering${list.length === 1 ? '' : 's'})` : `(${list.length} ${list.length === 1 ? 'subject' : 'subjects'})`}
                                                                         </span>
                                                                     </div>
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => {
-                                                                            setCustomSubjTerm(termNum);
-                                                                            setShowAddCustomModal(true);
+                                                                            if (isG11) {
+                                                                                setCurriculumViewMode('catalog');
+                                                                            } else {
+                                                                                setCustomSubjTerm(termNum);
+                                                                                setShowAddCustomModal(true);
+                                                                            }
                                                                         }}
                                                                         className="p-1 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100/50 dark:hover:bg-white/10 text-[9px] font-bold flex items-center gap-1 cursor-pointer"
-                                                                        title={`Add subject to ${title}`}
+                                                                        title={isG11 ? `Add an elective offering for ${title}` : `Add subject to ${title}`}
                                                                     >
                                                                         <Plus className="w-3 h-3" />
-                                                                        <span className="text-[8px] uppercase">Add</span>
+                                                                        <span className="text-[8px] uppercase">{isG11 ? 'Choose' : 'Add'}</span>
                                                                     </button>
                                                                 </div>
 
@@ -1806,16 +2281,20 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                                 <div className="space-y-2 flex-1">
                                                                     {list.length === 0 ? (
                                                                         <div className="flex flex-col items-center justify-center h-24 text-center border-2 border-dashed border-slate-200 dark:border-white/10 rounded-xl p-2">
-                                                                            <span className="text-[9px] font-bold text-slate-400">No electives for {title}</span>
+                                                                            <span className="text-[9px] font-bold text-slate-400">{isG11 ? `Add elective offerings for ${title}` : `No electives for ${title}`}</span>
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => {
-                                                                                    setCustomSubjTerm(termNum);
-                                                                                    setShowAddCustomModal(true);
+                                                                                    if (isG11) {
+                                                                                        setCurriculumViewMode('catalog');
+                                                                                    } else {
+                                                                                        setCustomSubjTerm(termNum);
+                                                                                        setShowAddCustomModal(true);
+                                                                                    }
                                                                                 }}
                                                                                 className="text-[8.5px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline mt-1 cursor-pointer"
                                                                             >
-                                                                                + Add Course
+                                                                                {isG11 ? 'Choose from Catalog' : '+ Add Course'}
                                                                             </button>
                                                                         </div>
                                                                     ) : (
@@ -1832,7 +2311,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                                                                 {subjName}
                                                                                             </span>
                                                                                             <span className="text-[7.5px] font-bold text-slate-400 dark:text-slate-500 mt-0.5 block">
-                                                                                                WW {weights.written_weight}% · PT {weights.performance_weight}% · QA {weights.exam_weight}%
+                                                                                                {isG11 ? `Candidate for Term ${termNum}` : `WW ${weights.written_weight}% · PT ${weights.performance_weight}% · QA ${weights.exam_weight}%`}
                                                                                             </span>
                                                                                         </div>
                                                                                         <button
@@ -1845,15 +2324,25 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                                                         </button>
                                                                                     </div>
 
+                                                                                    {isG11 && list.length > 1 && (
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => setGrade11ElectiveForTerm(subjName, termNum)}
+                                                                                            className="w-full rounded-lg bg-amber-500 hover:bg-amber-400 text-white py-1.5 text-[8px] font-black uppercase tracking-wider cursor-pointer"
+                                                                                        >
+                                                                                            Keep this as Term {termNum} elective
+                                                                                        </button>
+                                                                                    )}
+
                                                                                     {/* Term Switcher Pills */}
-                                                                                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-white/5">
+                                                                                    {!isG11 && <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-white/5">
                                                                                         <span className="text-[7.5px] font-black uppercase tracking-wider text-slate-400">Term:</span>
                                                                                         <div className="flex items-center gap-1">
-                                                                                            {(['all', 1, 2, 3] as const).map(t => (
+                                                                                            {(isG11 ? [1, 2, 3] : ['all', 1, 2, 3] as const).map(t => (
                                                                                                 <button
                                                                                                     key={t}
                                                                                                     type="button"
-                                                                                                    onClick={() => handleSetSubjectTerm(subjName, t)}
+                                                                                                    onClick={() => handleSetSubjectTerm(subjName, t as 1 | 2 | 3 | 'all')}
                                                                                                     className={`px-1.5 py-0.5 rounded text-[7.5px] font-black transition-all cursor-pointer ${
                                                                                                         termNum === t
                                                                                                             ? 'bg-indigo-600 text-white shadow-xs'
@@ -1865,7 +2354,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                                                                 </button>
                                                                                             ))}
                                                                                         </div>
-                                                                                    </div>
+                                                                                    </div>}
                                                                                 </div>
                                                                             );
                                                                         })
@@ -1882,6 +2371,11 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                     {/* 4. Catalog Checklist View */}
                                     {curriculumViewMode === 'catalog' && (
                                         <div>
+                                            {isG11 && (
+                                                <div className="mb-3 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/70 dark:border-white/10 text-[9.5px] text-slate-600 dark:text-slate-300">
+                                                    <span className="font-black text-indigo-700 dark:text-indigo-300">Set up offerings first:</span> select a term button for every elective this section will run. Core Subjects cannot be changed; use Manage Learners in E-Class so each learner belongs to one elective in that term.
+                                                </div>
+                                            )}
                                             {/* Search filter & Quick Actions Toolbar */}
                                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 mb-3">
                                                 <div className="relative flex-1">
@@ -1899,6 +2393,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                     <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 px-2 py-1 bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200/50 dark:border-white/5">
                                                         {availableSubjects.length} relevant subject{availableSubjects.length === 1 ? '' : 's'}
                                                     </span>
+                                                    {!isG11 && (
                                                     <button
                                                         type="button"
                                                         onClick={selectAllAvailableSubjects}
@@ -1908,6 +2403,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                         <CheckSquare className="w-3 h-3" />
                                                         Select All
                                                     </button>
+                                                    )}
                                                     <button
                                                         type="button"
                                                         onClick={clearAllTaughtSubjects}
@@ -1916,7 +2412,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                         title="Uncheck all subjects"
                                                     >
                                                         <Trash2 className="w-3 h-3" />
-                                                        Clear All
+                                                        {isG11 ? 'Clear Electives' : 'Clear All'}
                                                     </button>
                                                 </div>
                                             </div>
@@ -1942,7 +2438,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                                             {list.length}
                                                                         </span>
                                                                     </div>
-                                                                    <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider select-none shrink-0 pl-4">
+                                                                    {!isG11 && <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider select-none shrink-0 pl-4">
                                                                         <button 
                                                                             type="button"
                                                                             onClick={() => selectAllInAdvisoryCategory(list)}
@@ -1958,7 +2454,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                                         >
                                                                             Clear All
                                                                         </button>
-                                                                    </div>
+                                                                    </div>}
                                                                 </div>
                                                             )}
 
@@ -1983,6 +2479,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                                                     const gradeNum = parseInt((formData.section_grade_level || 'Grade 12').replace(/\D/g, '')) || 12;
                                                                                     const defaultTerm = getDefaultTermForSubject(subj.name, gradeNum);
                                                                                     const effTerm = subjectTerms[subj.name] ?? (defaultTerm === 'none' ? 1 : (defaultTerm || 1));
+                                                                                    const isGrade11Core = isG11 && isGrade11CoreName(subj.name);
 
                                                                                     return (
                                                                                         <div
@@ -1999,14 +2496,33 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                                                                 </span>
                                                                                             </div>
 
+                                                                                            {/* Grade 11 cores are locked across all three terms. */}
+                                                                                            {isG11 && isGrade11Core && (
+                                                                                                <span className="text-[7.5px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-300 shrink-0">Required T1–T3</span>
+                                                                                            )}
+                                                                                            {isG11 && !isSelected && !isGrade11Core && (
+                                                                                                <div className="flex items-center gap-1 shrink-0" onClick={event => event.stopPropagation()}>
+                                                                                                    {([1, 2, 3] as const).map(term => (
+                                                                                                        <button
+                                                                                                            key={term}
+                                                                                                            type="button"
+                                                                                                            onClick={() => setGrade11ElectiveForTerm(subj.name, term)}
+                                                                                                            className="px-1.5 py-0.5 rounded text-[8px] font-black bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white transition-colors cursor-pointer"
+                                                                                                            title={`Set as the Term ${term} elective`}
+                                                                                                        >
+                                                                                                            T{term}
+                                                                                                        </button>
+                                                                                                    ))}
+                                                                                                </div>
+                                                                                            )}
                                                                                             {/* Inline offering term selector for SHS subjects */}
-                                                                                            {isSHS && isSelected && (
+                                                                                            {isSHS && isSelected && !isGrade11Core && (
                                                                                                 <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                                                                                                    {(['all', 1, 2, 3] as const).map(t => (
+                                                                                                    {(isG11 ? [1, 2, 3] : ['all', 1, 2, 3] as const).map(t => (
                                                                                                         <button
                                                                                                             key={t}
                                                                                                             type="button"
-                                                                                                            onClick={() => handleSetSubjectTerm(subj.name, t)}
+                                                                                                            onClick={() => handleSetSubjectTerm(subj.name, t as 1 | 2 | 3 | 'all')}
                                                                                                             className={`px-1.5 py-0.5 rounded text-[8px] font-black transition-all cursor-pointer ${
                                                                                                                 effTerm === t
                                                                                                                     ? 'bg-indigo-600 text-white shadow-xs'
@@ -2048,7 +2564,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                             )}
 
                             {/* TEACHING LOAD PANEL */}
-                            {formData.is_teaching_load && (
+                            {formData.is_teaching_load && activeSetupPanel === 'teaching' && (
                                 <motion.div 
                                     initial={{ opacity: 0, height: 'auto' }}
                                     animate={{ opacity: 1, height: 'auto' }}
@@ -2057,10 +2573,10 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 ml-1">
                                         <div>
                                             <label className="block text-[9px] font-black text-amber-500 dark:text-amber-400 uppercase tracking-widest">
-                                                My Teaching Load in this Section ({formData.teaching_subjects?.length || 0})
+                                                My E-Class Record subjects ({formData.teaching_subjects?.length || 0})
                                             </label>
                                             <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500">
-                                                Select subjects you personally teach (powers E-Class Record and LIR)
+                                                Choose only subjects you personally teach. This does not change SF9, SF10, or grade slips.
                                             </span>
                                         </div>
                                         {formData.is_advisory && activeTaughtList.length > 0 && (
@@ -2208,6 +2724,83 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                 </motion.div>
                             )}
 
+                            {activeSetupPanel === 'review' && (formData.is_advisory || formData.is_teaching_load) && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 8 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="mt-6 border-t border-slate-100 dark:border-white/10 pt-6"
+                                >
+                                    <div className="flex items-start gap-3 mb-4">
+                                        <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-300 mt-0.5" />
+                                        <div>
+                                            <h4 className="text-xs font-black text-slate-900 dark:text-white">Review this section</h4>
+                                            <p className="text-[9.5px] text-slate-500 dark:text-slate-400 mt-0.5">Confirm what powers official school forms and what only opens your personal E-Class Record.</p>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {formData.is_advisory && (
+                                            <div className="rounded-2xl p-4 border border-indigo-200/70 dark:border-indigo-800/50 bg-indigo-50/50 dark:bg-indigo-950/20">
+                                                <p className="text-[9px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300">Official advisory setup</p>
+                                                <p className="text-xs font-black text-slate-900 dark:text-white mt-1">{activeTaughtList.length} official subject{activeTaughtList.length === 1 ? '' : 's'}</p>
+                                                <p className="text-[8.5px] text-slate-500 dark:text-slate-400 mt-1">Used by SF9, SF10, consolidated grades, and grade slips.</p>
+                                                <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">
+                                                    <button type="button" onClick={() => setActiveSetupPanel('curriculum')} className="text-[8.5px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-300 hover:underline cursor-pointer">Edit official curriculum</button>
+                                                    {section?.id && <button type="button" onClick={() => void handleRepairSectionOfferings()} disabled={isLoading} className="text-[8.5px] font-black uppercase tracking-wider text-violet-700 dark:text-violet-300 hover:underline cursor-pointer disabled:opacity-50">Repair subject offerings</button>}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {formData.is_teaching_load && (
+                                            <div className="rounded-2xl p-4 border border-amber-200/70 dark:border-amber-800/50 bg-amber-50/50 dark:bg-amber-950/20">
+                                                <p className="text-[9px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300">My teaching assignment</p>
+                                                <p className="text-xs font-black text-slate-900 dark:text-white mt-1">{formData.teaching_subjects?.length || 0} E-Class subject{(formData.teaching_subjects?.length || 0) === 1 ? '' : 's'}</p>
+                                                <p className="text-[8.5px] text-slate-500 dark:text-slate-400 mt-1">Used only by your E-Class Record and LIR; it does not alter school forms.</p>
+                                                <button type="button" onClick={() => setActiveSetupPanel('teaching')} className="mt-3 text-[8.5px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-300 hover:underline cursor-pointer">Edit my E-Class subjects</button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {isG11 && (
+                                        <div className="mt-4 rounded-2xl p-4 border border-violet-200/80 dark:border-violet-800/50 bg-violet-50/50 dark:bg-violet-950/20">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <p className="text-[9px] font-black uppercase tracking-wider text-violet-700 dark:text-violet-300">Grade 11 elective enrollment check</p>
+                                                    <p className="text-[8.5px] text-slate-500 dark:text-slate-400 mt-1">A section may offer several electives. Each learner must belong to exactly one offered elective in each term.</p>
+                                                </div>
+                                                {formData.is_teaching_load && (
+                                                    <button type="button" onClick={() => setActiveSetupPanel('teaching')} className="shrink-0 text-[8.5px] font-black uppercase tracking-wider text-violet-700 dark:text-violet-300 hover:underline cursor-pointer">Open E-Class setup</button>
+                                                )}
+                                            </div>
+
+                                            {!grade11EnrollmentAudit ? (
+                                                <p className="mt-3 text-[9px] font-bold text-slate-500 dark:text-slate-400">Save this new section first. FormEase will create its section-owned offerings, then this check can review learner choices.</p>
+                                            ) : (
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
+                                                    {grade11EnrollmentAudit.map(({ term, offeredSubjects, missingLearnerLrns, conflictingLearnerLrns }) => {
+                                                        const hasIssues = missingLearnerLrns.length > 0 || conflictingLearnerLrns.length > 0;
+                                                        return (
+                                                            <div key={term} className={`rounded-xl border p-3 ${hasIssues ? 'bg-amber-50/80 dark:bg-amber-950/25 border-amber-200 dark:border-amber-800/50' : 'bg-white/80 dark:bg-white/5 border-emerald-200 dark:border-emerald-800/50'}`}>
+                                                                <p className="text-[8px] font-black uppercase tracking-wider text-slate-500">Term {term}</p>
+                                                                {offeredSubjects.length === 0 ? (
+                                                                    <p className="mt-1 text-[9px] font-bold text-slate-500 dark:text-slate-400">No elective offering set</p>
+                                                                ) : hasIssues ? (
+                                                                    <div className="mt-1.5 space-y-1 text-[8.5px] font-bold text-amber-800 dark:text-amber-200">
+                                                                        {missingLearnerLrns.length > 0 && <p>{missingLearnerLrns.length} learner{missingLearnerLrns.length === 1 ? '' : 's'} need a choice</p>}
+                                                                        {conflictingLearnerLrns.length > 0 && <p>{conflictingLearnerLrns.length} learner{conflictingLearnerLrns.length === 1 ? '' : 's'} have multiple choices</p>}
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="mt-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300">All learners assigned once</p>
+                                                                )}
+                                                                <p className="mt-1.5 text-[8px] text-slate-400 truncate" title={offeredSubjects.map(subject => subject.subject_name).join(', ')}>{offeredSubjects.map(subject => subject.subject_name).join(', ') || 'Add an offering in Curriculum'}</p>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </motion.div>
+                            )}
+
                             {/* NEITHER ROLE SELECTED PROMPT */}
                             {!formData.is_advisory && !formData.is_teaching_load && (
                                 <div className="mt-6 border-t border-slate-100 dark:border-white/10 pt-6">
@@ -2220,8 +2813,8 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                             )}
                         </div>
 
-                        {/* Adviser / Teacher (LOCKED) */}
-                        <div className="col-span-2">
+                        {/* Adviser / Teacher (shown while reviewing, not repeated in every setup panel) */}
+                        {(activeSetupPanel === 'details' || activeSetupPanel === 'review') && <div className="col-span-2">
                             <label className="text-[9px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest mb-2.5 ml-1 flex items-center gap-2">
                                 {formData.is_advisory ? 'Adviser Name' : 'Subject Teacher Name'} (LOCKED)
                                 <Shield className="w-3 h-3 text-blue-500 dark:text-blue-400" />
@@ -2236,16 +2829,16 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                     <Shield className="w-4 h-4 text-slate-300 dark:text-slate-500" />
                                 </div>
                             </div>
-                        </div>
+                        </div>}
                     </div>
 
-                    {/* Info Alert */}
-                    <div className="flex gap-4 p-4 bg-blue-50/50 dark:bg-blue-950/40 rounded-2.5xl border border-blue-100/50 dark:border-blue-800/40">
+                    {/* Role reminder */}
+                    {activeSetupPanel === 'review' && <div className="flex gap-4 p-4 bg-blue-50/50 dark:bg-blue-950/40 rounded-2.5xl border border-blue-100/50 dark:border-blue-800/40">
                         <AlertCircle className="w-4 h-4 text-blue-500 dark:text-blue-400 shrink-0 mt-0.5" />
                         <p className="text-[9px] font-black text-blue-700 dark:text-blue-300 leading-relaxed uppercase tracking-tighter">
                             Advisory classes will appear in official SF forms, while teaching roles are for Grade management and E-Class Record.
                         </p>
-                    </div>
+                    </div>}
 
                     {/* Submit */}
                     <div className="flex gap-4 pt-2">

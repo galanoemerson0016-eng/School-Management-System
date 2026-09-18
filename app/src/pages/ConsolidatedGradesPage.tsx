@@ -1,14 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo, Fragment, useEffect, useCallback, memo, useRef } from 'react';
-import { useAppStore, useAuthStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
+import { useAuthStore } from '../stores/auth-store';
 import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus, Download, Bug, AlertTriangle, CheckCircle2, Lock, Unlock, ChevronLeft, ChevronRight, RefreshCw, X, Search, RotateCcw, Sparkles, Crosshair } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
 import { getSubjectsForGrade, normalizeSubjectName, sortSubjects, getCanonicalSubjectKey, getSubjectCategory, getStandardSubjectPriority } from '../lib/subjectConfig';
 import { getDefaultTermForSubject, getShsSubjectUnitInfo, getCurriculumTemplatesForSection, SPECIAL_SUBJECTS, isGrade11CoreSubject, resolveSubjectOfferedTerms } from '../lib/curriculum';
-import { resolveStudentQuarterGrade, isMatchingSubject, isSameSubject, normalizeGrade12PESubjectName, cleanSubjectQuery, isQuarterMatch, isSubjectInTeachingLoad, extractSubjectSequence } from '../utils/grading-helpers';
+import { resolveStudentQuarterGrade, isMatchingSubject, isSameSubject, normalizeGrade12PESubjectName, cleanSubjectQuery, isQuarterMatch, isSubjectInTeachingLoad, extractSubjectSequence, isStudentInSection, isMaleStudent, isFemaleStudent } from '../utils/grading-helpers';
 import { autoRepairSectionCurriculum } from '../services/curriculumSync';
+import { getCurriculumPreset } from '../lib/curriculumPresets';
 import type { Subject, ClassRecord, Section } from '../types';
 import { useTableCrosshair } from '../hooks/useTableCrosshair';
 
@@ -987,17 +989,20 @@ export function ConsolidatedGradesPage() {
                             const maComps = (subject._mapehGroups.musicArts || []).filter(comp => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
                             const peComps = (subject._mapehGroups.peHealth || []).filter(comp => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
                             for (const comp of [...maComps, ...peComps]) {
-                                const compGrade = resolveStudentQuarterGrade(
-                                    student.lrn,
-                                    comp.subject_name || comp.id,
+                                const compGrade = resolveStudentQuarterGrade({
+                                    studentLrn: student.lrn,
+                                    subjectId: comp.id,
+                                    subjectName: comp.subject_name,
+                                    sectionId: sectionObj.id,
                                     quarter,
-                                    activeSchoolYear,
+                                    schoolYear: activeSchoolYear,
                                     classRecords,
-                                    [],
+                                    gradingSheetRecords: [],
                                     hpsRecords,
                                     sectionGradeLevel,
-                                    sectionTrack
-                                );
+                                    sectionTrack,
+                                    subjectObj: comp
+                                });
                                 if (compGrade > 0) {
                                     recordsToSync.push({
                                         id: `${student.lrn}_${comp.id}_${quarter}_${activeSchoolYear}`,
@@ -1022,17 +1027,20 @@ export function ConsolidatedGradesPage() {
                             const ecComps = (ecmkGroups?.effectiveComm || []).filter((comp: any) => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
                             const mkComps = (ecmkGroups?.mabisangKom || []).filter((comp: any) => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
                             for (const comp of [...ecComps, ...mkComps]) {
-                                const compGrade = resolveStudentQuarterGrade(
-                                    student.lrn,
-                                    comp.subject_name || comp.id,
+                                const compGrade = resolveStudentQuarterGrade({
+                                    studentLrn: student.lrn,
+                                    subjectId: comp.id,
+                                    subjectName: comp.subject_name,
+                                    sectionId: sectionObj.id,
                                     quarter,
-                                    activeSchoolYear,
+                                    schoolYear: activeSchoolYear,
                                     classRecords,
-                                    [],
+                                    gradingSheetRecords: [],
                                     hpsRecords,
                                     sectionGradeLevel,
-                                    sectionTrack
-                                );
+                                    sectionTrack,
+                                    subjectObj: comp
+                                });
                                 if (compGrade > 0) {
                                     recordsToSync.push({
                                         id: `${student.lrn}_${comp.id}_${quarter}_${activeSchoolYear}`,
@@ -1053,17 +1061,20 @@ export function ConsolidatedGradesPage() {
                             const oldParent = findExistingGradingRecord(student.lrn, subject.id, subject.subject_name, quarter);
                             if (oldParent?.id) recordsToDelete.push(oldParent.id);
                         } else {
-                            const finalGrade = resolveStudentQuarterGrade(
-                                student.lrn,
-                                subject.subject_name || subject.id,
+                            const finalGrade = resolveStudentQuarterGrade({
+                                studentLrn: student.lrn,
+                                subjectId: subject.id,
+                                subjectName: subject.subject_name,
+                                sectionId: sectionObj.id,
                                 quarter,
-                                activeSchoolYear,
+                                schoolYear: activeSchoolYear,
                                 classRecords,
-                                [],
+                                gradingSheetRecords: [],
                                 hpsRecords,
                                 sectionGradeLevel,
-                                sectionTrack
-                            );
+                                sectionTrack,
+                                subjectObj: subject
+                            });
 
                         if (finalGrade > 0) {
                             recordsToSync.push({
@@ -1347,6 +1358,20 @@ const groupedSections = useMemo(() => {
 
     const [isAutoRepairing, setIsAutoRepairing] = useState(false);
 
+    // Silent auto-repair for advisory classes with empty taught_subjects (e.g. Regular MATATAG)
+    useEffect(() => {
+        if (
+            sectionObj &&
+            sectionObj.is_advisory &&
+            (!sectionObj.program || sectionObj.program === 'Regular') &&
+            (!sectionObj.taught_subjects || sectionObj.taught_subjects.length === 0)
+        ) {
+            const { addSubject, updateSubject, updateSection } = useAppStore.getState();
+            autoRepairSectionCurriculum(sectionObj, subjects, { addSubject, updateSubject, updateSection })
+                .catch(err => console.warn('Silent auto-repair of advisory curriculum:', err));
+        }
+    }, [sectionObj, subjects]);
+
     const handleAutoRepairSection = async () => {
         if (!sectionObj) return;
         setIsAutoRepairing(true);
@@ -1473,7 +1498,15 @@ const groupedSections = useMemo(() => {
         };
 
         const sectionTrack = (sectionObj.track || '').toLowerCase();
-        const taughtRaw = (sectionObj.taught_subjects || []).filter(t => !isSubjectHidden(t));
+        let taughtRaw = (sectionObj.taught_subjects || []).filter(t => !isSubjectHidden(t));
+        if (taughtRaw.length === 0 && sectionObj.is_advisory && (!sectionObj.program || sectionObj.program === 'Regular')) {
+            const preset = getCurriculumPreset(sectionObj.section_grade_level, sectionObj.track, sectionObj.strand || sectionObj.cluster, 'Regular');
+            if (preset && preset.subjects.length > 0) {
+                taughtRaw = isSHS && sectionGradeNum === 11
+                    ? preset.subjects.filter(s => isGrade11CoreSubject(s.name)).map(s => s.name)
+                    : preset.subjects.map(s => s.name);
+            }
+        }
 
         let candidates = subjects.filter(s => {
             // Never include standalone 'Specialization' subject (not part of official curriculum)
@@ -1604,6 +1637,22 @@ const groupedSections = useMemo(() => {
         }
         // For JHS (Grades 7–10) & Elementary (Grades 1–6):
         if (!isSHS) {
+            if (taughtRaw.length > 0) {
+                for (const tName of taughtRaw) {
+                    if (isSubjectHidden(tName)) continue;
+                    const alreadyHas = candidates.some(s => isMatchingSubject(tName, s.id, s.subject_name));
+                    if (!alreadyHas) {
+                        candidates.push({
+                            id: `virtual_${tName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${sectionObj.id}`,
+                            subject_name: tName,
+                            subject_code: '',
+                            grade_level: sectionObj.section_grade_level,
+                            section_id: sectionObj.id,
+                            term: getEffectiveTerm({ subject_name: tName, grade_level: sectionObj.section_grade_level })
+                        });
+                    }
+                }
+            }
             const isSubjectAllowedInTaught = (subId: string, subName: string) => {
                 if (isSubjectHidden(subName, subId)) return false;
                 return taughtRaw.some(t => {
@@ -2077,9 +2126,9 @@ const groupedSections = useMemo(() => {
 
     // SECTION STUDENTS
     const sectionStudents = useMemo(() => {
-        if (!selectedSection) return [];
-        return students.filter(s => s.student_section === selectedSection || (sectionObj?.id && s.student_section === sectionObj.id));
-    }, [students, selectedSection, sectionObj?.id]);
+        if (!selectedSection && !sectionObj) return [];
+        return students.filter(s => isStudentInSection(s, sectionObj, selectedSection));
+    }, [students, selectedSection, sectionObj]);
 
     const isElementary = useMemo(() => {
         if (!sectionObj) return false;
@@ -2373,8 +2422,8 @@ const groupedSections = useMemo(() => {
         };
     }, [resizingCol, sectionObj, selectedTerm]);
 
-    const maleStudents = useMemo(() => sectionStudents.filter(s => s.gender === 'Male').sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`)), [sectionStudents]);
-    const femaleStudents = useMemo(() => sectionStudents.filter(s => s.gender === 'Female').sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`)), [sectionStudents]);
+    const maleStudents = useMemo(() => sectionStudents.filter(s => isMaleStudent(s) || !isFemaleStudent(s)).sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`)), [sectionStudents]);
+    const femaleStudents = useMemo(() => sectionStudents.filter(s => isFemaleStudent(s)).sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`)), [sectionStudents]);
 
     // PERFORMANCE OPTIMIZATION: Index records by student LRN once
     const recordsByLrn = useMemo(() => {
@@ -2807,17 +2856,20 @@ const groupedSections = useMemo(() => {
                         const maComps = (targetSubject._mapehGroups.musicArts || []).filter(comp => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
                         const peComps = (targetSubject._mapehGroups.peHealth || []).filter(comp => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
                         for (const comp of [...maComps, ...peComps]) {
-                            const compGrade = resolveStudentQuarterGrade(
-                                student.lrn,
-                                comp.id,
+                            const compGrade = resolveStudentQuarterGrade({
+                                studentLrn: student.lrn,
+                                subjectId: comp.id,
+                                subjectName: comp.subject_name,
+                                sectionId: sectionObj.id,
                                 quarter,
-                                activeSchoolYear,
+                                schoolYear: activeSchoolYear,
                                 classRecords,
-                                [],
+                                gradingSheetRecords: [],
                                 hpsRecords,
                                 sectionGradeLevel,
-                                sectionTrack
-                            );
+                                sectionTrack,
+                                subjectObj: comp
+                            });
                             if (compGrade > 0) {
                                 recordsToSync.push({
                                     id: `${student.lrn}_${comp.id}_${quarter}_${activeSchoolYear}`,
@@ -2842,17 +2894,20 @@ const groupedSections = useMemo(() => {
                         const ecComps = (ecmkGroups?.effectiveComm || []).filter((comp: any) => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
                         const mkComps = (ecmkGroups?.mabisangKom || []).filter((comp: any) => isSubjectInTeachingLoad(comp, sectionObj, classRecords));
                         for (const comp of [...ecComps, ...mkComps]) {
-                            const compGrade = resolveStudentQuarterGrade(
-                                student.lrn,
-                                comp.subject_name || comp.id,
+                            const compGrade = resolveStudentQuarterGrade({
+                                studentLrn: student.lrn,
+                                subjectId: comp.id,
+                                subjectName: comp.subject_name,
+                                sectionId: sectionObj.id,
                                 quarter,
-                                activeSchoolYear,
+                                schoolYear: activeSchoolYear,
                                 classRecords,
-                                [],
+                                gradingSheetRecords: [],
                                 hpsRecords,
                                 sectionGradeLevel,
-                                sectionTrack
-                            );
+                                sectionTrack,
+                                subjectObj: comp
+                            });
                             if (compGrade > 0) {
                                 recordsToSync.push({
                                     id: `${student.lrn}_${comp.id}_${quarter}_${activeSchoolYear}`,
@@ -2873,17 +2928,20 @@ const groupedSections = useMemo(() => {
                         const oldParent = findExistingGradingRecord(student.lrn, targetSubject.id, targetSubject.subject_name, quarter);
                         if (oldParent?.id) recordsToDelete.push(oldParent.id);
                     } else {
-                        const directGrade = resolveStudentQuarterGrade(
-                            student.lrn,
-                            targetSubject.id,
+                        const directGrade = resolveStudentQuarterGrade({
+                            studentLrn: student.lrn,
+                            subjectId: targetSubject.id,
+                            subjectName: targetSubject.subject_name,
+                            sectionId: sectionObj.id,
                             quarter,
-                            activeSchoolYear,
+                            schoolYear: activeSchoolYear,
                             classRecords,
-                            [],
+                            gradingSheetRecords: [],
                             hpsRecords,
                             sectionGradeLevel,
-                            sectionTrack
-                        );
+                            sectionTrack,
+                            subjectObj: targetSubject
+                        });
                         if (directGrade > 0) {
                             recordsToSync.push({
                                 id: `${student.lrn}_${targetSubject.id}_${quarter}_${activeSchoolYear}`,
@@ -2941,30 +2999,19 @@ const groupedSections = useMemo(() => {
             const getStudentQuarterGrade = (subjectId: string, q: number, subjectName?: string) => {
                 const cacheKey = `${student.lrn}_${subjectId}_${q}_${subjectName || ''}`;
                 if (gradeCache.has(cacheKey)) return gradeCache.get(cacheKey)!;
-                let val = resolveStudentQuarterGrade(
-                    student.lrn,
+                const val = resolveStudentQuarterGrade({
+                    studentLrn: student.lrn,
                     subjectId,
-                    q,
-                    activeSchoolYear,
-                    [], // Grade Management strictly displays records saved/synced into Grade Management (gradingSheetRecords)
-                    stRecs.gradingRecs,
+                    subjectName,
+                    sectionId: sectionObj?.id,
+                    quarter: q,
+                    schoolYear: activeSchoolYear,
+                    classRecords: [], // Grade Management strictly displays records saved/synced into Grade Management (gradingSheetRecords)
+                    gradingSheetRecords: stRecs.gradingRecs,
                     hpsRecords,
-                    sectionObj?.section_grade_level,
-                    sectionObj?.track
-                );
-                if (val === 0 && subjectName && subjectName !== subjectId) {
-                    val = resolveStudentQuarterGrade(
-                        student.lrn,
-                        subjectName,
-                        q,
-                        activeSchoolYear,
-                        [],
-                        stRecs.gradingRecs,
-                        hpsRecords,
-                        sectionObj?.section_grade_level,
-                        sectionObj?.track
-                    );
-                }
+                    sectionGradeLevel: sectionObj?.section_grade_level,
+                    sectionTrack: sectionObj?.track
+                });
                 gradeCache.set(cacheKey, val);
                 return val;
             };

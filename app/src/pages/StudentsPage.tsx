@@ -10,7 +10,8 @@ import {
     type SortingState,
     type PaginationState,
 } from '@tanstack/react-table';
-import { useAppStore, useAuthStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
+import { useAuthStore } from '../stores/auth-store';
 import type { Section, Student } from '../types';
 import { StudentForm } from '../components/students/StudentForm';
 import { StudentProfilePrintModal } from '../components/students/StudentProfilePrintModal';
@@ -20,6 +21,7 @@ import { exportToCSV } from '../utils/csv-export';
 import { parseSF1 } from '../utils/sf1-parser';
 import { downloadEnrollmentTemplate, parseEnrollmentTemplate } from '../utils/enrollment-template';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
+import { isStudentInSection } from '../utils/grading-helpers';
 import { useRef } from 'react';
 
 export function StudentsPage() {
@@ -88,14 +90,6 @@ export function StudentsPage() {
         const fromProfile = (schoolProfile?.grade_level || '').trim();
         return fromSection || fromProfile || 'Grade';
     }, [schoolProfile]);
-
-
-    const getSectionAliases = useCallback((section?: Section | null) => {
-        if (!section) return [] as string[];
-        const aliases = [section.section_name, resolveSectionDisplayName(section), section.id]
-            .map((value) => (value || '').trim())
-        return Array.from(new Set(aliases));
-    }, [resolveSectionDisplayName]);
 
     const resolveAdviserName = useCallback((section?: Section | null) => {
         if (!section) return 'TBA';
@@ -368,7 +362,7 @@ export function StudentsPage() {
         if (viewMode === 'overview') return [];
         const section = officialSections.find(s => s.id === selectedSectionId);
         if (!section) return [];
-        const filtered = students.filter(s => s.student_section === section.section_name || s.student_section === section.id);
+        const filtered = students.filter(s => isStudentInSection(s, section, selectedSectionId));
         return filtered.sort((a, b) => {
             if (a.gender !== b.gender) return a.gender === 'Male' ? -1 : 1;
             return a.last_name.localeCompare(b.last_name);
@@ -628,20 +622,17 @@ export function StudentsPage() {
     };
 
     const getStudentCount = (section?: Section | null) => {
-        const aliases = getSectionAliases(section);
-        return students.filter((student) => aliases.includes((student.student_section || '').trim())).length;
+        return students.filter((student) => isStudentInSection(student, section)).length;
     };
     const getMaleCount = (section?: Section | null) => {
-        const aliases = getSectionAliases(section);
-        return students.filter((student) => aliases.includes((student.student_section || '').trim()) && student.gender === 'Male').length;
+        return students.filter((student) => isStudentInSection(student, section) && student.gender === 'Male').length;
     };
     const getFemaleCount = (section?: Section | null) => {
-        const aliases = getSectionAliases(section);
-        return students.filter((student) => aliases.includes((student.student_section || '').trim()) && student.gender === 'Female').length;
+        return students.filter((student) => isStudentInSection(student, section) && student.gender === 'Female').length;
     };
 
     const validStudents = useMemo(() => {
-        return students.filter(s => officialSections.some(sec => sec.section_name === s.student_section));
+        return students.filter(s => officialSections.some(sec => isStudentInSection(s, sec)));
     }, [students, officialSections]);
 
     const _totalStudents = validStudents.length;

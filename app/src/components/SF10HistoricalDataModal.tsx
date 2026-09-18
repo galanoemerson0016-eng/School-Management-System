@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { X, Save, History, Trash2, Info, ChevronDown, Check, RotateCcw, Sparkles } from 'lucide-react';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import { useSF10Store } from '../stores/sf10-store';
 import type { SF10Version } from '../stores/sf10-store';
 import type { Student, SchoolProfile } from '../types';

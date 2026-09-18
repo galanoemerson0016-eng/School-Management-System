@@ -28,6 +28,17 @@ export default defineConfig([
           caughtErrorsIgnorePattern: '^_',
         },
       ],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '(^|/)stores$',
+              message: 'Import the specific store module directly to avoid circular chunks.',
+            },
+          ],
+        },
+      ],
     },
   },
 ])

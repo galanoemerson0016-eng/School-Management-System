@@ -14,12 +14,13 @@ import JSZip from 'jszip';
 import type { SchoolProfile, Section, Subject, Student, ClassRecord, HPSRecord } from '../types';
 import { normalizeRegionForECR } from './ecr-excel-export';
 import { transmuteGrade } from '../lib/grading';
-import { isGrade11CoreSubject, getDefaultTermForSubject } from '../lib/curriculum';
+import { isGrade11CoreSubject, getDefaultTermForSubject, normalizeOfferedTerms } from '../lib/curriculum';
 import { isSameSubject, isMatchingSubject } from '../utils/grading-helpers';
+import { isZipTemplate, readNodeTemplateFallback } from '../utils/node-template-fallback';
 
 export const TEMPLATE_SSHS_G11 = 'SSHS E-Class Record SY 2026-2027.xlsx';
 
-const MAX_STUDENTS_PER_GENDER = 50;
+export const MAX_STUDENTS_PER_GENDER = 50;
 const SSHS_WW_COUNT = 10;
 const SSHS_PT_COUNT = 10;
 const SSHS_ST_COUNT = 3;
@@ -27,7 +28,7 @@ const SSHS_ST_COUNT = 3;
 export interface ResolvedSSHSTerms {
   numTerms: number;
   termBlock: 'FIRST TERM' | 'SECOND TERM' | 'THIRD TERM' | '';
-  termDesc: '1ST' | '2ND' | '3RD' | '1ST & 2ND' | '2ND & 3RD' | '1ST, 2ND, 3RD';
+  termDesc: '' | '1ST' | '2ND' | '3RD' | '1ST & 2ND' | '2ND & 3RD' | '1ST, 2ND, 3RD';
   code: number;
 }
 
@@ -2655,13 +2656,31 @@ export function resolveSSHSTerms(
     }
   }
 
-  // 4. Check subject.term
+  // 4. Check the subject's explicit offering. `offered_terms` preserves
+  // two-term offerings; `term` is retained for old local databases.
+  const explicitOfferedTerms = normalizeOfferedTerms(subject?.offered_terms);
+  if (explicitOfferedTerms.length === 3) return { numTerms: 3, termBlock: '', termDesc: '1ST, 2ND, 3RD', code: 33 };
+  if (explicitOfferedTerms.length === 2) {
+    if (explicitOfferedTerms.includes(2) && explicitOfferedTerms.includes(3)) {
+      return { numTerms: 2, termBlock: 'SECOND TERM', termDesc: '2ND & 3RD', code: 22 };
+    }
+    if (explicitOfferedTerms.includes(1) && explicitOfferedTerms.includes(2)) {
+      return { numTerms: 2, termBlock: 'FIRST TERM', termDesc: '1ST & 2ND', code: 21 };
+    }
+  }
+  if (explicitOfferedTerms.length === 1) {
+    if (explicitOfferedTerms[0] === 2) return { numTerms: 1, termBlock: 'SECOND TERM', termDesc: '2ND', code: 12 };
+    if (explicitOfferedTerms[0] === 3) return { numTerms: 1, termBlock: 'THIRD TERM', termDesc: '3RD', code: 13 };
+    return { numTerms: 1, termBlock: 'FIRST TERM', termDesc: '1ST', code: 11 };
+  }
+
+  // 5. Check subject.term
   if (subject?.term === 1 || String(subject?.term) === '1') return { numTerms: 1, termBlock: 'FIRST TERM', termDesc: '1ST', code: 11 };
   if (subject?.term === 2 || String(subject?.term) === '2') return { numTerms: 1, termBlock: 'SECOND TERM', termDesc: '2ND', code: 12 };
   if (subject?.term === 3 || String(subject?.term) === '3') return { numTerms: 1, termBlock: 'THIRD TERM', termDesc: '3RD', code: 13 };
   if (subject?.term === 'all') return { numTerms: 3, termBlock: '', termDesc: '1ST, 2ND, 3RD', code: 33 };
 
-  // 5. Scan active quarters in classRecords and hpsRecords
+  // 6. Scan active quarters in classRecords and hpsRecords
   const sy = schoolYear || '';
   const dummySubj: Subject = subject || ({ id: sId, subject_name: sName, grade_level: `Grade ${gradeLevel}` } as Subject);
   const activeTerms = [1, 2, 3].filter(t => {
@@ -2701,7 +2720,8 @@ export function resolveSSHSTerms(
     return { numTerms: 3, termBlock: '', termDesc: '1ST, 2ND, 3RD', code: 33 };
   }
 
-  // 6. Curriculum sequence default (e.g. Chemistry 1 = Term 1, Chemistry 2 = Term 2)
+  // 7. Grade 11 Core has already returned above. Non-Core SSHS offerings are
+  // adviser-selected; never infer their term from a subject name or catalog.
   if (sName) {
     const defTerm = getDefaultTermForSubject(sName, gradeLevel);
     if (defTerm === 1) return { numTerms: 1, termBlock: 'FIRST TERM', termDesc: '1ST', code: 11 };
@@ -2710,12 +2730,9 @@ export function resolveSSHSTerms(
     if (defTerm === 'all') return { numTerms: 3, termBlock: '', termDesc: '1ST, 2ND, 3RD', code: 33 };
   }
 
-  // 7. Catalog metadata fallback
-  const meta = resolveSSHSMetadata(dummySubj, gradeLevel);
-  if (meta.terms === 3) return { numTerms: 3, termBlock: '', termDesc: '1ST, 2ND, 3RD', code: 33 };
-  if (meta.terms === 2) return { numTerms: 2, termBlock: 'FIRST TERM', termDesc: '1ST & 2ND', code: 21 };
-
-  return { numTerms: 1, termBlock: 'FIRST TERM', termDesc: '1ST', code: 11 };
+  // An unscheduled elective must not silently be exported as a Term 1 subject.
+  // Callers can surface it for configuration instead of producing a false ECR.
+  return { numTerms: 0, termBlock: '', termDesc: '', code: 0 };
 }
 
 /**
@@ -3432,41 +3449,11 @@ export async function fetchSSHSTemplateBuffer(): Promise<Uint8Array> {
     }
   }
 
-  // Node / Electron filesystem fallback
-  if (typeof process !== 'undefined' && process.versions?.node) {
-    try {
-      const fs = await import('fs');
-      const nodePath = await import('path');
-      const possibleDirs = [
-        nodePath.resolve(process.cwd(), 'app', 'public', 'templates'),
-        nodePath.resolve(process.cwd(), 'public', 'templates'),
-        ...(typeof __dirname !== 'undefined' ? [
-          nodePath.resolve(__dirname, '../../public/templates'),
-          nodePath.resolve(__dirname, '../public/templates')
-        ] : []),
-        ...(typeof (process as unknown as { resourcesPath?: string }).resourcesPath !== 'undefined' ? [
-          nodePath.resolve((process as unknown as { resourcesPath: string }).resourcesPath, 'templates'),
-          nodePath.resolve((process as unknown as { resourcesPath: string }).resourcesPath, 'app', 'public', 'templates')
-        ] : [])
-      ];
-
-      for (const dir of possibleDirs) {
-        for (const f of [TEMPLATE_SSHS_G11, 'ECR_3Term - SSHS - SY2026-2027.xlsx']) {
-          const fullPath = nodePath.join(dir, f);
-          if (fs.existsSync(fullPath)) {
-            const buf = fs.readFileSync(fullPath);
-            if (buf.length >= 1000 && buf[0] === 0x50 && buf[1] === 0x4b) {
-              const u8 = new Uint8Array(buf.byteLength);
-              for (let i = 0; i < buf.byteLength; i++) u8[i] = buf[i];
-              return u8;
-            }
-          }
-        }
-      }
-    } catch {
-      // Ignore
-    }
-  }
+  const nodeBytes = await readNodeTemplateFallback(
+    [TEMPLATE_SSHS_G11, 'ECR_3Term - SSHS - SY2026-2027.xlsx'],
+    1000,
+  );
+  if (isZipTemplate(nodeBytes)) return nodeBytes;
 
   throw new Error(`Failed to load valid SSHS template: ${TEMPLATE_SSHS_G11}. Please ensure the template file exists in public/templates.`);
 }
@@ -3487,6 +3474,15 @@ export async function populateSSHSWorkbookZip(
     options.termBlock,
     options.numTerms
   );
+
+  if (resolvedTerms.numTerms < 1) {
+    throw new Error('Set the offered term(s) for this SSHS subject before exporting its E-Class Record.');
+  }
+  const maleCount = options.students.filter(s => String(s.gender || '').trim().toLowerCase() === 'male').length;
+  const femaleCount = options.students.filter(s => String(s.gender || '').trim().toLowerCase() === 'female').length;
+  if (maleCount > MAX_STUDENTS_PER_GENDER || femaleCount > MAX_STUDENTS_PER_GENDER) {
+    throw new Error(`This official E-Class Record supports up to ${MAX_STUDENTS_PER_GENDER} male and ${MAX_STUDENTS_PER_GENDER} female learners. The selected roster has ${maleCount} male and ${femaleCount} female learners. Split the class before exporting.`);
+  }
 
   const resolvedOptions: SSHSExportOptions = {
     ...options,

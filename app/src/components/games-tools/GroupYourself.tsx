@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useAppStore } from '../../stores';
+import { useAppStore } from '../../stores/app-store';
 import { ArrowLeft, Users, Download, Trash2, Dice5 } from 'lucide-react';
 import type { Student } from '../../types';
 

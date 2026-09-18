@@ -1,7 +1,7 @@
 import type { Student, SchoolProfile, Section, ClassRecord, Subject } from '../types';
 import { formatLearnerName } from './student-name';
-import { getShsSubjectUnitInfo, getDefaultTermForSubject } from '../lib/curriculum';
-import { isMatchingSubject, normalizeGrade12PESubjectName } from './grading-helpers';
+import { getShsSubjectUnitInfo, getDefaultTermForSubject, resolveSubjectOfferedTerms } from '../lib/curriculum';
+import { isMatchingSubject, isStudentEligibleForSectionSubject, normalizeGrade12PESubjectName } from './grading-helpers';
 
 interface ShsSf9MapperParams {
   student: Student;
@@ -34,9 +34,18 @@ export function mapStudentToShsSf9Data({
   const taughtRaw = sectionObj.taught_subjects || [];
 
   // Filter subjects taught in this Grade 11 or 12 section
-  let candidateSubjects = subjects.filter(
-    s => (s.section_id === sectionObj.id || (!s.section_id && parseInt(s.grade_level.replace(/\D/g, '')) === gradeLevelNum)) && s.term !== 'none'
-  );
+  let candidateSubjects = subjects.filter(s => {
+    if (!isStudentEligibleForSectionSubject(student.lrn, sectionObj, s, subjects)) return false;
+    if (s.term === 'none') return false;
+    if (s.section_id === sectionObj.id) return true;
+    if (s.section_id || parseInt(s.grade_level.replace(/\D/g, '')) !== gradeLevelNum) return false;
+    // A library definition is only a fallback.  Never let it stand in for a
+    // section-owned offering whose learner roster is intentionally invalid.
+    return !subjects.some(direct =>
+      direct.section_id === sectionObj.id &&
+      isMatchingSubject(s.subject_name, direct.id, direct.subject_name)
+    );
+  });
 
   // Prioritize direct section subjects over generic ones
   candidateSubjects.sort((a, b) => {
@@ -51,7 +60,14 @@ export function mapStudentToShsSf9Data({
     // If taught_subjects are explicitly defined on sectionObj, ensure every taught subject is present
     for (const tName of taughtRaw) {
       const alreadyHas = candidateSubjects.some(s => isMatchingSubject(tName, s.id, s.subject_name));
-      if (!alreadyHas) {
+      // A configured elective can be absent because this particular learner is
+      // not enrolled. Do not recreate it as an all-learner virtual subject.
+      const configuredForSection = subjects.some(s =>
+        (s.section_id === sectionObj.id || !s.section_id) &&
+        parseInt(s.grade_level.replace(/\D/g, '')) === gradeLevelNum &&
+        isMatchingSubject(tName, s.id, s.subject_name)
+      );
+      if (!alreadyHas && !configuredForSection) {
         const resolvedTerm = subjectTermsMeta?.[tName] || getDefaultTermForSubject(tName, sectionObj.section_grade_level);
         candidateSubjects.push({
           id: `virtual_${tName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
@@ -181,6 +197,7 @@ export function mapStudentToShsSf9Data({
     subjectName: s.subject_name,
     subjectCode: s.subject_code || '',
     term: s.term,
+    units: s.units,
     grades: computeGradesForSubject(s.id, s.subject_name, s.term),
   }));
 
@@ -197,8 +214,13 @@ export function mapStudentToShsSf9Data({
     if (isExcluded) return;
 
     const unitInfo = getShsSubjectUnitInfo(sg.subjectName, sectionObj.section_grade_level);
-    const termUnits = unitInfo.unitsPerTerm;
-    const yearUnits = unitInfo.yearUnits;
+    const explicitUnits = Number(sg.units);
+    const termUnits = Number.isFinite(explicitUnits) && explicitUnits > 0 ? explicitUnits : unitInfo.unitsPerTerm;
+    const offeredTermCount = resolveSubjectOfferedTerms(
+      { subject_name: sg.subjectName, term: sg.term },
+      sectionObj
+    ).length;
+    const yearUnits = termUnits * Math.max(1, offeredTermCount);
 
     if (sg.grades.t1 > 0) {
       genT1Total += sg.grades.t1 * termUnits;

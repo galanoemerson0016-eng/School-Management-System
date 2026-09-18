@@ -19,6 +19,7 @@
 
 import JSZip from 'jszip';
 import ExcelJS from 'exceljs';
+import { isZipTemplate, readNodeTemplateFallback } from '../utils/node-template-fallback';
 import { getMasterExcelBackupBuffer } from './master-excel-backup';
 import { generateConsolidatedExcelBuffer, generateConsolidatedPDFBuffer, generateGradingTemplateBuffer } from './consolidated-export-service';
 import { generateECRPDFBuffer } from './ecr-pdf-export-service';
@@ -318,39 +319,8 @@ async function loadOfficialTemplateBinary(filename: string): Promise<Uint8Array 
     }
   }
 
-  // Node / Electron filesystem reading
-  if (typeof process !== 'undefined' && process.versions?.node) {
-    try {
-      const fs = await import('fs');
-      const nodePath = await import('path');
-      const possibleDirs = [
-        nodePath.resolve(process.cwd(), 'app', 'public', 'templates'),
-        nodePath.resolve(process.cwd(), 'public', 'templates'),
-        ...(typeof __dirname !== 'undefined' ? [
-          nodePath.resolve(__dirname, '../../public/templates'),
-          nodePath.resolve(__dirname, '../public/templates')
-        ] : []),
-        ...(typeof (process as unknown as { resourcesPath?: string }).resourcesPath !== 'undefined' ? [
-          nodePath.resolve((process as unknown as { resourcesPath: string }).resourcesPath, 'templates'),
-          nodePath.resolve((process as unknown as { resourcesPath: string }).resourcesPath, 'app', 'public', 'templates')
-        ] : [])
-      ];
-
-      for (const dir of possibleDirs) {
-        const fullPath = nodePath.join(dir, cleanFilename);
-        if (fs.existsSync(fullPath)) {
-          const buf = fs.readFileSync(fullPath);
-          if (buf.length >= 1000 && buf[0] === 0x50 && buf[1] === 0x4b) {
-            const u8 = new Uint8Array(buf.byteLength);
-            for (let i = 0; i < buf.byteLength; i++) u8[i] = buf[i];
-            return u8;
-          }
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }
+  const nodeBytes = await readNodeTemplateFallback([cleanFilename], 1000);
+  if (isZipTemplate(nodeBytes)) return nodeBytes;
 
   return null;
 }

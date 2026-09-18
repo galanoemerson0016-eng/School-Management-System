@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useAppStore } from '../../stores';
+import { useAppStore } from '../../stores/app-store';
 import { ArrowLeft, Ticket, Plus, Trash2, Trophy, Volume2, VolumeX, Sparkles } from 'lucide-react';
 import type { Student } from '../../types';
 

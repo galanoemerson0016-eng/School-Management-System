@@ -1,5 +1,6 @@
 import { useEffect, useState, lazy, Suspense } from 'react';
-import { useAuthStore, useAppStore, initializeAppStore, initializeAuthStore } from './stores';
+import { useAuthStore, initializeAuthStore } from './stores/auth-store';
+import { useAppStore, initializeAppStore } from './stores/app-store';
 import { getMachineId } from './utils/machine-id';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { Sidebar, Header } from './components/layout';
@@ -17,7 +18,7 @@ import { ClosingSyncOverlay } from './components/modals/ClosingSyncOverlay';
 import { GradeSyncInspectorModal } from './components/modals/GradeSyncInspectorModal';
 import { useUpdateStore } from './stores/update-store';
 import { BroadcastBannerModal } from './components/broadcasts/BroadcastBannerModal';
-import { pushAttendanceSessionToBackend, subscribeToAttendanceUpdates } from './services/mobile-attendance-sync';
+import { pushAttendanceSessionToBackend, revokeAttendancePairing, subscribeToAttendanceUpdates } from './services/mobile-attendance-sync';
 import { triggerParentAttendanceSms } from './services/sms-gateway';
 import { formatLearnerName } from './utils/student-name';
 
@@ -124,7 +125,14 @@ function LoadingSplash() {
 //                fall back to the old profile-based gate
 type LicenseVerdict = 'pending' | 'licensed' | 'unlicensed' | 'legacy';
 
+// Vite replaces this at build time. Development is a local authoring
+// environment, not a distributable copy of FormEase, so a hot reload must not
+// run production license reconciliation or interrupt work with Activation.
+const isDevelopmentBuild = import.meta.env.DEV;
+
 function App() {
+  const isMobileAttendance = typeof window !== 'undefined' &&
+    (window.location.hash.includes('mobile-attendance') || window.location.search.includes('mobile-attendance'));
   const { isAuthenticated, isLoading, needsAccountSetup } = useAuthStore();
   const currentView = useAppStore(state => state.currentView);
   const schoolProfile = useAppStore(state => state.schoolProfile);
@@ -203,6 +211,7 @@ function App() {
 
   // Keep background Express server memory updated with active students & sections 24/7
   useEffect(() => {
+    if (isMobileAttendance) return;
     const timer = setTimeout(() => {
       const state = useAppStore.getState();
       if (state.students.length > 0 || state.sections.length > 0) {
@@ -219,12 +228,13 @@ function App() {
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [students, sections, attendanceRecords, schoolProfile]);
+  }, [isMobileAttendance, students, sections, attendanceRecords, schoolProfile]);
 
   // Globally subscribe to mobile attendance updates so taps are never missed
   useEffect(() => {
+    if (isMobileAttendance) return;
     const unsubscribe = subscribeToAttendanceUpdates((event) => {
-      if (event.record) {
+      if (event.record && event.sourceDevice === 'Smartphone') {
         const state = useAppStore.getState();
         void state.upsertAttendanceRecords([event.record]);
         const name = event.studentName || event.record.student_lrn;
@@ -241,7 +251,7 @@ function App() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [isMobileAttendance]);
 
   useEffect(() => {
     if (isAuthenticated && isSyncReady) {
@@ -412,7 +422,7 @@ function App() {
             console.warn('License status check failed, using legacy gate:', licenseErr);
             setLicenseVerdict('legacy');
           }
-        } else if (profile.is_activated && profile.activation_key && !profile.is_trial && navigator.onLine) {
+        } else if (!isDevelopmentBuild && profile.is_activated && profile.activation_key && !profile.is_trial && navigator.onLine) {
           // --- BACKGROUND LICENSE VERIFICATION (web build fallback) ---
           try {
             const machineId = await getMachineId();
@@ -464,6 +474,7 @@ function App() {
     if (isAuthenticated) {
       void initializeAppStore();
     } else {
+      void revokeAttendancePairing();
       // Reset app-store state on logout to prevent data leaks between sessions
       useAppStore.setState({
         students: [],
@@ -484,33 +495,7 @@ function App() {
     }
   }, [isAuthenticated]);
 
-  // Global Mobile Gateway Roster Sync Effect
-  // Pushes student roster & sections to local attendance gateway endpoints across all ports
-  useEffect(() => {
-    if (!students || students.length === 0) return;
-    const currentPort = window.location.port || '3001';
-    const ports = Array.from(new Set(['3001', '3003', currentPort]));
-
-    const payload = JSON.stringify({
-      date: new Date().toISOString().split('T')[0],
-      students,
-      sections,
-      records: attendanceRecords,
-      schoolProfile,
-    });
-
-    for (const p of ports) {
-      fetch(`http://localhost:${p}/api/attendance/session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: payload,
-      }).catch(() => {});
-    }
-  }, [students, sections, attendanceRecords, schoolProfile]);
-
   // Standalone Mobile Phone Attendance Portal (accessed via scanning QR code on phone)
-  const isMobileAttendance = typeof window !== 'undefined' && 
-    (window.location.hash.includes('mobile-attendance') || window.location.search.includes('mobile-attendance'));
   if (isMobileAttendance) {
     return (
       <Suspense fallback={<LoadingSplash />}>
@@ -520,7 +505,10 @@ function App() {
   }
 
   // Use a synchronized loading state to prevent race conditions during reload
-  if (isLoading || (isAuthenticated && !isSyncReady) || licenseVerdict === 'pending') {
+  // Never evaluate authentication or activation from the default in-memory
+  // profile. A full browser reload can happen during Vite HMR, and IndexedDB
+  // must restore the real local installation first.
+  if (isLoading || !isSyncReady || licenseVerdict === 'pending') {
     return <LoadingSplash />;
   }
 
@@ -530,6 +518,7 @@ function App() {
   // offline-grace migration, using the old profile-based checks.
   const trialActive = !!(schoolProfile?.is_activated && schoolProfile.is_trial && !isExpired);
   const activationOk =
+    isDevelopmentBuild ||
     licenseVerdict === 'licensed' ||
     (licenseVerdict === 'legacy' && !!schoolProfile?.is_activated && !isExpired) ||
     (licenseVerdict === 'unlicensed' && trialActive);

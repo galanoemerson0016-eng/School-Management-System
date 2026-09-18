@@ -29,6 +29,9 @@ import {
   normalizeGrade12PESubjectName,
   findHpsRecord,
   hasHpsScores,
+  isStudentInSection,
+  isMaleStudent,
+  isFemaleStudent,
 } from './grading-helpers';
 import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet, HPSRecord } from '../types';
 
@@ -1576,3 +1579,73 @@ describe('Grading Helpers', () => {
 });
 
 
+
+
+describe('Section Student Membership and Gender Classification (Restoring Learner Visibility)', () => {
+  const testSection: Section = {
+    id: 'sec-g7-diamond',
+    section_name: 'Diamond',
+    section_grade_level: 'Grade 7',
+  };
+
+  it('matches student with student_section equal to section id', () => {
+    const student: Partial<Student> = { student_section: 'sec-g7-diamond' };
+    expect(isStudentInSection(student, testSection)).toBe(true);
+  });
+
+  it('matches student with student_section equal to section name', () => {
+    const student: Partial<Student> = { student_section: 'Diamond' };
+    expect(isStudentInSection(student, testSection)).toBe(true);
+  });
+
+  it('matches student with case-insensitive and whitespace variations', () => {
+    expect(isStudentInSection({ student_section: ' diamond ' }, testSection)).toBe(true);
+    expect(isStudentInSection({ student_section: 'DIAMOND' }, testSection)).toBe(true);
+  });
+
+  it('matches student with composite grade and section name format', () => {
+    expect(isStudentInSection({ student_section: 'Grade 7 - Diamond' }, testSection)).toBe(true);
+    expect(isStudentInSection({ student_section: 'Grade 7-Diamond' }, testSection)).toBe(true);
+    expect(isStudentInSection({ student_section: 'G7 - Diamond' }, testSection)).toBe(true);
+  });
+
+  it('matches student using selectedSectionFallback when section object is null', () => {
+    expect(isStudentInSection({ student_section: 'sec-g7-diamond' }, null, 'sec-g7-diamond')).toBe(true);
+    expect(isStudentInSection({ student_section: 'Diamond' }, null, 'Diamond')).toBe(true);
+  });
+
+  it('rejects student belonging to another section', () => {
+    expect(isStudentInSection({ student_section: 'Pearl' }, testSection)).toBe(false);
+    expect(isStudentInSection({ student_section: 'sec-g7-ruby' }, testSection)).toBe(false);
+  });
+
+  it('handles null/undefined gracefully', () => {
+    expect(isStudentInSection(null, testSection)).toBe(false);
+    expect(isStudentInSection({ student_section: '' }, testSection)).toBe(false);
+    expect(isStudentInSection({ student_section: 'Diamond' }, null, undefined)).toBe(false);
+  });
+
+  it('correctly categorizes male students with diverse representations', () => {
+    expect(isMaleStudent({ gender: 'Male' })).toBe(true);
+    expect(isMaleStudent({ gender: 'male' })).toBe(true);
+    expect(isMaleStudent({ gender: 'MALE' })).toBe(true);
+    expect(isMaleStudent({ gender: 'M' })).toBe(true);
+    expect(isMaleStudent({ gender: 'm' })).toBe(true);
+    expect(isMaleStudent({ gender: 'Boy' })).toBe(true);
+
+    expect(isMaleStudent({ gender: 'Female' })).toBe(false);
+    expect(isMaleStudent({ gender: 'F' })).toBe(false);
+  });
+
+  it('correctly categorizes female students with diverse representations', () => {
+    expect(isFemaleStudent({ gender: 'Female' })).toBe(true);
+    expect(isFemaleStudent({ gender: 'female' })).toBe(true);
+    expect(isFemaleStudent({ gender: 'FEMALE' })).toBe(true);
+    expect(isFemaleStudent({ gender: 'F' })).toBe(true);
+    expect(isFemaleStudent({ gender: 'f' })).toBe(true);
+    expect(isFemaleStudent({ gender: 'Girl' })).toBe(true);
+
+    expect(isFemaleStudent({ gender: 'Male' })).toBe(false);
+    expect(isFemaleStudent({ gender: 'M' })).toBe(false);
+  });
+});

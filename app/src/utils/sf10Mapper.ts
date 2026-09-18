@@ -1,9 +1,9 @@
 import type { Student, SchoolProfile, Section, ClassRecord, Subject, User, SchoolCurriculum, CurriculumSubject } from '../types';
 import { normalizeSubjectName, getSF10RowsForGrade, sortSubjects, getSubjectsForGrade } from '../lib/subjectConfig';
 import { formatLearnerName } from './student-name';
-import { resolveStudentQuarterGrade, isMatchingSubject } from './grading-helpers';
+import { resolveStudentQuarterGrade, isMatchingSubject, isStudentEnrolledInSubject } from './grading-helpers';
 import { isThreeTermSchoolYear } from '../lib/terms';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 
 /**
  * Standard DepEd JHS Subject List (SF10)
@@ -239,6 +239,7 @@ export function mapStudentToSpecData({
 
       // Get all subjects for this grade from the database
       let dbSubjectsForGrade = dbSubjects.filter(s => {
+        if (!isStudentEnrolledInSubject(student.lrn, s)) return false;
         const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
         return subjectGradeNum === grade && s.term !== 'none';
       });
@@ -251,7 +252,13 @@ export function mapStudentToSpecData({
         if (isSHS && taughtRaw.length > 0) {
           for (const tName of taughtRaw) {
             const alreadyHas = dbSubjectsForGrade.some(s => isMatchingSubject(tName, s.id, s.subject_name));
-            if (!alreadyHas) {
+            // taught_subjects applies to the section, not every historical
+            // grade. Avoid recreating a known subject in the wrong grade.
+            const configuredForSection = dbSubjects.some(s =>
+              (s.section_id === studentSection.id || !s.section_id) &&
+              isMatchingSubject(tName, s.id, s.subject_name)
+            );
+            if (!alreadyHas && !configuredForSection) {
               dbSubjectsForGrade.push({
                 id: `virtual_${tName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
                 subject_name: tName,

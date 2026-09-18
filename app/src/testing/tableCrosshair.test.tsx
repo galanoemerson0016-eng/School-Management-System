@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, renderHook, act } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { useTableCrosshair } from '../hooks/useTableCrosshair';
 
 describe('Table Crosshair Highlighter (useTableCrosshair)', () => {
@@ -39,6 +40,35 @@ describe('Table Crosshair Highlighter (useTableCrosshair)', () => {
         });
         expect(result.current.isCrosshairEnabled).toBe(true);
         expect(localStorage.getItem(TEST_STORAGE_KEY)).toBe('true');
+    });
+
+    it('keeps an edited score focused when the Guide control is clicked', async () => {
+        const user = userEvent.setup();
+        let blurCount = 0;
+
+        const TestToolbar = () => {
+            const { isCrosshairEnabled, toggleCrosshair } = useTableCrosshair({ storageKey: TEST_STORAGE_KEY });
+            return (
+                <>
+                    <input aria-label="Score" onBlur={() => { blurCount += 1; }} />
+                    <button
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={toggleCrosshair}
+                    >
+                        Guide {isCrosshairEnabled ? 'on' : 'off'}
+                    </button>
+                </>
+            );
+        };
+
+        const { getByRole, getByLabelText } = render(<TestToolbar />);
+        const score = getByLabelText('Score');
+        await user.click(score);
+        await user.click(getByRole('button', { name: /guide/i }));
+
+        expect(blurCount).toBe(0);
+        expect(document.activeElement).toBe(score);
     });
 
     describe('DOM Event Delegation & Crosshair Highlights', () => {

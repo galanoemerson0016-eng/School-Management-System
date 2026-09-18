@@ -353,13 +353,15 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     const partialGrades: Record<string, { q1?: number; q2?: number; q3?: number; final?: number }> = {
       'Effective Communication': { q1: 88 },
       'Mabisang Komunikasyon': { q1: 87 },
-      'General Mathematics': { q1: 85 }
+      'General Mathematics': { q1: 85 },
+      'Academic Elective 1': { q1: 91, final: 91 },
     };
 
     const subjects: Subject[] = [
       { id: '1', subject_name: 'Effective Communication', grade_level: '11' },
       { id: '2', subject_name: 'Mabisang Komunikasyon', grade_level: '11' },
       { id: '3', subject_name: 'General Mathematics', grade_level: '11' },
+      { id: '4', subject_name: 'Academic Elective 1', grade_level: '11', term: 1 },
     ];
 
     const opts: SF9Grade11AcademicExportOptions = {
@@ -382,8 +384,15 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     // Guarded formulas exist
     expect(sheet6Xml).toContain('ROUND((F33+H33+G33)*(I33/3)/I33,0)');
     expect(sheet6Xml).toContain('ROUND(L44/I44,0)');
+    expect(sheet6Xml).toContain('COUNT(F34:H39,F41,G42,H43)&lt;21');
 
-    // Incomplete final grades and general average should NOT be cached as passed or promoted
+    // Even the completed Term 1 elective remains a term grade, not a released final grade.
+    const electiveTermCell = sheet6Xml.match(/<c\b[^>]*\br="F41"[^>]*>[\s\S]*?<\/c>/)?.[0] || '';
+    const electiveFinalCell = sheet6Xml.match(/<c\b[^>]*\br="J41"[^>]*>[\s\S]*?<\/c>/)?.[0] || '';
+    expect(electiveTermCell).toContain("VLOOKUP(C17,'TERM 1 SUMMARY'!C16:R116,16,0)");
+    expect(electiveFinalCell).not.toContain('<v>');
+
+    // Incomplete final grades and general average should NOT be cached as passed or promoted.
     expect(sheet6Xml).not.toContain('>Passed<');
     expect(sheet6Xml).not.toContain('>Promoted<');
     expect(sheet6Xml).not.toContain('>Failed<');

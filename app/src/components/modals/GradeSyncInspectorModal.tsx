@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { useAppStore, useAuthStore } from '../../stores';
+import { useAppStore } from '../../stores/app-store';
+import { useAuthStore } from '../../stores/auth-store';
 import {
   Bug,
   CheckCircle2,
@@ -626,7 +627,8 @@ export function GradeSyncInspectorModal({
               final_grade: compGrade,
               written_works: [],
               performance_tasks: [],
-              quarterly_exam: 0
+              quarterly_exam: 0,
+              grade_source: 'eclass_sync'
             });
           }
         }
@@ -671,7 +673,8 @@ export function GradeSyncInspectorModal({
               final_grade: compGrade,
               written_works: [],
               performance_tasks: [],
-              quarterly_exam: 0
+              quarterly_exam: 0,
+              grade_source: 'eclass_sync'
             });
           }
         }
@@ -694,7 +697,8 @@ export function GradeSyncInspectorModal({
         final_grade: targetGrade,
         written_works: [],
         performance_tasks: [],
-        quarterly_exam: 0
+        quarterly_exam: 0,
+        grade_source: 'eclass_sync'
       };
 
       await updateGradingSheetRecord(record);
@@ -715,6 +719,31 @@ export function GradeSyncInspectorModal({
     } catch (err) {
       console.error('Failed to sync grade:', err);
       showNotification('Failed to sync grade record.', 'error');
+    }
+  };
+
+  // Retain a Grade Management value only when an adviser explicitly confirms it.
+  // This prevents a stale legacy copy from silently masking newer E-Class scores.
+  const handleKeepGradeManagement = async (student: Student, subject: Subject) => {
+    const record = gradingSheetRecords.find((candidate) =>
+      (candidate.student_lrn === student.lrn || String(candidate.student_lrn).trim() === String(student.lrn).trim()) &&
+      isMatchingSubject(subject.id, candidate.subject_id, candidate.subject_name, subject.subject_name) &&
+      Number(candidate.quarter) === selectedQuarter &&
+      (!activeSchoolYear || !candidate.school_year || candidate.school_year === activeSchoolYear) &&
+      (!selectedSectionObj?.id || !candidate.section_id || candidate.section_id === selectedSectionObj.id),
+    );
+
+    if (!record || Number(record.final_grade) <= 0) {
+      showNotification('There is no Grade Management value to preserve for this subject.', 'info');
+      return;
+    }
+
+    try {
+      await updateGradingSheetRecord({ ...record, grade_source: 'manual_override' });
+      showNotification(`${subject.subject_name} was kept as an intentional Grade Management override.`, 'success');
+    } catch (error) {
+      console.error('Failed to preserve Grade Management override:', error);
+      showNotification('Could not preserve the Grade Management override.', 'error');
     }
   };
 
@@ -753,7 +782,8 @@ export function GradeSyncInspectorModal({
             final_grade: target,
             written_works: [],
             performance_tasks: [],
-            quarterly_exam: 0
+            quarterly_exam: 0,
+            grade_source: 'eclass_sync'
           };
           await updateGradingSheetRecord(record);
 
@@ -1374,17 +1404,28 @@ export function GradeSyncInspectorModal({
                                 )}
                               </td>
 
-                              {/* Action Button */}
+                              {/* Controlled resolution actions */}
                               <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
                                 {(breakdown.ecrTransmutedGrade || breakdown.ecrStoredFinalGrade) &&
                                 ((breakdown.ecrTransmutedGrade || breakdown.ecrStoredFinalGrade) !== breakdown.gradeManagementValue || breakdown.syncStatus === 'mismatch') ? (
-                                  <button
-                                    onClick={() => handleSyncSubject(selectedStudentObj!, subject, (breakdown.ecrTransmutedGrade || breakdown.ecrStoredFinalGrade)!)}
-                                    className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] transition-all shadow-sm active:scale-95 cursor-pointer"
-                                    title="Sync ECR transmuted grade to Grade Management"
-                                  >
-                                    Sync ECR
-                                  </button>
+                                  <div className="flex justify-end gap-1.5">
+                                    <button
+                                      onClick={() => handleSyncSubject(selectedStudentObj!, subject, (breakdown.ecrTransmutedGrade || breakdown.ecrStoredFinalGrade)!)}
+                                      className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] transition-all shadow-sm active:scale-95 cursor-pointer"
+                                      title="Use the current E-Class calculated grade"
+                                    >
+                                      Use E-Class
+                                    </button>
+                                    {breakdown.gradeManagementValue !== null && (
+                                      <button
+                                        onClick={() => handleKeepGradeManagement(selectedStudentObj!, subject)}
+                                        className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-300 font-bold text-[10px] transition-all cursor-pointer"
+                                        title="Keep this Grade Management value as an intentional override"
+                                      >
+                                        Keep Manual
+                                      </button>
+                                    )}
+                                  </div>
                                 ) : (
                                   <span className="text-slate-400 text-[10px] font-medium">OK</span>
                                 )}

@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, ArrowRight, CheckCircle2, Loader2, AlertCircle, Zap, Monitor, Apple } from 'lucide-react';
-import { useAppStore, useAuthStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
+import { useAuthStore } from '../stores/auth-store';
 import { getMachineId } from '../utils/machine-id';
 import { TERMS_AND_CONDITIONS, PRIVACY_POLICY } from '../data/legalDocs';
 

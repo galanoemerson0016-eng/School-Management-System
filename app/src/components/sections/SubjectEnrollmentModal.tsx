@@ -1,17 +1,23 @@
 import React, { useState, useMemo } from 'react';
 import { X, Search, Users, HelpCircle, CheckSquare, Square, AlertTriangle } from 'lucide-react';
-import { useAppStore } from '../../stores';
-import type { Subject } from '../../types';
-import { getClassSizeLimit } from '../../lib/curriculum';
+import { useAppStore } from '../../stores/app-store';
+import type { Section, Subject } from '../../types';
+import { getClassSizeLimit, isGrade11CoreSubject, resolveSubjectOfferedTerms } from '../../lib/curriculum';
+import { normalizeSubjectName } from '../../lib/subjectConfig';
+import { generateUUID } from '../../utils/idGenerator';
 
 interface SubjectEnrollmentModalProps {
     open: boolean;
     subject: Subject | null;
+    /** The teaching/advisory section currently being managed, when known. */
+    section?: Section | null;
     onClose: () => void;
+    /** Lets the calling E-Class switch to a newly-created section offering. */
+    onSubjectSaved?: (subject: Subject) => void;
 }
 
-export function SubjectEnrollmentModal({ open, subject, onClose }: SubjectEnrollmentModalProps) {
-    const { students, sections, updateSubject, showNotification } = useAppStore();
+export function SubjectEnrollmentModal({ open, subject, section, onClose, onSubjectSaved }: SubjectEnrollmentModalProps) {
+    const { students, sections, subjects, addSubject, updateSubject, showNotification } = useAppStore();
     const [searchQuery, setSearchQuery] = useState('');
     const [showAllGradeStudents, setShowAllGradeStudents] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -19,47 +25,74 @@ export function SubjectEnrollmentModal({ open, subject, onClose }: SubjectEnroll
     // Track selections in local state first, initialized when subject opens
     const [selectedLrns, setSelectedLrns] = useState<string[]>([]);
 
-    // Initialize selected LRNs when modal opens
-    React.useEffect(() => {
-        if (open && subject) {
-            setSelectedLrns(subject.enrolled_student_lrns || []);
-            setSearchQuery('');
-            setShowAllGradeStudents(false);
-        }
-    }, [open, subject]);
-
-    // Get the section name from section_id if available
+    // Get the section name from a known page context or section_id.
     const parentSection = useMemo(() => {
         if (!subject) return null;
-        return sections.find(s => s.id === subject.section_id || s.section_name === subject.section_id);
-    }, [sections, subject]);
+        return section || sections.find(s => s.id === subject.section_id || s.section_name === subject.section_id) || null;
+    }, [section, sections, subject]);
+
+    // When a generic library definition was selected, prefer an existing
+    // section-owned offering with the same name.  Library definitions must not
+    // own a section's learner roster.
+    const enrollmentSubject = useMemo(() => {
+        if (!subject || !parentSection) return subject;
+        if (subject.section_id === parentSection.id) return subject;
+        const name = normalizeSubjectName(subject.subject_name);
+        return subjects.find(s =>
+            s.section_id === parentSection.id &&
+            normalizeSubjectName(s.subject_name) === name
+        ) || subject;
+    }, [subject, parentSection, subjects]);
 
     const sectionName = parentSection ? parentSection.section_name : (subject?.section_id || 'Unknown Section');
 
+    // `undefined` is deliberately the compact representation for "all
+    // learners in this section".  Show that truthfully in the dialog so an
+    // adviser cannot accidentally turn an all-class subject into an empty one
+    // by opening and saving without selecting anyone.
+    const defaultSectionLrns = useMemo(() => {
+        if (!enrollmentSubject) return [];
+        return students
+            .filter(student =>
+                student.grade_level === enrollmentSubject.grade_level &&
+                (student.student_section === sectionName || student.student_section === parentSection?.id || student.student_section === enrollmentSubject.section_id)
+            )
+            .map(student => student.lrn);
+    }, [students, enrollmentSubject, sectionName, parentSection]);
+
+    // Initialize selected LRNs when modal opens.
+    React.useEffect(() => {
+        if (open && enrollmentSubject) {
+            setSelectedLrns(enrollmentSubject.enrolled_student_lrns ?? defaultSectionLrns);
+            setSearchQuery('');
+            setShowAllGradeStudents(false);
+        }
+    }, [open, enrollmentSubject, defaultSectionLrns]);
+
     // DO 017 Table 7 Class Size Compliance info
     const classSizeInfo = useMemo(() => {
-        if (!subject) return { maxStudents: 40, category: 'core' as const, categoryLabel: 'Standard Class Size' };
-        return getClassSizeLimit(subject.subject_name, subject.grade_level);
-    }, [subject]);
+        if (!enrollmentSubject) return { maxStudents: 40, category: 'core' as const, categoryLabel: 'Standard Class Size' };
+        return getClassSizeLimit(enrollmentSubject.subject_name, enrollmentSubject.grade_level);
+    }, [enrollmentSubject]);
 
     const isExceedingClassSize = selectedLrns.length > classSizeInfo.maxStudents;
 
     // Filter students based on selection (either this section or the entire grade level)
     const eligibleStudents = useMemo(() => {
-        if (!subject) return [];
+        if (!enrollmentSubject) return [];
         return students.filter(student => {
             // Check grade level match
-            const matchesGrade = student.grade_level === subject.grade_level;
+            const matchesGrade = student.grade_level === enrollmentSubject.grade_level;
             if (!matchesGrade) return false;
 
             if (showAllGradeStudents) {
                 return true;
             } else {
                 // Only students in the specific advisory section
-                return student.student_section === sectionName || student.student_section === subject.section_id;
+                return student.student_section === sectionName || student.student_section === parentSection?.id || student.student_section === enrollmentSubject.section_id;
             }
         });
-    }, [students, subject, sectionName, showAllGradeStudents]);
+    }, [students, enrollmentSubject, sectionName, parentSection, showAllGradeStudents]);
 
     // Apply search query filter
     const filteredStudents = useMemo(() => {
@@ -101,17 +134,68 @@ export function SubjectEnrollmentModal({ open, subject, onClose }: SubjectEnroll
     };
 
     const handleSave = async () => {
-        if (!subject) return;
+        if (!enrollmentSubject) return;
         setIsSaving(true);
         try {
-            // If every student in the section is selected, we can optionally save an empty/undefined array
-            // to default to everyone, or save the specific list. Let's save the specific list so it's locked.
+            // A generic Subject Library definition cannot hold a section's
+            // roster.  Materialize it as a section-owned offering on first
+            // use, retaining its grading configuration as the template.
+            const isSectionOwned = Boolean(parentSection && enrollmentSubject.section_id === parentSection.id);
             const updatedSubject: Subject = {
-                ...subject,
+                ...enrollmentSubject,
+                id: isSectionOwned ? enrollmentSubject.id : generateUUID(),
+                section_id: parentSection?.id || enrollmentSubject.section_id,
                 enrolled_student_lrns: selectedLrns
             };
-            await updateSubject(updatedSubject);
-            showNotification('Subject enrollment updated successfully', 'success');
+
+            if (isSectionOwned) {
+                await updateSubject(updatedSubject);
+            } else {
+                await addSubject(updatedSubject);
+            }
+
+            // Grade 11 SSHS cores are shared by everyone.  For elective
+            // offerings, a learner may belong to only one elective that runs
+            // in the same term within this section.  Remove newly selected
+            // learners from any competing section-owned elective; no subject
+            // or grades are deleted.
+            let adjustedOfferings = 0;
+            const isGrade11 = (parentSection?.section_grade_level || updatedSubject.grade_level || '').includes('11');
+            const targetTerms = parentSection
+                ? resolveSubjectOfferedTerms(updatedSubject, parentSection)
+                : [];
+            if (parentSection && isGrade11 && !isGrade11CoreSubject(updatedSubject.subject_name) && targetTerms.length > 0) {
+                const sectionLearnerLrns = students
+                    .filter(s => s.student_section === parentSection.section_name || s.student_section === parentSection.id)
+                    .map(s => s.lrn);
+                const selected = new Set(selectedLrns);
+                const offeredNames = new Set((parentSection.taught_subjects || []).map(normalizeSubjectName));
+                const candidates = [...subjects, ...(isSectionOwned ? [] : [updatedSubject])].filter(other => {
+                    if (other.id === updatedSubject.id || other.section_id !== parentSection.id) return false;
+                    if (isGrade11CoreSubject(other.subject_name)) return false;
+                    if (offeredNames.size > 0 && !offeredNames.has(normalizeSubjectName(other.subject_name))) return false;
+                    return resolveSubjectOfferedTerms(other, parentSection).some(term => targetTerms.includes(term));
+                });
+
+                for (const other of candidates) {
+                    const currentRoster = other.enrolled_student_lrns === undefined
+                        ? sectionLearnerLrns
+                        : other.enrolled_student_lrns;
+                    const nextRoster = currentRoster.filter(lrn => !selected.has(lrn));
+                    if (nextRoster.length !== currentRoster.length) {
+                        await updateSubject({ ...other, enrolled_student_lrns: nextRoster });
+                        adjustedOfferings++;
+                    }
+                }
+            }
+
+            onSubjectSaved?.(updatedSubject);
+            showNotification(
+                adjustedOfferings > 0
+                    ? `Enrollment saved. Learners were removed from ${adjustedOfferings} competing elective offering${adjustedOfferings === 1 ? '' : 's'} in the same term.`
+                    : 'Subject enrollment updated successfully',
+                'success'
+            );
             onClose();
         } catch (error) {
             console.error('Error saving subject enrollment:', error);
@@ -121,7 +205,7 @@ export function SubjectEnrollmentModal({ open, subject, onClose }: SubjectEnroll
         }
     };
 
-    if (!open || !subject) return null;
+    if (!open || !subject || !enrollmentSubject) return null;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
@@ -138,7 +222,7 @@ export function SubjectEnrollmentModal({ open, subject, onClose }: SubjectEnroll
                                 Manage Subject Enrollment
                             </h3>
                             <p className="text-xs text-slate-400 font-semibold mt-0.5">
-                                {subject.subject_name} — {subject.grade_level} ({sectionName})
+                                {enrollmentSubject.subject_name} — {enrollmentSubject.grade_level} ({sectionName})
                             </p>
                         </div>
                     </div>
@@ -173,7 +257,7 @@ export function SubjectEnrollmentModal({ open, subject, onClose }: SubjectEnroll
                                 onChange={(e) => setShowAllGradeStudents(e.target.checked)}
                                 className="rounded text-deped-blue focus:ring-deped-blue border-slate-300 dark:border-white/10 dark:bg-slate-900 w-4 h-4 cursor-pointer"
                             />
-                            <span>Allow Cross-Section Enrollment (Show all {subject.grade_level} learners)</span>
+                            <span>Allow Cross-Section Enrollment (Show all {enrollmentSubject.grade_level} learners)</span>
                         </label>
                     </div>
 

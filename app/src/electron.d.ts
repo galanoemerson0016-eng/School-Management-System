@@ -75,6 +75,8 @@ declare global {
         body?: unknown;
       }) => Promise<{ success: boolean; statusCode?: number; data?: string; error?: string }>;
       pushAttendanceSession?: (sessionData: unknown) => Promise<{ success: boolean; error?: string }>;
+      startAttendancePairing?: () => Promise<{ token: string; expiresAt: number; error?: string }>;
+      revokeAttendancePairing?: (token: string) => Promise<{ success: boolean; error?: string }>;
       pushAttendanceUpdate?: (syncEvent: unknown) => Promise<{ success: boolean; error?: string }>;
       getAttendanceUpdates?: (sinceTimestamp: number) => Promise<{ events: Array<{ record: unknown; studentName?: string; timestamp: number; sourceDevice?: string }>; lastUpdated: number }>;
     };

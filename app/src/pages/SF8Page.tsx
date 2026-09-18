@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, Printer, ChevronDown, Plus, Minus, HeartPulse, Download } from 'lucide-react';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import type { Student } from '../types';
 
 import { formatLearnerName } from '../utils/student-name';

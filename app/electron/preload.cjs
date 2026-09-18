@@ -50,6 +50,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportHtmlPdf: (data) => ipcRenderer.invoke('app:export-html-pdf', data),
   sendSmsHttpRequest: (options) => ipcRenderer.invoke('send-sms-http-request', options),
   pushAttendanceSession: (sessionData) => ipcRenderer.invoke('push-attendance-session', sessionData),
+  startAttendancePairing: () => ipcRenderer.invoke('start-attendance-pairing'),
+  revokeAttendancePairing: (token) => ipcRenderer.invoke('revoke-attendance-pairing', token),
   pushAttendanceUpdate: (syncEvent) => ipcRenderer.invoke('push-attendance-update', syncEvent),
   getAttendanceUpdates: (sinceTimestamp) => ipcRenderer.invoke('get-attendance-updates', sinceTimestamp),
 });

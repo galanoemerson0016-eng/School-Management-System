@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import { useAuthStore } from '../stores/auth-store';
 import { filterSF9Sections } from '../lib/rbac';
 import { isGrade1 } from '../services/sf9-g1-excel-export';

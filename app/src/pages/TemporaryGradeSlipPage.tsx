@@ -1,10 +1,11 @@
 import { useState, useMemo, useCallback } from 'react';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import { ArrowLeft, Printer, Layout, Plus, Minus, Bug, RefreshCcw } from 'lucide-react';
 import { sortSubjects, normalizeSubjectName, getCanonicalSubjectKey, getSubjectsForGrade } from '../lib/subjectConfig';
 import { getShsSubjectUnitInfo, getDefaultTermForSubject, isGrade11CoreSubject } from '../lib/curriculum';
+import { getCurriculumPreset } from '../lib/curriculumPresets';
 import type { Section, Student, Subject, ClassRecord, SchoolProfile } from '../types';
-import { resolveStudentQuarterGrade, isMatchingSubject, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
+import { resolveStudentQuarterGrade, isMatchingSubject, normalizeGrade12PESubjectName, isStudentInSection, isMaleStudent } from '../utils/grading-helpers';
 import { db } from '../services/database';
 import { reconcileOrphanedGradesAndSubjects } from '../utils/grade-reconciliation';
 
@@ -63,12 +64,14 @@ export function TemporaryGradeSlipPage() {
     }, [sections, selectedSection]);
 
     const sectionStudents = useMemo(() => {
-        if (!selectedSection) return [];
+        if (!selectedSection && !selectedSectionObj) return [];
         return students
-            .filter(s => s.student_section === selectedSection || (selectedSectionObj?.id && s.student_section === selectedSectionObj.id))
+            .filter(s => isStudentInSection(s, selectedSectionObj, selectedSection))
             .sort((a, b) => {
-                if (a.gender !== b.gender) {
-                    return a.gender === 'Male' ? -1 : 1;
+                const aMale = isMaleStudent(a);
+                const bMale = isMaleStudent(b);
+                if (aMale !== bMale) {
+                    return aMale ? -1 : 1;
                 }
                 return a.last_name.localeCompare(b.last_name);
             });
@@ -80,7 +83,15 @@ export function TemporaryGradeSlipPage() {
         const sectionGradeNum = parseInt(selectedSectionObj.section_grade_level.replace(/\D/g, '')) || 0;
         const isSHS = selectedSectionObj.section_grade_level.includes('11') || selectedSectionObj.section_grade_level.includes('12');
         const sectionTrack = (selectedSectionObj.track || '').toLowerCase();
-        const taughtSet = (selectedSectionObj.taught_subjects || []);
+        let taughtSet = (selectedSectionObj.taught_subjects || []);
+        if (taughtSet.length === 0 && selectedSectionObj.is_advisory && (!selectedSectionObj.program || selectedSectionObj.program === 'Regular')) {
+            const preset = getCurriculumPreset(selectedSectionObj.section_grade_level, selectedSectionObj.track, selectedSectionObj.strand || selectedSectionObj.cluster, 'Regular');
+            if (preset && preset.subjects.length > 0) {
+                taughtSet = isSHS && sectionGradeNum === 11
+                    ? preset.subjects.filter(s => isGrade11CoreSubject(s.name)).map(s => s.name)
+                    : preset.subjects.map(s => s.name);
+            }
+        }
 
         // 1. All active subjects matching this section's grade level or assigned to this section
         let candidates = subjects.filter(s => {
@@ -157,6 +168,21 @@ export function TemporaryGradeSlipPage() {
             }
         } else {
             // For JHS / Elementary: if taught_subjects is configured, filter candidates by taughtSet
+            if (taughtSet.length > 0) {
+                for (const tName of taughtSet) {
+                    const alreadyHas = candidates.some(s => isMatchingSubject(tName, s.id, s.subject_name));
+                    if (!alreadyHas) {
+                        candidates.push({
+                            id: `virtual_${tName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${selectedSectionObj.id}`,
+                            subject_name: tName,
+                            subject_code: '',
+                            grade_level: selectedSectionObj.section_grade_level,
+                            section_id: selectedSectionObj.id,
+                            term: 'all'
+                        });
+                    }
+                }
+            }
             const intendedSubjects = getSubjectsForGrade(selectedSectionObj.section_grade_level, schoolProfile?.curriculum);
             const isSubjectAllowedInTaught = (subId: string, subName: string) => {
                 return taughtSet.some(t => {

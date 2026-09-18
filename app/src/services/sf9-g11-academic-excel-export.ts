@@ -1166,8 +1166,9 @@ export async function populateGrade11AcademicTemplateBuffer(
   }
 
   const calcCombined = (g1: number | '', g2: number | '') => {
-    const arr = [g1, g2].filter((n): n is number => typeof n === 'number' && n > 0);
-    return arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : '';
+    return typeof g1 === 'number' && g1 > 0 && typeof g2 === 'number' && g2 > 0
+      ? Math.round((g1 + g2) / 2)
+      : '';
   };
 
   // Precompute term averages across the 6 learning areas (Combined Comm, Math, Sci, LCS, PKLP, AE)
@@ -1678,16 +1679,30 @@ export async function populateGrade11AcademicTemplateBuffer(
     };
 
     const calcCombined = (g1: number | '', g2: number | '') => {
-      const arr = [g1, g2].filter((n): n is number => typeof n === 'number' && n > 0);
-      return arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : '';
+      return typeof g1 === 'number' && g1 > 0 && typeof g2 === 'number' && g2 > 0
+        ? Math.round((g1 + g2) / 2)
+        : '';
     };
 
-    const ecFinal = calcFinal(currentGrades.effectiveComm[0], currentGrades.effectiveComm[1], currentGrades.effectiveComm[2]);
-    const mkFinal = calcFinal(currentGrades.mabisangKom[0], currentGrades.mabisangKom[1], currentGrades.mabisangKom[2]);
-    const mathFinal = calcFinal(currentGrades.genMath[0], currentGrades.genMath[1], currentGrades.genMath[2]);
-    const sciFinal = calcFinal(currentGrades.genSci[0], currentGrades.genSci[1], currentGrades.genSci[2]);
-    const lcsFinal = calcFinal(currentGrades.lifeCareer[0], currentGrades.lifeCareer[1], currentGrades.lifeCareer[2]);
-    const pklpFinal = calcFinal(currentGrades.pklp[0], currentGrades.pklp[1], currentGrades.pklp[2]);
+    const allRequiredTermsComplete = [
+      ...currentGrades.effectiveComm,
+      ...currentGrades.mabisangKom,
+      ...currentGrades.genMath,
+      ...currentGrades.genSci,
+      ...currentGrades.lifeCareer,
+      ...currentGrades.pklp,
+      currentGrades.academicElective1,
+      currentGrades.academicElective2,
+      currentGrades.academicElective3,
+    ].every((grade) => typeof grade === 'number' && grade > 0);
+
+    const releaseFinal = (grade: number | ''): number | '' => allRequiredTermsComplete ? grade : '';
+    const ecFinal = releaseFinal(calcFinal(currentGrades.effectiveComm[0], currentGrades.effectiveComm[1], currentGrades.effectiveComm[2]));
+    const mkFinal = releaseFinal(calcFinal(currentGrades.mabisangKom[0], currentGrades.mabisangKom[1], currentGrades.mabisangKom[2]));
+    const mathFinal = releaseFinal(calcFinal(currentGrades.genMath[0], currentGrades.genMath[1], currentGrades.genMath[2]));
+    const sciFinal = releaseFinal(calcFinal(currentGrades.genSci[0], currentGrades.genSci[1], currentGrades.genSci[2]));
+    const lcsFinal = releaseFinal(calcFinal(currentGrades.lifeCareer[0], currentGrades.lifeCareer[1], currentGrades.lifeCareer[2]));
+    const pklpFinal = releaseFinal(calcFinal(currentGrades.pklp[0], currentGrades.pklp[1], currentGrades.pklp[2]));
 
     const numOrEmpty = (v: number | '') => (typeof v === 'number' && !isNaN(v) && v > 0 ? v : '');
     const getRemarks = (v: number | '') => (typeof v === 'number' && v > 0 ? (v >= 75 ? 'Passed' : 'Failed') : '');
@@ -1697,9 +1712,9 @@ export async function populateGrade11AcademicTemplateBuffer(
     const commT3 = calcCombined(currentGrades.effectiveComm[2], currentGrades.mabisangKom[2]);
     const commFinal = (ecFinal !== '' && mkFinal !== '') ? Math.round((ecFinal + mkFinal) / 2) : '';
 
-    const ae1Final = numOrEmpty(currentGrades.academicElective1);
-    const ae2Final = numOrEmpty(currentGrades.academicElective2);
-    const ae3Final = numOrEmpty(currentGrades.academicElective3);
+    const ae1Final = releaseFinal(numOrEmpty(currentGrades.academicElective1));
+    const ae2Final = releaseFinal(numOrEmpty(currentGrades.academicElective2));
+    const ae3Final = releaseFinal(numOrEmpty(currentGrades.academicElective3));
 
     // Static elective subject display names
     sf9Xml = updateCellInSheetXml(sf9Xml, 'B41', currentGrades.ae1Name || 'Academic Elective 1');
@@ -1763,14 +1778,15 @@ export async function populateGrade11AcademicTemplateBuffer(
       sf9Xml = updateFormulaValueInSheetXml(sf9Xml, 'H43', ae3Final);
 
       // Final Grades (Column J)
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J33', 'IF(COUNT(F33:H33)<3, "", ROUND((F33+H33+G33)*(I33/3)/I33,0))', commFinal);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J36', 'IF(COUNT(F36:H36)<3, "", ROUND((F36+H36+G36)*(I36/3)/I36,0))', mathFinal);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J37', 'IF(COUNT(F37:H37)<3, "", ROUND((F37+H37+G37)*(I37/3)/I37,0))', sciFinal);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J38', 'IF(COUNT(F38:H38)<3, "", ROUND((F38+H38+G38)*(I38/3)/I38,0))', lcsFinal);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J39', 'IF(COUNT(F39:H39)<3, "", ROUND((F39+H39+G39)*(I39/3)/I39,0))', pklpFinal);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J41', 'IF(F41="", "", ROUND((F41+H41+G41)*I41/I41,0))', ae1Final);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J42', 'IF(G42="", "", ROUND((F42+H42+G42)*I42/I42,0))', ae2Final);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J43', 'IF(H43="", "", ROUND((F43+H43+G43)*I43/I43,0))', ae3Final);
+      const allTermsFormula = 'COUNT(F34:H39,F41,G42,H43)<21';
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J33', `IF(${allTermsFormula}, "", ROUND((F33+H33+G33)*(I33/3)/I33,0))`, commFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J36', `IF(${allTermsFormula}, "", ROUND((F36+H36+G36)*(I36/3)/I36,0))`, mathFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J37', `IF(${allTermsFormula}, "", ROUND((F37+H37+G37)*(I37/3)/I37,0))`, sciFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J38', `IF(${allTermsFormula}, "", ROUND((F38+H38+G38)*(I38/3)/I38,0))`, lcsFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J39', `IF(${allTermsFormula}, "", ROUND((F39+H39+G39)*(I39/3)/I39,0))`, pklpFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J41', `IF(${allTermsFormula}, "", ROUND((F41+H41+G41)*I41/I41,0))`, ae1Final);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J42', `IF(${allTermsFormula}, "", ROUND((F42+H42+G42)*I42/I42,0))`, ae2Final);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J43', `IF(${allTermsFormula}, "", ROUND((F43+H43+G43)*I43/I43,0))`, ae3Final);
 
       // Remarks (Column K)
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'K33', 'IF(J33="", "", IF(J33>=75, "Passed", "Failed"))', getRemarks(commFinal));
@@ -1918,24 +1934,25 @@ export async function populateGrade11AcademicTemplateBuffer(
       };
 
       // Parent Subject: Effective Communication / Mabisang Komunikasyon (Row 33)
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'F33', 'IF(COUNT(F34:F35)=0,"",ROUND(AVERAGE(F34:F35),0))', commT1);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'G33', 'IF(COUNT(G34:G35)=0,"",ROUND(AVERAGE(G34:G35),0))', commT2);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'H33', 'IF(COUNT(H34:H35)=0,"",ROUND(AVERAGE(H34:H35),0))', commT3);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I33', 'IF(COUNT(I34:I35)=0,"",ROUND(AVERAGE(I34:I35),0))', commFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'F33', 'IF(COUNT(F34:F35)<2,"",ROUND(AVERAGE(F34:F35),0))', commT1);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'G33', 'IF(COUNT(G34:G35)<2,"",ROUND(AVERAGE(G34:G35),0))', commT2);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'H33', 'IF(COUNT(H34:H35)<2,"",ROUND(AVERAGE(H34:H35),0))', commT3);
+      const allTermsFormula = 'COUNT(F34:H39,F41,G42,H43)<21';
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I33', `IF(${allTermsFormula},"",ROUND(AVERAGE(I34:I35),0))`, commFinal);
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'J33', 'IF(I33="","",IF(I33>=75,"Passed","Failed"))', getRemarks(commFinal));
 
       // Core Component & Subject Final Grade formulas (Column I, Rows 34-39)
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I34', 'IF(COUNT(F34:H34)=0,"",ROUND(AVERAGE(F34:H34),0))', ecFinal);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I35', 'IF(COUNT(F35:H35)=0,"",ROUND(AVERAGE(F35:H35),0))', mkFinal);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I36', 'IF(COUNT(F36:H36)=0,"",ROUND(AVERAGE(F36:H36),0))', mathFinal);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I37', 'IF(COUNT(F37:H37)=0,"",ROUND(AVERAGE(F37:H37),0))', sciFinal);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I38', 'IF(COUNT(F38:H38)=0,"",ROUND(AVERAGE(F38:H38),0))', lcsFinal);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I39', 'IF(COUNT(F39:H39)=0,"",ROUND(AVERAGE(F39:H39),0))', pklpFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I34', `IF(${allTermsFormula},"",ROUND(AVERAGE(F34:H34),0))`, ecFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I35', `IF(${allTermsFormula},"",ROUND(AVERAGE(F35:H35),0))`, mkFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I36', `IF(${allTermsFormula},"",ROUND(AVERAGE(F36:H36),0))`, mathFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I37', `IF(${allTermsFormula},"",ROUND(AVERAGE(F37:H37),0))`, sciFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I38', `IF(${allTermsFormula},"",ROUND(AVERAGE(F38:H38),0))`, lcsFinal);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I39', `IF(${allTermsFormula},"",ROUND(AVERAGE(F39:H39),0))`, pklpFinal);
 
       // Elective Final Grade formulas (Rows 41-43)
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I41', 'IF(F41="","",F41)', ae1Final);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I42', 'IF(G42="","",G42)', ae2Final);
-      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I43', 'IF(H43="","",H43)', ae3Final);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I41', `IF(${allTermsFormula},"",F41)`, ae1Final);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I42', `IF(${allTermsFormula},"",G42)`, ae2Final);
+      sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I43', `IF(${allTermsFormula},"",H43)`, ae3Final);
 
       // General Average formula
       sf9Xml = updateFormulaCellExplicit(sf9Xml, 'I44', 'IF(COUNT(I33,I36:I39,I41:I43)=0,"",ROUND(AVERAGE(I33,I36:I39,I41:I43),0))', s8GenAvg);

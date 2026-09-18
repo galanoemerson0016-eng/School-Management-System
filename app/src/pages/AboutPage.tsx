@@ -229,7 +229,7 @@ export function AboutPage() {
                                         {[
                                             { label: 'Automated E-Class Record', desc: 'DepEd-aligned grading for Written Works & PT.' },
                                             { label: 'Grade Management', desc: 'Consolidated master reference for all subject areas.' },
-                                            { label: 'Subject Management', desc: 'Flexible curriculum mapping and teacher assignments.' },
+                                            { label: 'Subject Library', desc: 'Reusable subject definitions, grading weights, units, and curriculum references.' },
                                             { label: 'School Calendar', desc: 'Integrated event scheduling and deadline tracking.' }
                                         ].map((f, i) => (
                                             <li key={i} className="space-y-1">

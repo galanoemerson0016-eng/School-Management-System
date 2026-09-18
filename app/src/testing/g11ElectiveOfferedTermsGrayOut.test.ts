@@ -38,7 +38,7 @@ describe('Grade 11 Summary of Grades (All Terms) Gray-Out Logic', () => {
 
             electives.forEach(({ name, expectedTerm }) => {
                 expect(getSubjectCategory(name, 'Grade 11')).toBe('Academic Elective (All Other Electives)');
-                expect(resolveSubjectOfferedTerms({ subject_name: name }, grade11Plato)).toEqual([expectedTerm]);
+                expect(resolveSubjectOfferedTerms({ subject_name: name, offered_terms: [expectedTerm as 1 | 2 | 3] }, grade11Plato)).toEqual([expectedTerm]);
             });
         });
     });
@@ -46,7 +46,12 @@ describe('Grade 11 Summary of Grades (All Terms) Gray-Out Logic', () => {
     describe('Term Column Offering & Gray-Out Determination', () => {
         it('determines which term sub-columns are offered vs grayed out for each subject', () => {
             const determineColStatus = (subjectName: string) => {
-                const offered = resolveSubjectOfferedTerms({ subject_name: subjectName }, grade11Plato);
+                const configuredTerms: Record<string, (1 | 2 | 3)[]> = {
+                    'Biology 1': [1],
+                    'Biology 2': [2],
+                    'Biology 3': [3],
+                };
+                const offered = resolveSubjectOfferedTerms({ subject_name: subjectName, offered_terms: configuredTerms[subjectName] }, grade11Plato);
                 return {
                     isT1Offered: offered.includes(1),
                     isT2Offered: offered.includes(2),
@@ -92,9 +97,9 @@ describe('Grade 11 Summary of Grades (All Terms) Gray-Out Logic', () => {
     describe('Missing Grades Filter Logic', () => {
         it('does NOT flag unoffered terms as missing grades', () => {
             const subjects = [
-                { id: 'sub-bio1', subject_name: 'Biology 1' },
-                { id: 'sub-bio2', subject_name: 'Biology 2' },
-                { id: 'sub-bio3', subject_name: 'Biology 3' },
+                { id: 'sub-bio1', subject_name: 'Biology 1', offered_terms: [1] as (1 | 2 | 3)[] },
+                { id: 'sub-bio2', subject_name: 'Biology 2', offered_terms: [2] as (1 | 2 | 3)[] },
+                { id: 'sub-bio3', subject_name: 'Biology 3', offered_terms: [3] as (1 | 2 | 3)[] },
                 { id: 'sub-genmath', subject_name: 'General Mathematics' }
             ];
 
@@ -143,7 +148,12 @@ describe('Grade 11 Summary of Grades (All Terms) Gray-Out Logic', () => {
     describe('Final Grade Resolution for Single-Term vs Multi-Term Subjects', () => {
         it('calculates final grade correctly based only on offered terms', () => {
             const calculateFinal = (subjectName: string, grades: { q1?: number; q2?: number; q3?: number }) => {
-                const offered = resolveSubjectOfferedTerms({ subject_name: subjectName }, grade11Plato);
+                const configuredTerms: Record<string, (1 | 2 | 3)[]> = {
+                    'Biology 1': [1],
+                    'Biology 2': [2],
+                    'Biology 3': [3],
+                };
+                const offered = resolveSubjectOfferedTerms({ subject_name: subjectName, offered_terms: configuredTerms[subjectName] }, grade11Plato);
                 const isT1 = offered.includes(1);
                 const isT2 = offered.includes(2);
                 const isT3 = offered.includes(3);

@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import type { SchoolProfile, Student } from '../types';
 import { formatLearnerName } from '../utils/student-name';
+import { isZipTemplate, readNodeTemplateFallback } from '../utils/node-template-fallback';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -216,29 +217,8 @@ export async function fetchSCPTemplateBuffer(program: string, gradeLevel: string
     }
   }
 
-  // Node environment fallback
-  if (typeof process !== 'undefined' && process.versions && process.versions.node) {
-    try {
-      const fs = await import('fs');
-      const nodePath = await import('path');
-      const localPaths = [
-        nodePath.resolve(process.cwd(), 'public/templates', filename),
-        nodePath.resolve(process.cwd(), 'app/public/templates', filename),
-        nodePath.resolve(process.cwd(), 'public/templates', alias),
-        nodePath.resolve(process.cwd(), 'app/public/templates', alias),
-      ];
-      for (const lp of localPaths) {
-        if (fs.existsSync(lp)) {
-          const buf = fs.readFileSync(lp);
-          if (buf.length >= 1000 && buf[0] === 0x50 && buf[1] === 0x4b) {
-            return buf as unknown as ArrayBuffer;
-          }
-        }
-      }
-    } catch (fsErr) {
-      lastError = fsErr instanceof Error ? fsErr : new Error(String(fsErr));
-    }
-  }
+  const nodeBytes = await readNodeTemplateFallback([filename, alias], 1000);
+  if (isZipTemplate(nodeBytes)) return nodeBytes.slice().buffer as ArrayBuffer;
 
   throw new Error(`Failed to load official ${program} SF9 Excel template (${filename}): ${lastError?.message || 'Template file not found'}`);
 }

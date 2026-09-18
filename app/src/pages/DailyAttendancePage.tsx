@@ -4,7 +4,7 @@
  * sync into the matching SF2 monthly sheets.
  */
 import { useState, useEffect, useMemo, useRef, useCallback, Fragment } from 'react';
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 import { extractLrnFromScan } from '../utils/scan-utils';
 import type { AttendanceRecord, Student } from '../types';
 import {
@@ -13,7 +13,7 @@ import {
 import { generateQrDataUrl } from '../services/id-card/codes';
 import { triggerParentAttendanceSms } from '../services/sms-gateway';
 import { formatLearnerName } from '../utils/student-name';
-import { broadcastAttendanceUpdate, pushAttendanceSessionToBackend } from '../services/mobile-attendance-sync';
+import { broadcastAttendanceUpdate } from '../services/mobile-attendance-sync';
 import { PhoneAttendanceModal } from '../components/attendance/PhoneAttendanceModal';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
@@ -84,14 +84,17 @@ export function DailyAttendancePage() {
     const upsertAttendanceRecords = useAppStore((s) => s.upsertAttendanceRecords);
     const deleteAttendanceRecords = useAppStore((s) => s.deleteAttendanceRecords);
     const showNotification = useAppStore((s) => s.showNotification);
+    const globalSelectedSection = useAppStore((s) => s.selectedSection);
+    const setGlobalSelectedSection = useAppStore((s) => s.setSelectedSection);
 
     const [date, setDate] = useState(todayIso());
     // null = user hasn't chosen yet → default to the advisory class when one exists
     const [sectionChoice, setSectionChoice] = useState<string | null>(null);
     const sectionFilter = useMemo(() => {
         if (sectionChoice !== null) return sectionChoice;
-        return sections.find((s) => s.is_advisory)?.section_name ?? 'all';
-    }, [sectionChoice, sections]);
+        const globallySelected = sections.find(s => s.id === globalSelectedSection || s.section_name === globalSelectedSection);
+        return globallySelected?.id ?? sections.find((s) => s.is_advisory)?.id ?? 'all';
+    }, [sectionChoice, sections, globalSelectedSection]);
     const [search, setSearch] = useState('');
     const [scanMode, setScanMode] = useState(false);
     const lateCutoffStorageKey = 'school_attendance_late_cutoff_time';
@@ -109,35 +112,6 @@ export function DailyAttendancePage() {
     const [showQrModal, setShowQrModal] = useState(false);
     const [showPhoneGatewayModal, setShowPhoneGatewayModal] = useState(false);
 
-    // Push active desktop roster & session data to local server for mobile clients
-    useEffect(() => {
-        if (!students || students.length === 0) return;
-        const host = window.location.hostname || 'localhost';
-        const currentPort = window.location.port || '3003';
-        const proto = window.location.protocol.startsWith('https') ? 'https:' : 'http:';
-        const endpoints = Array.from(new Set([
-            `/api/attendance/session`,
-            `${proto}//${host}:${currentPort}/api/attendance/session`,
-            `${proto}//${host}:3003/api/attendance/session`,
-            `${proto}//${host}:3001/api/attendance/session`
-        ]));
-
-        const payload = JSON.stringify({
-            date,
-            students,
-            sections,
-            records: attendanceRecords,
-            schoolProfile,
-        });
-
-        for (const url of endpoints) {
-            fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: payload,
-            }).catch(() => {});
-        }
-    }, [date, students, sections, attendanceRecords, schoolProfile]);
     const [selectedStudentForQr, setSelectedStudentForQr] = useState<Student | null>(null);
     const [studentQrDataUrl, setStudentQrDataUrl] = useState<string>('');
 
@@ -327,9 +301,13 @@ export function DailyAttendancePage() {
 
     // ---------- Roster ----------
     const roster = useMemo(() => {
+        const activeSection = sections.find(s => s.id === sectionFilter || s.section_name === sectionFilter);
         const bySection = sectionFilter === 'all'
             ? students
-            : students.filter((s) => (s.student_section || '') === sectionFilter);
+            : students.filter((s) =>
+                s.student_section === activeSection?.id ||
+                s.student_section === activeSection?.section_name
+            );
         const q = search.trim().toLowerCase();
         const searched = q
             ? bySection.filter((s) =>
@@ -349,17 +327,16 @@ export function DailyAttendancePage() {
             if (lastCmp !== 0) return lastCmp;
             return a.first_name.localeCompare(b.first_name);
         });
-    }, [students, sectionFilter, search]);
+    }, [students, sections, sectionFilter, search]);
 
-    const sectionNames = useMemo(() => {
+    const sortedSections = useMemo(() => {
         return [...sections]
             .sort((a, b) => {
                 const ga = parseInt(a.section_grade_level.replace(/\D/g, '')) || 0;
                 const gb = parseInt(b.section_grade_level.replace(/\D/g, '')) || 0;
                 if (ga !== gb) return ga - gb;
                 return a.section_name.localeCompare(b.section_name);
-            })
-            .map((s) => s.section_name);
+            });
     }, [sections]);
 
     // ---------- Marks for the selected day ----------
@@ -427,9 +404,6 @@ export function DailyAttendancePage() {
             await upsertAttendanceRecords(records);
             showNotification(`Marked ${roster.length} student(s) as ${status}`, 'success');
 
-            // Sync real-time session update in a single batch to mobile clients
-            pushAttendanceSessionToBackend({ date, records, students: roster });
-
             // Trigger SMS to parents for ALL statuses (present, absent, late, cutting, excused)
             const schoolName = schoolProfile?.name || 'Calibungan High School';
             let smsCount = 0;
@@ -461,9 +435,6 @@ export function DailyAttendancePage() {
         try {
             await upsertAttendanceRecords(records);
             showNotification(`Marked ${unmarkedStudents.length} unmarked student(s) as Present`, 'success');
-
-            // Sync real-time session update in a single batch to mobile clients
-            pushAttendanceSessionToBackend({ date, records, students: roster });
 
             const schoolName = schoolProfile?.name || 'Calibungan High School';
             let smsCount = 0;
@@ -643,7 +614,13 @@ export function DailyAttendancePage() {
         const monthPrefix = `${y}-${String(m).padStart(2, '0')}-`;
         const lrnScope = sectionFilter === 'all'
             ? null
-            : new Set(students.filter((s) => (s.student_section || '') === sectionFilter).map((s) => s.lrn));
+            : (() => {
+                const activeSection = sections.find(s => s.id === sectionFilter || s.section_name === sectionFilter);
+                return new Set(students.filter((s) =>
+                    s.student_section === activeSection?.id ||
+                    s.student_section === activeSection?.section_name
+                ).map((s) => s.lrn));
+            })();
         const byDay = new Map<number, { present: number; total: number }>();
         attendanceRecords.forEach((r) => {
             if (!r.date.startsWith(monthPrefix)) return;
@@ -661,7 +638,7 @@ export function DailyAttendancePage() {
                 day,
                 rate: agg.total > 0 ? Math.round((agg.present / agg.total) * 100) : 0,
             }));
-    }, [attendanceRecords, date, sectionFilter, students]);
+    }, [attendanceRecords, date, sectionFilter, students, sections]);
 
     const monthLabel = useMemo(() => {
         const d = new Date(date + 'T00:00:00');
@@ -700,12 +677,17 @@ export function DailyAttendancePage() {
                 />
                 <select
                     value={sectionFilter}
-                    onChange={(e) => setSectionChoice(e.target.value)}
+                    onChange={(e) => {
+                        setSectionChoice(e.target.value);
+                        if (e.target.value !== 'all') setGlobalSelectedSection(e.target.value);
+                    }}
                     className="h-10 px-3 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d1225] text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-400"
                 >
                     <option value="all">All Sections</option>
-                    {sectionNames.map((name) => (
-                        <option key={name} value={name}>{name}</option>
+                    {sortedSections.map((section) => (
+                        <option key={section.id} value={section.id}>
+                            {section.section_grade_level} - {section.section_name}
+                        </option>
                     ))}
                 </select>
                 <div className="relative flex-1 min-w-45">
@@ -1204,7 +1186,9 @@ export function DailyAttendancePage() {
                                     Download Student Attendance QR Codes
                                 </h4>
                                 <p className="text-xs font-semibold text-slate-400 mt-0.5">
-                                    {roster.length} learner(s) in {sectionFilter === 'all' ? 'All Sections' : sectionFilter}
+                                    {roster.length} learner(s) in {sectionFilter === 'all'
+                                        ? 'All Sections'
+                                        : (sections.find(s => s.id === sectionFilter || s.section_name === sectionFilter)?.section_name || 'Selected Section')}
                                 </p>
                             </div>
                             <button onClick={() => setShowQrModal(false)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg transition-colors cursor-pointer">

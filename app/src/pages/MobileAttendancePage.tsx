@@ -10,9 +10,10 @@ import { extractLrnFromScan } from '../utils/scan-utils';
 import { formatLearnerName } from '../utils/student-name';
 import { 
     broadcastAttendanceUpdate, 
-    subscribeToAttendanceUpdates
+    subscribeToAttendanceUpdates,
+    getAttendancePairingToken,
+    getAttendancePairingHeaders
 } from '../services/mobile-attendance-sync';
-import { triggerParentAttendanceSms } from '../services/sms-gateway';
 import { 
     Camera, ScanLine, X, Search, CheckCircle2, AlertCircle, RefreshCw, 
     Smartphone, Check, Wifi, Sparkles, Calendar, BookOpen, Info,
@@ -112,6 +113,7 @@ function formatShortLrn(lrn: string): string {
 }
 
 export function MobileAttendancePage() {
+    const pairingToken = useMemo(() => getAttendancePairingToken(), []);
     const students = useAppStore((s) => s.students);
     const sections = useAppStore((s) => s.sections);
     const attendanceRecords = useAppStore((s) => s.attendanceRecords);
@@ -120,11 +122,14 @@ export function MobileAttendancePage() {
     const setSections = useAppStore((s) => s.setSections);
     const setSchoolProfile = useAppStore((s) => s.setSchoolProfile);
     const schoolProfile = useAppStore((s) => s.schoolProfile);
+    const globalSelectedSection = useAppStore((s) => s.selectedSection);
+    const setGlobalSelectedSection = useAppStore((s) => s.setSelectedSection);
 
     const [date, setDate] = useState(todayIso());
     const userHasCustomDateRef = useRef(false);
     const [selectedSectionId, setSelectedSectionId] = useState<string>(() => {
-        const adv = sections.find(s => s.is_advisory);
+        const adv = sections.find(s => s.id === globalSelectedSection || s.section_name === globalSelectedSection)
+            || sections.find(s => s.is_advisory);
         return adv ? adv.id : 'all';
     });
     const [search, setSearch] = useState('');
@@ -139,6 +144,14 @@ export function MobileAttendancePage() {
     const [copiedFlag, setCopiedFlag] = useState(false);
     const [copiedIp, setCopiedIp] = useState(false);
     const [showSetupGuide, setShowSetupGuide] = useState(false);
+    const [pairingError, setPairingError] = useState(pairingToken ? '' : 'This mobile attendance link is missing its secure pairing. Scan a new QR code from the FormEase desktop app.');
+
+    useEffect(() => {
+        const globalMatch = sections.find(s => s.id === globalSelectedSection || s.section_name === globalSelectedSection);
+        const selectedExists = sections.some(s => s.id === selectedSectionId);
+        const nextId = globalMatch?.id || (selectedExists ? selectedSectionId : sections.find(s => s.is_advisory)?.id);
+        if (nextId && nextId !== selectedSectionId) setSelectedSectionId(nextId);
+    }, [sections, globalSelectedSection, selectedSectionId]);
 
     const handleCopyFlag = useCallback(() => {
         const flagUrl = 'chrome://flags/#unsafely-treat-insecure-origin-as-secure';
@@ -178,6 +191,7 @@ export function MobileAttendancePage() {
     const audioCtxRef = useRef<AudioContext | null>(null);
 
     const syncDesktopSession = useCallback(async (manual = false) => {
+        if (!pairingToken) return;
         if (manual) setIsSyncing(true);
         try {
             const host = window.location.hostname || 'localhost';
@@ -191,8 +205,9 @@ export function MobileAttendancePage() {
 
             for (const apiUrl of endpoints) {
                 try {
-                    const res = await fetch(apiUrl);
+                    const res = await fetch(apiUrl, { headers: getAttendancePairingHeaders() });
                     if (res.ok) {
+                        setPairingError('');
                         const data = await res.json();
                         let updated = false;
                         if (data.date && (!userHasCustomDateRef.current || manual)) {
@@ -227,6 +242,8 @@ export function MobileAttendancePage() {
                         if (updated) {
                             break;
                         }
+                    } else if (res.status === 401) {
+                        setPairingError('This secure pairing has expired or was closed. Scan a new QR code from the FormEase desktop app.');
                     }
                 } catch {
                     // Try next endpoint
@@ -239,7 +256,7 @@ export function MobileAttendancePage() {
                 setTimeout(() => setIsSyncing(false), 500);
             }
         }
-    }, [setStudents, setSections, upsertAttendanceRecords, setSchoolProfile]);
+    }, [pairingToken, setStudents, setSections, upsertAttendanceRecords, setSchoolProfile]);
 
     useEffect(() => {
         void syncDesktopSession(false);
@@ -288,13 +305,14 @@ export function MobileAttendancePage() {
     }, []);
 
     useEffect(() => {
+        if (!pairingToken) return;
         const unsubscribe = subscribeToAttendanceUpdates((event) => {
             if (event.record) {
                 void upsertAttendanceRecords([event.record]);
             }
         });
         return () => unsubscribe();
-    }, [upsertAttendanceRecords]);
+    }, [pairingToken, upsertAttendanceRecords]);
 
     const activeSection = useMemo(() => {
         return sections.find(s => s.id === selectedSectionId || s.section_name === selectedSectionId);
@@ -426,20 +444,14 @@ export function MobileAttendancePage() {
 
         // 3. Always broadcast to desktop PC regardless of store success
         const studentFullName = formatLearnerName(student, { middleInitialOnly: true });
-        broadcastAttendanceUpdate(record, studentFullName);
-
-        // 4. SMS trigger (fire-and-forget)
-        const parentPhone = student.parent_contact || student.parent_guardian_contact || student.contact_number || '';
-        if (parentPhone) {
-            void triggerParentAttendanceSms(studentFullName, parentPhone, schoolProfile?.name || 'School', targetStatus, date);
-        }
+        broadcastAttendanceUpdate(record, studentFullName, undefined, 'Smartphone');
 
         setLastScanResult({
             ok: true,
             message: `Marked ${student.first_name} as ${targetStatus.toUpperCase()}`,
             timestamp: timeStr,
         });
-    }, [triggerHaptic, playBeep, dayRecordsMap, date, activeSection, upsertAttendanceRecords, schoolProfile]);
+    }, [triggerHaptic, playBeep, dayRecordsMap, date, activeSection, upsertAttendanceRecords]);
 
     const processScannedCode = useCallback(async (scannedText: string) => {
         const extractedLrn = extractLrnFromScan(scannedText);
@@ -594,6 +606,21 @@ export function MobileAttendancePage() {
         };
     }, [cameraOpen, facingMode]);
 
+    if (pairingError) {
+        return (
+            <main className="min-h-screen bg-[#f2f2f7] flex items-center justify-center p-6 text-slate-900">
+                <section role="alert" className="w-full max-w-md rounded-3xl bg-white border border-rose-200 shadow-xl p-7 text-center space-y-4">
+                    <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto" aria-hidden="true" />
+                    <h1 className="text-xl font-black">Secure pairing required</h1>
+                    <p className="text-sm text-slate-600 leading-relaxed">{pairingError}</p>
+                    <button onClick={() => void syncDesktopSession(true)} disabled={!pairingToken || isSyncing} className="px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-bold disabled:opacity-50">
+                        {isSyncing ? 'Checking…' : 'Try again'}
+                    </button>
+                </section>
+            </main>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-[#f2f2f7] text-slate-900 font-sans pb-28 select-none antialiased">
             <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 px-4 py-2.5 shadow-2xs">
@@ -668,7 +695,10 @@ export function MobileAttendancePage() {
                             <BookOpen className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
                             <select
                                 value={selectedSectionId}
-                                onChange={(e) => setSelectedSectionId(e.target.value)}
+                                onChange={(e) => {
+                                    setSelectedSectionId(e.target.value);
+                                    if (e.target.value !== 'all') setGlobalSelectedSection(e.target.value);
+                                }}
                                 className="bg-transparent border-none text-slate-800 text-xs font-semibold focus:outline-none cursor-pointer w-full truncate"
                             >
                                 <option value="all">All Students ({students.length})</option>

@@ -45,10 +45,11 @@ try {
     console.error('Failed to register Bookman Old Style fonts:', e);
 }
 
-import { useAppStore, useAuthStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
+import { useAuthStore } from '../stores/auth-store';
 import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2Sheet, SchoolProfile, CalendarEvent, SF9SignatureSettings, AttendanceRecord } from '../types';
 import { db } from '../services/database';
-import { resolveStudentQuarterGrade, isMatchingSubject, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
+import { resolveStudentQuarterGrade, isMatchingSubject, isStudentEligibleForSectionSubject, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
 import { getStandardSubjectPriority } from '../lib/subjectConfig';
 import { reconcileOrphanedGradesAndSubjects } from '../utils/grade-reconciliation';
 import { computeStudentAttendance } from '../utils/sf9-attendance';
@@ -61,7 +62,7 @@ import type { SF9ExcelExportOptions } from '../services/sf9-excel-export';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
 import { formatLearnerName } from '../utils/student-name';
-import { getShsSubjectUnitInfo, getCurriculumTemplatesForSection, getDefaultTermForSubject } from '../lib/curriculum';
+import { getShsSubjectUnitInfo, getCurriculumTemplatesForSection, getDefaultTermForSubject, resolveSubjectOfferedTerms } from '../lib/curriculum';
 import {
     SF9Template2Document,
     SF9Template2BatchDocument,
@@ -583,6 +584,8 @@ const CORE_VALUES = [
 export interface SF9SubjectItem {
     name: string;
     id?: string;
+    term?: Subject['term'];
+    units?: number;
     isHeader?: boolean;
     isComponent?: boolean;
     isReserved?: boolean;
@@ -606,15 +609,20 @@ function computeStudentGrades(
     // Determine candidate subjects for this section/grade
     let candidates = subjects.filter(s => {
         // If subject has specific enrolled students (e.g. elective/major in SPA/SPTVE/SPFL/etc.), only include if current student is enrolled
-        if (s.enrolled_student_lrns && s.enrolled_student_lrns.length > 0) {
-            if (!s.enrolled_student_lrns.includes(student.lrn)) {
-                return false;
-            }
+        if (!isStudentEligibleForSectionSubject(student.lrn, sectionObj, s, subjects)) {
+            return false;
         }
         const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
         const isMatchingGrade = subjectGradeNum === gradeLevelNum;
         const isMatchingSection = s.section_id === sectionObj.id;
-        return (isMatchingGrade || isMatchingSection) && s.term !== 'none';
+        if (s.term === 'none' || !(isMatchingGrade || isMatchingSection)) return false;
+        if (!s.section_id) {
+            return !subjects.some(direct =>
+                direct.section_id === sectionObj.id &&
+                isMatchingSubject(s.subject_name, direct.id, direct.subject_name)
+            );
+        }
+        return isMatchingSection;
     });
 
     if (isSHS) {
@@ -622,14 +630,19 @@ function computeStudentGrades(
             // Ensure all explicitly taught subjects are present
             for (const tName of taughtRaw) {
                 const alreadyHas = candidates.some(s => isMatchingSubject(tName, s.id, s.subject_name));
-                if (!alreadyHas) {
+                const configuredForSection = subjects.some(s =>
+                    (s.section_id === sectionObj.id || !s.section_id) &&
+                    parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0') === gradeLevelNum &&
+                    isMatchingSubject(tName, s.id, s.subject_name)
+                );
+                if (!alreadyHas && !configuredForSection) {
                     candidates.push({
                         id: `virtual_${tName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
                         subject_name: tName,
                         subject_code: '',
                         grade_level: sectionObj.section_grade_level,
                         section_id: sectionObj.id,
-                        term: 'all'
+                        term: getDefaultTermForSubject(tName, sectionObj.section_grade_level)
                     });
                 }
             }
@@ -723,7 +736,7 @@ function computeStudentGrades(
 
     if (sectionDbSubjects.length > 0) {
         // Use DB Subjects
-        baseSubjects = sectionDbSubjects.map(s => ({ name: s.subject_name, id: s.id }));
+        baseSubjects = sectionDbSubjects.map(s => ({ name: s.subject_name, id: s.id, term: s.term, units: s.units }));
         
         // Ensure MAPEH Header exists if missing but components exist
         const hasMapehHeader = sectionDbSubjects.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
@@ -765,7 +778,7 @@ function computeStudentGrades(
                 if (selectedId && selectedId !== 'none') {
                     const subject = subjects.find(s => s.id === selectedId);
                     if (subject) {
-                        selectedSubjects.push({ name: subject.subject_name, id: subject.id });
+                        selectedSubjects.push({ name: subject.subject_name, id: subject.id, term: subject.term, units: subject.units });
                     }
                 }
             }
@@ -948,7 +961,7 @@ function computeStudentGrades(
 
             if (sortedElectives.length > 0) {
                 currentSubjects.push({ name: 'Elective Subjects', isHeader: true });
-                sortedElectives.forEach(s => currentSubjects.push({ name: s.name, id: s.id }));
+                sortedElectives.forEach(s => currentSubjects.push({ ...s }));
             }
 
             while (currentSubjects.length < 13) {
@@ -1089,29 +1102,35 @@ function computeStudentGrades(
                 const hpsRecords = useAppStore.getState().hpsRecords;
 
                 matchingSubjects.forEach(subject => {
-                    let gradeVal = resolveStudentQuarterGrade(
-                        student.lrn,
-                        subject.subject_name || subject.id,
-                        q,
+                    let gradeVal = resolveStudentQuarterGrade({
+                        studentLrn: student.lrn,
+                        subjectId: subject.id,
+                        subjectName: subject.subject_name,
+                        sectionId: sectionObj.id,
+                        quarter: q,
                         schoolYear,
                         classRecords,
                         gradingSheetRecords,
                         hpsRecords,
-                        sectionObj?.section_grade_level,
-                        sectionObj?.track
-                    );
+                        sectionGradeLevel: sectionObj.section_grade_level,
+                        sectionTrack: sectionObj.track,
+                        subjectObj: subject
+                    });
                     if (gradeVal === 0 && subject.id && subject.id !== subject.subject_name) {
-                        gradeVal = resolveStudentQuarterGrade(
-                            student.lrn,
-                            subject.id,
-                            q,
+                        gradeVal = resolveStudentQuarterGrade({
+                            studentLrn: student.lrn,
+                            subjectId: subject.id,
+                            subjectName: subject.subject_name,
+                            sectionId: sectionObj.id,
+                            quarter: q,
                             schoolYear,
                             classRecords,
                             gradingSheetRecords,
                             hpsRecords,
-                            sectionObj?.section_grade_level,
-                            sectionObj?.track
-                        );
+                            sectionGradeLevel: sectionObj.section_grade_level,
+                            sectionTrack: sectionObj.track,
+                            subjectObj: subject
+                        });
                     }
                     if (gradeVal > 0) {
                         results.push(gradeVal);
@@ -1126,17 +1145,19 @@ function computeStudentGrades(
         const getDirectQuarterGrade = (q: 1 | 2 | 3) => {
             const classRecords = useAppStore.getState().classRecords;
             const hpsRecords = useAppStore.getState().hpsRecords;
-            return resolveStudentQuarterGrade(
-                student.lrn,
+            return resolveStudentQuarterGrade({
+                studentLrn: student.lrn,
+                subjectIdOrName: subjectName,
                 subjectName,
-                q,
+                sectionId: sectionObj.id,
+                quarter: q,
                 schoolYear,
                 classRecords,
                 gradingSheetRecords,
                 hpsRecords,
-                sectionObj?.section_grade_level,
-                sectionObj?.track
-            );
+                sectionGradeLevel: sectionObj.section_grade_level,
+                sectionTrack: sectionObj.track
+            });
         };
         return [getDirectQuarterGrade(1), getDirectQuarterGrade(2), getDirectQuarterGrade(3)];
     };
@@ -1159,8 +1180,6 @@ function computeStudentGrades(
         const ec = effectiveCommGrades[qIdx] || 0;
         const mk = mabisangKomGrades[qIdx] || 0;
         if (ec > 0 && mk > 0) return Math.round((ec + mk) / 2);
-        if (ec > 0) return ec;
-        if (mk > 0) return mk;
         return 0;
     });
 
@@ -1217,7 +1236,7 @@ function calculateGeneralAverage(grades: Record<string, number[]>, currentSubjec
             const dbSubj = subjItem?.id 
                 ? dbSubjects.find(s => s.id === subjItem.id) 
                 : dbSubjects.find(s => s.subject_name.toLowerCase().trim() === key.toLowerCase().trim());
-            const term = dbSubj?.term;
+            const term = subjItem?.term ?? dbSubj?.term ?? getDefaultTermForSubject(key, gradeLevel || 'Grade 11');
             if (term === 'none') return;
             if (dbSubj?.counts_in_general_average === false || dbSubj?.is_component) return;
 
@@ -1225,7 +1244,13 @@ function calculateGeneralAverage(grades: Record<string, number[]>, currentSubjec
             if (finalGrade > 0) {
                 if (isSHS) {
                     const unitInfo = getShsSubjectUnitInfo(key, gradeLevel || 'Grade 11');
-                    const yearUnits = unitInfo.yearUnits;
+                    const explicitUnits = Number(subjItem?.units ?? dbSubj?.units);
+                    const termUnits = Number.isFinite(explicitUnits) && explicitUnits > 0 ? explicitUnits : unitInfo.unitsPerTerm;
+                    const offeredTermCount = resolveSubjectOfferedTerms(
+                        { subject_name: key, term },
+                        { section_grade_level: gradeLevel || 'Grade 11' }
+                    ).length;
+                    const yearUnits = termUnits * Math.max(1, offeredTermCount);
                     totalWeighted += finalGrade * yearUnits;
                     totalUnits += yearUnits;
                 } else {
@@ -1296,6 +1321,61 @@ function calculateFinalGrade(quarterGrades: number[], term?: 1 | 2 | 3 | 'all' |
 
     if (quarterGrades.length !== 3 || !quarterGrades.every(g => g > 0)) return 0;
     return Math.round(quarterGrades.reduce((a, b) => a + b, 0) / 3);
+}
+
+function areAllSf9TermsComplete(
+    grades: Record<string, number[]>,
+    currentSubjectsList: SF9SubjectItem[],
+    gradeLevel: string
+): boolean {
+    const dbSubjects = useAppStore.getState().subjects;
+    const requiredSubjects = currentSubjectsList.filter(subject => {
+        if (subject.isReserved || subject.isComponent) return false;
+        if (subject.isHeader && ['Core Subjects', 'Electives', 'Elective Subjects', 'Applied Subjects', 'Specialized Subjects'].includes(subject.name)) return false;
+        if (subject.name.startsWith('*') || subject.name.toLowerCase().includes('arabic language') || subject.name.toLowerCase().includes('islamic values')) return false;
+        return true;
+    });
+
+    if (requiredSubjects.length === 0) return false;
+
+    return requiredSubjects.every(subject => {
+        const dbSubject = subject.id
+            ? dbSubjects.find(candidate => candidate.id === subject.id)
+            : dbSubjects.find(candidate => normalizeSubjectName(candidate.subject_name) === normalizeSubjectName(subject.name));
+        const term = subject.term ?? dbSubject?.term ?? getDefaultTermForSubject(subject.name, gradeLevel);
+        const offeredTerms = resolveSubjectOfferedTerms(
+            { subject_name: subject.name, term },
+            { section_grade_level: gradeLevel }
+        );
+        const gradeRow = grades[subject.name] || [0, 0, 0];
+        return offeredTerms.length > 0 && offeredTerms.every(termNumber => Number(gradeRow[termNumber - 1]) > 0);
+    });
+}
+
+function calculateTotalSf9Units(currentSubjectsList: SF9SubjectItem[], gradeLevel: string): number {
+    const dbSubjects = useAppStore.getState().subjects;
+
+    return currentSubjectsList.reduce((totalUnits, subject) => {
+        if (subject.isReserved || subject.isComponent) return totalUnits;
+        if (subject.isHeader && ['Core Subjects', 'Electives', 'Elective Subjects', 'Applied Subjects', 'Specialized Subjects'].includes(subject.name)) return totalUnits;
+        if (subject.name.startsWith('*') || subject.name.toLowerCase().includes('arabic language') || subject.name.toLowerCase().includes('islamic values')) return totalUnits;
+
+        const dbSubject = subject.id
+            ? dbSubjects.find(candidate => candidate.id === subject.id)
+            : dbSubjects.find(candidate => normalizeSubjectName(candidate.subject_name) === normalizeSubjectName(subject.name));
+        if (dbSubject?.counts_in_general_average === false || dbSubject?.is_component) return totalUnits;
+
+        const unitInfo = getShsSubjectUnitInfo(subject.name, gradeLevel);
+        const explicitUnits = Number(subject.units ?? dbSubject?.units);
+        const unitsPerTerm = Number.isFinite(explicitUnits) && explicitUnits > 0 ? explicitUnits : unitInfo.unitsPerTerm;
+        const term = subject.term ?? dbSubject?.term ?? getDefaultTermForSubject(subject.name, gradeLevel);
+        const offeredTermCount = resolveSubjectOfferedTerms(
+            { subject_name: subject.name, term },
+            { section_grade_level: gradeLevel }
+        ).length;
+
+        return totalUnits + (unitsPerTerm * Math.max(1, offeredTermCount));
+    }, 0);
 }
 
 function getRemarks(grade: number): string {
@@ -1551,8 +1631,12 @@ function SF9Pages({
         return true;
     };
 
-    // Whether to show final grade & remarks (only in full or term3)
-    const showFinalAndRemarks = !hideGrades && (printMode === 'full' || printMode === 'term3');
+    const allRequiredTermsComplete = areAllSf9TermsComplete(grades, currentSubjects, student.grade_level);
+
+    // A full/default preview must not leak a premature Final Grade. Final
+    // grades, final average, and final remarks are released only after every
+    // required subject offering across all three terms has a grade.
+    const showFinalAndRemarks = !hideGrades && allRequiredTermsComplete && (printMode === 'full' || printMode === 'term3');
 
     // Filter attendance months by term
     const getAttendanceValue = (idx: number, value: number): number | string => {
@@ -1573,7 +1657,10 @@ function SF9Pages({
         return hasAnyData ? sum : '';
     };
 
-    const generalAverage = calculateGeneralAverage(grades, currentSubjects, student.grade_level);
+    const generalAverage = allRequiredTermsComplete
+        ? calculateGeneralAverage(grades, currentSubjects, student.grade_level)
+        : 0;
+    const totalSf9Units = isG11Academic ? calculateTotalSf9Units(currentSubjects, student.grade_level) : 0;
 
     const cleanDivision = (division || '')
         .replace(/schools division office of/i, '')
@@ -2058,7 +2145,7 @@ function SF9Pages({
                                         const dbSubj = subj.id 
                                             ? dbSubjects.find(s => s.id === subj.id) 
                                             : dbSubjects.find(s => s.subject_name.toLowerCase().trim() === subj.name.toLowerCase().trim());
-                                        const term = dbSubj?.term;
+                                        const term = subj.term ?? dbSubj?.term ?? getDefaultTermForSubject(subj.name, student.grade_level || 'Grade 11');
                                         const isReserved = subj.isReserved;
                                         const isHeader = subj.isHeader;
                                         const isCategoryHeader = isHeader && (
@@ -2140,7 +2227,13 @@ function SF9Pages({
                                                 return '6';
                                             }
                                             const unitInfo = getShsSubjectUnitInfo(subj.name, student.grade_level || 'Grade 11');
-                                            return String(unitInfo.yearUnits || (unitInfo.category === 'core' ? 6 : 3));
+                                            const explicitUnits = Number(subj.units ?? dbSubj?.units);
+                                            const termUnits = Number.isFinite(explicitUnits) && explicitUnits > 0 ? explicitUnits : unitInfo.unitsPerTerm;
+                                            const offeredTermCount = resolveSubjectOfferedTerms(
+                                                { subject_name: subj.name, term },
+                                                { section_grade_level: student.grade_level || 'Grade 11' }
+                                            ).length;
+                                            return String(termUnits * Math.max(1, offeredTermCount));
                                         })();
 
                                         const isParentComm = normalizeSubjectName(subj.name) === 'effectivecommunicationmabisangkomunikasyon';
@@ -2194,7 +2287,7 @@ function SF9Pages({
                                                 {isG11Academic && (
                                                     <View style={[styles.singleLpCell, { width: '10%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
                                                         <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
-                                                            {!hideGrades && !isCategoryHeader && showFinalAndRemarks ? unitsVal : ''}
+                                                            {!hideGrades && !isCategoryHeader && !isComponent && !isValuesOnly ? unitsVal : ''}
                                                         </Text>
                                                     </View>
                                                 )}
@@ -2220,7 +2313,7 @@ function SF9Pages({
                                             </View>
                                             <View style={[styles.singleLpCell, { width: '10%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
                                                 <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }}>
-                                                    {!hideGrades && showFinalAndRemarks && generalAverage > 0 ? '39' : ''}
+                                                    {!hideGrades && !isValuesOnly && totalSf9Units > 0 ? String(totalSf9Units) : ''}
                                                 </Text>
                                             </View>
                                             <View style={[styles.singleLpCell, { width: '13%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
@@ -3854,7 +3947,7 @@ export function SF9Page() {
                                         setSelectedStudentB(null);
                                         const sec = filteredSections.find(s => s.id === newId);
                                         if (sec) {
-                                            setGlobalSelectedSection(sec.section_name);
+                                            setGlobalSelectedSection(sec.id);
                                         }
                                     }}
                                     title="Select Advisory Section"

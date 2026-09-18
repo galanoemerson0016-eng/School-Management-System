@@ -78,15 +78,13 @@ describe('Dashboard (smoke)', () => {
         expect(() => render(<Dashboard />)).not.toThrow();
     });
 
-    it('shows the school year in the rendered output', () => {
+    it('shows the empty-state guidance when there are no records', () => {
         render(<Dashboard />);
-        expect(screen.getByText(/2026-2027/i)).toBeTruthy();
+        expect(screen.getByText(/No records yet/i)).toBeTruthy();
     });
 
-    it('renders an enrollment count of 0 when no students', () => {
+    it('offers onboarding when no students have been set up', () => {
         render(<Dashboard />);
-        // The dashboard should show "0" somewhere for enrollment
-        const zeros = screen.getAllByText('0');
-        expect(zeros.length).toBeGreaterThan(0);
+        expect(screen.getByText(/Start Onboarding Tour/i)).toBeTruthy();
     });
 });

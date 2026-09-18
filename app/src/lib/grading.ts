@@ -1,4 +1,4 @@
-import { useAppStore } from '../stores';
+import { useAppStore } from '../stores/app-store';
 
 export const normalizeScores = (scores: (number | string)[] | undefined, count: number): (number | string)[] => {
     const src = Array.isArray(scores) ? scores : [];

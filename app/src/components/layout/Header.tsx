@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useAppStore, useAuthStore } from '../../stores';
+import { useAppStore } from '../../stores/app-store';
+import { useAuthStore } from '../../stores/auth-store';
 import { Bell, X, Database, HelpCircle, Cloud, CloudUpload, Loader2, ChevronDown, HardDriveDownload, Bug, Shield } from 'lucide-react';
 import { UpdateStatus } from '../ui/UpdateStatus';
 import { CloudSyncService } from '../../services/cloud-sync';
@@ -10,7 +11,7 @@ const viewTitles: Record<string, string> = {
     dashboard: 'Dashboard',
     students: 'Student Information',
     institute: 'Institute Profile',
-    subjects: 'Subjects',
+    subjects: 'Subject Library',
     sections: 'Classes & Sections',
     enrollment: 'Enrollment Center',
     eclass: 'E-Class Record',
@@ -219,7 +220,7 @@ export function Header() {
                                 onChange={(e) => {
                                     const sec = advisorySections.find(s => s.id === e.target.value);
                                     if (sec) {
-                                        setSelectedSection(sec.section_name);
+                                        setSelectedSection(sec.id);
                                         const gradeNum = sec.section_grade_level.replace(/\D/g, '') || sec.section_grade_level;
                                         showNotification(`Active Advisory switched to ${gradeNum}-${sec.section_name}`, 'info');
                                     }

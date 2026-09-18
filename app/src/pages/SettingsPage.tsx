@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuthStore, useAppStore, initializeAppStore, useUpdateStore } from '../stores';
+import { useAuthStore } from '../stores/auth-store';
+import { useAppStore, initializeAppStore } from '../stores/app-store';
+import { useUpdateStore } from '../stores/update-store';
 import { db } from '../services/database';
 import { Database, User, Shield, Upload, History, Cloud, Info, Sparkles, Sun, Moon, Monitor, Download, MessageSquare, FileSpreadsheet, RefreshCw, CheckCircle2, Archive } from 'lucide-react';
 import { AboutPage } from './AboutPage';

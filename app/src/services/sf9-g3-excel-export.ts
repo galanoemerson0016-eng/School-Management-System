@@ -8,6 +8,7 @@
 import JSZip from 'jszip';
 import type { SF9ExcelExportOptions } from './sf9-excel-export';
 import { formatLearnerName } from '../utils/student-name';
+import { isZipTemplate, readNodeTemplateFallback } from '../utils/node-template-fallback';
 
 /**
  * Check if the grade level corresponds to Grade 3
@@ -76,20 +77,11 @@ export async function fetchGrade3TemplateBuffer(): Promise<ArrayBuffer> {
     }
   }
 
-  // Node / test environment fallback
-  if (typeof process !== 'undefined' && process.versions?.node) {
-    try {
-      const fs = await import('fs');
-      const path = await import('path');
-      const diskPath = path.resolve(process.cwd(), 'public/templates/G3 School Form 9 (SY 26-27).xlsx');
-      if (fs.existsSync(diskPath)) {
-        const buffer = fs.readFileSync(diskPath);
-        return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
-      }
-    } catch {
-      // ignore
-    }
-  }
+  const nodeBytes = await readNodeTemplateFallback(
+    ['G3 School Form 9 (SY 26-27).xlsx'],
+    1000,
+  );
+  if (isZipTemplate(nodeBytes)) return nodeBytes.slice().buffer as ArrayBuffer;
 
   throw new Error('Failed to fetch valid Grade 3 School Form 9 template.');
 }

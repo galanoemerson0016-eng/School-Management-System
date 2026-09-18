@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useAuthStore, useAppStore } from '../stores';
+import { useAuthStore } from '../stores/auth-store';
+import { useAppStore } from '../stores/app-store';
 import { useSystemStore } from '../stores/system-store';
 import {
     User, Eye, EyeOff,
