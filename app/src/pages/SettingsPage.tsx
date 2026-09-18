@@ -3,8 +3,9 @@ import { useAuthStore } from '../stores/auth-store';
 import { useAppStore, initializeAppStore } from '../stores/app-store';
 import { useUpdateStore } from '../stores/update-store';
 import { db } from '../services/database';
-import { Database, User, Shield, Upload, History, Cloud, Info, Sparkles, Sun, Moon, Monitor, Download, MessageSquare, FileSpreadsheet, RefreshCw, CheckCircle2, Archive } from 'lucide-react';
+import { Database, User, Shield, Upload, Cloud, Info, Sparkles, Sun, Moon, Monitor, Download, MessageSquare, FileSpreadsheet, RefreshCw, CheckCircle2, Archive } from 'lucide-react';
 import { AboutPage } from './AboutPage';
+import { VersionHistoryTimeline } from '../components/settings/VersionHistoryTimeline';
 import { SmsGatewaySettings } from '../components/settings/SmsGatewaySettings';
 import { AutoBackupManager, type AutomatedBackupEntry } from '../services/AutoBackupManager';
 import { CloudSyncService } from '../services/cloud-sync';
@@ -19,11 +20,9 @@ import { encryptBackup, createEncryptedBackupFile } from '../utils/backup-encryp
 import { compareBackupSizes, formatBytes } from '../utils/backup-compression';
 import { createBackupMetadata, saveBackupMetadata } from '../utils/backup-metadata';
 import { embedChecksum } from '../utils/backup-integrity';
-import { exportToCSV } from '../utils/csv-export';
 import {
     getLiveDatabaseRecordCounts,
     exportDirectDatabaseToExcel,
-    exportDirectDatabaseStoreToCSV,
     exportAllDirectDatabaseStoresToCSV,
     type DatabaseRecordCounts
 } from '../services/database-rescue-export';
@@ -84,7 +83,8 @@ export function SettingsPage() {
     const [autoBackups, setAutoBackups] = useState<AutomatedBackupEntry[]>([]);
     const [fsBackups, setFsBackups] = useState<FsBackupEntry[]>([]);
     const updateStore = useUpdateStore();
-    const [activeTab, setActiveTab] = useState<'account' | 'cloud' | 'backups' | 'sms' | 'maintenance' | 'versions' | 'about'>('account');
+    const [activeTab, setActiveTab] = useState<'general' | 'account' | 'backups' | 'cloud' | 'sms' | 'maintenance' | 'versions' | 'about'>('general');
+    const [aboutSubTab, setAboutSubTab] = useState<'highlights' | 'history' | 'innovator'>('highlights');
 
     const [disableAnimations, setDisableAnimations] = useState(() => {
         return localStorage.getItem('disable-animations') === 'true';
@@ -106,7 +106,6 @@ export function SettingsPage() {
     const [cloudBackups, setCloudBackups] = useState<CloudBackupEntry[]>([]);
     const [isLoadingCloudBackups, setIsLoadingCloudBackups] = useState(false);
     const [isRestoringCloudBackup, setIsRestoringCloudBackup] = useState(false);
-    const [showEmergencyRollbacks, setShowEmergencyRollbacks] = useState(false);
     const [selectedSectionToCascadePurge, setSelectedSectionToCascadePurge] = useState<string>('');
 
     // --- Direct Database Rescue & Health State ---
@@ -343,7 +342,7 @@ export function SettingsPage() {
     }, []);
 
     useEffect(() => {
-        if (activeTab === 'cloud') {
+        if (activeTab === 'cloud' || activeTab === 'backups') {
             loadCloudBackupsList();
         }
     }, [activeTab, cloudSyncState.linked, loadCloudBackupsList]);
@@ -489,9 +488,6 @@ export function SettingsPage() {
     const [duplicateLrns, setDuplicateLrns] = useState<Array<{ lrn: string; students: Student[] }>>([]);
     const [isScanningDuplicates, setIsScanningDuplicates] = useState(false);
     const [showDuplicateModal, setShowDuplicateModal] = useState(false);
-    const [storageStats, setStorageStats] = useState<Record<string, { count: number; sizeBytes: number }> | null>(null);
-    const [storageEstimate, setStorageEstimate] = useState<{ used: number; total: number } | null>(null);
-    const [isScanningStorage, setIsScanningStorage] = useState(false);
     const [lrnValidationIssues, setLrnValidationIssues] = useState<Array<{ student: Student; issue: string }>>([]);
     const [isScanningLrnValidation, setIsScanningLrnValidation] = useState(false);
     const [gradeConsistencyIssues, setGradeConsistencyIssues] = useState<Array<{ type: string; studentName: string; details: string; severity: 'warning' | 'error' }>>([]);
@@ -505,13 +501,7 @@ export function SettingsPage() {
             return [];
         }
     });
-    const [autoCleanupEnabled, setAutoCleanupEnabled] = useState(() => {
-        return localStorage.getItem('formease_auto_cleanup_enabled') === 'true';
-    });
-    const [cloudBackupSchedule, setCloudBackupSchedule] = useState(() => {
-        return localStorage.getItem('formease_cloud_backup_schedule') || 'off';
-    });
-    const [backupHistory, setBackupHistory] = useState<Array<{ type: string; timestamp: number; size: number; status: string }>>(() => {
+    const [, setBackupHistory] = useState<Array<{ type: string; timestamp: number; size: number; status: string }>>(() => {
         try {
             return JSON.parse(localStorage.getItem('formease_backup_history') || '[]');
         } catch {
@@ -1107,54 +1097,6 @@ export function SettingsPage() {
         }
     };
 
-    // --- CSV & Direct DB Exporter ---
-    const handleExportTableCsv = async (tableName: string) => {
-        try {
-            const storeMap: Record<string, string> = {
-                students: 'students',
-                sections: 'sections',
-                subjects: 'subjects',
-                grades: 'classRecords',
-                gradingSheetRecords: 'gradingSheetRecords',
-                attendanceRecords: 'attendanceRecords',
-                enrollments: 'enrollments'
-            };
-            const actualStore = storeMap[tableName] || tableName;
-            const count = await exportDirectDatabaseStoreToCSV(actualStore);
-            if (count === 0) {
-                // Fallback to Zustand memory if IndexedDB store is empty
-                let dataToExport: Record<string, unknown>[] = [];
-                if (tableName === 'students') {
-                    dataToExport = (studentProfiles.length > 0 ? studentProfiles : students) as unknown as Record<string, unknown>[];
-                } else if (tableName === 'sections') {
-                    dataToExport = sections as unknown as Record<string, unknown>[];
-                } else if (tableName === 'subjects') {
-                    dataToExport = subjects as unknown as Record<string, unknown>[];
-                } else if (tableName === 'grades') {
-                    dataToExport = classRecords as unknown as Record<string, unknown>[];
-                } else if (tableName === 'gradingSheetRecords') {
-                    dataToExport = gradingSheetRecords as unknown as Record<string, unknown>[];
-                } else if (tableName === 'attendanceRecords') {
-                    dataToExport = attendanceRecords as unknown as Record<string, unknown>[];
-                } else if (tableName === 'enrollments') {
-                    dataToExport = enrollments as unknown as Record<string, unknown>[];
-                }
-
-                if (dataToExport.length === 0) {
-                    alert(`No records found in table "${tableName}" to export.`);
-                    return;
-                }
-
-                exportToCSV(dataToExport, `FormEase_${tableName}_${new Date().toISOString().split('T')[0]}`);
-                addMaintenanceLog(`Export table CSV: ${tableName}`, dataToExport.length);
-            } else {
-                addMaintenanceLog(`Direct DB Export CSV: ${actualStore}`, count);
-            }
-        } catch (e) {
-            alert('CSV Export failed: ' + e);
-        }
-    };
-
     const handleExportAllTablesCsv = async () => {
         try {
             const results = await exportAllDirectDatabaseStoresToCSV();
@@ -1251,35 +1193,6 @@ export function SettingsPage() {
     //         setIsArchiving(false);
     //     }
     // };
-
-    // --- Database Storage scan ---
-    const handleStorageScan = async () => {
-        setIsScanningStorage(true);
-        try {
-            const stats = await db.getStoreStats();
-            setStorageStats(stats);
-
-            if (navigator.storage && navigator.storage.estimate) {
-                const estimate = await navigator.storage.estimate();
-                setStorageEstimate({
-                    used: estimate.usage || 0,
-                    total: estimate.quota || 100 * 1024 * 1024
-                });
-            } else {
-                let totalSize = 0;
-                Object.values(stats).forEach(s => totalSize += s.sizeBytes);
-                setStorageEstimate({
-                    used: totalSize,
-                    total: 100 * 1024 * 1024
-                });
-            }
-            addMaintenanceLog('Storage scan', Object.keys(stats).length);
-        } catch (e) {
-            alert('Storage scan failed: ' + e);
-        } finally {
-            setIsScanningStorage(false);
-        }
-    };
 
     const handleExportToUsb = async () => {
         if (!usbDetectedPath) {
@@ -1885,7 +1798,6 @@ export function SettingsPage() {
     };
 
     const [cleanupPreview, setCleanupPreview] = useState<RecordCleanupPreview | null>(null);
-    const [isPreviewingCleanup, setIsPreviewingCleanup] = useState(false);
     const [isNormalizingRecords, setIsNormalizingRecords] = useState(false);
     const [isDeletingOrphanGrades, setIsDeletingOrphanGrades] = useState(false);
     const [showDangerZone, setShowDangerZone] = useState(false);
@@ -1954,16 +1866,6 @@ export function SettingsPage() {
             orphanGrades: orphanGradeIds.length,
             orphanGradeSample: orphanGradeIds.slice(0, 5),
         };
-    };
-
-    const handlePreviewRecordCleanup = () => {
-        setIsPreviewingCleanup(true);
-        try {
-            const preview = buildCleanupPreview();
-            setCleanupPreview(preview);
-        } finally {
-            setIsPreviewingCleanup(false);
-        }
     };
 
     const handleNormalizeRecords = async () => {
@@ -2179,42 +2081,30 @@ export function SettingsPage() {
                 </div>
             </div>
 
-            {/* Top Horizontal Navigation Tab Bar - Single Line 6-Column Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 p-1.5 bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl mb-6 w-full">
+            {/* Top Horizontal Navigation Tab Bar - 5 Streamlined Tabs */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 p-1.5 bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl mb-6 w-full">
                 <button
-                    onClick={() => setActiveTab('account')}
-                    className={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
-                        activeTab === 'account'
+                    onClick={() => setActiveTab('general')}
+                    className={`flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
+                        activeTab === 'general' || (activeTab as string) === 'account'
                             ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/40 dark:border-white/5'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/5'
                     }`}
                 >
                     <User className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                    <span className="truncate">Account & Security</span>
-                </button>
-
-                <button
-                    onClick={() => setActiveTab('cloud')}
-                    className={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
-                        activeTab === 'cloud'
-                            ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/40 dark:border-white/5'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/5'
-                    }`}
-                >
-                    <Cloud className="w-3.5 h-3.5 text-sky-500 shrink-0" />
-                    <span className="truncate">Cloud Backup Sync</span>
+                    <span className="truncate">Profile & Preferences</span>
                 </button>
 
                 <button
                     onClick={() => setActiveTab('backups')}
-                    className={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
-                        activeTab === 'backups'
-                            ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/40 dark:border-white/5'
+                    className={`flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
+                        activeTab === 'backups' || (activeTab as string) === 'cloud'
+                            ? 'bg-white dark:bg-[#1e293b] text-purple-600 dark:text-purple-400 shadow-xs border border-slate-200/40 dark:border-white/5'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/5'
                     }`}
                 >
                     <Database className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-                    <span className="truncate">Local Backups</span>
+                    <span className="truncate">Backups & Cloud Sync</span>
                     {(fsBackups.length + autoBackups.length) > 0 && (
                         <span className="px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 shrink-0">
                             {fsBackups.length + autoBackups.length}
@@ -2224,7 +2114,7 @@ export function SettingsPage() {
 
                 <button
                     onClick={() => setActiveTab('sms')}
-                    className={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
+                    className={`flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
                         activeTab === 'sms'
                             ? 'bg-white dark:bg-[#1e293b] text-emerald-600 dark:text-emerald-400 shadow-xs border border-slate-200/40 dark:border-white/5'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/5'
@@ -2237,2441 +2127,1019 @@ export function SettingsPage() {
                 {canPurge && (
                     <button
                         onClick={() => setActiveTab('maintenance')}
-                        className={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
+                        className={`flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
                             activeTab === 'maintenance'
-                                ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/40 dark:border-white/5'
+                                ? 'bg-white dark:bg-[#1e293b] text-rose-600 dark:text-rose-400 shadow-xs border border-slate-200/40 dark:border-white/5'
                                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/5'
                         }`}
                     >
                         <Shield className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                        <span className="truncate">Maintenance</span>
+                        <span className="truncate">System Health & Tools</span>
                     </button>
                 )}
 
                 <button
-                    onClick={() => setActiveTab('versions')}
-                    className={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
-                        activeTab === 'versions'
-                            ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/40 dark:border-white/5'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/5'
-                    }`}
-                >
-                    <History className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                    <span className="truncate">Version History</span>
-                </button>
-
-                <button
                     onClick={() => setActiveTab('about')}
-                    className={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
-                        activeTab === 'about'
-                            ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/40 dark:border-white/5'
+                    className={`flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
+                        activeTab === 'about' || (activeTab as string) === 'versions'
+                            ? 'bg-white dark:bg-[#1e293b] text-sky-600 dark:text-sky-400 shadow-xs border border-slate-200/40 dark:border-white/5'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/5'
                     }`}
                 >
-                    <Info className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                    <span className="truncate">About & Innovator</span>
+                    <Info className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                    <span className="truncate">About & Updates</span>
                 </button>
             </div>
 
             {/* Main Full-Width Content Pane */}
             <div className="w-full space-y-6">
-                    {/* Tab: Parent SMS Gateway */}
-                    {activeTab === 'sms' && <SmsGatewaySettings />}
+                {/* Tab: Parent SMS Gateway */}
+                {activeTab === 'sms' && <SmsGatewaySettings />}
 
-                    {/* Tab 1: Account & Security */}
-                    {activeTab === 'account' && (
-                        <>
-                        <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-6">
-                            <div className="flex items-center gap-3 pb-4 border-b border-slate-100 dark:border-white/5">
-                                <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400">
-                                    <User className="h-5 w-5" />
+                {/* Tab 1: Profile & Preferences */}
+                {(activeTab === 'general' || (activeTab as string) === 'account') && (
+                    <div className="space-y-6 animate-in fade-in duration-200">
+                        {/* User Hero & Profile Card */}
+                        <div className="rounded-2xl border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 pb-6 border-b border-slate-150 dark:border-white/5">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-indigo-500 via-indigo-600 to-purple-600 flex items-center justify-center text-white text-xl font-black shadow-md shadow-indigo-500/20 shrink-0">
+                                        {(user?.displayName || user?.email || 'U').slice(0, 2).toUpperCase()}
+                                    </div>
+                                    <div className="space-y-1 min-w-0">
+                                        <div className="flex items-center gap-2.5 flex-wrap">
+                                            <h2 className="text-xl font-black text-slate-800 dark:text-white tracking-tight truncate">
+                                                {user?.displayName || user?.email?.split('@')[0] || 'User Profile'}
+                                            </h2>
+                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-extrabold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/40">
+                                                <Shield className="w-3 h-3 text-indigo-500" />
+                                                {user?.role || 'User'}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                            {user?.email || 'No email registered'}
+                                        </p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Account & Security</h3>
-                                    <p className="text-xs font-semibold text-slate-400 mt-0.5">Manage your personal credentials and recovery options.</p>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                <div className="rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 p-4">
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Display Name</p>
-                                    <p className="text-sm font-extrabold text-slate-700 dark:text-gray-200 mt-1">{user?.displayName || 'N/A'}</p>
-                                </div>
-                                <div className="rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 p-4">
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Email Address</p>
-                                    <p className="text-sm font-extrabold text-slate-700 dark:text-gray-200 mt-1 break-all">{user?.email || 'N/A'}</p>
-                                </div>
-                                <div className="rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 p-4">
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Security Access Role</p>
-                                    <p className="flex items-center gap-1.5 text-sm font-extrabold text-slate-700 dark:text-gray-200 mt-1 capitalize">
-                                        <Shield className="h-4 w-4 text-indigo-500" />
-                                        {user?.role || 'N/A'}
-                                    </p>
-                                </div>
-                                <div className="rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 p-4">
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Unique Identifier (UID)</p>
-                                    <p className="font-mono text-[11px] text-slate-500 dark:text-slate-400 mt-1 break-all">{user?.uid || 'N/A'}</p>
-                                </div>
-                            </div>
-                            <div className="pt-2">
                                 <button
                                     onClick={() => setShowPasswordModal(true)}
-                                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-600/10 cursor-pointer"
+                                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all shadow-sm shadow-indigo-600/20 cursor-pointer self-start sm:self-auto"
                                 >
                                     <User className="h-4 w-4" />
-                                    Change Password & Settings
+                                    Change Password & Credentials
+                                </button>
+                            </div>
+
+                            {/* School & Session Context Details */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-5">
+                                <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-white/2 border border-slate-150 dark:border-white/5">
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">School Institution</p>
+                                    <p className="text-xs font-extrabold text-slate-700 dark:text-slate-200 mt-0.5 truncate">{schoolProfile.name || 'Not Configured'}</p>
+                                </div>
+                                <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-white/2 border border-slate-150 dark:border-white/5">
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Active School Year</p>
+                                    <p className="text-xs font-extrabold text-slate-700 dark:text-slate-200 mt-0.5">{activeSchoolYear || '2026-2027'}</p>
+                                </div>
+                                <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-white/2 border border-slate-150 dark:border-white/5">
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Security Clearance</p>
+                                    <p className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5 flex items-center gap-1.5">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                                        {canPurge ? 'Full Administrative Access' : 'Standard Teacher Access'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Display & Visual Preferences */}
+                        <div className="rounded-2xl border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-6">
+                            <div className="flex items-center gap-3 pb-4 border-b border-slate-150 dark:border-white/5">
+                                <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400">
+                                    <Sparkles className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Appearance & Theme</h3>
+                                    <p className="text-xs font-semibold text-slate-400 mt-0.5">Customize your interface theme and visual comfort.</p>
+                                </div>
+                            </div>
+
+                            {/* Theme Selector 3 Cards */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                                {/* Light */}
+                                <button
+                                    type="button"
+                                    onClick={() => setTheme('light')}
+                                    className={`flex flex-col items-start p-4 rounded-xl border transition-all cursor-pointer text-left ${
+                                        theme === 'light'
+                                            ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-500/80 ring-2 ring-amber-500/20 shadow-sm'
+                                            : 'bg-white dark:bg-white/2 border-slate-200/80 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between w-full mb-2">
+                                        <div className={`p-2 rounded-lg ${theme === 'light' ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400'}`}>
+                                            <Sun className="w-4 h-4" />
+                                        </div>
+                                        {theme === 'light' && <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">Active</span>}
+                                    </div>
+                                    <p className="text-sm font-bold text-slate-800 dark:text-white">Light Mode</p>
+                                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">High-contrast bright daylight theme for well-lit classrooms.</p>
+                                </button>
+
+                                {/* Dark */}
+                                <button
+                                    type="button"
+                                    onClick={() => setTheme('dark')}
+                                    className={`flex flex-col items-start p-4 rounded-xl border transition-all cursor-pointer text-left ${
+                                        theme === 'dark'
+                                            ? 'bg-indigo-50/40 dark:bg-indigo-950/20 border-indigo-500/80 ring-2 ring-indigo-500/20 shadow-sm'
+                                            : 'bg-white dark:bg-white/2 border-slate-200/80 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between w-full mb-2">
+                                        <div className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400'}`}>
+                                            <Moon className="w-4 h-4" />
+                                        </div>
+                                        {theme === 'dark' && <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Active</span>}
+                                    </div>
+                                    <p className="text-sm font-bold text-slate-800 dark:text-white">Dark Mode</p>
+                                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">Sleek midnight palette designed to reduce eye strain in low light.</p>
+                                </button>
+
+                                {/* System */}
+                                <button
+                                    type="button"
+                                    onClick={() => setTheme('system')}
+                                    className={`flex flex-col items-start p-4 rounded-xl border transition-all cursor-pointer text-left ${
+                                        theme === 'system'
+                                            ? 'bg-blue-50/40 dark:bg-blue-950/20 border-blue-500/80 ring-2 ring-blue-500/20 shadow-sm'
+                                            : 'bg-white dark:bg-white/2 border-slate-200/80 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between w-full mb-2">
+                                        <div className={`p-2 rounded-lg ${theme === 'system' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400'}`}>
+                                            <Monitor className="w-4 h-4" />
+                                        </div>
+                                        {theme === 'system' && <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">Active</span>}
+                                    </div>
+                                    <p className="text-sm font-bold text-slate-800 dark:text-white">System Sync</p>
+                                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">Automatically synchronizes with your operating system settings.</p>
+                                </button>
+                            </div>
+
+                            {/* Performance Toggle */}
+                            <div className="flex items-center justify-between p-4 rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
+                                <div className="pr-4">
+                                    <h4 className="text-sm font-bold text-slate-800 dark:text-white">Disable UI Animations & Effects</h4>
+                                    <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">Turn off transitions, mesh gradients, and floating effects to improve responsiveness and reduce lag (recommended for Mac and older hardware).</p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={disableAnimations} 
+                                        onChange={handleToggleAnimations}
+                                        className="sr-only peer" 
+                                    />
+                                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:bg-slate-700 peer-checked:bg-indigo-600"></div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Tab 2: Backups & Cloud Sync Hub */}
+                {(activeTab === 'backups' || (activeTab as string) === 'cloud') && (
+                    <div className="space-y-6 animate-in fade-in duration-200">
+                        {/* USB Flash Drive Detection Banner */}
+                        {usbDetectedPath && (
+                            <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 rounded-2xl flex items-center justify-between text-xs font-semibold shadow-xs">
+                                <div className="flex items-center gap-2">
+                                    <span>💾 USB Flash Drive detected at: <strong className="font-extrabold">{usbDetectedPath}</strong></span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={handleExportToUsb}
+                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-black uppercase text-[10px] tracking-wider cursor-pointer transition-colors"
+                                    >
+                                        Backup to USB Now
+                                    </button>
+                                    <button 
+                                        onClick={() => setUsbDetectedPath(null)}
+                                        className="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-350 dark:bg-white/10 dark:hover:bg-white/20 text-slate-700 dark:text-gray-200 rounded-lg font-black uppercase text-[10px] tracking-wider cursor-pointer transition-colors"
+                                    >
+                                        Dismiss
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Google Drive Cloud Sync Card */}
+                        <div className="rounded-2xl border border-sky-200/80 dark:border-sky-900/30 bg-linear-to-br from-sky-50/40 via-white to-white dark:from-sky-950/20 dark:via-[#0d1225] dark:to-[#0d1225] p-6 shadow-xs space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-sky-100 dark:border-white/5">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2.5 rounded-xl bg-sky-500 text-white shadow-xs">
+                                        <Cloud className="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Google Drive Cloud Synchronization</h3>
+                                        <p className="text-xs font-medium text-slate-400 mt-0.5">Automated offsite backup mirroring to protect against physical device failure.</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {cloudSyncState.linked ? (
+                                        <>
+                                            <button
+                                                onClick={handleCloudSync}
+                                                disabled={isCloudSyncing}
+                                                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-sm shadow-sky-600/20"
+                                            >
+                                                <Cloud className="w-3.5 h-3.5" />
+                                                {isCloudSyncing ? 'Syncing...' : 'Sync Cloud Now'}
+                                            </button>
+                                            <button
+                                                onClick={handleUnlinkGoogle}
+                                                className="px-3.5 py-2 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-black uppercase tracking-wider transition-colors cursor-pointer"
+                                            >
+                                                Disconnect
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <button
+                                            onClick={handleLinkGoogle}
+                                            className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm shadow-sky-600/20"
+                                        >
+                                            <Cloud className="w-4 h-4" />
+                                            Link Google Account
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Cloud Status Info */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="p-3.5 rounded-xl bg-white dark:bg-white/2 border border-sky-150 dark:border-white/5 flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Drive Link Status</p>
+                                        <p className="text-xs font-extrabold text-slate-700 dark:text-slate-200 mt-0.5 flex items-center gap-1.5">
+                                            <span className={`w-2 h-2 rounded-full ${cloudSyncState.linked ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                                            {cloudSyncState.linked ? `Linked as ${cloudSyncState.email}` : 'Not Connected'}
+                                        </p>
+                                    </div>
+                                    {cloudSyncState.linked && (
+                                        <button
+                                            onClick={loadCloudBackupsList}
+                                            disabled={isLoadingCloudBackups}
+                                            className="text-[10px] font-bold text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
+                                        >
+                                            {isLoadingCloudBackups ? 'Refreshing...' : 'Refresh Backups'}
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="p-3.5 rounded-xl bg-white dark:bg-white/2 border border-sky-150 dark:border-white/5">
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Last Cloud Sync</p>
+                                    <p className="text-xs font-extrabold text-slate-700 dark:text-slate-200 mt-0.5">
+                                        {cloudSyncState.lastSync ? new Date(cloudSyncState.lastSync).toLocaleString() : 'Never synced'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Cloud Backups List when Linked */}
+                            {cloudSyncState.linked && cloudBackups.length > 0 && (
+                                <div className="pt-2">
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Backups Stored in Google Drive (FormEase_Backups)</p>
+                                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                                        {cloudBackups.map((snap) => (
+                                            <div key={snap.id} className="flex items-center justify-between p-2.5 rounded-xl border border-slate-150 dark:border-white/5 bg-white dark:bg-[#090d16] text-xs">
+                                                <div className="truncate min-w-0 pr-2">
+                                                    <p className="font-extrabold text-slate-700 dark:text-slate-200 truncate">{snap.name}</p>
+                                                    <p className="text-[10px] text-slate-400">{new Date(snap.createdTime).toLocaleString()}</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleRestoreCloudBackup(snap.id, snap.name)}
+                                                    disabled={isRestoringCloudBackup}
+                                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer shrink-0"
+                                                >
+                                                    {isRestoringCloudBackup ? 'Restoring...' : 'Restore'}
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Instant Backup & Export Action Hub (Replacing 4 options guide cards) */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* 1. Full JSON Backup */}
+                            <div className="rounded-2xl border border-indigo-200/80 dark:border-indigo-900/40 bg-white dark:bg-[#0d1225] p-5 shadow-xs flex flex-col justify-between space-y-4">
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
+                                            <Database className="w-5 h-5" />
+                                        </div>
+                                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200/40">
+                                            Full System
+                                        </span>
+                                    </div>
+                                    <h4 className="text-sm font-black text-slate-800 dark:text-white">Full Database Backup</h4>
+                                    <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
+                                        Export all students, classes, subjects, grades, and system settings to a standalone <code>.json</code> file.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={handleExportData}
+                                    disabled={isExporting}
+                                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 text-xs font-black uppercase tracking-wider transition-all shadow-sm shadow-indigo-600/20 disabled:opacity-50 cursor-pointer"
+                                >
+                                    <Download className="w-3.5 h-3.5" />
+                                    {isExporting ? 'Exporting...' : 'Create Full Backup (.json)'}
+                                </button>
+                            </div>
+
+                            {/* 2. Master Excel & Safety Vault */}
+                            <div className="rounded-2xl border border-emerald-200/80 dark:border-emerald-900/40 bg-white dark:bg-[#0d1225] p-5 shadow-xs flex flex-col justify-between space-y-4">
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">
+                                            <FileSpreadsheet className="w-5 h-5" />
+                                        </div>
+                                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/40">
+                                            Human Readable
+                                        </span>
+                                    </div>
+                                    <h4 className="text-sm font-black text-slate-800 dark:text-white">Master Excel Archive</h4>
+                                    <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
+                                        Generate multi-tab styled Excel spreadsheets or a complete pre-update safety vault (.zip) for offline records.
+                                    </p>
+                                </div>
+                                <div className="space-y-2">
+                                    <button
+                                        onClick={handleExportMasterExcel}
+                                        disabled={isExportingMasterExcel}
+                                        className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 text-xs font-black uppercase tracking-wider transition-all shadow-sm shadow-emerald-600/20 disabled:opacity-50 cursor-pointer"
+                                    >
+                                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                                        {isExportingMasterExcel ? 'Generating...' : 'Export Master Excel (.xlsx)'}
+                                    </button>
+                                    <button
+                                        onClick={handleDownloadCompleteSafetyVault}
+                                        disabled={isExportingSafetyVault}
+                                        className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 py-2 text-[11px] font-bold uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
+                                    >
+                                        <Archive className="w-3.5 h-3.5" />
+                                        {isExportingSafetyVault ? 'Packaging Vault...' : 'Safety Vault (.zip)'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* 3. Restore System */}
+                            <div className="rounded-2xl border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#0d1225] p-5 shadow-xs flex flex-col justify-between space-y-4">
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <div className="p-2 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400">
+                                            <Upload className="w-5 h-5 text-purple-500" />
+                                        </div>
+                                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 border border-slate-200/40 dark:border-white/10">
+                                            Recovery
+                                        </span>
+                                    </div>
+                                    <h4 className="text-sm font-black text-slate-800 dark:text-white">Restore from Backup</h4>
+                                    <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
+                                        Restore your complete system state, sections, and encoded grades from a previously exported backup file.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setIsRestoreModalOpen(true)}
+                                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-200 py-2.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
+                                >
+                                    <Upload className="w-3.5 h-3.5 text-purple-500" />
+                                    Restore Backup File
                                 </button>
                             </div>
                         </div>
 
-                        {/* Performance and Display Settings */}
-                        <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-6 mt-6">
-                            <div className="flex items-center gap-3 pb-4 border-b border-slate-100 dark:border-white/5">
-                                <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400">
-                                    <Sparkles className="h-5 w-5" />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Display & Performance</h3>
-                                    <p className="text-xs font-semibold text-slate-400 mt-0.5">Optimize the app interface and behavior for your device.</p>
-                                </div>
-                            </div>
-                            <div className="space-y-4">
-                                {/* App Visual Theme Mode */}
-                                <div className="p-4 rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 space-y-3">
-                                    <div>
-                                        <h4 className="text-sm font-bold text-slate-700 dark:text-gray-200">App Visual Theme Mode</h4>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Select your preferred color scheme or synchronize with your operating system settings.</p>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-3 max-w-md pt-1">
-                                        <button
-                                            type="button"
-                                            onClick={() => setTheme('light')}
-                                            className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                                                theme === 'light'
-                                                    ? 'bg-amber-500 text-white border-amber-600 shadow-sm shadow-amber-500/20'
-                                                    : 'bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10'
-                                            }`}
-                                        >
-                                            <Sun className="w-4 h-4" />
-                                            <span>Light</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setTheme('dark')}
-                                            className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                                                theme === 'dark'
-                                                    ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm shadow-indigo-600/20'
-                                                    : 'bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10'
-                                            }`}
-                                        >
-                                            <Moon className="w-4 h-4" />
-                                            <span>Dark</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setTheme('system')}
-                                            className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                                                theme === 'system'
-                                                    ? 'bg-blue-600 text-white border-blue-700 shadow-sm shadow-blue-600/20'
-                                                    : 'bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10'
-                                            }`}
-                                        >
-                                            <Monitor className="w-4 h-4" />
-                                            <span>System</span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center justify-between p-4 rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
-                                    <div>
-                                        <h4 className="text-sm font-bold text-slate-700 dark:text-gray-200">Disable UI Animations & Effects</h4>
-                                        <p className="text-xs text-slate-500 mt-0.5">Turn off transitions, mesh gradients, and floating effects to improve responsiveness and reduce lag (highly recommended for Mac and older hardware).</p>
-                                    </div>
-                                    <label className="relative inline-flex items-center cursor-pointer select-none">
-                                        <input 
-                                            type="checkbox" 
-                                            checked={disableAnimations} 
-                                            onChange={handleToggleAnimations}
-                                            className="sr-only peer" 
-                                        />
-                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:bg-slate-700 peer-checked:bg-indigo-600"></div>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                        </>)
-                    }
-
-                    {/* Tab 2: Backups & Recovery */}
-                    {activeTab === 'backups' && (
-                        <div className="space-y-6 animate-in fade-in duration-200">
-                            {/* USB Detection Banner */}
-                            {usbDetectedPath && (
-                                <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 rounded-2xl flex items-center justify-between text-xs font-semibold shadow-xs">
-                                    <div className="flex items-center gap-2">
-                                        <span>💾 USB Flash Drive detected at: <strong className="font-extrabold">{usbDetectedPath}</strong></span>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button 
-                                            onClick={handleExportToUsb}
-                                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-black uppercase text-[10px] tracking-wider cursor-pointer transition-colors"
-                                        >
-                                            Backup to USB Now
-                                        </button>
-                                        <button 
-                                            onClick={() => setUsbDetectedPath(null)}
-                                            className="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-350 dark:bg-white/10 dark:hover:bg-white/20 text-slate-700 dark:text-gray-200 rounded-lg font-black uppercase text-[10px] tracking-wider cursor-pointer transition-colors"
-                                        >
-                                            Dismiss
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Options Guide section */}
-                            <div className="space-y-3">
+                        {/* Local Snapshots Vault & History Table */}
+                        <div className="rounded-2xl border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-150 dark:border-white/5">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400">
-                                        <Shield className="h-5 w-5" />
+                                    <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400">
+                                        <Database className="h-5 w-5" />
                                     </div>
                                     <div>
-                                        <h3 className="text-base font-black text-slate-800 dark:text-white tracking-wide">Backup & Recovery Options</h3>
-                                        <p className="text-xs font-medium text-slate-400 mt-0.5">Learn which backup option is best for your specific needs.</p>
+                                        <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Local Snapshot Vault</h3>
+                                        <p className="text-xs font-medium text-slate-400 mt-0.5">Automated hourly checkpoints and local file system snapshots.</p>
                                     </div>
                                 </div>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
-                                    {/* Option 1: Full Export */}
-                                    <div className="h-full rounded-2xl border border-indigo-500/30 bg-linear-to-br from-indigo-50/20 to-white dark:from-indigo-950/10 dark:to-[#0d1225] p-5 shadow-xs flex flex-col justify-between hover:border-indigo-500/50 transition-all">
-                                        <div className="space-y-3">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-extrabold text-xs tracking-wide">
-                                                    <Database className="w-4 h-4 shrink-0" />
-                                                    <span>1. Full DB Backup</span>
-                                                </div>
-                                                <span className="rounded-full bg-indigo-600 text-white text-[9px] font-black px-2.5 py-0.5 uppercase tracking-wider shrink-0 shadow-xs">
-                                                    System Restore
-                                                </span>
-                                            </div>
-                                            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                Generates a comprehensive <span className="font-extrabold text-indigo-600 dark:text-indigo-400">.json</span> file containing all profiles, sections, subjects, grades, and system state for 1-click restore.
-                                            </p>
-                                            <ul className="text-[10px] space-y-1 font-semibold text-slate-400">
-                                                <li className="flex items-center gap-1.5">
-                                                    <span className="text-emerald-500 font-bold">✓</span> Complete standalone restore
-                                                </li>
-                                                <li className="flex items-center gap-1.5">
-                                                    <span className="text-emerald-500 font-bold">✓</span> Fast import to any device
-                                                </li>
-                                            </ul>
-                                        </div>
-                                        <div className="pt-3 border-t border-slate-100 dark:border-white/5 mt-4">
-                                            <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">Safekeeping & Compliance</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Option 2: Human-Readable Master Excel & Safety Vault */}
-                                    <div className="h-full rounded-2xl border border-emerald-500/30 bg-linear-to-br from-emerald-50/20 to-white dark:from-emerald-950/10 dark:to-[#0d1225] p-5 shadow-xs flex flex-col justify-between hover:border-emerald-500/50 transition-all">
-                                        <div className="space-y-3">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs tracking-wide">
-                                                    <FileSpreadsheet className="w-4 h-4 shrink-0" />
-                                                    <span>2. Master Excel & Vault</span>
-                                                </div>
-                                                <span className="rounded-full bg-emerald-600 text-white text-[9px] font-black px-2.5 py-0.5 uppercase tracking-wider shrink-0 shadow-xs">
-                                                    Human-Readable
-                                                </span>
-                                            </div>
-                                            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                Multi-tab Excel workbook with styled DepEd headers, plus PDF consolidated grade sheets. Perfect for teachers who want to open and inspect records in Excel.
-                                            </p>
-                                            <ul className="text-[10px] space-y-1 font-semibold text-slate-400">
-                                                <li className="flex items-center gap-1.5">
-                                                    <span className="text-emerald-500 font-bold">✓</span> DepEd Navy styled tables
-                                                </li>
-                                                <li className="flex items-center gap-1.5">
-                                                    <span className="text-emerald-500 font-bold">✓</span> PDF printable archives
-                                                </li>
-                                                <li className="flex items-center gap-1.5">
-                                                    <span className="text-emerald-500 font-bold">✓</span> Auto-saved before updates
-                                                </li>
-                                            </ul>
-                                        </div>
-                                        <div className="pt-3 border-t border-slate-100 dark:border-white/5 mt-4 flex justify-between items-center">
-                                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">Offline Secondary</span>
-                                            <button 
-                                                onClick={handleExportMasterExcel}
-                                                className="text-[10px] font-extrabold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 hover:underline cursor-pointer"
-                                            >
-                                                Export Excel →
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Option 3: Cloud Sync */}
-                                    <div className="h-full rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-5 shadow-xs flex flex-col justify-between hover:border-slate-300 dark:hover:border-white/10 transition-all">
-                                        <div className="space-y-3">
-                                            <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400 font-extrabold text-xs tracking-wide">
-                                                <Cloud className="w-4 h-4 shrink-0" />
-                                                <span>3. Cloud Sync</span>
-                                            </div>
-                                            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                Syncs your active portal database securely to your linked personal Google Drive account. Run restorations with a single click.
-                                            </p>
-                                            <ul className="text-[10px] space-y-1 font-semibold text-slate-400">
-                                                <li className="flex items-center gap-1.5">
-                                                    <span className="text-emerald-500 font-bold">✓</span> Off-site secure cloud storage
-                                                </li>
-                                                <li className="flex items-center gap-1.5">
-                                                    <span className="text-emerald-500 font-bold">✓</span> Fast cloud restore list
-                                                </li>
-                                            </ul>
-                                        </div>
-                                        <div className="pt-3 border-t border-slate-100 dark:border-white/5 mt-4 flex justify-between items-center">
-                                            <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400">Auto Offsite</span>
-                                            <button 
-                                                onClick={() => setActiveTab('cloud')}
-                                                className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline cursor-pointer"
-                                            >
-                                                Configure →
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Option 4: Local Checkpoints */}
-                                    <div className="h-full rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-5 shadow-xs flex flex-col justify-between hover:border-slate-300 dark:hover:border-white/10 transition-all">
-                                        <div className="space-y-3">
-                                            <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400 font-extrabold text-xs tracking-wide">
-                                                <History className="w-4 h-4 shrink-0" />
-                                                <span>4. Local Checkpoints</span>
-                                            </div>
-                                            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                Automatic offline snapshots saved to browser memory or local computer folders. Ideal for quick undo points.
-                                            </p>
-                                            <ul className="text-[10px] space-y-1 font-semibold text-slate-400">
-                                                <li className="flex items-center gap-1.5">
-                                                    <span className="text-emerald-500 font-bold">✓</span> Automated daily snapshots
-                                                </li>
-                                                <li className="flex items-center gap-1.5">
-                                                    <span className="text-emerald-500 font-bold">✓</span> Pre-update rollbacks
-                                                </li>
-                                            </ul>
-                                        </div>
-                                        <div className="pt-3 border-t border-slate-100 dark:border-white/5 mt-4 flex justify-between items-center">
-                                            <span className="text-[10px] font-bold text-violet-600 dark:text-violet-400">Local Snapshots</span>
-                                            <button 
-                                                onClick={() => {
-                                                    setShowEmergencyRollbacks(true);
-                                                    setTimeout(() => {
-                                                        const el = document.getElementById('emergency-rollbacks-section');
-                                                        el?.scrollIntoView({ behavior: 'smooth' });
-                                                    }, 100);
-                                                }}
-                                                className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline cursor-pointer"
-                                            >
-                                                View ↓
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
+                                <button
+                                    onClick={handleManualAutoBackup}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white px-3.5 py-2 text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer self-start sm:self-auto"
+                                >
+                                    <Database className="w-3.5 h-3.5" />
+                                    Take Instant Snapshot
+                                </button>
                             </div>
 
-                            {/* Core Dashboard Grid */}
-                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                                {/* Left Section: Core Operations (Col span 7 on lg) */}
-                                <div className="lg:col-span-7 space-y-6">
-                                    {/* Primary Card: Full Database Export */}
-                                    <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-5">
-                                        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2.5 rounded-xl bg-indigo-600 text-white shadow-xs">
-                                                    <Database className="h-5 w-5" />
-                                                </div>
-                                                <div>
-                                                    <div className="flex items-center gap-2">
-                                                        <h3 className="text-base font-black text-slate-800 dark:text-white tracking-wide">Full Database Export</h3>
-                                                        <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold px-2.5 py-0.5 border border-emerald-200/80 dark:border-emerald-800/80">
-                                                            Complete & Standalone
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-xs font-semibold text-slate-400 mt-0.5">Save a portable copy of all school records to your local device.</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 leading-relaxed space-y-3">
-                                            <p>This exports a complete standalone backup file containing:</p>
-                                            
-                                            {/* Modern 4-column micro-stats grid */}
-                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-                                                <div className="p-3 rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
-                                                    <span className="block font-black text-slate-700 dark:text-gray-200">Students</span>
-                                                    <span className="text-[11px] text-slate-400 font-extrabold">{students.length} enrollment(s)</span>
-                                                </div>
-                                                <div className="p-3 rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
-                                                    <span className="block font-black text-slate-700 dark:text-gray-200">Sections</span>
-                                                    <span className="text-[11px] text-slate-400 font-extrabold">{sections.length} section(s)</span>
-                                                </div>
-                                                <div className="p-3 rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
-                                                    <span className="block font-black text-slate-700 dark:text-gray-200">Subjects</span>
-                                                    <span className="text-[11px] text-slate-400 font-extrabold">{subjects.length} subject(s)</span>
-                                                </div>
-                                                <div className="p-3 rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
-                                                    <span className="block font-black text-slate-700 dark:text-gray-200">Grades</span>
-                                                    <span className="text-[11px] text-slate-400 font-extrabold">All records</span>
-                                                </div>
-                                            </div>
-
-                                            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2.5 mt-2">
-                                                <p className="text-[10px] text-amber-600 dark:text-amber-300 font-extrabold leading-relaxed">
-                                                    Keep your downloaded backup files safe in an external drive (e.g. USB flash drive) or secure cloud storage.
-                                                </p>
-                                            </div>
-
-                                            {/* Human-Readable Master Excel & Pre-Update Safety Vault Section */}
-                                            <div className="p-4 rounded-2xl bg-linear-to-br from-emerald-500/10 via-teal-500/5 to-indigo-500/10 border-2 border-emerald-500/30 dark:border-emerald-500/20 space-y-3 mt-3">
-                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="p-1.5 rounded-lg bg-emerald-600 text-white shadow-xs">
-                                                            <FileSpreadsheet className="w-4 h-4" />
-                                                        </div>
-                                                        <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wide">
-                                                            Secondary Human-Readable Backup & Pre-Update Safety Vault
-                                                        </span>
-                                                    </div>
-                                                    <span className="self-start sm:self-auto text-[10px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/70 px-2.5 py-0.5 rounded-full border border-emerald-300/50">
-                                                        Excel (.xlsx) + PDFs + Zip
-                                                    </span>
-                                                </div>
-                                                <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
-                                                    Need a backup you can easily open and understand in Microsoft Excel? Export all learners, sections, subjects, grades, SF10, and attendance into a clean, human-readable Excel workbook with DepEd Navy headers, or download a complete Safety Vault (.zip) before updating.
-                                                </p>
-                                                <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
-                                                    <button
-                                                        onClick={handleExportMasterExcel}
-                                                        disabled={isExportingMasterExcel}
-                                                        className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 text-xs font-black uppercase tracking-wider transition-all shadow-sm shadow-emerald-600/20 disabled:opacity-50 cursor-pointer"
-                                                    >
-                                                        <FileSpreadsheet className="h-4 w-4" />
-                                                        {isExportingMasterExcel ? 'Generating Master Excel...' : 'Export Master Excel Backup (.xlsx)'}
-                                                    </button>
-                                                    <button
-                                                        onClick={handleDownloadCompleteSafetyVault}
-                                                        disabled={isExportingSafetyVault}
-                                                        className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 text-xs font-black uppercase tracking-wider transition-all shadow-sm shadow-indigo-600/20 disabled:opacity-50 cursor-pointer"
-                                                    >
-                                                        <Archive className="h-4 w-4" />
-                                                        {isExportingSafetyVault ? 'Packaging Safety Vault...' : 'Download Safety Vault (.zip)'}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex flex-col sm:flex-row flex-wrap gap-3 pt-1">
-                                            <button
-                                                onClick={handleExportData}
-                                                disabled={isExporting}
-                                                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-600/15 disabled:opacity-50 cursor-pointer"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                                </svg>
-                                                {isExporting ? 'Exporting...' : 'Export Local Backup (.json)'}
-                                            </button>
-                                            <button
-                                                onClick={handleCloudSync}
-                                                disabled={isCloudSyncing}
-                                                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-sky-600/15 disabled:opacity-50 cursor-pointer"
-                                            >
-                                                <Cloud className="h-4 w-4" />
-                                                {isCloudSyncing ? 'Syncing...' : 'Sync Full Backup to Google Drive'}
-                                            </button>
-                                            <button
-                                                onClick={() => setIsRestoreModalOpen(true)}
-                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-800 dark:text-gray-200 px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
-                                            >
-                                                <Upload className="h-4 w-4 text-emerald-500" />
-                                                Restore
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Emergency Database Rescue & Excel Recovery Card */}
-                                    <div className="rounded-2xl border-2 border-emerald-500/30 dark:border-emerald-500/20 bg-linear-to-br from-emerald-50/40 via-white to-white dark:from-emerald-950/20 dark:via-[#0d1225] dark:to-[#0d1225] p-6 shadow-xs space-y-5">
-                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-emerald-100 dark:border-white/5">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2.5 rounded-xl bg-emerald-600 text-white shadow-xs">
-                                                    <FileSpreadsheet className="h-5 w-5" />
-                                                </div>
-                                                <div>
-                                                    <div className="flex items-center gap-2">
-                                                        <h3 className="text-base font-black text-slate-800 dark:text-white tracking-wide">Emergency Database Rescue to Excel</h3>
-                                                        <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-black px-2.5 py-0.5 uppercase tracking-wider border border-emerald-300/50">
-                                                            Direct DB Extraction
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-xs font-semibold text-slate-400 mt-0.5">
-                                                        Extracts ALL records directly from browser IndexedDB (FormEaseDB), bypassing any active screen filters, section dropdowns, or school year settings.
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <button
-                                                onClick={handleScanLiveDatabase}
-                                                disabled={isScanningDb}
-                                                className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 text-[11px] font-bold text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
-                                            >
-                                                <RefreshCw className={`w-3.5 h-3.5 ${isScanningDb ? 'animate-spin text-emerald-600' : ''}`} />
-                                                {isScanningDb ? 'Scanning DB...' : 'Scan Database Now'}
-                                            </button>
-                                        </div>
-
-                                        {/* Live Database Physical Health & Count Indicator */}
-                                        <div className="rounded-xl border border-slate-200/80 dark:border-white/5 bg-white/70 dark:bg-black/20 p-4 space-y-3">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="relative flex h-2.5 w-2.5">
-                                                        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${liveDbCounts?.hasData ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
-                                                        <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${liveDbCounts?.hasData ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
-                                                    </span>
-                                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">
-                                                        IndexedDB (FormEaseDB) Physical Storage Status:
-                                                    </span>
-                                                </div>
-                                                {liveDbCounts && (
-                                                    <span className="text-xs font-extrabold text-slate-600 dark:text-slate-300">
-                                                        {liveDbCounts.totalRecords} total records found in storage
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            {/* Live Badges */}
-                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-2 pt-1">
-                                                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-center">
-                                                    <span className="block text-[9px] font-bold text-slate-400 uppercase truncate">Students</span>
-                                                    <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts?.students ?? '...'}</span>
-                                                </div>
-                                                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-center">
-                                                    <span className="block text-[9px] font-bold text-slate-400 uppercase truncate">Sections</span>
-                                                    <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts?.sections ?? '...'}</span>
-                                                </div>
-                                                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-center">
-                                                    <span className="block text-[9px] font-bold text-slate-400 uppercase truncate">Subjects</span>
-                                                    <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts?.subjects ?? '...'}</span>
-                                                </div>
-                                                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-center">
-                                                    <span className="block text-[9px] font-bold text-slate-400 uppercase truncate">ECR Grades</span>
-                                                    <span className="text-sm font-black text-slate-800 dark:text-white">{(liveDbCounts?.classRecords ?? 0) + (liveDbCounts?.gradingSheetRecords ?? 0)}</span>
-                                                </div>
-                                                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-center">
-                                                    <span className="block text-[9px] font-bold text-slate-400 uppercase truncate">HPS Scores</span>
-                                                    <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts?.hpsRecords ?? '...'}</span>
-                                                </div>
-                                                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-center">
-                                                    <span className="block text-[9px] font-bold text-slate-400 uppercase truncate">SF2 Monthly</span>
-                                                    <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts?.sf2Sheets ?? '...'}</span>
-                                                </div>
-                                                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-center">
-                                                    <span className="block text-[9px] font-bold text-slate-400 uppercase truncate">Core Values</span>
-                                                    <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts?.observedValues ?? '...'}</span>
-                                                </div>
-                                                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-center">
-                                                    <span className="block text-[9px] font-bold text-slate-400 uppercase truncate">Daily Attd</span>
-                                                    <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts?.attendanceRecords ?? '...'}</span>
-                                                </div>
-                                            </div>
-
-                                            {liveDbCounts?.hasData && (
-                                                <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 p-2.5 rounded-lg border border-emerald-200 dark:border-emerald-800/40">
-                                                    <CheckCircle2 className="w-4 h-4 shrink-0" />
-                                                    <span>Good news! Your database contains active records. Even if certain sections or grades are not displaying on screen due to a filter, they are physically preserved here.</span>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Big Action Buttons */}
-                                        <div className="flex flex-col sm:flex-row flex-wrap gap-3 pt-1">
-                                            <button
-                                                onClick={handleRescueDatabaseExcel}
-                                                disabled={isRescuingExcel}
-                                                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-600/20 disabled:opacity-50 cursor-pointer"
-                                            >
-                                                <FileSpreadsheet className="h-4 w-4" />
-                                                {isRescuingExcel ? 'Extracting & Generating Excel...' : 'Download Complete Database to Excel (.xlsx)'}
-                                            </button>
-                                            <button
-                                                onClick={handleExportAllTablesCsv}
-                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-800 dark:text-gray-200 px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
-                                            >
-                                                <Download className="h-4 w-4 text-indigo-500" />
-                                                Download Tables (CSV)
-                                            </button>
-                                            <button
-                                                onClick={handleForceReloadDatabase}
-                                                disabled={isReloadingDb}
-                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 dark:border-indigo-500/20 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
-                                            >
-                                                <RefreshCw className={`h-4 w-4 ${isReloadingDb ? 'animate-spin' : ''}`} />
-                                                {isReloadingDb ? 'Reloading...' : 'Force Re-sync to Screen'}
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Collapsible: Emergency Local Rollbacks */}
-                                    <div id="emergency-rollbacks-section" className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
-                                        <button
-                                            onClick={() => setShowEmergencyRollbacks(!showEmergencyRollbacks)}
-                                            className="w-full flex items-center justify-between pb-1 cursor-pointer text-left focus:outline-hidden"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2.5 rounded-xl bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400">
-                                                    <History className="h-5 w-5" />
-                                                </div>
-                                                <div>
-                                                    <div className="flex items-center gap-2">
-                                                        <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Emergency Restore Points</h3>
-                                                        <span className="rounded-full bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 text-[10px] font-black px-2 py-0.5 border border-slate-200/50 dark:border-white/5">
-                                                            {autoBackups.length + fsBackups.length} checkpoint(s) available
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-xs font-semibold text-slate-400 mt-0.5">Access automatic offline rollbacks and system pre-update restore points. (Advanced)</p>
-                                                </div>
-                                            </div>
-                                            <div className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
-                                                {showEmergencyRollbacks ? (
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-                                                    </svg>
-                                                ) : (
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                                                    </svg>
-                                                )}
-                                            </div>
-                                        </button>
-
-                                        {showEmergencyRollbacks && (
-                                            <div className="space-y-6 pt-2 animate-in slide-in-from-top-4 duration-300">
-                                                <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-4 text-[11px] text-amber-700 dark:text-amber-300 font-semibold leading-relaxed">
-                                                    ⚠️ <strong className="font-black">Advanced Users Only:</strong> Local checkpoints are automatic rollbacks saved locally on this machine (browser memory or local disk). Use them if you made a mistake today and need to revert. They are not portable files.
-                                                </div>
-
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                    {/* Column A: Automated Browser Snapshots */}
-                                                    <div className="space-y-4">
-                                                        <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-white/5">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="p-1 rounded-lg bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400">
-                                                                    <History className="h-3.5 w-3.5" />
-                                                                </span>
-                                                                <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-gray-300">Browser Snapshots (IndexedDB)</h4>
-                                                            </div>
-                                                            <button
-                                                                onClick={handleManualAutoBackup}
-                                                                className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 hover:underline cursor-pointer"
-                                                            >
-                                                                Snapshot Now
-                                                            </button>
-                                                        </div>
-                                                        
-                                                        <div className="space-y-2 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
-                                                            {autoBackups.length > 0 ? (
-                                                                autoBackups.map((snap) => (
-                                                                    <div key={snap.id} className="p-3.5 rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 space-y-2 transition-all hover:bg-slate-100/50 dark:hover:bg-white/5">
-                                                                        <div className="flex justify-between items-start">
-                                                                            <div>
-                                                                                <p className="text-xs font-extrabold text-slate-800 dark:text-gray-200">{snap.label}</p>
-                                                                                <p className="text-[9px] text-slate-400 font-semibold mt-0.5">
-                                                                                    {new Date(snap.timestamp).toLocaleString()} | {(snap.fileSize / 1024).toFixed(1)} KB
-                                                                                </p>
-                                                                            </div>
-                                                                            <div className="flex items-center gap-1.5 shrink-0">
-                                                                                <button
-                                                                                    onClick={() => handleRestoreAutoBackup(snap.id, snap.label)}
-                                                                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer"
-                                                                                >
-                                                                                    Restore
-                                                                                </button>
-                                                                                <button
-                                                                                    onClick={() => handleDeleteAutoBackup(snap.id, snap.label)}
-                                                                                    className="p-1.5 border border-slate-200 dark:border-white/5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg cursor-pointer"
-                                                                                    aria-label="Delete"
-                                                                                >
-                                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                                                        <path d="M3 6h18" />
-                                                                                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                                                                                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                                                                                    </svg>
-                                                                                </button>
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className="flex flex-wrap gap-1">
-                                                                            {snap.recordCounts ? (
-                                                                                <>
-                                                                                    <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
-                                                                                        👥 Students: {snap.recordCounts.students ?? 0}
-                                                                                    </span>
-                                                                                    <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
-                                                                                        🏫 Sections: {snap.recordCounts.sections ?? 0}
-                                                                                    </span>
-                                                                                    <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
-                                                                                        📚 Subjects: {snap.recordCounts.subjects ?? 0}
-                                                                                    </span>
-                                                                                    <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
-                                                                                        📝 Grades: {(snap.recordCounts.classRecords ?? 0) + (snap.recordCounts.gradingSheetRecords ?? 0)}
-                                                                                    </span>
-                                                                                </>
-                                                                            ) : (
-                                                                                <span className="text-[8px] font-bold bg-red-100/50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-200/50 dark:border-red-900/30 px-1.5 py-0.5 rounded">
-                                                                                    ⚠️ Old Decryption Format
-                                                                                </span>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                ))
-                                                            ) : (
-                                                                <div className="text-center py-6 border border-dashed border-slate-200 dark:border-white/5 rounded-xl text-slate-400 text-[10px] font-bold">
-                                                                    No automated snapshots created yet.
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Column B: Local Disk Backups */}
-                                                    <div className="space-y-4">
-                                                        <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-white/5">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="p-1 rounded-lg bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
-                                                                    <Database className="h-3.5 w-3.5" />
-                                                                </span>
-                                                                <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-gray-300">Local Disk Snapshots</h4>
-                                                            </div>
-                                                            <button
-                                                                onClick={loadFsBackups}
-                                                                className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 hover:underline cursor-pointer"
-                                                            >
-                                                                Refresh List
-                                                            </button>
-                                                        </div>
-
-                                                        <div className="space-y-2 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
-                                                            {fsBackups.length > 0 ? (
-                                                                fsBackups.map((snap) => (
-                                                                    <div key={snap.filename} className="p-3.5 rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 space-y-2 transition-all hover:bg-slate-100/50 dark:hover:bg-white/5">
-                                                                        <div className="flex justify-between items-start gap-4">
-                                                                            <div className="min-w-0 flex-1">
-                                                                                <p className="text-xs font-extrabold text-slate-800 dark:text-gray-200 break-all">{snap.filename}</p>
-                                                                                <p className="text-[9px] text-slate-400 font-semibold mt-0.5">
-                                                                                    {new Date(snap.mtime).toLocaleString()} | {(snap.size / 1024 / 1024).toFixed(2)} MB
-                                                                                </p>
-                                                                            </div>
-                                                                            <div className="flex items-center gap-1.5 shrink-0">
-                                                                                <button
-                                                                                    onClick={() => handleRestoreFsBackup(snap.filename)}
-                                                                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer"
-                                                                                >
-                                                                                    Restore
-                                                                                </button>
-                                                                                <button
-                                                                                    onClick={() => handleDeleteFsBackup(snap.filename)}
-                                                                                    className="p-1.5 border border-slate-200 dark:border-white/5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg cursor-pointer"
-                                                                                    aria-label="Delete"
-                                                                                >
-                                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                                                        <path d="M3 6h18" />
-                                                                                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                                                                                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                                                                                    </svg>
-                                                                                </button>
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className="flex flex-wrap gap-1">
-                                                                            <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
-                                                                                👥 Students: {snap.summary.students ?? 0}
-                                                                            </span>
-                                                                            <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
-                                                                                🏫 Sections: {snap.summary.sections ?? 0}
-                                                                            </span>
-                                                                            <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
-                                                                                📚 Subjects: {snap.summary.subjects ?? 0}
-                                                                            </span>
-                                                                            <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
-                                                                                📝 Grades: {snap.summary.grades ?? 0}
-                                                                            </span>
-                                                                        </div>
-                                                                    </div>
-                                                                ))
-                                                            ) : (
-                                                                <div className="text-center py-6 border border-dashed border-slate-200 dark:border-white/5 rounded-xl text-slate-400 text-[10px] font-bold">
-                                                                    No local filesystem backups found.
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
+                            {/* Snapshots Table */}
+                            {autoBackups.length === 0 && fsBackups.length === 0 ? (
+                                <div className="text-center py-10 border border-dashed border-slate-200 dark:border-white/5 rounded-2xl text-slate-400 text-xs font-medium">
+                                    No local snapshots saved yet. Snapshots are automatically captured hourly and upon sign-out.
                                 </div>
-
-                                {/* Right Section: Automation & Auditing (Col span 5 on lg) */}
-                                <div className="lg:col-span-5 space-y-6">
-                                    {/* Cloud Auto-Backup Schedule */}
-                                    <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
-                                        <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
-                                            <div className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/30 text-sky-600 dark:text-sky-400">
-                                                <Cloud className="h-5 w-5" />
-                                            </div>
-                                            <div>
-                                                <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Cloud Sync Schedule</h3>
-                                                <p className="text-xs font-semibold text-slate-400 mt-0.5">Automatically sync database backups to Google Drive.</p>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            <div>
-                                                <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Backup Sync Interval</label>
-                                                <select
-                                                    value={cloudBackupSchedule}
-                                                    onChange={(e) => {
-                                                        const value = e.target.value;
-                                                        setCloudBackupSchedule(value);
-                                                        localStorage.setItem('formease_cloud_backup_schedule', value);
-                                                        alert(`Cloud Auto-Backup schedule set to: ${value.toUpperCase()}`);
-                                                    }}
-                                                    className="form-input w-full capitalize rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 p-3 text-xs font-semibold focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-hidden"
-                                                >
-                                                    <option value="off">Off (Manual Sync Only)</option>
-                                                    <option value="daily">Daily</option>
-                                                    <option value="weekly">Weekly</option>
-                                                </select>
-                                            </div>
-
-                                            <div className="flex justify-between items-center text-[10px] text-slate-400 dark:text-slate-500 font-bold bg-slate-50 dark:bg-white/2 p-3 rounded-xl border border-slate-100 dark:border-white/5">
-                                                <span>Cloud Sync State:</span>
-                                                <div className="flex items-center gap-1.5">
-                                                    {cloudSyncState.linked && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-                                                    <span className={cloudSyncState.linked ? "text-emerald-500 font-extrabold" : "text-red-500 font-extrabold"}>
-                                                        {cloudSyncState.linked ? `Linked (${cloudSyncState.email})` : 'Not Linked'}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Backup & Restore History Timeline */}
-                                    <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
-                                        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400">
-                                                    <History className="h-5 w-5" />
-                                                </div>
-                                                <div>
-                                                    <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Activity History</h3>
-                                                    <p className="text-xs font-semibold text-slate-400 mt-0.5">Chronological record of operations.</p>
-                                                </div>
-                                            </div>
-                                            {backupHistory.length > 0 && (
-                                                <button
-                                                    onClick={() => {
-                                                        localStorage.removeItem('formease_backup_history');
-                                                        setBackupHistory([]);
-                                                    }}
-                                                    className="text-[9px] font-black text-red-600 uppercase hover:underline cursor-pointer border border-red-500/10 px-2 py-0.5 rounded-md hover:bg-red-50"
-                                                >
-                                                    Clear
-                                                </button>
-                                            )}
-                                        </div>
-                                        <div className="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
-                                            {backupHistory.length > 0 ? (
-                                                backupHistory.map((log, idx) => (
-                                                    <div key={idx} className="flex justify-between items-center text-xs p-3 rounded-xl border border-slate-100 dark:border-white/2 bg-slate-50/30 dark:bg-white/1">
-                                                        <div>
-                                                            <span className="font-extrabold text-slate-700 dark:text-gray-200 capitalize">{log.type}</span>
-                                                            <span className="text-[9px] text-slate-400 ml-2 font-bold bg-slate-105 dark:bg-white/10 px-1.5 py-0.5 rounded uppercase">{log.status}</span>
-                                                        </div>
-                                                        <div className="text-right flex items-center gap-2.5">
-                                                            <span className="text-[9px] text-slate-400 font-bold">{new Date(log.timestamp).toLocaleDateString(undefined, {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})}</span>
-                                                            {log.size > 0 && <span className="bg-emerald-100/70 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[9px] font-black px-1.5 py-0.5 rounded">{formatBytes(log.size)}</span>}
-                                                        </div>
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                <div className="text-center py-8 text-slate-400 text-[11px] font-bold border border-dashed border-slate-200 dark:border-white/5 rounded-xl">
-                                                    No backup activities logged yet.
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Tab 2.5: Cloud Backup Sync */}
-                    {activeTab === 'cloud' && (
-                        <div className="space-y-6 animate-in fade-in duration-200">
-                            {/* Cloud Backup Sync (Google Drive) */}
-                            <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
-                                <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
-                                    <div className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/30 text-sky-600 dark:text-sky-400">
-                                        <Cloud className="h-5 w-5" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Cloud Backup Sync</h3>
-                                        <p className="text-xs font-semibold text-slate-400 mt-0.5">Securely duplicate backups to your personal Google Drive cloud folder.</p>
-                                    </div>
-                                </div>
-                                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
-                                    Keep your data safe from hardware failure by syncing system backups directly to Google Drive. Backups are stored in a dedicated <code>FormEase_Backups</code> folder.
-                                </p>
-                                <div className="rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                    <div className="space-y-1">
-                                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Google Connection Status</p>
-                                        <p className="text-sm font-extrabold text-slate-700 dark:text-gray-200 flex items-center gap-1.5 mt-1">
-                                            <span className={`inline-block w-2.5 h-2.5 rounded-full ${cloudSyncState.linked ? 'bg-emerald-500 shadow-md shadow-emerald-500/30 animate-pulse' : 'bg-rose-500'}`} />
-                                            {cloudSyncState.linked ? `Linked as ${cloudSyncState.email}` : 'Disconnected'}
-                                        </p>
-                                        {cloudSyncState.lastSync && (
-                                            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-1">
-                                                Last Synced: {new Date(cloudSyncState.lastSync).toLocaleString()}
-                                            </p>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        {cloudSyncState.linked ? (
-                                            <>
-                                                <button
-                                                    onClick={handleCloudSync}
-                                                    disabled={isCloudSyncing}
-                                                    className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-md shadow-sky-600/10"
-                                                >
-                                                    <Cloud className="w-4 h-4" />
-                                                    {isCloudSyncing ? 'Syncing...' : 'Sync Now'}
-                                                </button>
-                                                <button
-                                                    onClick={handleUnlinkGoogle}
-                                                    className="px-4 py-2.5 border border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-black uppercase tracking-wider transition-colors cursor-pointer"
-                                                >
-                                                    Disconnect
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <button
-                                                onClick={handleLinkGoogle}
-                                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1.5 shadow-md shadow-indigo-600/10"
-                                            >
-                                                <Cloud className="w-4 h-4" />
-                                                Link Google Account
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {cloudSyncState.linked && (
-                                    <div className="rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 p-4 space-y-4">
-                                        <div className="flex items-center justify-between pb-2 border-b border-slate-150 dark:border-white/5">
-                                            <div>
-                                                <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Cloud Restore Center</p>
-                                                <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Download and restore system backups stored in Google Drive.</p>
-                                            </div>
-                                            <button
-                                                onClick={loadCloudBackupsList}
-                                                disabled={isLoadingCloudBackups}
-                                                className="rounded-lg bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-600 dark:text-slate-300 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer"
-                                            >
-                                                {isLoadingCloudBackups ? 'Refreshing...' : 'Refresh Cloud List'}
-                                            </button>
-                                        </div>
-
-                                        <div className="space-y-2 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
-                                            {isLoadingCloudBackups ? (
-                                                <div className="text-center py-8 text-slate-400 text-xs font-semibold animate-pulse">
-                                                    Fetching backups from Google Drive...
-                                                </div>
-                                            ) : cloudBackups.length > 0 ? (
-                                                cloudBackups.map((snap) => (
-                                                    <div key={snap.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-2xl border border-slate-150 dark:border-white/5 bg-white dark:bg-[#090d16] gap-4 transition-all hover:bg-slate-50 dark:hover:bg-white/5">
-                                                        <div className="space-y-1 min-w-0 flex-1">
-                                                            <p className="text-xs font-extrabold text-slate-800 dark:text-gray-200 break-all">{snap.name}</p>
-                                                            <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">
-                                                                Uploaded: {new Date(snap.createdTime).toLocaleString()} | Size: {snap.size ? `${(snap.size / 1024).toFixed(1)} KB` : 'Unknown'}
-                                                            </p>
-                                                        </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                        <thead>
+                                            <tr className="border-b border-slate-150 dark:border-white/5 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                                <th className="py-2.5 px-3">Snapshot Name / Date</th>
+                                                <th className="py-2.5 px-3">Type</th>
+                                                <th className="py-2.5 px-3">School Year</th>
+                                                <th className="py-2.5 px-3">Scope</th>
+                                                <th className="py-2.5 px-3 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                                            {autoBackups.slice(0, 10).map((b) => (
+                                                <tr key={b.id} className="hover:bg-slate-50/60 dark:hover:bg-white/2 transition-colors">
+                                                    <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-slate-200">
+                                                        {b.label}
+                                                        <span className="block text-[10px] text-slate-400 font-medium">{new Date(b.timestamp).toLocaleString()}</span>
+                                                    </td>
+                                                    <td className="py-2.5 px-3">
+                                                        <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
+                                                            Auto Snapshot
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-2.5 px-3 font-semibold text-slate-500">Auto</td>
+                                                    <td className="py-2.5 px-3 text-[11px] text-slate-500">
+                                                        {b.recordCounts?.students ?? 0} students • {b.recordCounts?.sections ?? 0} sections
+                                                    </td>
+                                                    <td className="py-2.5 px-3 text-right space-x-2">
                                                         <button
-                                                            onClick={() => handleRestoreCloudBackup(snap.id, snap.name)}
-                                                            disabled={isRestoringCloudBackup}
-                                                            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors disabled:opacity-50 cursor-pointer shrink-0"
+                                                            onClick={() => handleRestoreAutoBackup(b.id, b.label)}
+                                                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer"
                                                         >
-                                                            {isRestoringCloudBackup ? 'Restoring...' : 'Restore'}
+                                                            Restore
                                                         </button>
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                <div className="text-center py-8 border border-dashed border-slate-200 dark:border-white/5 rounded-2xl text-slate-400 text-xs font-medium">
-                                                    No backup files found in your Google Drive FormEase_Backups folder.
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                            </div>
+                                                        <button
+                                                            onClick={() => handleDeleteAutoBackup(b.id, b.label)}
+                                                            className="px-2 py-1 text-slate-400 hover:text-rose-600 text-[10px] font-bold cursor-pointer"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {fsBackups.slice(0, 10).map((fb) => (
+                                                <tr key={fb.filename} className="hover:bg-slate-50/60 dark:hover:bg-white/2 transition-colors">
+                                                    <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-slate-200">
+                                                        {fb.filename}
+                                                        <span className="block text-[10px] text-slate-400 font-medium">{new Date(fb.mtime).toLocaleString()} • {formatBytes(fb.size)}</span>
+                                                    </td>
+                                                    <td className="py-2.5 px-3">
+                                                        <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
+                                                            Disk File
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-2.5 px-3 font-semibold text-slate-500">{fb.summary?.activeSchoolYear || 'Active'}</td>
+                                                    <td className="py-2.5 px-3 text-[11px] text-slate-500">
+                                                        {fb.summary?.students ?? 0} students • {fb.summary?.sections ?? 0} sections
+                                                    </td>
+                                                    <td className="py-2.5 px-3 text-right space-x-2">
+                                                        <button
+                                                            onClick={() => handleRestoreFsBackup(fb.filename)}
+                                                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer"
+                                                        >
+                                                            Restore
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteFsBackup(fb.filename)}
+                                                            className="px-2 py-1 text-slate-400 hover:text-rose-600 text-[10px] font-bold cursor-pointer"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
                         </div>
-                    )}
 
-                    {/* Tab 3: System Maintenance */}
-                    {activeTab === 'maintenance' && (
-                        <div className="space-y-6 animate-in fade-in duration-200">
-                            <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
-                                <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
-                                    <div className="p-2.5 rounded-xl bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400">
+                        {/* Maintenance Logs (Audit Trail) */}
+                        {maintenanceLogs.length > 0 && (
+                            <div className="rounded-2xl border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#0d1225] p-5 shadow-xs space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                                        Recent Maintenance Activity ({maintenanceLogs.length})
+                                    </h4>
+                                    <button
+                                        onClick={() => {
+                                            setMaintenanceLogs([]);
+                                            localStorage.removeItem('formease_maintenance_log');
+                                        }}
+                                        className="text-[10px] font-bold text-rose-500 hover:text-rose-700 cursor-pointer"
+                                    >
+                                        Clear History
+                                    </button>
+                                </div>
+                                <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1 text-xs">
+                                    {maintenanceLogs.slice(0, 10).map((log, idx) => (
+                                        <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-white/2 text-[11px]">
+                                            <span className="font-semibold text-slate-700 dark:text-slate-300">{log.action}</span>
+                                            <span className="text-slate-400 text-[10px]">{new Date(log.timestamp).toLocaleTimeString()} ({log.count} records)</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Tab 4: System Health & Maintenance */}
+                {activeTab === 'maintenance' && canPurge && (
+                    <div className="space-y-6 animate-in fade-in duration-200">
+                        {/* Active Progress Bar */}
+                        {maintenanceProgress.total > 0 && (
+                            <div className="p-4 rounded-xl border border-blue-200 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-950/20 space-y-2">
+                                <div className="flex justify-between items-center text-xs font-bold text-blue-900 dark:text-blue-300">
+                                    <span>{maintenanceProgress.title}: {maintenanceProgress.currentStep}</span>
+                                    <span>{Math.round((maintenanceProgress.completed / Math.max(1, maintenanceProgress.total)) * 100)}%</span>
+                                </div>
+                                <div className="w-full bg-blue-200 dark:bg-blue-900/50 h-2 rounded-full overflow-hidden">
+                                    <div
+                                        className="bg-blue-600 h-full transition-all duration-200 rounded-full"
+                                        style={{ width: `${Math.round((maintenanceProgress.completed / Math.max(1, maintenanceProgress.total)) * 100)}%` }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                        {/* Smart System Health Inspector Hero */}
+                        <div className="rounded-2xl border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-5">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-150 dark:border-white/5">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400">
                                         <Shield className="h-5 w-5" />
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Database Maintenance</h3>
-                                        <p className="text-xs font-semibold text-slate-400 mt-0.5">Analyze and optimize records, clean ghost profiles, and reset modules.</p>
+                                        <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">System Health & Integrity Inspector</h3>
+                                        <p className="text-xs font-medium text-slate-400 mt-0.5">Automated diagnostics to detect duplicates, unlinked logs, and text inconsistencies.</p>
                                     </div>
                                 </div>
-                                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
-                                    Use these administrative utilities to maintain schema health, normalize database formats, and clean up empty or unlinked records. Ensure a comprehensive backup is exported before executing modifications.
-                                </p>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2">
-                                    <button
-                                        onClick={handlePreviewRecordCleanup}
-                                        disabled={isPreviewingCleanup}
-                                        className="rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 hover:bg-slate-100/50 dark:hover:bg-white/5 px-4 py-3 text-left text-xs font-bold text-slate-700 dark:text-gray-200 transition-all disabled:opacity-50 cursor-pointer"
-                                    >
-                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-slate-800 dark:text-white">Preview Record Cleanup</div>
-                                        <span className="text-[10px] text-slate-400 font-semibold">Scan database for textual inconsistencies and orphans.</span>
-                                    </button>
-                                    <button
-                                        onClick={handleNormalizeRecords}
-                                        disabled={isNormalizingRecords}
-                                        className="rounded-xl border border-blue-150 dark:border-blue-900/35 bg-blue-50/30 dark:bg-blue-950/15 hover:bg-blue-50/60 dark:hover:bg-blue-950/30 px-4 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-400 transition-all disabled:opacity-50 cursor-pointer"
-                                    >
-                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-blue-800 dark:text-blue-300">Normalize Names & Text</div>
-                                        <span className="text-[10px] text-blue-400/80 font-semibold">Format capitalization and clean excess whitespaces.</span>
-                                    </button>
-                                    <button
-                                        onClick={handleCleanGhostStudents}
-                                        disabled={isCleaning}
-                                        className="rounded-xl border border-rose-150 dark:border-rose-900/35 bg-rose-50/30 dark:rose-950/15 hover:bg-rose-50/60 dark:hover:bg-rose-950/30 px-4 py-3 text-left text-xs font-bold text-rose-700 dark:text-rose-400 transition-all disabled:opacity-50 cursor-pointer"
-                                    >
-                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-rose-800 dark:text-rose-300">Purge Ghost & Sample Data</div>
-                                        <span className="text-[10px] text-rose-400/80 font-semibold">Permanently remove sample/unassigned students & grade entries (e.g. Archimedes).</span>
-                                    </button>
-                                    <button
-                                        onClick={handleCleanGhostSections}
-                                        disabled={isPurgingSections}
-                                        className="rounded-xl border border-amber-150 dark:border-amber-900/35 bg-amber-50/30 dark:bg-amber-950/15 hover:bg-amber-50/60 dark:hover:bg-amber-950/30 px-4 py-3 text-left text-xs font-bold text-amber-700 dark:text-amber-400 transition-all disabled:opacity-50 cursor-pointer"
-                                    >
-                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-amber-800 dark:text-amber-300">Empty Section Cleanup</div>
-                                        <span className="text-[10px] text-amber-400/80 font-semibold">Delete section records with 0 students and 0 subjects.</span>
-                                    </button>
-                                    
-                                    {/* Cascade Section Purge Card */}
-                                    <div className="rounded-xl border border-red-200/60 dark:border-red-900/40 bg-red-50/40 dark:bg-red-950/20 p-4 space-y-2 sm:col-span-2 md:col-span-3">
-                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                            <div>
-                                                <div className="font-extrabold uppercase tracking-wider text-[11px] text-red-800 dark:text-red-300">
-                                                    Purge Specific Section & Roster (e.g. Archimedes)
-                                                </div>
-                                                <span className="text-[10px] text-red-600/80 dark:text-red-400/80 font-semibold">
-                                                    Select a section to permanently purge the section, its students, and all grade records.
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-2 shrink-0">
-                                                <select
-                                                    value={selectedSectionToCascadePurge}
-                                                    onChange={(e) => setSelectedSectionToCascadePurge(e.target.value)}
-                                                    className="text-xs bg-white dark:bg-black/40 border border-red-200 dark:border-red-900/50 rounded-xl px-3 py-2 font-bold text-slate-800 dark:text-gray-200 outline-hidden"
-                                                >
-                                                    <option value="">-- Select Section to Purge --</option>
-                                                    {sections.map(sec => {
-                                                        const studentCount = students.filter(s => s.student_section === sec.id || s.student_section === sec.section_name).length;
-                                                        return (
-                                                            <option key={sec.id} value={sec.id}>
-                                                                {sec.section_grade_level ? `${sec.section_grade_level} - ` : ''}{sec.section_name} ({studentCount} students)
-                                                            </option>
-                                                        );
-                                                    })}
-                                                </select>
-                                                <button
-                                                    onClick={handleCascadeDeleteSection}
-                                                    disabled={!selectedSectionToCascadePurge || isCleaning}
-                                                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer shadow-xs"
-                                                >
-                                                    Purge Section
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Feature 1: Duplicate LRN Detector */}
-                                    <button
-                                        onClick={handleDuplicateLrnScan}
-                                        disabled={isScanningDuplicates}
-                                        className="rounded-xl border border-indigo-150 dark:border-indigo-900/35 bg-indigo-50/30 dark:bg-indigo-950/15 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/30 px-4 py-3 text-left text-xs font-bold text-indigo-700 dark:text-indigo-400 transition-all disabled:opacity-50 cursor-pointer"
-                                    >
-                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-indigo-800 dark:text-indigo-300">Duplicate LRN Detector</div>
-                                        <span className="text-[10px] text-indigo-400/80 font-semibold">Scan and merge duplicate student profiles.</span>
-                                    </button>
-
-                                    {/* Feature 3: Bulk LRN Validator */}
-                                    <button
-                                        onClick={handleLrnValidation}
-                                        disabled={isScanningLrnValidation}
-                                        className="rounded-xl border border-teal-150 dark:border-teal-900/35 bg-teal-50/30 dark:bg-teal-950/15 hover:bg-teal-50/60 dark:hover:bg-teal-950/30 px-4 py-3 text-left text-xs font-bold text-teal-700 dark:text-teal-400 transition-all disabled:opacity-50 cursor-pointer"
-                                    >
-                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-teal-800 dark:text-teal-300">Bulk LRN Validator</div>
-                                        <span className="text-[10px] text-teal-400/80 font-semibold">Flag LRN format errors and temp-LRNs.</span>
-                                    </button>
-
-                                    {/* Feature 4: Orphan Attendance Records Cleanup */}
-                                    <button
-                                        onClick={handleCleanOrphanAttendance}
-                                        className="rounded-xl border border-fuchsia-150 dark:border-fuchsia-900/35 bg-fuchsia-50/30 dark:bg-fuchsia-950/15 hover:bg-fuchsia-50/60 dark:hover:bg-fuchsia-950/30 px-4 py-3 text-left text-xs font-bold text-fuchsia-700 dark:text-fuchsia-400 transition-all cursor-pointer"
-                                    >
-                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-fuchsia-800 dark:text-fuchsia-300">Orphan Attendance Log Cleanup</div>
-                                        <span className="text-[10px] text-fuchsia-400/80 font-semibold">Delete attendance logs without active students.</span>
-                                    </button>
-
-                                    {/* Feature 6: Grade Consistency Checker */}
-                                    <button
-                                        onClick={handleGradeConsistencyCheck}
-                                        disabled={isScanningConsistency}
-                                        className="rounded-xl border border-cyan-150 dark:border-cyan-900/35 bg-cyan-50/30 dark:bg-cyan-950/15 hover:bg-cyan-50/60 dark:hover:bg-cyan-950/30 px-4 py-3 text-left text-xs font-bold text-cyan-700 dark:text-cyan-400 transition-all disabled:opacity-50 cursor-pointer"
-                                    >
-                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-cyan-800 dark:text-cyan-300">Grade Consistency Check</div>
-                                        <span className="text-[10px] text-cyan-400/80 font-semibold">Scan grades for gaps or out-of-bounds ratings.</span>
-                                    </button>
-                                    
-                                    {/* Feature 10: Scheduled Auto-Cleanup Toggle */}
-                                    <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50/30 dark:bg-white/2 px-4 py-3 flex flex-col justify-between">
-                                        <div>
-                                            <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-slate-800 dark:text-white">Auto Weekly Cleanup</div>
-                                            <span className="text-[10px] text-slate-400 font-semibold">Automatically clean database schema weekly.</span>
-                                        </div>
-                                        <label className="relative inline-flex items-center cursor-pointer select-none mt-2">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={autoCleanupEnabled} 
-                                                onChange={(e) => {
-                                                    const checked = e.target.checked;
-                                                    setAutoCleanupEnabled(checked);
-                                                    localStorage.setItem('formease_auto_cleanup_enabled', checked ? 'true' : 'false');
-                                                }}
-                                                className="sr-only peer" 
-                                            />
-                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:bg-slate-700 peer-checked:bg-indigo-600"></div>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div className="pt-2">
-                                    <button
-                                        onClick={() => setShowDangerZone((prev) => !prev)}
-                                        className="w-full rounded-xl border border-red-200 dark:border-red-900/30 bg-white hover:bg-red-50/30 dark:bg-transparent dark:hover:bg-red-950/10 px-4 py-3 text-center text-xs font-black uppercase tracking-wider text-red-600 dark:text-red-400 transition-all cursor-pointer"
-                                    >
-                                        {showDangerZone ? 'Hide Administrative Reset Controls' : 'Show System Reset Controls'}
-                                    </button>
-                                </div>
-
-                                {showDangerZone && (
-                                    <div className="space-y-3 rounded-2xl border border-red-200 dark:border-red-900/30 bg-red-50/30 dark:bg-red-950/15 p-5 animate-in slide-in-from-top-2 duration-200">
-                                        <div className="pb-2 border-b border-red-100 dark:border-red-950/30">
-                                            <h4 className="text-xs font-black text-red-800 dark:text-red-400 uppercase tracking-widest">Administrative System Reset Utilities</h4>
-                                            <p className="text-[10px] text-red-500 font-semibold mt-0.5">These destructive operations permanently purge selected database modules.</p>
-                                        </div>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                                            <button
-                                                onClick={handleDeleteOrphanGradeRecords}
-                                                disabled={isDeletingOrphanGrades}
-                                                className="rounded-xl bg-red-100/50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/60 border border-red-200/50 dark:border-red-900/30 px-3 py-2 text-left text-xs font-bold text-red-700 dark:text-red-400 transition-all disabled:opacity-50 cursor-pointer"
-                                            >
-                                                <div className="font-extrabold uppercase text-[10px] tracking-wider mb-0.5">Delete Orphan Grades</div>
-                                                <span className="text-[9px] text-red-500/70 font-semibold">Delete grades not linked to active students.</span>
-                                            </button>
-                                            <button
-                                                onClick={handleClearAllCurrentStudents}
-                                                disabled={isClearingAllStudents}
-                                                className="rounded-xl bg-rose-600 hover:bg-rose-700 border border-rose-700 px-3 py-2 text-left text-xs font-bold text-white transition-all disabled:opacity-50 cursor-pointer"
-                                            >
-                                                <div className="font-extrabold uppercase text-[10px] tracking-wider mb-0.5">Fresh Start: Clear Students</div>
-                                                <span className="text-[9px] text-rose-100/75 font-semibold">Remove all enrollments for this school year.</span>
-                                            </button>
-                                            <button
-                                                onClick={handleClearStudentsAndOrphanGrades}
-                                                disabled={isClearingStudentsAndGrades}
-                                                className="rounded-xl bg-red-600 hover:bg-red-700 border border-red-700 px-3 py-2 text-left text-xs font-bold text-white transition-all disabled:opacity-50 cursor-pointer"
-                                            >
-                                                <div className="font-extrabold uppercase text-[10px] tracking-wider mb-0.5">Clear Students + Grades</div>
-                                                <span className="text-[9px] text-red-100/75 font-semibold">Wipe both enrollments and grades globally.</span>
-                                            </button>
-                                            <button
-                                                onClick={handleFullHardReset}
-                                                disabled={isRunningHardReset}
-                                                className="rounded-xl bg-slate-900 hover:bg-black border border-black dark:bg-[#090d16] dark:hover:bg-[#121927] px-3 py-2 text-left text-xs font-bold text-white transition-all disabled:opacity-50 cursor-pointer"
-                                            >
-                                                <div className="font-extrabold uppercase text-[10px] tracking-wider mb-0.5">Full Reset (Delete Profiles)</div>
-                                                <span className="text-[9px] text-slate-400 font-semibold">Delete all profiles, enrollments, and grades.</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
+                                <button
+                                    onClick={handleRunDiagnostics}
+                                    disabled={isScanningDiagnostics}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all shadow-xs disabled:opacity-50 cursor-pointer self-start sm:self-auto"
+                                >
+                                    <RefreshCw className={`w-3.5 h-3.5 ${isScanningDiagnostics ? 'animate-spin' : ''}`} />
+                                    {isScanningDiagnostics ? 'Scanning System...' : 'Run System Health Scan'}
+                                </button>
                             </div>
 
-                            {/* Feature 2: Database Storage Monitor */}
-                            <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
-                                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400">
-                                            <Database className="h-5 w-5" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Database Storage Monitor</h3>
-                                            <p className="text-xs font-semibold text-slate-400 mt-0.5">Monitor and analyze local IndexedDB database sizes.</p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={handleStorageScan}
-                                        disabled={isScanningStorage}
-                                        className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer"
-                                    >
-                                        {isScanningStorage ? 'Scanning...' : 'Analyze Storage'}
-                                    </button>
-                                </div>
-
-                                {storageEstimate && (
+                            {/* Detected Diagnostic Issues Banner */}
+                            {diagnosticIssues.length > 0 && (
+                                <div className="p-4 rounded-xl border border-amber-300 dark:border-amber-700/50 bg-amber-50/60 dark:bg-amber-950/20 space-y-3">
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                                        Detected System Issues ({diagnosticIssues.length})
+                                    </h4>
                                     <div className="space-y-2">
-                                        <div className="flex justify-between text-xs font-extrabold">
-                                            <span className="text-slate-500">IndexedDB Storage Used:</span>
-                                            <span className="text-slate-800 dark:text-white">
-                                                {formatBytes(storageEstimate.used)} of {formatBytes(storageEstimate.total)}
-                                            </span>
-                                        </div>
-                                        <div className="h-2 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
-                                            <div 
-                                                className="h-full bg-indigo-600 rounded-full transition-all"
-                                                style={{ width: `${Math.min(100, (storageEstimate.used / storageEstimate.total) * 100)}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-
-                                {storageStats && (
-                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-                                        {Object.entries(storageStats).map(([table, stat]) => (
-                                            <div key={table} className="p-3 rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
-                                                <div className="text-[10px] font-black text-slate-400 uppercase truncate">{table}</div>
-                                                <div className="text-sm font-black text-slate-800 dark:text-white mt-1">{stat.count} <span className="text-[9px] font-semibold text-slate-400">rows</span></div>
-                                                <div className="text-[10px] font-semibold text-slate-500 mt-0.5">{formatBytes(stat.sizeBytes)}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Feature 7 & 8: School Year Archiver & CSV Export */}
-                            <div className="grid grid-cols-1 gap-6">
-                                {/* School Year Archiver (Temporarily hidden)
-                                <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
-                                    <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
-                                        <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400">
-                                            <History className="h-5 w-5" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">School Year Archiver</h3>
-                                            <p className="text-xs font-semibold text-slate-400 mt-0.5">Archive and purge historical records to keep database clean.</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <select 
-                                            value={archiveSY}
-                                            onChange={(e) => setArchiveSY(e.target.value)}
-                                            className="form-input flex-1"
-                                        >
-                                            {schoolYears.map(sy => (
-                                                <option key={sy.sy_id} value={sy.label}>{sy.label}</option>
-                                            ))}
-                                        </select>
-                                        <button
-                                            onClick={handleArchiveSchoolYear}
-                                            disabled={isArchiving}
-                                            className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white px-5 py-3 text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
-                                        >
-                                            {isArchiving ? 'Archiving...' : 'Archive & Purge'}
-                                        </button>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 leading-relaxed">
-                                        * Note: This will download a standalone year-specific JSON backup of all grades and attendance, then delete those records for the selected year from the database.
-                                    </p>
-                                </div>
-                                */}
-
-                                {/* Data Export Card (Excel & CSV) */}
-                                <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
-                                    <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
-                                        <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400">
-                                            <FileSpreadsheet className="h-5 w-5" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Direct Database Export (Excel & CSV)</h3>
-                                            <p className="text-xs font-semibold text-slate-400 mt-0.5">Download database tables directly from IndexedDB as Excel or CSV spreadsheets.</p>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-3">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            <button
-                                                onClick={handleRescueDatabaseExcel}
-                                                disabled={isRescuingExcel}
-                                                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer disabled:opacity-50"
-                                            >
-                                                <FileSpreadsheet className="w-4 h-4" />
-                                                {isRescuingExcel ? 'Exporting...' : 'Download Master Excel Workbook (.xlsx)'}
-                                            </button>
-                                            <button
-                                                onClick={handleExportAllTablesCsv}
-                                                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer"
-                                            >
-                                                <Download className="w-4 h-4" /> Download All Tables (Bulk CSV)
-                                            </button>
-                                        </div>
-                                        <div className="flex flex-wrap gap-2 pt-1">
-                                            {['students', 'sections', 'subjects', 'grades', 'gradingSheetRecords', 'attendanceRecords', 'enrollments'].map(table => (
-                                                <button
-                                                    key={table}
-                                                    onClick={() => handleExportTableCsv(table)}
-                                                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-gray-300 cursor-pointer"
-                                                >
-                                                    {table.replace('Records', '')} CSV ↓
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Reports & Previews */}
-                            {cleanupPreview && (
-                                <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 p-5 text-xs text-slate-700 dark:text-gray-300 space-y-3.5">
-                                    <p className="font-black text-slate-900 dark:text-white uppercase tracking-widest text-[11px] pb-2 border-b border-slate-200/50 dark:border-white/5">Record Cleanup Scan Report</p>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Student Text Normalizations</p>
-                                            <p className="text-base font-extrabold text-slate-800 dark:text-white">{cleanupPreview.studentUpdates}</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Subject Text Normalizations</p>
-                                            <p className="text-base font-extrabold text-slate-800 dark:text-white">{cleanupPreview.subjectUpdates}</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Section Text Normalizations</p>
-                                            <p className="text-base font-extrabold text-slate-800 dark:text-white">{cleanupPreview.sectionUpdates}</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Orphan Grade Records</p>
-                                            <p className="text-base font-extrabold text-red-500 dark:text-red-400">{cleanupPreview.orphanGrades}</p>
-                                        </div>
-                                    </div>
-                                    {cleanupPreview.orphanGradeSample.length > 0 && (
-                                        <div className="bg-white dark:bg-[#0a0f1d] border border-slate-150 dark:border-white/5 p-3 rounded-xl">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Sample Orphan Record IDs</p>
-                                            <p className="font-mono text-[10px] text-slate-500 dark:text-slate-400 break-all leading-relaxed">{cleanupPreview.orphanGradeSample.join(', ')}</p>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {lrnValidationIssues.length > 0 && (
-                                <div className="rounded-2xl border border-teal-200 dark:border-teal-900/30 bg-teal-50/20 dark:bg-teal-950/10 p-5 text-xs text-slate-700 dark:text-gray-300 space-y-3">
-                                    <div className="flex justify-between items-center pb-2 border-b border-teal-200/40">
-                                        <p className="font-black text-teal-800 dark:text-teal-400 uppercase tracking-widest text-[11px]">LRN Format Issue Scan Report ({lrnValidationIssues.length})</p>
-                                        <button onClick={() => setLrnValidationIssues([])} className="text-[10px] text-teal-600 dark:text-teal-400 uppercase font-black cursor-pointer">Clear Report</button>
-                                    </div>
-                                    <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
-                                        {lrnValidationIssues.map((issue, idx) => (
-                                            <div key={idx} className="flex justify-between items-center py-1">
-                                                <div>
-                                                    <span className="font-extrabold text-slate-800 dark:text-white">{issue.student.first_name} {issue.student.last_name}</span>
-                                                    <span className="ml-2 font-mono text-[10px] bg-teal-100 dark:bg-teal-950 px-1.5 py-0.5 rounded text-teal-800 dark:text-teal-300">{issue.student.lrn}</span>
-                                                </div>
-                                                <span className="text-red-500 font-semibold">{issue.issue}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {gradeConsistencyIssues.length > 0 && (
-                                <div className="rounded-2xl border border-cyan-200 dark:border-cyan-900/30 bg-cyan-50/20 dark:bg-cyan-950/10 p-5 text-xs text-slate-700 dark:text-gray-300 space-y-3">
-                                    <div className="flex justify-between items-center pb-2 border-b border-cyan-200/40">
-                                        <p className="font-black text-cyan-800 dark:text-cyan-400 uppercase tracking-widest text-[11px]">Grade Consistency Scan Report ({gradeConsistencyIssues.length})</p>
-                                        <button onClick={() => setGradeConsistencyIssues([])} className="text-[10px] text-cyan-600 dark:text-cyan-400 uppercase font-black cursor-pointer">Clear Report</button>
-                                    </div>
-                                    <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
-                                        {gradeConsistencyIssues.map((issue, idx) => (
-                                            <div key={idx} className="py-1 border-b border-slate-100 dark:border-white/2 last:border-0">
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-extrabold text-slate-800 dark:text-white">{issue.studentName}</span>
-                                                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
-                                                        issue.severity === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
-                                                    }`}>{issue.type}</span>
-                                                </div>
-                                                <p className="text-[10px] text-slate-500 mt-0.5">{issue.details}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Feature 9: Maintenance Activity Log Timeline */}
-                            <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
-                                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400">
-                                            <History className="h-5 w-5" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Maintenance Activity Log</h3>
-                                            <p className="text-xs font-semibold text-slate-400 mt-0.5">Audit trail of database cleanup and structure actions.</p>
-                                        </div>
-                                    </div>
-                                    {maintenanceLogs.length > 0 && (
-                                        <button
-                                            onClick={() => {
-                                                localStorage.removeItem('formease_maintenance_log');
-                                                setMaintenanceLogs([]);
-                                            }}
-                                            className="text-[10px] font-black text-red-600 uppercase hover:underline cursor-pointer"
-                                        >
-                                            Clear Log
-                                        </button>
-                                    )}
-                                </div>
-                                <div className="space-y-2.5 max-h-60 overflow-y-auto custom-scrollbar">
-                                    {maintenanceLogs.length > 0 ? (
-                                        maintenanceLogs.map((log, idx) => (
-                                            <div key={idx} className="flex justify-between items-center text-xs p-3 rounded-xl border border-slate-100 dark:border-white/2 bg-slate-50/30 dark:bg-white/1">
-                                                <div>
-                                                    <span className="font-extrabold text-slate-700 dark:text-gray-200 capitalize">{log.action}</span>
-                                                    <span className="text-[10px] text-slate-400 ml-2 font-semibold">by {log.user}</span>
-                                                </div>
-                                                <div className="text-right">
-                                                    <span className="text-[10px] text-slate-400 font-bold">{new Date(log.timestamp).toLocaleString()}</span>
-                                                    {log.count > 0 && <span className="ml-2 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-black px-1.5 py-0.5 rounded">{log.count} records</span>}
-                                                </div>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        <div className="text-center py-6 text-slate-400 text-xs font-medium">
-                                            No maintenance activities logged yet.
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {maintenanceProgress.total > 0 && (
-                                <div className="rounded-2xl border border-blue-200 dark:border-blue-900/30 bg-blue-50/30 dark:bg-blue-950/15 p-5 space-y-3">
-                                    <div className="flex justify-between items-center">
-                                        <div>
-                                            <p className="font-black text-blue-900 dark:text-blue-300 uppercase tracking-wider text-xs">{maintenanceProgress.title}</p>
-                                            <p className="text-xs text-blue-700/80 dark:text-blue-400 font-semibold mt-0.5">{maintenanceProgress.currentStep}</p>
-                                        </div>
-                                        <span className="font-mono text-xs font-black text-blue-800 dark:text-blue-400 shrink-0">
-                                            {Math.round((maintenanceProgress.completed / Math.max(1, maintenanceProgress.total)) * 100)}%
-                                        </span>
-                                    </div>
-                                    <div className="h-2.5 overflow-hidden rounded-full bg-blue-100 dark:bg-white/10">
-                                        <div
-                                            className="h-full bg-blue-600 rounded-full transition-all duration-300"
-                                            style={{
-                                                width: `${Math.round((maintenanceProgress.completed / Math.max(1, maintenanceProgress.total)) * 100)}%`,
-                                            }}
-                                        />
-                                    </div>
-                                    <p className="text-[10px] text-blue-500/80 dark:text-blue-400/80 font-bold uppercase tracking-wider">
-                                        Progress: {maintenanceProgress.completed} of {maintenanceProgress.total} records resolved
-                                    </p>
-                                </div>
-                            )}
-
-                            {/* Database Self-Healing Diagnostics */}
-                            <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
-                                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400">
-                                            <Shield className="h-5 w-5" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Self-Healing Diagnostics</h3>
-                                            <p className="text-xs font-semibold text-slate-400 mt-0.5">Scan for corrupted records, duplicates, or format anomalies and repair them.</p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={handleRunDiagnostics}
-                                        disabled={isScanningDiagnostics}
-                                        className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer disabled:opacity-50"
-                                    >
-                                        {isScanningDiagnostics ? 'Scanning...' : 'Scan Database'}
-                                    </button>
-                                </div>
-
-                                {diagnosticIssues.length > 0 ? (
-                                    <div className="space-y-3">
                                         {diagnosticIssues.map((issue) => (
-                                            <div key={issue.id} className="p-4 rounded-2xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                                <div className="space-y-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
-                                                            issue.severity === 'error'
-                                                                ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400'
-                                                                : issue.severity === 'warning'
-                                                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400'
-                                                                    : 'bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400'
-                                                        }`}>
-                                                            {issue.severity}
-                                                        </span>
-                                                        <h4 className="text-sm font-extrabold text-slate-800 dark:text-white">{issue.description}</h4>
-                                                    </div>
-                                                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{issue.details}</p>
+                                            <div key={issue.id} className="flex items-center justify-between p-3 rounded-lg bg-white dark:bg-[#090d16] border border-amber-200 dark:border-amber-900/40 text-xs">
+                                                <div>
+                                                    <p className="font-bold text-slate-800 dark:text-white">{issue.description}</p>
+                                                    <p className="text-[11px] text-slate-400">{issue.details}</p>
                                                 </div>
                                                 <button
                                                     onClick={() => handleRepairIssue(issue)}
                                                     disabled={isRepairingDiagnostics}
-                                                    className="px-4.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors disabled:opacity-50 cursor-pointer shrink-0"
+                                                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer shrink-0 ml-2"
                                                 >
                                                     Auto Repair
                                                 </button>
                                             </div>
                                         ))}
                                     </div>
-                                ) : (
-                                    <div className="text-center py-6 border border-dashed border-slate-200 dark:border-white/5 rounded-2xl text-slate-400 text-xs font-medium">
-                                        Click "Scan Database" to scan your IndexedDB tables for consistency issues.
+                                </div>
+                            )}
+
+                            {/* 6 Interactive Health Cards */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                                {/* 1. Duplicate LRN */}
+                                <div className="p-4 rounded-xl border border-indigo-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 space-y-3 flex flex-col justify-between">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-xs font-black text-slate-800 dark:text-white">Duplicate LRNs</p>
+                                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600">Integrity</span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-400">Identifies students with duplicate 12-digit LRNs and merges records safely.</p>
                                     </div>
-                                )}
+                                    <button
+                                        onClick={handleDuplicateLrnScan}
+                                        disabled={isScanningDuplicates}
+                                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer"
+                                    >
+                                        Scan Duplicates
+                                    </button>
+                                </div>
+
+                                {/* 2. LRN Format Validator */}
+                                <div className="p-4 rounded-xl border border-purple-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 space-y-3 flex flex-col justify-between">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-xs font-black text-slate-800 dark:text-white">LRN Validator</p>
+                                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/50 text-purple-600">Compliance</span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-400">
+                                            {lrnValidationIssues.length > 0
+                                                ? `⚠️ Found ${lrnValidationIssues.length} issue(s) with student LRNs.`
+                                                : 'Checks for non-standard, temporary, or missing 12-digit student LRNs.'}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={handleLrnValidation}
+                                        disabled={isScanningLrnValidation}
+                                        className="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer"
+                                    >
+                                        {isScanningLrnValidation ? 'Validating...' : 'Validate 12-Digit LRNs'}
+                                    </button>
+                                </div>
+
+                                {/* 3. Grade Consistency Scanner */}
+                                <div className="p-4 rounded-xl border border-emerald-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 space-y-3 flex flex-col justify-between">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-xs font-black text-slate-800 dark:text-white">Grade Consistency</p>
+                                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600">Verification</span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-400">
+                                            {gradeConsistencyIssues.length > 0
+                                                ? `⚠️ Found ${gradeConsistencyIssues.length} grade consistency anomaly(ies).`
+                                                : 'Scans encoded scores and quarterly grades for out-of-range values.'}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={handleGradeConsistencyCheck}
+                                        disabled={isScanningConsistency}
+                                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer"
+                                    >
+                                        {isScanningConsistency ? 'Checking...' : 'Check Grade Values'}
+                                    </button>
+                                </div>
+
+                                {/* Text & Name Normalization */}
+                                <div className="p-4 rounded-xl border border-blue-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 space-y-3 flex flex-col justify-between">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-xs font-black text-slate-800 dark:text-white">Name Normalization</p>
+                                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-600">Formatting</span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-400">Trims double spaces, fixes proper casing, and normalizes student and subject names.</p>
+                                    </div>
+                                    <button
+                                        onClick={handleNormalizeRecords}
+                                        disabled={isNormalizingRecords}
+                                        className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer"
+                                    >
+                                        Normalize Text
+                                    </button>
+                                </div>
+
+                                {/* Empty Sections */}
+                                <div className="p-4 rounded-xl border border-amber-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 space-y-3 flex flex-col justify-between">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-xs font-black text-slate-800 dark:text-white">Empty Sections</p>
+                                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/50 text-amber-600">Cleanup</span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-400">Detects and purges empty section records that contain 0 students and 0 subjects.</p>
+                                    </div>
+                                    <button
+                                        onClick={handleCleanGhostSections}
+                                        disabled={isPurgingSections}
+                                        className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer"
+                                    >
+                                        Clean Empty Classes
+                                    </button>
+                                </div>
+
+                                {/* 6. Orphan Attendance & Grades */}
+                                <div className="p-4 rounded-xl border border-teal-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 space-y-3 flex flex-col justify-between">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-xs font-black text-slate-800 dark:text-white">Orphan Records</p>
+                                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950/50 text-teal-600">Pruning</span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-400">Scans and removes attendance logs and grades not linked to active students.</p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            onClick={handleCleanOrphanAttendance}
+                                            disabled={isCleaning}
+                                            className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider cursor-pointer"
+                                        >
+                                            Prune Logs
+                                        </button>
+                                        <button
+                                            onClick={handleDeleteOrphanGradeRecords}
+                                            disabled={isDeletingOrphanGrades}
+                                            className="w-full py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-lg text-[9px] font-black uppercase tracking-wider cursor-pointer"
+                                        >
+                                            Prune Grades
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    )}
 
-                    {/* Tab 4: Version History */}
-                    {activeTab === 'versions' && (
-                        <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-6 animate-in fade-in duration-200">
-                            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-white/5">
+                        {/* Section Cascade Purge Card (e.g. Archimedes Sample Data) */}
+                        <div className="rounded-2xl border border-red-200/80 dark:border-red-950/40 bg-red-50/20 dark:bg-red-950/10 p-5 shadow-xs space-y-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div>
+                                    <h4 className="text-sm font-black text-red-800 dark:text-red-300 uppercase tracking-wider">Purge Specific Section & Roster</h4>
+                                    <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-0.5">Quickly remove sample or test classes (such as Archimedes) along with all their enrolled students and grades.</p>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <select
+                                        value={selectedSectionToCascadePurge}
+                                        onChange={(e) => setSelectedSectionToCascadePurge(e.target.value)}
+                                        className="text-xs bg-white dark:bg-[#0d1225] border border-red-200 dark:border-red-900/50 rounded-xl px-3 py-2 font-bold text-slate-800 dark:text-gray-200"
+                                    >
+                                        <option value="">-- Select Section to Purge --</option>
+                                        {sections.map(sec => {
+                                            const studentCount = students.filter(s => s.student_section === sec.id || s.student_section === sec.section_name).length;
+                                            return (
+                                                <option key={sec.id} value={sec.id}>
+                                                    {sec.section_grade_level ? `${sec.section_grade_level} - ` : ''}{sec.section_name} ({studentCount} students)
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                    <button
+                                        onClick={handleCascadeDeleteSection}
+                                        disabled={!selectedSectionToCascadePurge || isCleaning}
+                                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
+                                    >
+                                        Purge Section
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Direct Database Rescue & Live Status */}
+                        <div className="rounded-2xl border border-emerald-500/30 dark:border-emerald-500/20 bg-linear-to-br from-emerald-50/20 to-white dark:from-emerald-950/10 dark:to-[#0d1225] p-6 shadow-xs space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-emerald-100 dark:border-white/5">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Direct Database Rescue to Excel</h3>
+                                        <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-black px-2.5 py-0.5 uppercase tracking-wider">
+                                            Direct Extraction
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-slate-400 mt-0.5 font-medium">Extracts records directly from IndexedDB without filtering by school year or active view.</p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                        onClick={handleScanLiveDatabase}
+                                        disabled={isScanningDb}
+                                        className="px-3 py-1.5 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 rounded-lg text-[11px] font-bold text-slate-600 dark:text-slate-300 cursor-pointer"
+                                    >
+                                        <RefreshCw className={`w-3.5 h-3.5 inline mr-1 ${isScanningDb ? 'animate-spin' : ''}`} />
+                                        Scan Storage
+                                    </button>
+                                    <button
+                                        onClick={handleForceReloadDatabase}
+                                        disabled={isReloadingDb}
+                                        className="px-3 py-1.5 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 rounded-lg text-[11px] font-bold text-slate-600 dark:text-slate-300 cursor-pointer"
+                                    >
+                                        {isReloadingDb ? 'Reloading...' : 'Reload Cache'}
+                                    </button>
+                                    <button
+                                        onClick={handleRescueDatabaseExcel}
+                                        disabled={isRescuingExcel}
+                                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-black uppercase tracking-wider cursor-pointer"
+                                    >
+                                        Export Direct Excel
+                                    </button>
+                                    <button
+                                        onClick={handleExportAllTablesCsv}
+                                        className="px-3 py-1.5 border border-emerald-300 dark:border-emerald-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 rounded-lg text-[11px] font-bold uppercase tracking-wider cursor-pointer"
+                                    >
+                                        Export CSV
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Live Counts */}
+                            {liveDbCounts && (
+                                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 pt-1 text-center">
+                                    <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
+                                        <span className="block text-[9px] font-bold text-slate-400 uppercase">Students</span>
+                                        <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts.students}</span>
+                                    </div>
+                                    <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
+                                        <span className="block text-[9px] font-bold text-slate-400 uppercase">Sections</span>
+                                        <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts.sections}</span>
+                                    </div>
+                                    <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
+                                        <span className="block text-[9px] font-bold text-slate-400 uppercase">Subjects</span>
+                                        <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts.subjects}</span>
+                                    </div>
+                                    <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
+                                        <span className="block text-[9px] font-bold text-slate-400 uppercase">Grades</span>
+                                        <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts.classRecords}</span>
+                                    </div>
+                                    <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
+                                        <span className="block text-[9px] font-bold text-slate-400 uppercase">HPS Records</span>
+                                        <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts.hpsRecords}</span>
+                                    </div>
+                                    <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
+                                        <span className="block text-[9px] font-bold text-slate-400 uppercase">Attendance</span>
+                                        <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts.attendanceRecords}</span>
+                                    </div>
+                                    <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
+                                        <span className="block text-[9px] font-bold text-slate-400 uppercase">SF2</span>
+                                        <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts.sf2Sheets}</span>
+                                    </div>
+                                    <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
+                                        <span className="block text-[9px] font-bold text-slate-400 uppercase">Total Records</span>
+                                        <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">{liveDbCounts.totalRecords}</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Danger Zone */}
+                        <div className="rounded-2xl border-2 border-rose-500/30 dark:border-rose-950/40 bg-rose-50/10 dark:bg-rose-950/5 p-6 shadow-xs space-y-4">
+                            <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400">
-                                        <History className="h-5 w-5" />
+                                    <div className="p-2.5 rounded-xl bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400">
+                                        <Shield className="h-5 w-5" />
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Version History</h3>
-                                        <p className="text-xs font-semibold text-slate-400 mt-0.5">Explore update releases, feature rollouts, and changelog summaries.</p>
+                                        <h3 className="text-base font-black text-rose-800 dark:text-rose-300 uppercase tracking-wider">Danger Zone</h3>
+                                        <p className="text-xs text-rose-600/70 dark:text-rose-400/70 font-medium">Irreversible actions that purge data. Always export a backup first.</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowDangerZone(!showDangerZone)}
+                                    className="px-3.5 py-1.5 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-950/40 text-rose-700 dark:text-rose-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                                >
+                                    {showDangerZone ? 'Hide Danger Actions' : 'Show Danger Actions'}
+                                </button>
+                            </div>
+
+                            {showDangerZone && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-rose-200/40">
+                                    <div className="p-4 rounded-xl bg-white dark:bg-[#0d1225] border border-rose-200 dark:border-rose-900/40 space-y-2">
+                                        <h5 className="text-xs font-black text-rose-800 dark:text-rose-300 uppercase">Clear Current Students</h5>
+                                        <p className="text-[11px] text-slate-400">Removes student enrollments from the active view while keeping sections and subjects.</p>
+                                        <button
+                                            onClick={handleClearAllCurrentStudents}
+                                            disabled={isClearingAllStudents}
+                                            className="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-black uppercase tracking-wider cursor-pointer disabled:opacity-50"
+                                        >
+                                            {isClearingAllStudents ? 'Clearing...' : 'Clear Student Enrollments'}
+                                        </button>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-white dark:bg-[#0d1225] border border-rose-200 dark:border-rose-900/40 space-y-2">
+                                        <h5 className="text-xs font-black text-rose-800 dark:text-rose-300 uppercase">Clear Students & Orphan Grades</h5>
+                                        <p className="text-[11px] text-slate-400">Removes students and wipes all grade records linked to current or removed learners.</p>
+                                        <button
+                                            onClick={handleClearStudentsAndOrphanGrades}
+                                            disabled={isClearingStudentsAndGrades}
+                                            className="w-full py-2 bg-rose-700 hover:bg-rose-800 text-white rounded-lg text-xs font-black uppercase tracking-wider cursor-pointer disabled:opacity-50"
+                                        >
+                                            {isClearingStudentsAndGrades ? 'Clearing...' : 'Clear Students & Grades'}
+                                        </button>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-white dark:bg-[#0d1225] border border-rose-200 dark:border-rose-900/40 space-y-2">
+                                        <h5 className="text-xs font-black text-rose-800 dark:text-rose-300 uppercase">Purge Ghost Students</h5>
+                                        <p className="text-[11px] text-slate-400">Removes student records not assigned to any existing class section.</p>
+                                        <button
+                                            onClick={handleCleanGhostStudents}
+                                            disabled={isCleaning}
+                                            className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-black uppercase tracking-wider cursor-pointer disabled:opacity-50"
+                                        >
+                                            Purge Ghost Students
+                                        </button>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-white dark:bg-[#0d1225] border border-rose-200 dark:border-rose-900/40 space-y-2">
+                                        <h5 className="text-xs font-black text-rose-800 dark:text-rose-300 uppercase">Factory Reset Database</h5>
+                                        <p className="text-[11px] text-slate-400">Completely clears all database tables, resetting FormEase Pro back to initial state.</p>
+                                        <button
+                                            onClick={handleFullHardReset}
+                                            disabled={isRunningHardReset}
+                                            className="w-full py-2 bg-red-800 hover:bg-red-900 text-white rounded-lg text-xs font-black uppercase tracking-wider cursor-pointer disabled:opacity-50"
+                                        >
+                                            {isRunningHardReset ? 'Resetting...' : 'Reset Entire Database'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Tab 5: About & Updates */}
+                {(activeTab === 'about' || (activeTab as string) === 'versions') && (
+                    <div className="space-y-6 animate-in fade-in duration-200">
+                        {/* App Version Hero Card */}
+                        <div className="rounded-2xl border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 pb-6 border-b border-slate-150 dark:border-white/5">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-16 h-16 bg-deped-blue dark:bg-blue-600 rounded-2xl flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0 border border-blue-400/20 overflow-hidden">
+                                        <img src={`${import.meta.env.BASE_URL}app-logo.png`} alt="App Logo" className="w-10 h-10 object-contain" />
+                                    </div>
+                                    <div className="space-y-1 min-w-0">
+                                        <div className="flex items-center gap-2.5 flex-wrap">
+                                            <h2 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">
+                                                FormEase Pro
+                                            </h2>
+                                            <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.14</span>
+                                            <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5">
+                                                Latest Production
+                                            </span>
+                                        </div>
+                                        <p className="text-xs font-semibold text-slate-400">
+                                            Official DepEd School Management System • 100% Offline-First Architecture
+                                        </p>
                                     </div>
                                 </div>
                                 <button
                                     onClick={handleCheckForUpdates}
-                                    className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer"
+                                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer self-start sm:self-auto"
                                 >
+                                    <RefreshCw className="w-3.5 h-3.5" />
                                     Check for Updates
                                 </button>
                             </div>
 
-                            <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 3.5.14 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.14</span>
-                                        <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 17, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>⚡ <strong>Automated Startup Database Healing</strong>: Scans IndexedDB on app launch, recalculating legacy unnormalized weights (&gt; 120) and restoring genuine DepEd grades with zero teacher re-encoding.</li>
-                                        <li>🎯 <strong>Weight Normalization Engine</strong>: Converted whole weights (40, 60, 20) to standard fractions (0.40, 0.60, 0.20) and display percentages (40%), eliminating thousands-scale weighted scores and the 4000% header bug.</li>
-                                        <li>🛡️ <strong>Ghost Record Suppression</strong>: Verifies score containers in resolveStudentQuarterGrade ensuring empty score arrays never output phantom 100 grades in SF9, SF10, or Consolidated Grades.</li>
-                                        <li>📊 <strong>Grade 11 SF9 Excel &amp; PDF Export Resilience</strong>: Fixed style index boundaries and shared formulas in sheet6.xml for clean export without Excel repair warnings.</li>
-                                        <li>🔒 <strong>Zero Data Loss Guarantee</strong>: 100% backward-compatible update preserving all client records and profiles in IndexedDB.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.5.9 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 dark:bg-slate-700 border-2 border-white dark:border-[#0d1225]" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.9</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 15, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🎓 <strong>Official DepEd DO 8, s. 2015 Grade 12 Categorization</strong>: Fully aligned traditional Senior High School subject categories into Core Subjects (Universal), Applied Subjects, Strand-Specific Specialized Subjects (GAS, ABM, STEM, HUMSS, TVL, Sports, Arts), and Work Immersion / Culminating Activity.</li>
-                                        <li>🚫 <strong>Eliminated Misapplied SSHS Clusters</strong>: Removed incorrect SSHS cluster categories (such as <em>"General Academic Elective"</em>, <em>"Arts, Social Sciences, and Humanities"</em>, <em>"Field Experience"</em>) from Grade 12 Traditional K-12 section creation and teaching load panels.</li>
-                                        <li>⚡ <strong>Grade 12 GAS & TVL 3-Term Official Presets</strong>: Added full DepEd 12-subject trimester presets for General Academic Strand (GAS) and Technical-Vocational-Livelihood (TVL) tracks with balanced 4-subject per term distributions.</li>
-                                        <li>🛡️ <strong>Universal Core Subject Accuracy</strong>: Fully recognized all 18 DepEd Core subjects (including HOPE 1–4, PE & Health 1–4, DRRR, Earth & Life, Philosophy) preventing accidental misclassification into electives.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.5.8 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 dark:bg-slate-700 border-2 border-white dark:border-[#0d1225]" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.8</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 15, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🎓 <strong>Senior High School Track & Strand Scoping</strong>: Eliminated the 105-subject overload in section creation. Selecting Grade 12 (e.g. ABM, STEM, HUMSS, TVL) automatically presents only Core, Applied, and Strand-specific specialized subjects.</li>
-                                        <li>✨ <strong>Official DepEd 12-Subject Preset Auto-Application</strong>: Creating or configuring Grade 12 sections automatically loads the official DepEd 12-subject trimester model (T1, T2, T3) instead of dumping un-filtered database records.</li>
-                                        <li>🧹 <strong>Dedicated "Clear All" & Quick Selection Controls</strong>: Added 1-click Clear All in the curriculum header and a quick toolbar (Select All / Clear All) in the Catalog Checklist, with an explicit cleared state guard to prevent unintended subject resets.</li>
-                                        <li>🛡️ <strong>Grade 11 SSHS DepEd Order No. 017, s. 2026 Conformance</strong>: Grade 11 strictly presents SSHS Core and Academic/TechPro cluster electives, completely isolating old K-12 offerings.</li>
-                                        <li>🚀 <strong>Clean Setup Assurance</strong>: Verified removal of sample records on clean client installs.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.5.7 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 dark:bg-slate-700 border-2 border-white dark:border-[#0d1225]" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.7</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 15, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>⚡ <strong>Self-Healing Grade Reconciliation Engine</strong>: Automatic startup scanning that detects duplicate or legacy GMRC and Values Education entries, consolidates them seamlessly, re-maps associated grades, and unhides all client records with zero data loss.</li>
-                                        <li>📚 <strong>Curriculum-Compliant GMRC & Values Education Separation</strong>: Strict DepEd curriculum distinction ensuring Elementary (Grades 1–6) exclusively uses "GMRC (Good Manners and Right Conduct)" and Junior High School (Grades 7–10) exclusively uses "Values Education".</li>
-                                        <li>📊 <strong>Official Excel Template & OpenXML Formula Integrity</strong>: Validated and preserved native DepEd formulas across Senior High School Grade 12 3-Term ECR, SSHS Pilot ECR, ECR Academic G2–G10, Grade 1 PACE/SF9, and SF9 Grade 11 Academic & Tech-Pro templates.</li>
-                                        <li>🎯 <strong>Section-Isolated Highest Possible Score (HPS)</strong>: Independent HPS assignment per section, ensuring complete flexibility across classes without cross-contamination.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.5.6 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.6</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 15, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🛡️ <strong>Pre-Update Safety Vault Engine</strong>: Automated comprehensive offline backup vault preserving complete Excel & PDF archives of SF2, SF5, SF6, SF9, and ECR class records before any updates.</li>
-                                        <li>🖨️ <strong>Grade 1 PACE Form 4-Page Print Fidelity</strong>: Exact 4-page print setup preservation and blank-guarded VLOOKUP formulas preventing 0 ratings on unencoded competencies.</li>
-                                        <li>🎯 <strong>Section-Isolated Highest Possible Score (HPS)</strong>: Independent HPS assignment per section, ensuring complete flexibility across classes without cross-contamination.</li>
-                                        <li>⚡ <strong>Automated Grade Reconciliation</strong>: Startup reconciliation engine scanning local databases on app launch, reconnecting orphaned records, unhiding Elementary/JHS subjects, and restoring PE & Health dual components.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.5.5 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.5</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 14, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🛡️ <strong>Raw Score Persistence Engine</strong>: Permanently eliminated score loss and reversion across GMRC, Values Education, Makabansa, Language, Reading & Literacy, and EPP/TLE on page navigation.</li>
-                                        <li>💾 <strong>DebouncedInput Safe Flush</strong>: Guaranteed automatic saving of all active cell inputs on component unmount, field blur, and tab/section transitions.</li>
-                                        <li>📊 <strong>SF9 Multi-Level Excel Outlines</strong>: Restored native Excel outline groupings, hierarchical collapse controls, and clean XML quote encoding across all grade levels.</li>
-                                        <li>🎂 <strong>Dynamic Birthdate-Driven Age</strong>: Automated age derivation on SF9 summary sheets utilizing standard DepEd formula references.</li>
-                                        <li>📈 <strong>DepEd Formula Integrity</strong>: Restored Term 2 MAPEH formula calculations, School ID formula references (F15), and clean blank cells for unencoded grades.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.5.4 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.4</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 14, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>💾 <strong>Grade Management Live Save Persistence</strong>: Input debounce reduced to 400ms with automatic flush on component unmount, field blur, and page navigation, permanently eliminating lost grade entries.</li>
-                                        <li>📚 <strong>DepEd Order 17 s. 2026 SSHS Electives Classification</strong>: Physical Education 1 & 2 correctly designated as electives, unblocking all 80 Academic and 48 Tech-Pro elective choices during section offering imports.</li>
-                                        <li>🔗 <strong>Composite Subject Resolution & ECR Sync Protection</strong>: Accurate grouping and ID sync for Effective Communication / Mabisang Komunikasyon, safeguarding manual grades from being overwritten during E-Class Record sync.</li>
-                                        <li>📄 <strong>SF9 Multi-Level Learning Area Fallbacks</strong>: Enhanced composite and component subject name matching across SF9 report cards and SF10 permanent records.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.5.3 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.3</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 14, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🖼️ <strong>Base64 Data URL Image Resolution for React-PDF</strong>: Automated Base64 Data URL conversion for local image assets in Node.js test environments, completely eliminating <code>fetch failed</code> warnings in Vitest.</li>
-                                        <li>🧹 <strong>ESLint Code Compliance</strong>: Conformed caught error variable names (<code>_e</code>) to strict ESLint <code>/^_/u</code> rule standards across PDF renderer utility methods.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.5.2 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.2</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 14, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🎓 <strong>Grade 11 SSHS Academic SF9 Multi-Level Renderer</strong>: Complete layout alignment with official DepEd Grade 11 Academic SF9 format, including 39-unit curriculum rules (6 units Core, 3 units Electives).</li>
-                                        <li>🎨 <strong>Elective Term Shading & Grade Suppression</strong>: Non-offered elective terms render with solid neutral gray (<code>#A6A6A6</code>) shading and zero grade text. Single-term electives compute Final Grade directly from the offered term score.</li>
-                                        <li>📄 <strong>Strict 1-Page Landscape Layout Budget</strong>: Compacted layout budget ensuring zero vertical spillover to Page 2 across A4 and Letter landscape formats.</li>
-                                        <li>🏛️ <strong>Dynamic Schools Division Header</strong>: Formatted as <code>SCHOOLS DIVISION OF ...</code> or fallback <code>SCHOOLS DIVISION OF _____</code> when blank.</li>
-                                        <li>🎂 <strong>Automated Age Calculation & #VALUE! / ##### Elimination</strong>: Robust birthdate parsing and dynamic age derivation across both React-PDF renderer and Excel exports.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.5.1 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.1</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 13, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>📊 <strong>Summary of Grades Term Shading (SHS G11)</strong>: Automated visual graying out of unoffered terms for academic electives in SHS Grade 11 with clean em-dash markers and zero false incomplete grade flags.</li>
-                                        <li>📄 <strong>Grade 1 PACE Form Master Excel Setup</strong>: Complete 17-sheet master workbook generation with strict 4-page print layout and single-subject PACE form isolation.</li>
-                                        <li>🛡️ <strong>3-Tier Ghost & Duplicate Subject Prevention</strong>: Intelligent deduplication protecting TVL/SHS parenthetical specializations while preventing duplicate subject entries.</li>
-                                        <li>📖 <strong>SF9 Booklet (Template 2) Live Synchronization</strong>: Seamless live grade and subject synchronization for Grade 1 MATATAG and SHS Grade 11 in 2-page duplex booklets.</li>
-                                        <li>💾 <strong>Comprehensive Master Backups & OpenXML Repair</strong>: High-fidelity OpenXML repair ensuring smooth Excel export without formula calculation errors or corruption.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.5.0 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.0</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 11, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>📖 <strong>Double-Sided SF9 Booklet (Template 2)</strong>: High-fidelity 2-up front-and-back printable booklet with automatic cut guides, page-flipping duplex symmetry, and strict 2-page pagination on A4 and Letter.</li>
-                                        <li>🎨 <strong>SF10 Customization & Dynamic Layout Engine</strong>: Added Subject Customization and Layout management modal allowing educators to reorder subjects, define custom learning areas, and edit historical grade entries.</li>
-                                        <li>🎓 <strong>Senior High School Grade 12 Cross-Curricular SF9</strong>: Integrated official DepEd SF9 templates and export pipelines for Grade 12 Academic and TechPro tracks with Cross-School subject support.</li>
-                                        <li>📋 <strong>Teaching Load Matrix & Live Advisory Sync</strong>: Added dedicated Teaching Load Matrix management modal for advisory sections, enabling live multi-subject assignment, STE curriculum filtering, and automated two-way synchronization with ECR.</li>
-                                        <li>💾 <strong>Master Excel Automated Database Backup</strong>: One-click comprehensive multi-sheet Excel workbook generator encapsulating all student profiles, class records, and section rosters for offline auditing and emergency recovery.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.4.1 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.4.1</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 8, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🎨 <strong>Modern Tailwind v4 Class Compatibility</strong>: Streamlined gradient syntax to modern <code>bg-linear-to-br</code> and resolved redundant dark border styling across administration controls.</li>
-                                        <li>✅ <strong>Section Form Indicator Precision</strong>: Optimized SVG checkmark rendering in advisory subject selection rosters with <code>stroke-3</code>.</li>
-                                        <li>⚡ <strong>Strict Type & Hook Optimization</strong>: Enforced comprehensive React hooks dependency safety and strict types across SF9, PACE, and Consolidated Grades.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.4.0 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.4.0</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 8, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🛡️ <strong>Self-Healing Grade Reconciliation Engine</strong>: Automatic startup scanning that detects and reconnects orphaned grades/HPS records and unhides all client records with zero data loss.</li>
-                                        <li>🎓 <strong>Senior High School (SHS) Grade 12 3-Term ECR</strong>: Integrated official DepEd 3-term E-Class Record for Grade 12 with ST1/ST2 relocated as WW6/WW7, single Term Exam, and full native formula preservation.</li>
-                                        <li>🔬 <strong>SSHS Pilot E-Class Record Suite</strong>: Complete official 8-subject sheets (Core, Applied, Specialized, Apprenticeship/Immersion) with automated 3-term summaries and formula preservation.</li>
-                                        <li>🎨 <strong>Special Curricular Programs (SCP) Support</strong>: Full official 3-term template integration for SPFL, SPJ, SPA, SPS, SPTVE, SSES, and SPSTEM with per-component breakdowns.</li>
-                                        <li>📑 <strong>SF9 Multi-Level Report Cards</strong>: High-fidelity DepEd School Form 9 exports across Key Stage 1 (PACE Form & SF9), Grades 2–10, and Senior High School with 100% DepEd layout and formula preservation.</li>
-                                        <li>🔒 <strong>Guaranteed Subject Visibility</strong>: Enforced full-year visibility (<code>term: 'all'</code>) for all Elementary and JHS subjects, permanently eliminating <code>term: 'none'</code> visibility filters.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.3.1 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.3.1</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 3, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>📊 <strong>Dynamic Term Summary Averaging</strong>: Upgraded Grade 11 TechPro and Academic SF9 summary formulas to dynamically average graded subjects using <code>AVERAGE</code>, eliminating hardcoded division by 7.</li>
-                                        <li>📋 <strong>SSHS Grade 11 ECR Roster & Header Injection</strong>: Injected student names, LRNs, and section metadata directly into term and final grade worksheets, resolving blank names and <code>#VALUE!</code> cascading errors.</li>
-                                        <li>🎵 <strong>Parent MAPEH 2-Pass Hierarchy</strong>: Restored composite parent MAPEH grade calculation with dynamic 2-pass averaging and hierarchical sorting in Temporary Grade Slips and E-Class Record views.</li>
-                                        <li>⚡ <strong>Robust OpenXML Tag Processing</strong>: Enhanced spreadsheet XML updater with precise matching distinguishing self-closing tags from element pairs to prevent XML tag corruption.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.3.0 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.3.0</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 2, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🔍 <strong>Live Grade Sync Inspector & Root-Cause Debugger</strong>: Multi-module cross-system comparison across ECR, Grade Management, SF9, Grade Slips, and SF10 with 1-click sync actions.</li>
-                                        <li>✉️ <strong>Client Diagnostic & Error Reporter</strong>: Automatic technical report generator and cloud uploader enabling teachers to submit bug reports directly with offline queueing.</li>
-                                        <li>🛡️ <strong>E-Class Record (ECR) Source-of-Truth Hierarchy</strong>: Established live computed ECR transmuted scores as the primary source of truth across Advisory Grade Management and school forms.</li>
-                                        <li>✨ <strong>Subject Deduplication & Smooth Scrolling</strong>: Fixed subject duplication in Grade Slips and optimized matrix table direct scrolling with sticky pinned headers.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.2.0 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.2.0</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 31, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>📢 <strong>Real-Time Global System Broadcasts</strong>: Live cloud announcement subsystem delivering real-time top banners and modal notices to desktop clients.</li>
-                                        <li>🔑 <strong>License Portal Broadcast Manager</strong>: Administrative broadcast portal to publish, schedule, filter, and delete client notices with custom severities.</li>
-                                        <li>📑 <strong>Official DepEd SF9 Report Card Suite</strong>: 3-term DepEd SF9 report card template export generators for Grades 1, 2, 3, 4–10, and Grade 11 (TechPro & Academic).</li>
-                                        <li>📊 <strong>E-Class Record (ECR) Export Suite</strong>: Complete official templates for EPP/TLE, MAPEH 9-sheet, and GMRC & Values Education with formula preservation.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.1.1 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.1.1</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 27, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>📚 <strong>Grade Management Multi-Subject Visibility</strong>: Resolved advisory section curriculum merging ensuring all standard DepEd learning areas render seamlessly in the Master Summary of Grades.</li>
-                                        <li>⚡ <strong>Responsive Grade Input Engine</strong>: Reduced input debounce latency down to 300ms across Electronic Class Records for instantaneous, snappy score input.</li>
-                                        <li>🛡️ <strong>Zero-Lockout Pure Advisory Workflows</strong>: Guaranteed full access to all grade-level subjects in E-Class Record and permitted score inputs prior to explicit HPS configuration.</li>
-                                        <li>🎯 <strong>Curriculum Definition Cleanup</strong>: Cleaned Junior High School (Grades 7–10) curriculum standards by removing unneeded Specialization placeholders.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.1.0 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.1.0</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 27, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>📑 <strong>Official DepEd Grades 2-10 3-Term E-Class Record Export</strong>: Complete integration of official DepEd templates for Academic & MAPEH/TLE learning areas (.xlsx and batch .zip) preserving 100% of Excel formulas.</li>
-                                        <li>🛡️ <strong>HPS Resolution & Score Bounding</strong>: Fixed section matching and enforced $[0, 100]\%$ boundary checks to eliminate transmuted grade overflow (100 vs 77).</li>
-                                        <li>🔒 <strong>Protected Grade Management Clear All</strong>: Scoped summary sheet clearing strictly to manual/imported overrides, leaving teacher E-Class Records completely untouched.</li>
-                                        <li>📊 <strong>Full Word Scale Descriptors</strong>: Unified summary descriptors to display the full word scale (<em>Advancing</em>, <em>Benchmarking</em>, <em>Connecting</em>, <em>Developing</em>, <em>Emerging</em>).</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.0.2 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.0.2</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 23, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>☁️ <strong>Automated Google Drive Cloud Backup Onboarding</strong>: Integrated step-by-step connection wizard with hourly sync, exit protection, and full database restore.</li>
-                                        <li>📊 <strong>E-Class Dynamic Grade Sync</strong>: Live transmuted grade synchronization for all standalone subjects and composite MAPEH (Music & Arts, PE & Health) / EC&MK components.</li>
-                                        <li>🛡️ <strong>Safe & Scoped Grade Management Clear All</strong>: Scoped to manual/imported sheet overrides with zero risk to teacher E-Class Records.</li>
-                                        <li>📋 <strong>Curriculum & Virtual Subject Matching</strong>: Full DepEd learning area alias resolution supporting manual cell input and Excel template imports.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.0.1 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.0.1</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 23, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🎓 <strong>Strengthened Senior High School Curriculum (DO 017, s. 2026)</strong>: Full integration for Grade 11 Core Subjects, Academic & Tech-Pro clusters, and curriculum scoping.</li>
-                                        <li>📊 <strong>Annex E Unit-Weighted Grading</strong>: Automated unit calculations for SF9 (Report Card), SF10-SHS (Permanent Record), SF5, and Summary of Grades.</li>
-                                        <li>🛡️ <strong>Strict Advisory Subject Scoping</strong>: Automatically excludes unassigned database catalog electives from learner progress records.</li>
-                                        <li>👥 <strong>DepEd Class Size Limit Monitoring</strong>: Integrated Table 7 class size limits (40 Core, 30 Academic, 25 Tech-Pro).</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 3.0.0 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.0.0</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 22, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🚀 <strong>Major v3.0 Core Architecture</strong>: Standardized next-generation architecture with offline-first Dexie/IndexedDB database encryption, atomic write verification, and zero-loss backup synchronization.</li>
-                                        <li>🛡️ <strong>Enterprise Multi-Platform Deployment</strong>: Automated Windows (<code>.exe</code>) and macOS (<code>.dmg</code>) compilation and distribution pipelines with SHA-512 cryptographic checksum verification.</li>
-                                        <li>📋 <strong>DepEd Form Automation Suite</strong>: Unified DepEd grading, PACE Form Excel exports, SF1-SF10 automated pipelines, and high-speed honor evaluations.</li>
-                                        <li>☁️ <strong>Integrated Cloud & Mobile Ecosystem</strong>: Direct Google Drive cloud backup synchronization and real-time mobile QR attendance scanning gateway.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.11.7 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.11.7</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 18, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🛡️ <strong>Stable Core Baseline Rollout</strong>: Standardized the complete application core on the proven, stable baseline.</li>
-                                        <li>🚀 <strong>Multi-Platform Cloud Deploy</strong>: Seamless 1-click update deployment across Windows and macOS platforms.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.11.0 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.11.0</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 14, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>📋 <strong>Grade 1 PACE Form Support</strong>: Added Grade 1 PACE Form Excel export templates & services for Reading & Literacy, GMRC & MAKABANSA, Language, and Mathematics.</li>
-                                        <li>📄 <strong>Interactive PACE Renderer</strong>: Added dedicated PACE Form interactive rendering page & template configuration.</li>
-                                        <li>🎓 <strong>School Forms Integration</strong>: Integrated PACE Form navigation tab into School Forms Page.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.10.4 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.10.4</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 14, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🏫 <strong>Grade 11 & Grade 12 SF9 Routing Fix</strong>: Fixed Grade 11 and Grade 12 SF9 template matching to strictly exclude Senior High from Grade 1 rules.</li>
-                                        <li>📜 <strong>Restored SHS Template Layout</strong>: Restored official SHS multi-semester Track/Strand SF9 template rendering and Excel exporter for Grade 11 & Grade 12.</li>
-                                        <li>📐 <strong>Junior High & Elementary Alignment</strong>: Standardized <code>isGrade1to10</code> range check (1 to 10) for Junior High and Elementary sections.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.10.3 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.10.3</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 14, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🎓 <strong>Certificate Generator Enhancement</strong>: Instant 50ms scan with zero-flicker stale state clearing and multi-format quarter string matching.</li>
-                                        <li>🔗 <strong>Bidirectional Subject Resolution</strong>: Resolved subject ID and subject name mapping for accurate DepEd honor qualification evaluation.</li>
-                                        <li>📊 <strong>Attendance Absent Sentinel</strong>: Fixed attendance absent sentinel (-1) calculation in Reports Page.</li>
-                                        <li>📋 <strong>Grade 1 & PACE Support</strong>: Added Grade 1 SF9 Excel export template and PACE Reading & Literacy exporter.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.10.2 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.10.2</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 8, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🐛 <strong>SF2 Export Hotfix</strong>: Fixed an Electron application URL protocol error that caused "Failed to fetch" errors when attempting to download SF2 Excel files in the production binary.</li>
-                                        <li>📁 <strong>Template Fetch Routes</strong>: Re-linked local template fetch routes to bypass <code>file:///</code> absolute root mapping conflicts on Windows and macOS.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.10.1 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.10.1</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 8, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🧮 <strong>Mathematical Precision Update</strong>: Fixed a mathematical oversight in the Summative Tests calculation to strictly enforce the independent 30/30/40 weighting for ST1, ST2, and TE components.</li>
-                                        <li>⚖️ <strong>Dynamic Missing Assessment Re-weighting</strong>: Ensured missing assessments are dynamically re-weighted to prevent penalizing students for exams not yet administered.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.10.0 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.10.0</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 8, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>📊 <strong>Native SF2 Excel Export</strong>: Added native SF2 Excel (JHS & SHS & ELEM) export functionality with automated summary table calculations.</li>
-                                        <li>🛡️ <strong>Silent Auto-Updates</strong>: Enforced 1-click silent NSIS background updates to prevent application uninstallation prompts during auto-updates.</li>
-                                        <li>✨ <strong>Template Alignment Fixes</strong>: Fixed various template mismatching issues for perfectly aligned Excel formatting, and protected user's hardcoded template School Name fields from being overwritten.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.9.7 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.9.7</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 7, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>📅 <strong>Unified MM/DD/YYYY Attendance Format</strong>: Standardized attendance calendar date pickers across desktop and mobile screens into a clean, single-box control displaying dates in <code>MM/DD/YYYY</code> format.</li>
-                                        <li>🗓️ <strong>Multi-Date Historical Attendance Editing</strong>: Enabled teachers to select any past date from the calendar on laptop or mobile phone to view, mark, or edit attendance records with real-time cross-device sync.</li>
-                                        <li>🛡️ <strong>Today-Only Parent SMS Safeguard</strong>: Integrated date verification into the SMS gateway so updating attendance for past dates automatically skips sending SMS alerts to parents.</li>
-                                        <li>📱 <strong>Real-Time Smartphone Parent SMS Alerts</strong>: Triggered live Parent SMS notifications on the laptop app whenever attendance is punched or scanned from a connected mobile phone.</li>
-                                        <li>📹 <strong>Camera Stream Stabilization</strong>: Refactored QR scanner video stream lifecycle using React refs to eliminate 3-second black screen flickering.</li>
-                                        <li>🔑 <strong>Google Drive Token & Auto-Updater Protection</strong>: Refactored Google Drive OAuth refresh token storage and configured NSIS 1-click background updates (<code>oneClick: true</code>) for silent binary upgrades.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.9.6 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.9.6</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 6, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>☁️ <strong>Optimized Google Drive Release Asset Sync Engine</strong>: Updated automated Google Drive release sync pipeline (`sync-gdrive-release.cjs`) to upload strictly binary installers (`.exe` for Windows and the 2 `.dmg` installers for macOS) and auto-purge metadata files (`.yml`, `.yaml`, `.blockmap`, `.zip`) from target release folders.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.9.5 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.9.5</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 6, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🛡️ <strong>Auto-Updater Installer Restart Safeguard</strong>: Integrated top-level module scope protection and safe fallback checks around Express gateway server shutdown during automatic updates to prevent installer restart JavaScript errors (`expressServer is not defined`).</li>
-                                        <li>📊 <strong>Unified Live Grade Engine Across All School Forms & Reports</strong>: Real-time transmuted grade calculation matching E-Class Record and Summary of Grades live across SF9 (Report Card), SF10 (Form 137), SF5, SF6, LIR, Grade Slips, and Analytics.</li>
-                                        <li>🔢 <strong>Natural Grade-Level Section Sorting</strong>: Updated Temporary Grade Slips and Reports to sort strictly by numerical Grade Level (Grade 7 ➔ Grade 12), then alphabetically by Section Name.</li>
-                                        <li>🏆 <strong>Excellence Awards & Certificate Generator Restoration</strong>: Restored Subject Excellence Awards (FG ≥ 90) across all JHS and SHS grade levels with enhanced section ID and name matching.</li>
-                                        <li>🔑 <strong>Unrestricted Application Master Access</strong>: Updated RBAC permissions so all installed standalone application instances provide 100% full access to all forms, certificates, and settings.</li>
-                                        <li>🧹 <strong>Cascade Section & Roster Purge Maintenance Utility</strong>: Added a 1-click database cleanup tool under Settings ➔ Data Maintenance to purge orphaned sections, ghost rosters, and unlinked grade records.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.9.4 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.9.4</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 6, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Fixed <strong>Summative Tests & Term Examination (30%) Computation</strong>: Updated Total Score and Total HPS to calculate dynamically based on completed assessments only, preventing premature grade drops when Term Exams are un-administered.</li>
-                                        <li>Unified <strong>Summary of Grades & E-Class Record Transmuted Grade Engine</strong>: Re-aligned transmuted grade calculations between E-Class Records and Summary of Grades for 100% exact parity with zero discrepancy across all school forms (SF9, SF10, LIR).</li>
-                                        <li>Optimized <strong>macOS Update Flow</strong>: Provided tailored 1-click 🍏 <strong>Download macOS Update (.dmg)</strong> installer workflow with 2-step drag-and-drop installation instructions for Mac users.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.9.3 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.9.3</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 5, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Fixed <strong>Instant Mobile Student Roster Sync</strong>: Integrated 24/7 background session push from desktop App store to Express server memory so mobile devices load all students and sections instantly upon scanning.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.9.2 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.9.2</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 5, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Fixed <strong>Packaged Electron Mobile Server</strong>: Bundled `server.js` into ASAR release build so the Mobile Gateway server runs automatically on port 3001 in installed apps.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.9.1 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.9.1</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 5, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Added <strong>Mobile Phone Attendance Portal</strong> (`/mobile-attendance`) for real-time Wi-Fi attendance marking.</li>
-                                        <li>Built <strong>Real-Time Cross-Device Sync Engine</strong> with multi-device polling, BroadcastChannel, and server timestamping.</li>
-                                        <li>Added <strong>Interactive 1-Click Chrome Setup Guide</strong> with copy buttons for flags and laptop IP address.</li>
-                                        <li>Added <strong>Native Camera QR Photo Scanner</strong> fallback (`Snap QR Photo`).</li>
-                                        <li>Standardized Class Records and School Forms to <strong>DepEd Order 15 series of 2026</strong>.</li>
-                                        <li>Added <strong>Automated 1-Time Storage Reset Safeguard</strong> to enforce clean default settings on update.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.8.4 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.8.4</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 4, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Added <strong>Parent SMS Broadcast Center</strong> with 57 categorized message templates across 11 categories (Weather, PTC, Grades, Awards, Exams, Programs, Clearance, Graduation, Attendance, Health, General).</li>
-                                        <li>Added <strong>Specific Student SMS Targeting</strong> — send SMS to individual student parents with searchable picker and checkbox selection.</li>
-                                        <li>Added <strong>SMS Broadcast History Log</strong> tracking last 10 broadcasts with sent/failed delivery metrics.</li>
-                                        <li>Redesigned <strong>Announcements Page</strong> with Quick-Action Dashboard Cards, collapsible login banner, and enriched empty states.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.8.3 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.8.3</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 4, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Added <strong>Parent SMS Broadcast Center</strong> with 57 categorized message templates across 11 categories (Weather, PTC, Grades, Awards, Exams, Programs, Clearance, Graduation, Attendance, Health, General).</li>
-                                        <li>Added <strong>Specific Student Targeting</strong> — send SMS to individual student parents with searchable picker and checkbox selection.</li>
-                                        <li>Added <strong>SMS Broadcast History Log</strong> tracking last 10 broadcasts with sent/failed counts.</li>
-                                        <li>Redesigned <strong>Announcements Page</strong> with Quick-Action Dashboard Cards, collapsible login banner, and enriched empty states.</li>
-                                        <li>Expanded onboarding wizard to 22 spotlight steps with auto-scrolling.</li>
-                                        <li>Standardized E-Class Record terminology from "Quarterly" to "Term" for 3-term calendar support.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.8.2 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.8.2</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 2, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Deduplicated E-Class Record subject selector options by normalized title.</li>
-                                        <li>Fixed dark mode printable document sheet background to enforce pure paper-white canvas for printing.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.8.1 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.8.1</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 2, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Added <strong>SF2 Attendance Roster Filtering</strong> based on learner's first day of attendance date.</li>
-                                        <li>Pre-enrollment date cells are now shaded and non-editable with helpful tooltips.</li>
-                                        <li>Added <strong>Clean Duplicates</strong> utility in Subjects manager for bulk-deleting redundant database records.</li>
-                                        <li>Automatic normalized subject deduplication in SF9 and Consolidated Grade matrices.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.8.0 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.8.0</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 30, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Full <strong>Dark Mode</strong> support across all School Forms (SF2, SF5, SF6, SF8, SF9, SF10, LIR, Grade Slips, Name Tags).</li>
-                                        <li>Added <strong>Post-Update What's New</strong> screen on app startup after updating.</li>
-                                        <li>macOS auto-updater and release download fallback with Firebase Hosting redirects.</li>
-                                        <li>Excel template export sheet name sanitization and deduplication.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.7.6 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.7.6</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 28, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Embedded <strong>Version Description (What's New)</strong> inside the post-update Data Reconciliation Report modal.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.7.5 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.7.5</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 28, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Fixed SF2 summary column header from TARDY back to PRESENT and synchronized student row totals.</li>
-                                        <li>Synchronized Excel export headers and calculated present counts.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.7.4 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.7.4</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 28, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Added Section selection dropdown in <strong>Temporary Grade Slips</strong> for browsing and printing any section's grade slips.</li>
-                                        <li>Prioritized advisory classes at the top of the dropdown list.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.7.3 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.7.3</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 28, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Updated all 35 DepEd-compliant AI prompt generators with exact decoded <strong>Gemini share links</strong>.</li>
-                                        <li>Added 35th template card: Daily Lesson Log (DLL) + Exemplar.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.7.2 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.7.2</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 28, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Fixed SF2 button redirecting to Dashboard instead of Attendance page.</li>
-                                        <li>Resolved fixed backdrop overlay and scrolling issues in Student Information modal.</li>
-                                        <li>Assigned valid URLs to all 34+ DepEd generator cards with interactive template launchers.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.7.1 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.7.1</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 27, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Added dedicated <strong>Online Generators</strong> sidebar page with 34+ DepEd-compliant AI prompt generators, ILAW lesson logs, Matatag weekly logs, and Looker Studio K-12 Lesson Exemplars.</li>
-                                        <li>Added multi-advisory section listing sorted numerically by Grade Level, featured adviser avatar card, and signature upload shortcut.</li>
-                                        <li>Redesigned Reports landing page into a 4-column compact grid fitting 100% in desktop viewport without vertical scrollbars.</li>
-                                        <li>Upgraded DepEd Curriculum & Subject Management banner to a clean white glassmorphic card.</li>
-                                        <li>Streamlined Games & Tools dashboard by moving lesson plan generators into the dedicated Online Generators tab.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.7.0 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.7.0</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 26, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Added interactive Games & Classroom Tools Suite (Bomb Pass, Quiz Show Jeopardy, Save the Balloon, Crossword Generator, 3D Wheel of Names, 3D Coin Flip, 3D Dice Roller, Tug of War, Raffle Jar, Bouncing Words).</li>
-                                        <li>Corrected Tagalog Division Name formatting to Lalawigan ng Tarlac and Tarlac Province on Certificate Generator.</li>
-                                        <li>Resolved login page exit button responsiveness.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.5.1 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.5.1</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 12, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Redesigned and optimized Settings "Backups & Recovery" tab layout into a modern 2-column dashboard grid.</li>
-                                        <li>Commented out incomplete "Multi-Device Sync" and "School Year Archiver" features to simplify user interface.</li>
-                                        <li>Fixed multiple pre-existing TypeScript compile warnings and linter errors to achieve clean build status.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.5.0 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.5.0</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 5, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Added daily QR attendance scanning functionality.</li>
-                                        <li>Added calendar announcements feature.</li>
-                                        <li>Improved robustness and speed of grade sheets synchronization.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.4.5 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.4.5</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 5, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Fixed the application icon missing from the installed app so the FormEase Pro logo appears on the executable, installer, desktop shortcuts, and taskbar.</li>
-                                        <li>Rebuilt the Windows icon with multi-size images for crisp rendering in the title bar, taskbar, and Explorer.</li>
-                                        <li>Included missing DepEd and school certificate logo assets in the application bundle.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.4.4 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.4.4</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 5, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Resolved CORS/relative path loading bugs for fonts and logos on both routing subpaths and Electron.</li>
-                                        <li>Centered advanced certificate text blocks and improved margins for Title and Date lines.</li>
-                                        <li>Added automatic signature display toggle checkboxes in place of manual uploads.</li>
-                                        <li>Fixed missing Subject Awards search by adding a grade-level subjects fallback.</li>
-                                        <li>Configured application user model ID to link native taskbar and titlebar window icons to the desktop shortcut on Windows.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.4.3 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.4.3</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 4, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Fixed a layout formatting bug in the Advanced Certificate Generator preview within the installed app by statically compiling and bundling the certificate stylesheet.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.4.2 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.4.2</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 4, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Added native window close interception prompts to prevent closing the application without confirming.</li>
-                                        <li>Optimized the Institutional Profile edit page dimensions, scaling down image elements and inputs to fit on screen without vertical scrollbars.</li>
-                                        <li>Implemented a select dropdown menu with 18 official offerings for Grade Levels Offered.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.3.1 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.3.1</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">June 26, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Fixed a critical UI bug where the FormEase Update Center modal blocked the application screen without a close/dismiss option.</li>
-                                        <li>Added a new database scanner check under Settings -&gt; Self-Healing Diagnostics to identify and automatically repair (delete) corrupted or unreadable student profiles.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.2.7 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.2.7</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">June 14, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Fixed a discrepancy in the section teaching load subject list by filtering out other sections' subjects and deduplicating by exact subject name (preserving unique parenthesized electives).</li>
-                                        <li>Replaced the non-operational Academic Health card on the dashboard with a functional 'Class Sections & Subject Loads' card tracking active sections and teaching loads.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.2.6 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.2.6</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">June 14, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Fixed a critical freeze in SF2 Daily Attendance caused by calendar holiday parsing logic.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.2.5 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.2.5</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">June 14, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Added custom Student Enrollment Template download and import with LRN bypass support.</li>
-                                        <li>Automatically normalizes student names to ALL CAPS when imported.</li>
-                                        <li>Prevents database record duplication/resets by automatically merging existing students during template or SF1 imports.</li>
-                                        <li>Intelligently formats and hides temporary IDs (`TEMP-` prefix) in the students list, dropdown selector, reports (SF9/SF10), and CSV exports.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.2.4 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.2.4</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">June 14, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Implemented 7-day offline grace limit and automatic reconnection license checks.</li>
-                                        <li>Gated PDF report generation and printing behind active product validation checks.</li>
-                                        <li>Added user-friendly offline limit warnings to the Product Activation screen.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.2.3 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.2.3</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">June 14, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Added Track display for Grade 11 section cards and Track & Strand display for Grade 12 section cards.</li>
-                                        <li>Integrated dynamic statement-form comment suggestions engine with Tone selection in SF9 Remarks.</li>
-                                        <li>Capped SF9 comments at 250 characters with validation warning and automatic spacing/punctuation helpers.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.2.2 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.2.2</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">June 14, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Added option to edit custom grading weight percentages (Written, Performance, Exam) for subjects.</li>
-                                        <li>Excluded calendar holiday dates dynamically from SF2 daily attendance.</li>
-                                        <li>Updated sidebar and main workspace to modern flat edge-to-edge layouts (no rounded edges).</li>
-                                        <li>Added sign-out confirmation popup with automatic silent database backup.</li>
-                                        <li>Fixed the backup restore interface to support importing auto-backups and logout-backups.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.2.1 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.2.1</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">June 14, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>Removed redundant PDF Download button from the SF2 page.</li>
-                                        <li>Wired up custom printing to PDF using Electron backend.</li>
-                                        <li>Fixed overlapping character spacing issues in Chrome/Electron printing.</li>
-                                        <li>Added auto-loading of standard subjects (Grade 1 to 12) for empty databases.</li>
-                                        <li>Fixed month-switching and session logout SF2 data preservation.</li>
-                                    </ul>
-                                </div>
+                            {/* Sub Navigation Bar inside About */}
+                            <div className="flex items-center gap-2 pt-5 border-b border-slate-100 dark:border-white/5 pb-3">
+                                <button
+                                    onClick={() => setAboutSubTab('highlights')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                                        aboutSubTab === 'highlights'
+                                            ? 'bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 border border-sky-200/50 dark:border-sky-800/40'
+                                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                                    }`}
+                                >
+                                    Latest Highlights
+                                </button>
+                                <button
+                                    onClick={() => setAboutSubTab('history')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                                        aboutSubTab === 'history'
+                                            ? 'bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 border border-sky-200/50 dark:border-sky-800/40'
+                                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                                    }`}
+                                >
+                                    Release Changelog
+                                </button>
+                                <button
+                                    onClick={() => setAboutSubTab('innovator')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                                        aboutSubTab === 'innovator'
+                                            ? 'bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 border border-sky-200/50 dark:border-sky-800/40'
+                                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                                    }`}
+                                >
+                                    Innovator & Documentation
+                                </button>
                             </div>
-                        </div>
-                    )}
 
-                    {activeTab === 'about' && (
-                        <div className="rounded-2xl overflow-hidden border border-slate-200/50 dark:border-white/10 h-[calc(100vh-220px)] min-h-125">
-                            <AboutPage />
+                            {/* SubTab 1: Highlights */}
+                            {aboutSubTab === 'highlights' && (
+                                <div className="pt-4 space-y-4">
+                                    <div className="p-4 rounded-xl bg-slate-50/60 dark:bg-white/2 border border-slate-150 dark:border-white/5 space-y-2">
+                                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                                            What&apos;s New in Version 3.5.14
+                                        </h4>
+                                        <ul className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 font-medium list-disc list-inside leading-relaxed">
+                                            <li>⚡ <strong>DO 15, s. 2026 Assessment Weights Alignment</strong>: Aligned Core/Academic (20/50/30), EPP/TLE/MAPEH (20/60/20), Field Exposure (15/70/15), Research (40/60/0), and TechPro (15/65/20) with transition support for legacy Grade 12.</li>
+                                            <li>🛡️ <strong>Automated Startup Database Healing</strong>: Scans IndexedDB on app launch, recalculating legacy unnormalized weights and restoring genuine DepEd grades with zero data loss.</li>
+                                            <li>🔒 <strong>LAN Attendance Gateway Hardening</strong>: Added high-entropy pairing tokens, loopback-only controls, and CORS isolation for local mobile attendance taking.</li>
+                                            <li>🚀 <strong>Optimized Vendor Chunking</strong>: Split monolithic vendor bundle by 44% (down from 2.72 MB to 1.54 MB) for ultra-fast startup and memory efficiency.</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* SubTab 2: History */}
+                            {aboutSubTab === 'history' && (
+                                <div className="pt-4">
+                                    <VersionHistoryTimeline onCheckForUpdates={handleCheckForUpdates} />
+                                </div>
+                            )}
+
+                            {/* SubTab 3: Innovator */}
+                            {aboutSubTab === 'innovator' && (
+                                <div className="pt-4 rounded-xl overflow-hidden min-h-125">
+                                    <AboutPage />
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
+                    </div>
+                )}
+            </div>
+
 
             {/* Account Settings Modal */}
             {showPasswordModal && (
