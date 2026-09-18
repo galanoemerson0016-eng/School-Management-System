@@ -1,73 +1,80 @@
-# React + TypeScript + Vite
+# FormEase Pro - Desktop Application
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This directory contains the main desktop application source for **FormEase Pro** (v3.5.14), built with Electron, React 19, TypeScript, and Vite.
 
-Currently, two official plugins are available:
+For full project overview, DepEd form specifications, and security architecture, see the root [README.md](../README.md).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+## Directory Overview
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+app/
+├── electron/                 # Electron main process, preload script, and window management
+│   ├── main.ts               # App lifecycle, IPC handlers, protocol registration
+│   └── preload.ts            # Context bridge exposing secure desktop APIs
+├── src/                      # React application source code
+│   ├── components/           # Reusable UI components, modals, and layout containers
+│   ├── lib/                  # Core domain logic (curriculum, grading calculations, RBAC)
+│   ├── pages/                # Route views (Dashboard, SF9, SF10, Attendance, Settings, etc.)
+│   ├── services/             # Background services (Excel exports, IndexedDB, Mobile Gateway)
+│   ├── stores/               # Zustand state stores (app-store, auth-store, etc.)
+│   ├── testing/              # Vitest test suites and integration test helpers
+│   └── utils/                # Utilities (crypto, backup/restore, student normalization)
+├── server.js                 # Standalone Express server for LAN attendance gateway
+├── vite.config.ts            # Vite configuration, code-splitting chunks, dev gateway proxy
+└── package.json              # Application scripts and dependencies
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Available Scripts
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+From this `app/` directory, you can run:
+
+### Development
+```bash
+# Start Vite development server (port 3000)
+npm run dev
+
+# Start Electron application alongside Vite with Hot Module Replacement
+npm run electron:dev
 ```
+
+### Verification & Testing
+```bash
+# Run full Vitest test suite
+npm run test
+
+# Run tests with single-worker allocation (recommended for heavy Excel export tests)
+npx vitest run --maxWorkers=1
+
+# Run ESLint validation
+npm run lint
+
+# Run release consistency checks across code and metadata
+npm run release:check
+```
+
+### Production Build & Packaging
+```bash
+# Build React web application bundle into dist/
+npm run build
+
+# Obfuscate Electron main process into dist-electron/
+npm run obfuscate:electron
+
+# Build Windows NSIS installer
+npm run electron:build:win
+
+# Build Windows portable / unpacked package
+npm run electron:build:dir
+```
+
+---
+
+## Architecture Notes
+
+1. **Context Isolation**: Renderer communicates with Electron exclusively via `window.electronAPI` bridge defined in `electron/preload.ts`.
+2. **Offline-First Storage**: User credentials and school records are stored locally in encrypted IndexedDB. No student data is sent to external servers.
+3. **LAN Attendance Gateway**: Mobile devices connect over local Wi-Fi to desktop IP using high-entropy pairing tokens passed in QR codes (`#pairing=<token>`).
