@@ -1764,7 +1764,8 @@ export function SubjectsPage() {
     const openAddModal = () => {
         setEditingSubjectId(null);
         setUseDepEdWeightsLocked(true);
-        const std = getDepEdStandardWeights('');
+        const targetSection = sections.find(s => s.id === selectedSectionId);
+        const std = getDepEdStandardWeights('', selectedGrade, targetSection?.track);
         setFormData({
             subject_name: '',
             subject_code: '',
@@ -1784,7 +1785,8 @@ export function SubjectsPage() {
         const hasCustomWeights = subject.written_weight !== undefined || subject.performance_weight !== undefined || subject.exam_weight !== undefined;
         let isLocked = true;
         if (hasCustomWeights) {
-            const std = getDepEdStandardWeights(subject.subject_name);
+            const targetSection = sections.find(s => s.id === (subject.section_id || selectedSectionId));
+            const std = getDepEdStandardWeights(subject.subject_name, subject.grade_level, targetSection?.track);
             const subWw = normalizeWeightPercent(subject.written_weight);
             const subPt = normalizeWeightPercent(subject.performance_weight);
             const subQa = normalizeWeightPercent(subject.exam_weight);
@@ -2171,7 +2173,8 @@ export function SubjectsPage() {
         try {
             let updatedCount = 0;
             for (const sub of filteredSubjects) {
-                const std = getDepEdStandardWeights(sub.subject_name);
+                const targetSection = sections.find(s => s.id === sub.section_id);
+                const std = getDepEdStandardWeights(sub.subject_name, sub.grade_level, targetSection?.track);
                 await updateSubject({
                     ...sub,
                     written_weight: std.written_weight,
@@ -3645,7 +3648,8 @@ export function SubjectsPage() {
                                         onChange={(e) => {
                                             const val = e.target.value;
                                             if (useDepEdWeightsLocked) {
-                                                const std = getDepEdStandardWeights(val);
+                                                const targetSection = sections.find(s => s.id === (formData.section_id || selectedSectionId));
+                                                const std = getDepEdStandardWeights(val, formData.grade_level || selectedGrade, targetSection?.track);
                                                 setFormData(prev => ({
                                                     ...prev,
                                                     subject_name: val,
@@ -3714,7 +3718,7 @@ export function SubjectsPage() {
                                     );
                                 })()}
                                 <div className="border-t border-slate-100 dark:border-white/10 pt-4">
-                                    <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center justify-between mb-1">
                                         <h4 className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Grading Weights</h4>
                                         <label className="flex items-center gap-1.5 cursor-pointer select-none">
                                             <input
@@ -3724,7 +3728,8 @@ export function SubjectsPage() {
                                                     const locked = e.target.checked;
                                                     setUseDepEdWeightsLocked(locked);
                                                     if (locked) {
-                                                        const std = getDepEdStandardWeights(formData.subject_name || '');
+                                                        const targetSection = sections.find(s => s.id === (formData.section_id || selectedSectionId));
+                                                        const std = getDepEdStandardWeights(formData.subject_name || '', formData.grade_level || selectedGrade, targetSection?.track);
                                                         setFormData(prev => ({
                                                             ...prev,
                                                             written_weight: String(Math.round(std.written_weight * 100)),
@@ -3740,42 +3745,127 @@ export function SubjectsPage() {
                                             </span>
                                         </label>
                                     </div>
-                                    {!useDepEdWeightsLocked && (
-                                        <div className="flex flex-wrap gap-1.5 mb-3">
-                                            <button
-                                                type="button"
-                                                onClick={() => setFormData({ ...formData, written_weight: '30', performance_weight: '50', exam_weight: '20' })}
-                                                className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors cursor-pointer"
-                                                title="Languages, AP, EsP / Values, GMRC, Makabansa (30% WW, 50% PT, 20% QA)"
-                                            >
-                                                Languages/AP/EsP (30-50-20)
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setFormData({ ...formData, written_weight: '40', performance_weight: '40', exam_weight: '20' })}
-                                                className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer"
-                                                title="Mathematics and Science (40% WW, 40% PT, 20% QA)"
-                                            >
-                                                Math/Science (40-40-20)
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setFormData({ ...formData, written_weight: '20', performance_weight: '60', exam_weight: '20' })}
-                                                className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-colors cursor-pointer"
-                                                title="TLE, EPP, MAPEH (20% WW, 60% PT, 20% QA)"
-                                            >
-                                                TLE/EPP/MAPEH (20-60-20)
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setFormData({ ...formData, written_weight: '', performance_weight: '', exam_weight: '' })}
-                                                className="px-2.5 py-1 text-[10px] font-medium rounded-lg bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/10 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors cursor-pointer"
-                                                title="Reset to DepEd cluster defaults (clears manual overrides)"
-                                            >
-                                                Reset to Default
-                                            </button>
-                                        </div>
-                                    )}
+                                    <div className="text-[10px] text-slate-500 dark:text-slate-400 mb-2.5 flex items-center gap-1.5">
+                                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                        <span>Prescribed under <strong>DepEd Order No. 015, s. 2026</strong> (Universal 3-Term Model)</span>
+                                    </div>
+                                    {!useDepEdWeightsLocked && (() => {
+                                        const modalGradeLevel = formData.grade_level || selectedGrade || '';
+                                        const isModalSHS = modalGradeLevel.includes('11') || modalGradeLevel.includes('12');
+                                        const isModalG12 = modalGradeLevel.includes('12');
+
+                                        return (
+                                            <div className="flex flex-wrap gap-1.5 mb-3">
+                                                {isModalSHS ? (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFormData({ ...formData, written_weight: '20', performance_weight: '50', exam_weight: '30' })}
+                                                            className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
+                                                            title="SHS Core Subjects & Academic Electives: 20% WW, 50% PT, 30% EX (DO 15, s. 2026)"
+                                                        >
+                                                            Core / Academic (20-50-30)
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFormData({ ...formData, written_weight: '15', performance_weight: '70', exam_weight: '15' })}
+                                                            className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/40 hover:bg-purple-100 dark:hover:bg-purple-900/60 transition-colors cursor-pointer"
+                                                            title="Field Exposure, Arts Apprenticeship, Creative Production: 15% WW, 70% PT, 15% EX (DO 15, s. 2026)"
+                                                        >
+                                                            Field Exposure / Arts (15-70-15)
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFormData({ ...formData, written_weight: '40', performance_weight: '60', exam_weight: '0' })}
+                                                            className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-colors cursor-pointer"
+                                                            title="Research Electives, Design & Innovation: 40% WW, 60% PT, 0% EX (DO 15, s. 2026)"
+                                                        >
+                                                            Research / Inquiries (40-60-0)
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFormData({ ...formData, written_weight: '20', performance_weight: '80', exam_weight: '0' })}
+                                                            className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer"
+                                                            title="Work Immersion: 20% WW, 80% PT, 0% EX (DO 15, s. 2026)"
+                                                        >
+                                                            Work Immersion (20-80-0)
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFormData({ ...formData, written_weight: '15', performance_weight: '65', exam_weight: '20' })}
+                                                            className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 border border-cyan-200/60 dark:border-cyan-800/40 hover:bg-cyan-100 dark:hover:bg-cyan-900/60 transition-colors cursor-pointer"
+                                                            title="Technical-Professional (Tech-Pro) Electives: 15% WW, 65% PT, 20% EX (DO 15, s. 2026)"
+                                                        >
+                                                            Tech-Pro (15-65-20)
+                                                        </button>
+                                                        {isModalG12 && (
+                                                            <>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setFormData({ ...formData, written_weight: '25', performance_weight: '50', exam_weight: '25' })}
+                                                                    className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-white/20 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors cursor-pointer"
+                                                                    title="Grade 12 Legacy Core (DO 8, s. 2015): 25% WW, 50% PT, 25% QA"
+                                                                >
+                                                                    Legacy G12 Core (25-50-25)
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setFormData({ ...formData, written_weight: '20', performance_weight: '60', exam_weight: '20' })}
+                                                                    className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-white/20 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors cursor-pointer"
+                                                                    title="Grade 12 Legacy TVL / Sports (DO 8, s. 2015): 20% WW, 60% PT, 20% QA"
+                                                                >
+                                                                    Legacy TVL (20-60-20)
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFormData({ ...formData, written_weight: '20', performance_weight: '50', exam_weight: '30' })}
+                                                            className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
+                                                            title="Core Learning Areas: Languages, Math, Science, AP, Values/GMRC, Makabansa (20% WW, 50% PT, 30% EX - DO 15, s. 2026)"
+                                                        >
+                                                            Core: Lang/Math/Sci/AP/GMRC (20-50-30)
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFormData({ ...formData, written_weight: '20', performance_weight: '60', exam_weight: '20' })}
+                                                            className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-colors cursor-pointer"
+                                                            title="EPP, TLE, MAPEH: 20% WW, 60% PT, 20% EX (DO 15, s. 2026)"
+                                                        >
+                                                            TLE / EPP / MAPEH (20-60-20)
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFormData({ ...formData, written_weight: '30', performance_weight: '50', exam_weight: '20' })}
+                                                            className="px-2.5 py-1 text-[10px] font-medium rounded-lg bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/10 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors cursor-pointer"
+                                                            title="Legacy DO 8, s. 2015: Languages, AP, EsP (30% WW, 50% PT, 20% QA)"
+                                                        >
+                                                            Legacy Lang/AP (30-50-20)
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFormData({ ...formData, written_weight: '40', performance_weight: '40', exam_weight: '20' })}
+                                                            className="px-2.5 py-1 text-[10px] font-medium rounded-lg bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/10 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors cursor-pointer"
+                                                            title="Legacy DO 8, s. 2015: Mathematics, Science (40% WW, 40% PT, 20% QA)"
+                                                        >
+                                                            Legacy Math/Sci (40-40-20)
+                                                        </button>
+                                                    </>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, written_weight: '', performance_weight: '', exam_weight: '' })}
+                                                    className="px-2.5 py-1 text-[10px] font-medium rounded-lg bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/10 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors cursor-pointer"
+                                                    title="Reset to DepEd cluster defaults (clears manual overrides)"
+                                                >
+                                                    Reset to Default
+                                                </button>
+                                            </div>
+                                        );
+                                    })()}
                                     <div className="grid grid-cols-3 gap-3">
                                         <div>
                                             <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Written Works %</label>

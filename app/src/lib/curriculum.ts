@@ -2410,39 +2410,110 @@ export function classifyJhsSubjectTrack(subjectName: string, gradeLevel: string 
 
 /**
  * Returns standard DepEd grading weights (DO 8, s. 2015 / DepEd Standard):
- * - Languages, AP, EsP/Values, GMRC, Makabansa: 30% WW, 50% PT, 20% QA
- * - Mathematics, Science: 40% WW, 40% PT, 20% QA
- * - TLE, EPP, MAPEH (Music, Arts, PE, Health): 20% WW, 60% PT, 20% QA
+ * Returns standard DepEd grading weights under DepEd Order No. 015, s. 2026 (effective SY 2026-2027):
+ * - Core Learning Areas (Filipino, English, Math, Science, AP, Values/GMRC, Makabansa, SSHS Core): 20% WW, 50% PT, 30% EX
+ * - TLE, EPP, MAPEH (Music, Arts, PE, Health): 20% WW, 60% PT, 20% EX
+ * - SHS Field Exposure & Arts Apprenticeship: 15% WW, 70% PT, 15% EX
+ * - SHS Research Electives & Design/Innovation: 40% WW, 60% PT, 0% EX
+ * - SHS Work Immersion: 20% WW, 80% PT, 0% EX
+ * - SHS Tech-Pro Electives: 15% WW, 65% PT, 20% EX
+ * Supports legacy Grade 12 tracks (DO 8, s. 2015) when applicable.
  */
-export function getDepEdStandardWeights(subjectName: string): { written_weight: number; performance_weight: number; exam_weight: number } {
+export function getDepEdStandardWeights(
+    subjectName: string,
+    gradeLevel?: string,
+    track?: string
+): { written_weight: number; performance_weight: number; exam_weight: number } {
     const norm = (subjectName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const isG11 = (gradeLevel || '').includes('11');
+    const isG12 = (gradeLevel || '').includes('12');
+    const isSHS = isG11 || isG12;
 
-    // 1. Math and Science: 40 / 40 / 20
-    if (
-        norm.includes('math') || norm.includes('science') ||
-        norm.includes('calculus') || norm.includes('algebra') ||
-        norm.includes('geometry') || norm.includes('statistics') ||
-        norm.includes('biology') || norm.includes('biotechnology') ||
-        norm.includes('chemistry') || norm.includes('physics') ||
-        norm.includes('research')
-    ) {
-        return { written_weight: 0.40, performance_weight: 0.40, exam_weight: 0.20 };
+    if (isSHS) {
+        const isExplicitSSHS = track ? (
+            track.toLowerCase().includes('sshs') ||
+            track.toLowerCase().includes('cluster')
+        ) : false;
+
+        // Legacy Grade 12 Traditional K-12 (DO 8, s. 2015)
+        if (isG12 && !isExplicitSSHS) {
+            const isTVL = (track || '').toLowerCase().includes('tvl') || (track || '').toLowerCase().includes('sports') || (track || '').toLowerCase().includes('arts');
+            if (isTVL) return { written_weight: 0.20, performance_weight: 0.60, exam_weight: 0.20 };
+
+            const isImmersionResearch = 
+                norm.includes('workimmersion') || norm.includes('practicalresearch') ||
+                norm.includes('inquiries') || norm.includes('investigation') ||
+                norm.includes('businessenterprisesimulation') || norm.includes('culminatingactivity');
+            if (isImmersionResearch) return { written_weight: 0.35, performance_weight: 0.40, exam_weight: 0.25 };
+
+            const cores = [
+                '21stcenturyliterature', 'contemporaryphilippinearts', 'disasterreadiness',
+                'earthandlifescience', 'earthscience', 'generalmathematics',
+                'introductiontophilosophy', 'komunikasyonatpananaliksik', 'mediaandinformationliteracy',
+                'oralcommunication', 'pagbasaatpagsusuri', 'personaldevelopment', 'physicalscience',
+                'readingandwriting', 'statisticsandprobability', 'understandingculture',
+                'physicaleducationandhealth', 'hope'
+            ];
+            const isCore = cores.some(c => norm.includes(c));
+            if (isCore) return { written_weight: 0.25, performance_weight: 0.50, exam_weight: 0.25 };
+
+            return { written_weight: 0.25, performance_weight: 0.45, exam_weight: 0.30 };
+        }
+
+        // DepEd Order No. 015, s. 2026 (Grade 11 & Grade 12 SSHS)
+        if (norm.includes('workimmersion')) {
+            return { written_weight: 0.20, performance_weight: 0.80, exam_weight: 0.00 };
+        }
+        if (norm.includes('research') || norm.includes('inquiries') || norm.includes('investigation') || norm.includes('designandinnovation')) {
+            return { written_weight: 0.40, performance_weight: 0.60, exam_weight: 0.00 };
+        }
+        if (norm.includes('fieldexposure') || norm.includes('apprenticeship') || norm.includes('creativeproduction')) {
+            return { written_weight: 0.15, performance_weight: 0.70, exam_weight: 0.15 };
+        }
+        const isTechPro = (track || '').toLowerCase().includes('tech') || (track || '').toLowerCase().includes('tvl');
+        if (isTechPro) {
+            return { written_weight: 0.15, performance_weight: 0.65, exam_weight: 0.20 };
+        }
+        if (norm.includes('fitness') || norm.includes('recreation') || norm.includes('sports') || norm.includes('dance') || norm.includes('coaching') || norm.includes('officiating') || norm.includes('firstaid') || norm.includes('basiclifesupport')) {
+            return { written_weight: 0.20, performance_weight: 0.60, exam_weight: 0.20 };
+        }
+        // SHS Core Subjects & Academic Electives: 20/50/30
+        return { written_weight: 0.20, performance_weight: 0.50, exam_weight: 0.30 };
     }
 
-    // 2. TLE / EPP / MAPEH (and specialized technical / arts): 20 / 60 / 20
+    // Elementary & JHS (DO 15, s. 2026)
+    // TLE / EPP: 20 / 60 / 20
     if (
         norm.includes('tle') || norm.includes('technology') || norm.includes('epp') ||
         norm.includes('edukasyongpantahanan') || norm.includes('livelihood') ||
-        norm.includes('mapeh') || norm.includes('music') || norm.includes('arts') ||
-        norm.includes('physicaleducation') || norm.includes('pe') || norm.includes('health') ||
-        norm.includes('spa') || norm.includes('sptve') || norm.includes('drafting') ||
-        norm.includes('cookery') || norm.includes('welding') || norm.includes('carpentry')
+        norm.includes('sptve') || norm.includes('drafting') || norm.includes('cookery') ||
+        norm.includes('welding') || norm.includes('carpentry')
     ) {
         return { written_weight: 0.20, performance_weight: 0.60, exam_weight: 0.20 };
     }
 
-    // 3. Languages, AP, EsP, Values, GMRC, Makabansa, Reading: 30 / 50 / 20
-    return { written_weight: 0.30, performance_weight: 0.50, exam_weight: 0.20 };
+    // MAPEH: 20 / 60 / 20
+    if (
+        norm.includes('mapeh') || norm.includes('music') || norm.includes('arts') ||
+        norm.includes('physicaleducation') || norm.includes('pe') || norm.includes('health') ||
+        norm.includes('spa')
+    ) {
+        return { written_weight: 0.20, performance_weight: 0.60, exam_weight: 0.20 };
+    }
+
+    // Work Immersion / Research if accessed without grade level
+    if (norm.includes('workimmersion')) {
+        return { written_weight: 0.20, performance_weight: 0.80, exam_weight: 0.00 };
+    }
+    if (norm.includes('research') || norm.includes('inquiries') || norm.includes('investigation') || norm.includes('designandinnovation')) {
+        return { written_weight: 0.40, performance_weight: 0.60, exam_weight: 0.00 };
+    }
+    if (norm.includes('fieldexposure') || norm.includes('apprenticeship') || norm.includes('creativeproduction')) {
+        return { written_weight: 0.15, performance_weight: 0.70, exam_weight: 0.15 };
+    }
+
+    // Core Learning Areas (Filipino, English, Math, Science, AP, Values Education, GMRC, Makabansa, Reading): 20 / 50 / 30
+    return { written_weight: 0.20, performance_weight: 0.50, exam_weight: 0.30 };
 }
 
 /**

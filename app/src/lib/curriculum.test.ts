@@ -599,30 +599,30 @@ describe('Zero Ghost Blanks in 3-Term Views & School Term Autonomy', () => {
 });
 
 describe('Smart DepEd Standard Weights Locks', () => {
-  it('correctly provides official DepEd DO 8, s. 2015 weights by subject classification', () => {
-    // Languages, AP, EsP, Values, GMRC, Makabansa: 30% WW, 50% PT, 20% QA
+  it('correctly provides official DepEd DO 15, s. 2026 weights by subject classification', () => {
+    // Core Learning Areas (Languages, AP, EsP, Values, GMRC, Makabansa, Math, Science): 20% WW, 50% PT, 30% EX
     const langStd = getDepEdStandardWeights('English');
-    expect(langStd.written_weight).toBe(0.3);
+    expect(langStd.written_weight).toBe(0.2);
     expect(langStd.performance_weight).toBe(0.5);
-    expect(langStd.exam_weight).toBe(0.2);
+    expect(langStd.exam_weight).toBe(0.3);
 
     const apStd = getDepEdStandardWeights('Araling Panlipunan');
-    expect(apStd.written_weight).toBe(0.3);
+    expect(apStd.written_weight).toBe(0.2);
     expect(apStd.performance_weight).toBe(0.5);
-    expect(apStd.exam_weight).toBe(0.2);
+    expect(apStd.exam_weight).toBe(0.3);
 
-    // Math & Science: 40% WW, 40% PT, 20% QA
+    // Math & Science under DO 15, s. 2026: 20% WW, 50% PT, 30% EX
     const mathStd = getDepEdStandardWeights('Mathematics');
-    expect(mathStd.written_weight).toBe(0.4);
-    expect(mathStd.performance_weight).toBe(0.4);
-    expect(mathStd.exam_weight).toBe(0.2);
+    expect(mathStd.written_weight).toBe(0.2);
+    expect(mathStd.performance_weight).toBe(0.5);
+    expect(mathStd.exam_weight).toBe(0.3);
 
     const sciStd = getDepEdStandardWeights('Science');
-    expect(sciStd.written_weight).toBe(0.4);
-    expect(sciStd.performance_weight).toBe(0.4);
-    expect(sciStd.exam_weight).toBe(0.2);
+    expect(sciStd.written_weight).toBe(0.2);
+    expect(sciStd.performance_weight).toBe(0.5);
+    expect(sciStd.exam_weight).toBe(0.3);
 
-    // TLE, EPP, MAPEH: 20% WW, 60% PT, 20% QA
+    // TLE, EPP, MAPEH: 20% WW, 60% PT, 20% EX
     const tleStd = getDepEdStandardWeights('Technology and Livelihood Education (TLE)');
     expect(tleStd.written_weight).toBe(0.2);
     expect(tleStd.performance_weight).toBe(0.6);
@@ -632,6 +632,17 @@ describe('Smart DepEd Standard Weights Locks', () => {
     expect(mapehStd.written_weight).toBe(0.2);
     expect(mapehStd.performance_weight).toBe(0.6);
     expect(mapehStd.exam_weight).toBe(0.2);
+
+    // SHS Research, Immersion & Field Exposure
+    const researchStd = getDepEdStandardWeights('Research 1', 'Grade 11');
+    expect(researchStd.written_weight).toBe(0.4);
+    expect(researchStd.performance_weight).toBe(0.6);
+    expect(researchStd.exam_weight).toBe(0.0);
+
+    const immersionStd = getDepEdStandardWeights('Work Immersion', 'Grade 11');
+    expect(immersionStd.written_weight).toBe(0.2);
+    expect(immersionStd.performance_weight).toBe(0.8);
+    expect(immersionStd.exam_weight).toBe(0.0);
   });
 
   describe('Grade 11 SSHS (DepEd Order No. 017, s. 2026) Track & Cluster Isolation', () => {

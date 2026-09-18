@@ -25,9 +25,15 @@ export type DepEdWeightCategory =
     | 'SHSAcademic'
     | 'SHSAcademicMathSci'
     | 'SHSAcademicHumanities'
+    | 'SHSFieldExposure'
+    | 'SHSResearch'
+    | 'SHSTechPro'
     | 'SHSTVL'
     | 'SHSImmersion'
-    | 'Immersion';
+    | 'Immersion'
+    | 'G12Core'
+    | 'G12AcademicOther'
+    | 'G12AcademicImmersionResearch';
 
 export interface PresetSubjectItem {
     name: string;
@@ -60,21 +66,39 @@ export interface CurriculumPreset {
 }
 
 /**
- * Standard DepEd Assessment Weight Profiles (DO 8, s. 2015 / DO 15, s. 2026)
+ * Standard DepEd Assessment Weight Profiles (DO 15, s. 2026 / DO 17, s. 2026 / DO 8, s. 2015)
+ * Official weights under DepEd Order No. 015, s. 2026 (effective SY 2026–2027)
  */
 export const DEPED_WEIGHT_PROFILES = {
-    // Elementary & JHS
-    Languages: { written_weight: 30, performance_weight: 50, exam_weight: 20 },
-    MathScience: { written_weight: 40, performance_weight: 40, exam_weight: 20 },
+    // Elementary & JHS (Grades 4 to 10 - DO 15, s. 2026)
+    // Core Learning Areas (Languages, AP, EsP/Values, GMRC, Mathematics, Science): 20% WW, 50% PT, 30% EX
+    Languages: { written_weight: 20, performance_weight: 50, exam_weight: 30 },
+    MathScience: { written_weight: 20, performance_weight: 50, exam_weight: 30 },
+    // Other Learning Areas (EPP/TLE, MAPEH): 20% WW, 60% PT, 20% EX
     MAPEH: { written_weight: 20, performance_weight: 60, exam_weight: 20 },
     TLE_EPP: { written_weight: 20, performance_weight: 60, exam_weight: 20 },
 
-    // Senior High School (Grades 11 & 12)
-    SHSCore: { written_weight: 25, performance_weight: 50, exam_weight: 25 },
-    SHSAcademicMathSci: { written_weight: 35, performance_weight: 40, exam_weight: 25 },
-    SHSAcademicHumanities: { written_weight: 25, performance_weight: 45, exam_weight: 30 },
+    // Senior High School (Grades 11 & 12 under DO 15, s. 2026 / SSHS)
+    // Core Subjects & Other Academic Electives: 20% WW, 50% PT, 30% EX
+    SHSCore: { written_weight: 20, performance_weight: 50, exam_weight: 30 },
+    SHSAcademic: { written_weight: 20, performance_weight: 50, exam_weight: 30 },
+    SHSAcademicMathSci: { written_weight: 20, performance_weight: 50, exam_weight: 30 },
+    SHSAcademicHumanities: { written_weight: 20, performance_weight: 50, exam_weight: 30 },
+    // Field Exposure, Arts Apprenticeship, Creative Production: 15% WW, 70% PT, 15% EX
+    SHSFieldExposure: { written_weight: 15, performance_weight: 70, exam_weight: 15 },
+    // Research Electives, Design and Innovation: 40% WW, 60% PT, 0% EX
+    SHSResearch: { written_weight: 40, performance_weight: 60, exam_weight: 0 },
+    // Work Immersion: 20% WW, 80% PT, 0% EX
+    SHSImmersion: { written_weight: 20, performance_weight: 80, exam_weight: 0 },
+    // Technical-Professional Electives: 15% WW, 65% PT, 20% EX
+    SHSTechPro: { written_weight: 15, performance_weight: 65, exam_weight: 20 },
+    // TVL Practical Skills: 20% WW, 60% PT, 20% EX
     SHSTVL: { written_weight: 20, performance_weight: 60, exam_weight: 20 },
-    SHSImmersion: { written_weight: 35, performance_weight: 40, exam_weight: 25 }
+
+    // Grade 12 Old K-12 Transitional Weights (DO 8, s. 2015)
+    G12Core: { written_weight: 25, performance_weight: 50, exam_weight: 25 },
+    G12AcademicOther: { written_weight: 25, performance_weight: 45, exam_weight: 30 },
+    G12AcademicImmersionResearch: { written_weight: 35, performance_weight: 40, exam_weight: 25 }
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -647,6 +671,7 @@ export function getAvailablePresetsForGrade(gradeLevel: string): CurriculumPrese
 
 /**
  * Get standard DepEd assessment weights (WW, PT, QA) for any subject based on learning area.
+ * Follows DepEd Order No. 015, s. 2026 (SY 2026-2027 onward) with support for legacy Grade 12 tracks.
  */
 export function getDepEdWeightsForSubject(
     subjectName: string,
@@ -654,33 +679,85 @@ export function getDepEdWeightsForSubject(
     track?: string
 ): { written_weight: number; performance_weight: number; exam_weight: number } {
     const nameNorm = subjectName.toLowerCase();
-    const isSHS = (gradeLevel || '').includes('11') || (gradeLevel || '').includes('12');
+    const cleanNorm = nameNorm.replace(/[^a-z0-9]/g, '');
+    const isG11 = (gradeLevel || '').includes('11');
+    const isG12 = (gradeLevel || '').includes('12');
+    const isSHS = isG11 || isG12;
 
     if (isSHS) {
-        const isTechPro = (track || '').toLowerCase().includes('tech') || (track || '').toLowerCase().includes('tvl');
-        if (isTechPro) return DEPED_WEIGHT_PROFILES.SHSTVL;
-        if (nameNorm.includes('immersion') || nameNorm.includes('inquiries') || nameNorm.includes('culminating')) {
+        const isExplicitSSHS = track ? (
+            track.toLowerCase().includes('sshs') ||
+            track.toLowerCase().includes('cluster')
+        ) : false;
+
+        // Grade 12 Traditional K-12 fallback (DO 8, s. 2015)
+        if (isG12 && !isExplicitSSHS) {
+            const isTVL = (track || '').toLowerCase().includes('tvl') || (track || '').toLowerCase().includes('sports') || (track || '').toLowerCase().includes('arts');
+            if (isTVL) return DEPED_WEIGHT_PROFILES.SHSTVL; // 20/60/20
+
+            const isImmersionResearch = 
+                nameNorm.includes('work immersion') || cleanNorm.includes('workimmersion') ||
+                nameNorm.includes('practical research') || cleanNorm.includes('practicalresearch') ||
+                nameNorm.includes('inquiries') || nameNorm.includes('investigation') ||
+                nameNorm.includes('business enterprise simulation') || cleanNorm.includes('businessenterprisesimulation') ||
+                nameNorm.includes('culminating activity') || cleanNorm.includes('culminatingactivity');
+            if (isImmersionResearch) return DEPED_WEIGHT_PROFILES.G12AcademicImmersionResearch; // 35/40/25
+
+            const cores = [
+                '21st century literature', 'contemporary philippine arts', 'disaster readiness',
+                'earth and life science', 'earth science', 'general mathematics',
+                'introduction to philosophy', 'komunikasyon at pananaliksik', 'media and information literacy',
+                'oral communication', 'pagbasa at pagsusuri', 'personal development', 'physical science',
+                'reading and writing', 'statistics and probability', 'understanding culture',
+                'physical education and health', 'hope'
+            ];
+            const isCore = cores.some(c => cleanNorm.includes(c.replace(/[^a-z0-9]/g, '')));
+            if (isCore) return DEPED_WEIGHT_PROFILES.G12Core; // 25/50/25
+
+            return DEPED_WEIGHT_PROFILES.G12AcademicOther; // 25/45/30
+        }
+
+        // DepEd Order No. 015, s. 2026 (Grade 11 SSHS and Grade 12 SSHS)
+        // 1. Work Immersion (20/80/0)
+        if (nameNorm.includes('work immersion') || cleanNorm.includes('workimmersion')) {
             return DEPED_WEIGHT_PROFILES.SHSImmersion;
         }
-        if (nameNorm.includes('calculus') || nameNorm.includes('chemistry') || nameNorm.includes('physics') || nameNorm.includes('biology') || nameNorm.includes('math')) {
-            return DEPED_WEIGHT_PROFILES.SHSAcademicMathSci;
+
+        // 2. Research Electives, Design and Innovation (40/60/0)
+        if (nameNorm.includes('research') || nameNorm.includes('inquiries') || nameNorm.includes('investigation') || nameNorm.includes('design and innovation') || cleanNorm.includes('designandinnovation')) {
+            return DEPED_WEIGHT_PROFILES.SHSResearch;
         }
-        if (nameNorm.includes('literature') || nameNorm.includes('philosophy') || nameNorm.includes('governance') || nameNorm.includes('business') || nameNorm.includes('writing') || nameNorm.includes('komunikasyon')) {
-            return DEPED_WEIGHT_PROFILES.SHSAcademicHumanities;
+
+        // 3. Field Exposure, Arts Apprenticeship, Creative Production (15/70/15)
+        if (nameNorm.includes('field exposure') || cleanNorm.includes('fieldexposure') || nameNorm.includes('apprenticeship') || nameNorm.includes('creative production') || cleanNorm.includes('creativeproduction')) {
+            return DEPED_WEIGHT_PROFILES.SHSFieldExposure;
         }
+
+        // 4. TechPro Electives (15/65/20)
+        const isTechPro = (track || '').toLowerCase().includes('tech') || (track || '').toLowerCase().includes('tvl');
+        if (isTechPro) {
+            return DEPED_WEIGHT_PROFILES.SHSTechPro;
+        }
+
+        // 5. Arts, Sports, Health and Wellness Electives (20/60/20)
+        if (nameNorm.includes('fitness') || nameNorm.includes('recreation') || nameNorm.includes('sports') || nameNorm.includes('dance') || nameNorm.includes('coaching') || nameNorm.includes('officiating') || nameNorm.includes('first aid') || nameNorm.includes('basic life support')) {
+            return DEPED_WEIGHT_PROFILES.MAPEH; // 20/60/20
+        }
+
+        // 6. SHS Core Subjects & Academic Electives (20/50/30)
         return DEPED_WEIGHT_PROFILES.SHSCore;
     }
 
-    // Elementary & JHS
-    if (nameNorm.includes('math') || nameNorm.includes('science')) {
-        return DEPED_WEIGHT_PROFILES.MathScience;
+    // Elementary & JHS (Key Stage 2 & 3: DO 15, s. 2026)
+    // TLE / EPP: 20/60/20
+    if (nameNorm.includes('tle') || nameNorm.includes('epp') || nameNorm.includes('technology and livelihood') || nameNorm.includes('pantahanan')) {
+        return DEPED_WEIGHT_PROFILES.TLE_EPP;
     }
+    // MAPEH: 20/60/20
     if (nameNorm.includes('mapeh') || nameNorm.includes('music') || nameNorm.includes('arts') || nameNorm.includes('physical education') || nameNorm.includes('health')) {
         return DEPED_WEIGHT_PROFILES.MAPEH;
     }
-    if (nameNorm.includes('tle') || nameNorm.includes('epp') || nameNorm.includes('technology') || nameNorm.includes('pantahanan')) {
-        return DEPED_WEIGHT_PROFILES.TLE_EPP;
-    }
+    // Core Learning Areas (Filipino, English, Math, Science, AP, Values Education, GMRC, Makabansa, Reading & Literacy): 20/50/30
     return DEPED_WEIGHT_PROFILES.Languages;
 }
 

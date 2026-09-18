@@ -117,25 +117,33 @@ describe('DepEd Curriculum Presets Engine (Universal 3-Term)', () => {
         });
     });
 
-    describe('DepEd Assessment Weights', () => {
-        it('assigns 40/40/20 for Math and Science in Elementary/JHS', () => {
+    describe('DepEd Assessment Weights (DO 15, s. 2026)', () => {
+        it('assigns 20/50/30 for Math and Science in Elementary/JHS under DO 15, s. 2026', () => {
             const weights = getDepEdWeightsForSubject('Mathematics', 'Grade 7');
-            expect(weights).toEqual({ written_weight: 40, performance_weight: 40, exam_weight: 20 });
+            expect(weights).toEqual({ written_weight: 20, performance_weight: 50, exam_weight: 30 });
         });
 
-        it('assigns 30/50/20 for Languages and AP in Elementary/JHS', () => {
+        it('assigns 20/50/30 for Languages and AP in Elementary/JHS under DO 15, s. 2026', () => {
             const weights = getDepEdWeightsForSubject('English', 'Grade 8');
-            expect(weights).toEqual({ written_weight: 30, performance_weight: 50, exam_weight: 20 });
+            expect(weights).toEqual({ written_weight: 20, performance_weight: 50, exam_weight: 30 });
         });
 
-        it('assigns 20/60/20 for MAPEH and TLE', () => {
+        it('assigns 20/60/20 for MAPEH and TLE under DO 15, s. 2026', () => {
             const weights = getDepEdWeightsForSubject('Technology and Livelihood Education (TLE)', 'Grade 9');
             expect(weights).toEqual({ written_weight: 20, performance_weight: 60, exam_weight: 20 });
         });
 
-        it('assigns 25/50/25 for SHS Core subjects', () => {
+        it('assigns 20/50/30 for SHS Core subjects under DO 15, s. 2026', () => {
             const weights = getDepEdWeightsForSubject('Effective Communication', 'Grade 11', 'Academic');
-            expect(weights).toEqual({ written_weight: 25, performance_weight: 50, exam_weight: 25 });
+            expect(weights).toEqual({ written_weight: 20, performance_weight: 50, exam_weight: 30 });
+        });
+
+        it('assigns 40/60/0 for SHS Research and 20/80/0 for Work Immersion under DO 15, s. 2026', () => {
+            const researchWeights = getDepEdWeightsForSubject('Research 1', 'Grade 11', 'Academic');
+            expect(researchWeights).toEqual({ written_weight: 40, performance_weight: 60, exam_weight: 0 });
+
+            const immersionWeights = getDepEdWeightsForSubject('Work Immersion', 'Grade 11', 'Academic');
+            expect(immersionWeights).toEqual({ written_weight: 20, performance_weight: 80, exam_weight: 0 });
         });
     });
 

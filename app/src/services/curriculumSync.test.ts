@@ -38,12 +38,12 @@ describe('Curriculum Sync & In-Situ Auto-Repair Service', () => {
         expect(updatedSectionRecord).not.toBeNull();
         expect(updatedSectionRecord!.section_metadata?.subjectTerms).toBeDefined();
 
-        // Check that added subjects have DepEd weights (DO 8, s. 2015 SHS Core: 25% WW, 50% PT, 25% QA)
+        // Check that added subjects have DepEd weights (DO 15, s. 2026 SHS Core: 20% WW, 50% PT, 30% EX)
         const mathSubject = addedSubjects.find(s => s.subject_name.includes('Math'));
         expect(mathSubject).toBeDefined();
-        expect(mathSubject!.written_weight).toBe(25);
+        expect(mathSubject!.written_weight).toBe(20);
         expect(mathSubject!.performance_weight).toBe(50);
-        expect(mathSubject!.exam_weight).toBe(25);
+        expect(mathSubject!.exam_weight).toBe(30);
         expect(mathSubject!.units).toBe(2);
         expect(mathSubject!.hours).toBe(160);
 

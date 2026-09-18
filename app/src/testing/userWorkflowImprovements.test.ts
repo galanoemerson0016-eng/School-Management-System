@@ -3,21 +3,20 @@ import { getDepEdStandardWeights, classifyJhsSubjectTrack } from '../lib/curricu
 import type { Section, Student } from '../types';
 
 describe('A. Subjects Page Improvements', () => {
-    describe('One-Click DepEd Standard Presets', () => {
-        it('returns 30-50-20 for Languages, Araling Panlipunan, and EsP / Values Education', () => {
-            expect(getDepEdStandardWeights('English')).toEqual({ written_weight: 0.3, performance_weight: 0.5, exam_weight: 0.2 });
-            expect(getDepEdStandardWeights('Filipino')).toEqual({ written_weight: 0.3, performance_weight: 0.5, exam_weight: 0.2 });
-            expect(getDepEdStandardWeights('Reading and Literacy')).toEqual({ written_weight: 0.3, performance_weight: 0.5, exam_weight: 0.2 });
-            expect(getDepEdStandardWeights('Araling Panlipunan (AP)')).toEqual({ written_weight: 0.3, performance_weight: 0.5, exam_weight: 0.2 });
-            expect(getDepEdStandardWeights('Values Education')).toEqual({ written_weight: 0.3, performance_weight: 0.5, exam_weight: 0.2 });
-            expect(getDepEdStandardWeights('GMRC')).toEqual({ written_weight: 0.3, performance_weight: 0.5, exam_weight: 0.2 });
+    describe('One-Click DepEd Standard Presets (DO 15, s. 2026)', () => {
+        it('returns 20-50-30 for Core Learning Areas (Languages, AP, Values, GMRC, Math, Science)', () => {
+            expect(getDepEdStandardWeights('English')).toEqual({ written_weight: 0.2, performance_weight: 0.5, exam_weight: 0.3 });
+            expect(getDepEdStandardWeights('Filipino')).toEqual({ written_weight: 0.2, performance_weight: 0.5, exam_weight: 0.3 });
+            expect(getDepEdStandardWeights('Reading and Literacy')).toEqual({ written_weight: 0.2, performance_weight: 0.5, exam_weight: 0.3 });
+            expect(getDepEdStandardWeights('Araling Panlipunan (AP)')).toEqual({ written_weight: 0.2, performance_weight: 0.5, exam_weight: 0.3 });
+            expect(getDepEdStandardWeights('Values Education')).toEqual({ written_weight: 0.2, performance_weight: 0.5, exam_weight: 0.3 });
+            expect(getDepEdStandardWeights('GMRC')).toEqual({ written_weight: 0.2, performance_weight: 0.5, exam_weight: 0.3 });
+            expect(getDepEdStandardWeights('Mathematics')).toEqual({ written_weight: 0.2, performance_weight: 0.5, exam_weight: 0.3 });
+            expect(getDepEdStandardWeights('Science')).toEqual({ written_weight: 0.2, performance_weight: 0.5, exam_weight: 0.3 });
         });
 
-        it('returns 40-40-20 for Mathematics and Science', () => {
-            expect(getDepEdStandardWeights('Mathematics')).toEqual({ written_weight: 0.4, performance_weight: 0.4, exam_weight: 0.2 });
-            expect(getDepEdStandardWeights('Science')).toEqual({ written_weight: 0.4, performance_weight: 0.4, exam_weight: 0.2 });
-            expect(getDepEdStandardWeights('Research 1')).toEqual({ written_weight: 0.4, performance_weight: 0.4, exam_weight: 0.2 });
-            expect(getDepEdStandardWeights('Biotechnology')).toEqual({ written_weight: 0.4, performance_weight: 0.4, exam_weight: 0.2 });
+        it('returns 40-60-0 for Research electives', () => {
+            expect(getDepEdStandardWeights('Research 1')).toEqual({ written_weight: 0.4, performance_weight: 0.6, exam_weight: 0.0 });
         });
 
         it('returns 20-60-20 for TLE, EPP, and MAPEH', () => {
