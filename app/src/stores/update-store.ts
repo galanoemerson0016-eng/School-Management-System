@@ -367,7 +367,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.15';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.16';
       const api = window.electronAPI;
 
       try {
@@ -425,6 +425,8 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
+              "🛡️ Clean Launch & Stability Shield: Elimination of artificial chunk splits; guaranteed immediate boot with zero white-screen crashes.",
+              "🎨 Official FormEase Pro Default Branding: Default installation logo and splash screen now show official FormEase Pro branding.",
               "⚡ Automated Startup Grade Healing: Audits and repairs inflated weights and false 100s on launch with zero teacher re-encoding.",
               "🎯 Normalized Weights & Header Percentages: Table headers display standard 40%/60%/20% weights, ensuring genuine DepEd grades.",
               "🛡️ Ghost Record Protection: Suppresses phantom grades when score containers are empty.",
