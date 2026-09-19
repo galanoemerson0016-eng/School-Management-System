@@ -453,12 +453,6 @@ export default defineConfig(() => ({
             if (id.includes('recharts') || id.includes('d3')) {
               return 'vendor-charts';
             }
-            if (id.includes('lucide-react')) {
-              return 'vendor-icons';
-            }
-            if (id.includes('react-router') || id.includes('react-dom') || id.includes('react/')) {
-              return 'vendor-react';
-            }
             return 'vendor';
           }
         }
