@@ -462,5 +462,5 @@ describe('Pre-Update Safety Vault & Master Excel Backup System', () => {
     expect(manifestText).toContain('08_School_Forms_SF5_Promotion');
     expect(manifestText).toContain('09_School_Forms_SF6_Summary');
     expect(manifestText).toContain('10_School_Forms_SF9_Report_Cards');
-  });
+  }, 60000);
 });

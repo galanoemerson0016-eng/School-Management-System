@@ -222,7 +222,7 @@ export function SubjectEnrollmentModal({ open, subject, section, onClose, onSubj
                                 Manage Subject Enrollment
                             </h3>
                             <p className="text-xs text-slate-400 font-semibold mt-0.5">
-                                {enrollmentSubject.subject_name} — {enrollmentSubject.grade_level} ({sectionName})
+                                {enrollmentSubject.subject_name} — {enrollmentSubject.grade_level} • {sectionName}
                             </p>
                         </div>
                     </div>
@@ -264,7 +264,7 @@ export function SubjectEnrollmentModal({ open, subject, section, onClose, onSubj
                     {/* Quick Selection Actions */}
                     <div className="flex items-center justify-between text-xs">
                         <div className="text-slate-500 font-medium">
-                            Enrolled: <span className={`font-black ${isExceedingClassSize ? 'text-amber-600 dark:text-amber-400' : 'text-deped-blue dark:text-indigo-400'}`}>{selectedLrns.length}</span> / {classSizeInfo.maxStudents} learners
+                            Enrolled: <span className={`font-black ${isExceedingClassSize ? 'text-amber-600 dark:text-amber-400' : 'text-deped-blue dark:text-indigo-400'}`}>{selectedLrns.length}</span> / {classSizeInfo.maxStudents} learners ({sectionName})
                             <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-slate-200/60 dark:bg-white/10 text-slate-600 dark:text-slate-350 font-bold">
                                 {classSizeInfo.categoryLabel}
                             </span>

@@ -370,7 +370,9 @@ export function SubjectsPage() {
 
         // Determine which subjects are already existing in this section/grade
         const existingSectionSubjects = subjects.filter((subject) => {
-            if (selectedSectionId) return subject.section_id === selectedSectionId;
+            if (selectedSectionId && selectedSectionId !== 'all') {
+                return subject.section_id === selectedSectionId || !subject.section_id;
+            }
             return subject.grade_level === selectedGrade && !subject.section_id;
         });
         const existingNames = new Set(existingSectionSubjects.map((subject) => normalizeSubjectLabel(subject.subject_name)));
@@ -572,8 +574,10 @@ export function SubjectsPage() {
         if (!selectedGrade || selectedWizardSubjects.size === 0) return;
 
         setIsLoadingTemplate(true);
-        const targetSection = selectedSection || null;
-        const sectionId = targetSection?.id;
+        const targetSection = (selectedSectionId && selectedSectionId !== 'all') ? selectedSection : null;
+        // Standard core offerings are grade-wide master subjects unless a specialized program was picked
+        const isStandardOffering = curriculumChoice === 'standard' || curriculumChoice === 'core_only' || curriculumChoice === 'shs_core';
+        const sectionId = isStandardOffering ? undefined : (selectedSectionId && selectedSectionId !== 'all' ? targetSection?.id : undefined);
         const gradeLevel = selectedGrade;
         const gradeNum = parseInt(selectedGrade.replace(/\D/g, '')) || 0;
         const isSHS = gradeNum === 11 || gradeNum === 12;
@@ -699,13 +703,16 @@ export function SubjectsPage() {
     };
 
     const selectedSection = useMemo(() => {
+        if (!selectedSectionId || selectedSectionId === 'all') return null;
         return sections.find(s => s.id === selectedSectionId);
     }, [sections, selectedSectionId]);
 
     const existingSectionSubjectNames = useMemo(() => {
         if (!selectedGrade) return new Set<string>();
         const list = subjects.filter((s) => {
-            if (selectedSectionId) return s.section_id === selectedSectionId;
+            if (selectedSectionId && selectedSectionId !== 'all') {
+                return s.section_id === selectedSectionId || !s.section_id;
+            }
             return s.grade_level === selectedGrade && !s.section_id;
         });
         return new Set(list.map((s) => normalizeSubjectLabel(s.subject_name)));
@@ -1329,8 +1336,11 @@ export function SubjectsPage() {
         const rawList = subjects
             .filter(s => !s.is_teaching_load) 
             .filter((s) => {
-                if (selectedSectionId) return s.section_id === selectedSectionId;
-                return s.grade_level === selectedGrade && !s.section_id;
+                if (s.grade_level !== selectedGrade) return false;
+                if (selectedSectionId && selectedSectionId !== 'all') {
+                    return s.section_id === selectedSectionId || !s.section_id;
+                }
+                return true;
             });
         const seenNames = new Set<string>();
         let count = 0;
@@ -1355,8 +1365,11 @@ export function SubjectsPage() {
         const rawList = subjects
             .filter(s => !s.is_teaching_load) 
             .filter((s) => {
-                if (selectedSectionId) return s.section_id === selectedSectionId;
-                return s.grade_level === selectedGrade && !s.section_id;
+                if (s.grade_level !== selectedGrade) return false;
+                if (selectedSectionId && selectedSectionId !== 'all') {
+                    return s.section_id === selectedSectionId || !s.section_id;
+                }
+                return true;
             });
 
         const seenNames = new Set<string>();
@@ -1376,13 +1389,30 @@ export function SubjectsPage() {
         const rawList = subjects
             .filter(s => !s.is_teaching_load) 
             .filter((s) => {
-                if (selectedSectionId) return s.section_id === selectedSectionId;
-                return s.grade_level === selectedGrade && !s.section_id;
+                if (s.grade_level !== selectedGrade) return false;
+                if (selectedSectionId && selectedSectionId !== 'all') {
+                    return s.section_id === selectedSectionId || !s.section_id;
+                }
+                return true;
             });
+
+        // Sort so that:
+        // 1. If viewing a specific section: that section's subjects come first, then master subjects.
+        // 2. If viewing "All Sections": master subjects come first so standard curriculum is prioritized and never duplicated.
+        const sortedList = [...rawList].sort((a, b) => {
+            if (selectedSectionId && selectedSectionId !== 'all') {
+                const aSec = a.section_id === selectedSectionId ? 1 : 0;
+                const bSec = b.section_id === selectedSectionId ? 1 : 0;
+                return bSec - aSec;
+            }
+            const aMaster = !a.section_id ? 1 : 0;
+            const bMaster = !b.section_id ? 1 : 0;
+            return bMaster - aMaster;
+        });
 
         const seenNames = new Set<string>();
         const uniqueList: Subject[] = [];
-        for (const s of rawList) {
+        for (const s of sortedList) {
             const key = normalizeSubjectLabel(s.subject_name);
             if (key && seenNames.has(key)) continue;
             if (key) seenNames.add(key);
@@ -1735,10 +1765,9 @@ export function SubjectsPage() {
     const handleGradeClick = (grade: string) => {
         setSelectedGrade(grade);
         setSubjectSearchQuery('');
-        const matchingSecs = sections.filter((section) => sectionMatchesGrade(section, grade));
-        const firstSection = matchingSecs.sort((a, b) => a.section_name.localeCompare(b.section_name))[0];
-        setSelectedSectionId(firstSection?.id || null);
+        setSelectedSectionId('all');
 
+        const matchingSecs = sections.filter((section) => sectionMatchesGrade(section, grade));
         const matchingAdvisories = matchingSecs.filter(s => s.is_advisory);
         const userAdvisory = matchingAdvisories.find(s => s.adviser_id === user?.uid || (s.adviser_name && s.adviser_name === user?.displayName));
         setSelectedAdvisorySectionId(userAdvisory?.id || matchingAdvisories[0]?.id || null);
@@ -1764,13 +1793,13 @@ export function SubjectsPage() {
     const openAddModal = () => {
         setEditingSubjectId(null);
         setUseDepEdWeightsLocked(true);
-        const targetSection = sections.find(s => s.id === selectedSectionId);
+        const targetSection = sections.find(s => s.id === (selectedSectionId && selectedSectionId !== 'all' ? selectedSectionId : undefined));
         const std = getDepEdStandardWeights('', selectedGrade, targetSection?.track);
         setFormData({
             subject_name: '',
             subject_code: '',
             grade_level: selectedGrade || '',
-            section_id: selectedSectionId || '',
+            section_id: (selectedSectionId && selectedSectionId !== 'all') ? selectedSectionId : '',
             teacher_id: '',
             term: selectedGrade ? getDefaultTermForSubject('', selectedGrade) : 'all',
             written_weight: String(Math.round(std.written_weight * 100)),
@@ -1785,7 +1814,7 @@ export function SubjectsPage() {
         const hasCustomWeights = subject.written_weight !== undefined || subject.performance_weight !== undefined || subject.exam_weight !== undefined;
         let isLocked = true;
         if (hasCustomWeights) {
-            const targetSection = sections.find(s => s.id === (subject.section_id || selectedSectionId));
+            const targetSection = sections.find(s => s.id === (subject.section_id || (selectedSectionId !== 'all' ? selectedSectionId : undefined)));
             const std = getDepEdStandardWeights(subject.subject_name, subject.grade_level, targetSection?.track);
             const subWw = normalizeWeightPercent(subject.written_weight);
             const subPt = normalizeWeightPercent(subject.performance_weight);
@@ -1949,13 +1978,16 @@ export function SubjectsPage() {
     const duplicateGhostInfo = useMemo(() => {
         const gradeGroups: Record<string, Subject[]> = {};
         const untrimmedSubjects: Subject[] = [];
+        const validSectionIds = new Set(sections.flatMap(sec => [sec.id, sec.section_name]));
 
         subjects.forEach(s => {
             if (s.subject_name !== s.subject_name.trim()) {
                 untrimmedSubjects.push(s);
             }
             const canon = getCanonicalSubjectKey(s.subject_name, s.grade_level) || normalizeSubjectLabel(s.subject_name);
-            const key = `${s.grade_level || 'all'}::${s.section_id || 'all'}::${canon}`;
+            const isOrphanedSection = Boolean(s.section_id && !validSectionIds.has(s.section_id));
+            const secKey = isOrphanedSection ? 'all' : (s.section_id || 'all');
+            const key = `${s.grade_level || 'all'}::${secKey}::${canon}`;
             if (!gradeGroups[key]) gradeGroups[key] = [];
             gradeGroups[key].push(s);
         });
@@ -1979,7 +2011,7 @@ export function SubjectsPage() {
             totalOrphaned,
             sampleDuplicates
         };
-    }, [subjects, classRecords, gradingSheetRecords]);
+    }, [subjects, classRecords, gradingSheetRecords, sections]);
 
     const handleMergeAndCleanDuplicates = async () => {
         setIsMergingDuplicates(true);
@@ -2007,8 +2039,10 @@ export function SubjectsPage() {
                     officialTarget = numMatch ? `Physical Education and Health ${numMatch}` : 'Physical Education and Health';
                 }
 
-                // Find canonical subject: prefer official DepEd template name, deterministic ID, or cleanly trimmed name
-                let canonical = cluster.find(s => officialTarget && s.subject_name === officialTarget)
+                // Find canonical subject: prefer master subject (!s.section_id), official DepEd template name, deterministic ID, or cleanly trimmed name
+                let canonical = cluster.find(s => !s.section_id && officialTarget && s.subject_name === officialTarget)
+                    || cluster.find(s => !s.section_id)
+                    || cluster.find(s => officialTarget && s.subject_name === officialTarget)
                     || cluster.find(s => UNIVERSAL_SUBJECT_ORDER.includes(s.subject_name))
                     || cluster.find(s => s.subject_name.includes('(') && s.subject_name.includes(')'))
                     || cluster.find(s => !s.id.startsWith('sub_') && s.subject_name === s.subject_name.trim())
@@ -2754,6 +2788,59 @@ export function SubjectsPage() {
                             </div>
                         )}
 
+                        {/* Section Filter Tabs (Multi-Section Visibility) */}
+                        {gradeSections.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-white/80 dark:bg-[#0f172a]/90 backdrop-blur-xl rounded-2xl border border-slate-200/80 dark:border-white/10 shadow-2xs">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 pl-2.5 pr-1 flex items-center gap-1.5">
+                                    <Layers className="w-3.5 h-3.5 text-indigo-500" />
+                                    <span className="hidden sm:inline">Section:</span>
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedSectionId('all')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer select-none active:scale-95 ${
+                                        !selectedSectionId || selectedSectionId === 'all'
+                                            ? 'bg-indigo-600 text-white shadow-xs'
+                                            : 'bg-slate-50 dark:bg-white/5 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/10'
+                                    }`}
+                                >
+                                    <span>All Sections (Master)</span>
+                                    <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${
+                                        !selectedSectionId || selectedSectionId === 'all'
+                                            ? 'bg-white/20 text-white'
+                                            : 'bg-slate-200/70 dark:bg-white/10 text-slate-500 dark:text-slate-400'
+                                    }`}>
+                                        {gradeSections.length}
+                                    </span>
+                                </button>
+                                {gradeSections.map(sec => {
+                                    const secStudentCount = students.filter(s => s.student_section === sec.section_name || s.student_section === sec.id).length;
+                                    const isSelected = selectedSectionId === sec.id;
+                                    return (
+                                        <button
+                                            key={sec.id}
+                                            type="button"
+                                            onClick={() => setSelectedSectionId(sec.id)}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer select-none active:scale-95 ${
+                                                isSelected
+                                                    ? 'bg-indigo-600 text-white shadow-xs'
+                                                    : 'bg-slate-50 dark:bg-white/5 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/10'
+                                            }`}
+                                        >
+                                            <span>{sec.section_name}</span>
+                                            <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${
+                                                isSelected
+                                                    ? 'bg-white/20 text-white'
+                                                    : 'bg-slate-200/70 dark:bg-white/10 text-slate-500 dark:text-slate-400'
+                                            }`}>
+                                                {secStudentCount}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+
                         {/* Curriculum Track Filter Tabs (Grade 7 - 10) */}
                         {isJhsGrade && jhsTrackCounts && totalGradeSubjectsCount > 0 && (
                             <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-white/80 dark:bg-[#0f172a]/90 backdrop-blur-xl rounded-2xl border border-slate-200/80 dark:border-white/10 shadow-2xs">
@@ -2992,7 +3079,15 @@ export function SubjectsPage() {
                                                                                     </div>
                                                                                 )}
                                                                                 {(() => {
-                                                                                    if (!subject.section_id) return null;
+                                                                                    if (!subject.section_id) {
+                                                                                        const secCount = gradeSections.length;
+                                                                                        return (
+                                                                                            <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 rounded px-1.5 py-0.5 inline-flex items-center gap-1 mt-1 uppercase tracking-wide">
+                                                                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                                                                <span>Grade-Wide Master • {secCount > 0 ? `All ${secCount} Sections` : 'All Sections'}</span>
+                                                                                            </div>
+                                                                                        );
+                                                                                    }
                                                                                     const sect = sections.find(s => s.id === subject.section_id || s.section_name === subject.section_id);
                                                                                     const sectName = sect ? sect.section_name : subject.section_id;
                                                                                     const sectStudents = students.filter(s => s.student_section === sectName || s.student_section === subject.section_id);
@@ -3001,8 +3096,9 @@ export function SubjectsPage() {
                                                                                         ? subject.enrolled_student_lrns.length 
                                                                                         : sectCount;
                                                                                     return (
-                                                                                        <div className="text-[10px] font-bold text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-800/40 rounded px-1.5 py-0.5 inline-block mt-1 uppercase tracking-wide">
-                                                                                            Enrolled: {enrolledCount} / {sectCount} Learners
+                                                                                        <div className="text-[10px] font-bold text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-800/40 rounded px-1.5 py-0.5 inline-flex items-center gap-1 mt-1 uppercase tracking-wide">
+                                                                                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                                                                            <span>Enrolled: {enrolledCount} / {sectCount} Learners • {sectName}</span>
                                                                                         </div>
                                                                                     );
                                                                                 })()}
@@ -3096,7 +3192,7 @@ export function SubjectsPage() {
                                                                                 {subject.section_id && (
                                                                                     <button
                                                                                         onClick={() => setEnrollmentSubject(subject)}
-                                                                                        title="Manage Enrolled Students"
+                                                                                        title={`Manage Enrolled Students (${sections.find(s => s.id === subject.section_id || s.section_name === subject.section_id)?.section_name || subject.section_id})`}
                                                                                         className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center shadow-xs cursor-pointer"
                                                                                     >
                                                                                         <Users className="w-4 h-4" />
@@ -3648,7 +3744,7 @@ export function SubjectsPage() {
                                         onChange={(e) => {
                                             const val = e.target.value;
                                             if (useDepEdWeightsLocked) {
-                                                const targetSection = sections.find(s => s.id === (formData.section_id || selectedSectionId));
+                                                const targetSection = sections.find(s => s.id === (formData.section_id || (selectedSectionId !== 'all' ? selectedSectionId : undefined)));
                                                 const std = getDepEdStandardWeights(val, formData.grade_level || selectedGrade, targetSection?.track);
                                                 setFormData(prev => ({
                                                     ...prev,
@@ -3691,6 +3787,28 @@ export function SubjectsPage() {
                                         className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white rounded-xl border border-slate-200 dark:border-white/10"
                                     />
                                 </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Section Scope / Offering</label>
+                                    <select
+                                        value={formData.section_id}
+                                        onChange={(e) => setFormData({ ...formData, section_id: e.target.value })}
+                                        className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white rounded-xl border border-slate-200 dark:border-white/10"
+                                    >
+                                        <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">
+                                            ★ All Sections in {formData.grade_level || selectedGrade || 'this grade'} (Grade-Wide Master)
+                                        </option>
+                                        {gradeSections.map(sec => (
+                                            <option key={sec.id} value={sec.id} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">
+                                                Only for {sec.section_name} {sec.track ? `(${sec.track})` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <p className="text-[11px] text-slate-400 mt-1">
+                                        {formData.section_id
+                                            ? `Offering exclusively for ${sections.find(s => s.id === formData.section_id)?.section_name || formData.section_id}.`
+                                            : `Universal master subject. All sections in ${formData.grade_level || selectedGrade || 'this grade'} share this curriculum in E-Class Record.`}
+                                    </p>
+                                </div>
                                 {(() => {
                                     const g = formData.grade_level || selectedGrade || '';
                                     const gn = parseInt(g.replace(/\D/g, '')) || 0;
@@ -3728,7 +3846,7 @@ export function SubjectsPage() {
                                                     const locked = e.target.checked;
                                                     setUseDepEdWeightsLocked(locked);
                                                     if (locked) {
-                                                        const targetSection = sections.find(s => s.id === (formData.section_id || selectedSectionId));
+                                                        const targetSection = sections.find(s => s.id === (formData.section_id || (selectedSectionId !== 'all' ? selectedSectionId : undefined)));
                                                         const std = getDepEdStandardWeights(formData.subject_name || '', formData.grade_level || selectedGrade, targetSection?.track);
                                                         setFormData(prev => ({
                                                             ...prev,

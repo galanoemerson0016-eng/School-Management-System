@@ -1,5 +1,33 @@
 # Version History
 
+## v3.5.15 (2026-09-19)
+
+### ⚡ Client Data Protection & Self-Healing
+
+- **Automated Startup Database Healing**: FormEase Pro automatically scans local IndexedDB on startup, recalculates any unnormalized legacy weights (`> 120`), and restores genuine DepEd grades with zero manual re-encoding required from teachers.
+- **Weight Normalization Engine**: Converted whole weights (`40`, `60`, `20`) to standard fractions (`0.40`, `0.60`, `0.20`) and display percentages (`40%`), eliminating thousands-scale weighted scores and the `4000%` header bug.
+- **Multi-Section Subject Deduplication & Scope Architecture**: Unified multi-section subject presentation to prevent artificial duplicates across advisory and handled sections. Added clear section badges, deduplicated catalog listing, and accurate learner enrollment count across multiple sections.
+- **Ghost Record Suppression**: Implemented score container verification in `resolveStudentQuarterGrade` ensuring empty score arrays never output phantom grades in SF9, SF10, or Consolidated Grades.
+- **Unified Subject Canonicalization & Deduplication**: Unified normalization for PE & Health and GMRC/Values Education across Grade Management, SF9, SF10, and Temporary Grade Slips.
+
+### 🚀 Enhancements & Export Resilience
+
+- **Grade 11 SF9 Excel & PDF Export Resilience**: Fixed style index boundaries and shared formulas in `sheet6.xml`, eliminating Excel file repair prompts.
+- **Database Rescue Export Tool**: Added direct offline JSON & Excel database extraction and repair in `database-rescue-export.ts`.
+- **Pre-Update Safety Vault**: Automated local database snapshot and school forms packaging in `pre-update-safety.ts`.
+- **Settings & Backup Vault Modernization**: Upgraded local backup retention limit to 10 rotating snapshots with detailed grade counts, class names, search filtering, and inspector modal.
+
+### 🐞 Bug Fixes
+
+- Resolved issue where table headers displayed `4000%` / `6000%` and weighted scores multiplied into the thousands.
+- Resolved table crosshair guide lifecycle, focus authority, and input resilience across grade management and e-class records.
+- Fixed term grades clamping to 100 on subjects with custom or legacy weights.
+- Fixed `prefer-const` and explicit `any` lint violations in grading helpers and reconciliation services.
+
+### 📝 Notes
+
+- 100% backward-compatible update with automatic local database self-healing on first launch.
+
 ## v3.5.14 (2026-09-17)
 
 ### ⚡ Client Data Protection & Self-Healing

@@ -3384,7 +3384,7 @@ export function SettingsPage() {
                                             <h2 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">
                                                 FormEase Pro
                                             </h2>
-                                            <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.14</span>
+                                            <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.15</span>
                                             <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5">
                                                 Latest Production
                                             </span>
@@ -3442,13 +3442,13 @@ export function SettingsPage() {
                                 <div className="pt-4 space-y-4">
                                     <div className="p-4 rounded-xl bg-slate-50/60 dark:bg-white/2 border border-slate-150 dark:border-white/5 space-y-2">
                                         <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">
-                                            What&apos;s New in Version 3.5.14
+                                            What&apos;s New in Version 3.5.15
                                         </h4>
                                         <ul className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 font-medium list-disc list-inside leading-relaxed">
-                                            <li>⚡ <strong>DO 15, s. 2026 Assessment Weights Alignment</strong>: Aligned Core/Academic (20/50/30), EPP/TLE/MAPEH (20/60/20), Field Exposure (15/70/15), Research (40/60/0), and TechPro (15/65/20) with transition support for legacy Grade 12.</li>
+                                            <li>⚡ <strong>Multi-Section Subject Deduplication & Scope</strong>: Consolidated subject presentation across advisory and handled sections with clear section indicators and accurate cross-section learner counts.</li>
                                             <li>🛡️ <strong>Automated Startup Database Healing</strong>: Scans IndexedDB on app launch, recalculating legacy unnormalized weights and restoring genuine DepEd grades with zero data loss.</li>
-                                            <li>🔒 <strong>LAN Attendance Gateway Hardening</strong>: Added high-entropy pairing tokens, loopback-only controls, and CORS isolation for local mobile attendance taking.</li>
-                                            <li>🚀 <strong>Optimized Vendor Chunking</strong>: Split monolithic vendor bundle by 44% (down from 2.72 MB to 1.54 MB) for ultra-fast startup and memory efficiency.</li>
+                                            <li>🎯 <strong>Weight Normalization Engine</strong>: Standard fractions and percentages (40%/60%/20%) permanently eliminate inflated weighted scores and the 4000% header bug.</li>
+                                            <li>✨ <strong>Grading Table Crosshair & Focus Authority</strong>: Enhanced input responsiveness, resilient cell navigation, and automatic guide alignment across all grading tables.</li>
                                         </ul>
                                     </div>
                                 </div>

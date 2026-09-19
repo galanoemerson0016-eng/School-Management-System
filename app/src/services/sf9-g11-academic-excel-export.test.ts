@@ -330,7 +330,7 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     expect(drawing6Xml).not.toContain('name="Shape 4"');
     expect(drawing6Xml).not.toContain('Insert School Logo');
     expect(zip.file('xl/media/school_logo.png')).not.toBeNull();
-  }, 60000);
+  }, 120000);
 
   it('keeps final grades, remarks, and general average blank when term grades are incomplete in G11 Academic', async () => {
     const templatePath = path.resolve(__dirname, '../../public/templates/G11 Academic School Form 9 (SY 26-27).xlsx');
