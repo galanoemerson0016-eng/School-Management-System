@@ -119,7 +119,7 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
             ? '-0.04mm'
             : 'normal';
 
-    const schoolNameLen = (model.schoolName || 'CALIBUNGAN HIGH SCHOOL').length;
+    const schoolNameLen = (model.schoolName || 'DEPED HIGH SCHOOL').length;
     const schoolNameFontSizeScale = 
         schoolNameLen > 38 ? 0.65 :
         schoolNameLen > 30 ? 0.75 :
@@ -357,7 +357,7 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                         whiteSpace: 'nowrap',
                         overflow: 'hidden'
                     }}>
-                        {model.schoolName || 'CALIBUNGAN HIGH SCHOOL'}
+                        {model.schoolName || 'DEPED HIGH SCHOOL'}
                     </div>
                 </>
             )}
@@ -554,10 +554,10 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                         {model.district}
                     </div>
                     <div style={{ fontSize: `${2.0 * model.headerFontSizeScale * schoolNameFontSizeScale}mm`, fontWeight: 800, textTransform: 'uppercase', marginTop: '0.2mm', lineHeight: 1.1 }}>
-                        {model.schoolName || 'CALIBUNGAN HIGH SCHOOL'}
+                        {model.schoolName || 'DEPED HIGH SCHOOL'}
                     </div>
                     <div style={{ fontSize: `${1.3 * model.headerFontSizeScale * addressFontSizeScale}mm`, opacity: 0.9, textTransform: 'uppercase' }}>
-                        {model.schoolAddress || 'VICTORIA, TARLAC'}
+                        {model.schoolAddress || 'PHILIPPINES'}
                     </div>
                 </div>
             </div>

@@ -87,7 +87,7 @@ function LoadingSplash() {
         {/* Logo */}
         <div className="p-5 bg-white/6 backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl">
           <img
-            src={schoolProfile.logo_url || `${import.meta.env.BASE_URL}school-logo.png`}
+            src={schoolProfile.logo_url || `${import.meta.env.BASE_URL}app-logo.png`}
             alt="School Logo"
             className="h-20 w-20 object-contain"
           />
@@ -95,7 +95,7 @@ function LoadingSplash() {
 
         {/* School name */}
         <div className="text-center">
-          <h1 className="text-xl font-bold text-white tracking-wider">{schoolProfile.name}</h1>
+          <h1 className="text-xl font-bold text-white tracking-wider">{schoolProfile.name || 'FormEase Pro'}</h1>
           <p className="text-[13px] text-blue-200/60 font-medium mt-1.5 tracking-wide">Digital Management Portal</p>
         </div>
 
@@ -246,7 +246,7 @@ function App() {
         const parentPhone = student?.parent_contact || student?.parent_guardian_contact || student?.contact_number || '';
         if (parentPhone) {
           const studentFullName = student ? formatLearnerName(student, { middleInitialOnly: true }) : name;
-          const schoolName = state.schoolProfile?.name || 'Calibungan High School';
+          const schoolName = state.schoolProfile?.name || 'FormEase Pro';
           void triggerParentAttendanceSms(studentFullName, parentPhone, schoolName, event.record.status, event.record.date);
         }
       }

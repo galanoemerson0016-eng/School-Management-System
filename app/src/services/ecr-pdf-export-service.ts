@@ -114,7 +114,7 @@ export async function generateECRPDFBuffer(options: ECRPDFExportOptions): Promis
   doc.text(`SCHOOL YEAR: ${schoolYear}`, col4, currentY + 4);
 
   // Row 2
-  doc.text(`SCHOOL: ${schoolProfile?.name || 'Calibungan High School'}`, col1, currentY + 9.5);
+  doc.text(`SCHOOL: ${(schoolProfile?.name || '').toUpperCase()}`, col1, currentY + 9.5);
   doc.text(`GRADE & SECTION: ${gradeLevel} - ${sectionName}`, col2, currentY + 9.5);
   doc.text(`SUBJECT: ${subjectName}`, col3, currentY + 9.5);
   doc.text(`TEACHER: ${teacher}`, col4, currentY + 9.5);

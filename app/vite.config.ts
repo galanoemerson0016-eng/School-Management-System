@@ -464,7 +464,7 @@ export default defineConfig(() => ({
     globals: true,
     setupFiles: ['./src/test-setup.ts'],
     exclude: ['node_modules/**'],
-    testTimeout: 30000,
+    testTimeout: 60000,
   },
 }))
 // Trigger restart

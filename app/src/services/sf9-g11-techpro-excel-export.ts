@@ -926,8 +926,8 @@ export async function populateGrade11TechProTemplateBuffer(
   const cleanRegion = schoolProfile?.region ? `${schoolProfile.region}` : 'Region III';
   const cleanDivision = (schoolProfile?.division ? `${schoolProfile.division.replace(/^Schools Division of\s*/i, '')}` : 'TARLAC PROVINCE').toUpperCase();
   const cleanDistrict = (schoolProfile?.district || schoolProfile?.city || 'VICTORIA EAST DISTRICT').toUpperCase();
-  const cleanSchoolId = schoolProfile?.school_id || '307014';
-  const cleanSchoolName = schoolProfile?.name || 'CALIBUNGAN HIGH SCHOOL';
+  const cleanSchoolId = schoolProfile?.school_id || '';
+  const cleanSchoolName = (schoolProfile?.name || '').trim().toUpperCase();
   const cleanSy = schoolYear || '2026-2027';
   const cleanPrincipal = principal || schoolProfile?.head_name || '';
   const cleanAdviser = adviser || '';

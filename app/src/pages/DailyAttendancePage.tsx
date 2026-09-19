@@ -371,7 +371,7 @@ export function DailyAttendancePage() {
                 const parentPhone = student.parent_contact || student.parent_guardian_contact || student.contact_number || '';
                 if (parentPhone) {
                     const studentName = composeName(student);
-                    const schoolName = schoolProfile?.name || 'Calibungan High School';
+                    const schoolName = schoolProfile?.name || 'School Office';
                     void triggerParentAttendanceSms(studentName, parentPhone, schoolName, status, date)
                         .then((res) => {
                             if (res && res.success) {
@@ -405,7 +405,7 @@ export function DailyAttendancePage() {
             showNotification(`Marked ${roster.length} student(s) as ${status}`, 'success');
 
             // Trigger SMS to parents for ALL statuses (present, absent, late, cutting, excused)
-            const schoolName = schoolProfile?.name || 'Calibungan High School';
+            const schoolName = schoolProfile?.name || 'School Office';
             let smsCount = 0;
             roster.forEach((student) => {
                 const parentPhone = student.parent_contact || student.parent_guardian_contact || student.contact_number || '';
@@ -436,7 +436,7 @@ export function DailyAttendancePage() {
             await upsertAttendanceRecords(records);
             showNotification(`Marked ${unmarkedStudents.length} unmarked student(s) as Present`, 'success');
 
-            const schoolName = schoolProfile?.name || 'Calibungan High School';
+            const schoolName = schoolProfile?.name || 'School Office';
             let smsCount = 0;
             unmarkedStudents.forEach((student) => {
                 const parentPhone = student.parent_contact || student.parent_guardian_contact || student.contact_number || '';

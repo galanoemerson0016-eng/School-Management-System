@@ -91,7 +91,7 @@ export function CalendarPage() {
         setSmsProgress({ total: targets.length, sent: 0, failed: 0, currentStudent: targets[0].studentName });
 
         try {
-            const schoolName = schoolProfile?.name || 'Calibungan High School';
+            const schoolName = schoolProfile?.name || 'School Office';
             const res = await broadcastParentSms(targets, smsEventTemplate, schoolName, (p) => setSmsProgress(p));
             showNotification(`📱 Broadcast Complete: ${res.sent} Parent SMS Sent (${res.failed} skipped)`, 'success');
             setIsSmsModalOpen(false);

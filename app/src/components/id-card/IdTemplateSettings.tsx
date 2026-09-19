@@ -390,7 +390,7 @@ export function IdTemplateSettings({ config, onChange, canEdit }: Props) {
                                 <label className="block text-[10px] font-semibold text-slate-500 mb-1">School Name</label>
                                 <input
                                     type="text"
-                                    placeholder="e.g. Calibungan High School"
+                                    placeholder="e.g. Mabini National High School"
                                     value={config.schoolName || ''}
                                     onChange={(e) => set('schoolName', e.target.value)}
                                     className="w-full px-2.5 py-1 text-xs border border-slate-200 rounded-md placeholder:text-slate-455 bg-white text-slate-800 focus:outline-none"
@@ -440,7 +440,7 @@ export function IdTemplateSettings({ config, onChange, canEdit }: Props) {
                                 <label className="block text-[10px] font-semibold text-slate-500 mb-1">Barangay</label>
                                 <input
                                     type="text"
-                                    placeholder="e.g. Calibungan"
+                                    placeholder="e.g. San Jose"
                                     value={config.barangayName || ''}
                                     onChange={(e) => set('barangayName', e.target.value)}
                                     className="w-full px-2.5 py-1 text-xs border border-slate-200 rounded-md placeholder:text-slate-455 bg-white text-slate-800 focus:outline-none"

@@ -330,7 +330,7 @@ export async function triggerParentAttendanceSms(
     const messageText = formatSmsMessage(
         config.messageTemplate,
         studentName,
-        schoolName || 'Calibungan High School',
+        schoolName || 'FormEase Pro',
         statusTime,
         statusDate,
         statusType
@@ -390,7 +390,7 @@ export async function broadcastParentSms(
 
         const messageText = messageTemplate
             .replace(/{student_name}/gi, target.studentName)
-            .replace(/{school_name}/gi, schoolName || 'Calibungan High School')
+            .replace(/{school_name}/gi, schoolName || 'FormEase Pro')
             .replace(/{time}/gi, statusTime)
             .replace(/{date}/gi, statusDate);
 
