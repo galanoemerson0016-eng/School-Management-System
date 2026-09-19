@@ -28,7 +28,7 @@ export function VersionHistoryTimeline({ onCheckForUpdates }: VersionHistoryTime
                 )}
             </div>
 
-            <div className="relative max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="relative max-h-150 overflow-y-auto pr-2 custom-scrollbar">
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
                                 {/* Version 3.5.15 */}
                                 <div className="relative pl-6">
