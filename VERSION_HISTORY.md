@@ -1,5 +1,35 @@
 # Version History
 
+## v3.5.17 (2026-09-21)
+
+### 📋 SF9 Multi-Level Report Card Refinements
+
+- **Elementary & JHS Header Optimization**: Streamlined learner profile header in the official SF9 landscape renderer by removing the `Track (if SHS only): Strand:` row for Grades 1–10, eliminating empty underline placeholders and optimizing vertical document balance.
+- **Strict SHS Contextual Formatting**: Preserved track and strand/cluster fields exclusively for Senior High School (Grades 11 & 12) report cards.
+
+### 🏛️ Institute Profile & Campus Dashboard Modernization
+
+- **Responsive Single-Screen Layout**: Redesigned Institutional Overview and DepEd Form Compliance panels into a perfectly balanced, 1-screen responsive dashboard without vertical scrollbars.
+- **Accurate Curricular Offerings Formatting**: Formatted Grade Levels Offered KPI cards to cleanly display official DepEd offerings (e.g. `Grade 1–12`, `Complete Basic Education`) without text truncation.
+- **Specimen Signatures & Official Seal Studio**: Added direct drawing pads and transparency inspection tools for Principal and Class Adviser specimen signatures directly within the compliance workflow.
+- **Unified Administrative Identity**: Consolidated Class Adviser Name directly into Institutional Details, streamlining administrative configuration.
+
+### 🛡️ Production Client Protection & Environment Isolation
+
+- **Guarded Test Section Generator**: Isolated the sample Grade 1–12 test section generator and modal strictly to local development environments (`import.meta.env.DEV`), ensuring client production builds remain clean and devoid of sample generator buttons.
+- **Client-Side Test Data Filtering**: Automatically filters out test sections and test student records during store hydration and section navigation in production distributions.
+
+### ⚡ Client Data Protection & Self-Healing
+
+- **Automated Startup Database Healing**: FormEase Pro automatically scans local IndexedDB on startup, recalculates any unnormalized legacy weights (`> 120`), and restores genuine DepEd grades with zero manual re-encoding required from teachers.
+- **Weight Normalization Engine**: Converted whole weights (`40`, `60`, `20`) to standard fractions (`0.40`, `0.60`, `0.20`) and display percentages (`40%`), eliminating thousands-scale weighted scores and the `4000%` header bug.
+- **Ghost Record Suppression**: Implemented score container verification in `resolveStudentQuarterGrade` ensuring empty score arrays never output phantom grades in SF9, SF10, or Consolidated Grades.
+- **Grade 1 PACE Master Excel Sync**: Bi-directional formula and data synchronization with DepEd official PACE templates and dark mode rules.
+
+### 📝 Notes
+
+- 100% backward-compatible update with zero data loss guarantee and automated startup database self-healing.
+
 ## v3.5.16 (2026-09-19)
 
 ### 🎨 Branding & User Experience

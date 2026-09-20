@@ -30,12 +30,30 @@ export function VersionHistoryTimeline({ onCheckForUpdates }: VersionHistoryTime
 
             <div className="relative max-h-150 overflow-y-auto pr-2 custom-scrollbar">
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 3.5.16 */}
+                                {/* Version 3.5.17 */}
                                 <div className="relative pl-6">
                                     <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.16</span>
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.17</span>
                                         <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 21, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>⚡ <strong>Automated Startup Database Healing</strong>: Scans IndexedDB on launch, recalculating legacy unnormalized weights (&gt; 120) and restoring genuine DepEd grades with zero manual re-encoding.</li>
+                                        <li>🎯 <strong>Weight Normalization Engine</strong>: Converted whole weights (40, 60, 20) to standard decimal fractions (0.40, 0.60, 0.20) and table headers to standard percentages (40%), eliminating thousands-scale weighted scores and the 4000% header bug.</li>
+                                        <li>🛡️ <strong>Ghost Record Suppression</strong>: Score container verification ensures empty raw score arrays never produce phantom grades.</li>
+                                        <li>📋 <strong>DepEd SF9 Dynamic Specialization Cleanliness</strong>: Streamlined SF9 Learner's Progress Report for Elementary and Junior High School (Grades 1–10) by dynamically omitting SHS-only Track and Strand fields.</li>
+                                        <li>🔒 <strong>Production Section Security Guard</strong>: Isolated mock test section generators strictly to development environments (<code>import.meta.env.DEV</code>), preventing mock test sections from populating production school profiles.</li>
+                                        <li>📊 <strong>Official Excel Template &amp; Formula Preservation</strong>: 100% native DepEd formula integrity across SF9, SHS G12, and SSHS Pilot.</li>
+                                        <li>🔒 <strong>Zero Data Loss Guarantee</strong>: 100% backward-compatible update preserving all client records and profiles in IndexedDB.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 3.5.16 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 dark:bg-slate-700 border-2 border-white dark:border-[#0d1225]" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.16</span>
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 19, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">

@@ -14,7 +14,7 @@ import JSZip from 'jszip';
 import type { SchoolProfile, Section, Subject, Student, ClassRecord, HPSRecord } from '../types';
 import { normalizeRegionForECR } from './ecr-excel-export';
 import { transmuteGrade } from '../lib/grading';
-import { isGrade11CoreSubject, getDefaultTermForSubject, normalizeOfferedTerms } from '../lib/curriculum';
+import { isGrade11CoreSubject, getDefaultTermForSubject, normalizeOfferedTerms, getSshsCategoryForSubject, getSshsClusterForSubject } from '../lib/curriculum';
 import { isSameSubject, isMatchingSubject } from '../utils/grading-helpers';
 import { isZipTemplate, readNodeTemplateFallback } from '../utils/node-template-fallback';
 
@@ -2350,13 +2350,20 @@ export interface ResolvedSSHSMetadata extends SSHSCatalogItem {
  */
 export function resolveSSHSMetadata(subject: Subject, gradeLevel = 11): ResolvedSSHSMetadata {
   const normSubj = (subject.subject_name || '').trim().toLowerCase();
-  const rawCat = ((subject as any).category || (subject as any).subject_category || '').toUpperCase();
-  const rawClust = ((subject as any).cluster || (subject as any).subject_cluster || '').toUpperCase();
-
   const isG12 = gradeLevel === 12;
 
+  // Exact category & cluster verified against official SSHS template
+  const category = getSshsCategoryForSubject(subject.subject_name);
+  const cluster = getSshsClusterForSubject(subject.subject_name);
+
+  // Normalize canonical subject title matching template HELPER column L
+  let targetSubjectName = subject.subject_name.trim();
+  if (normSubj.includes('computer programming (java)')) {
+    targetSubjectName = 'Computer Programming (Java)';
+  }
+
   // 1. Exact catalog match by subject name
-  let found = SSHS_FULL_CATALOG.find(e => e.subject.toLowerCase() === normSubj);
+  let found = SSHS_FULL_CATALOG.find(e => e.subject.toLowerCase() === targetSubjectName.toLowerCase());
 
   // 2. Fuzzy match within catalog if exact not found
   if (!found) {
@@ -2365,85 +2372,16 @@ export function resolveSSHSMetadata(subject: Subject, gradeLevel = 11): Resolved
     );
   }
 
-  if (found) {
-    let terms = isG12 ? (found.g12Terms > 0 ? found.g12Terms : found.terms) : (found.g11Terms > 0 ? found.g11Terms : found.terms);
-    if (!terms || terms <= 0) terms = isG12 ? 1 : 3;
+  let terms = isG12
+    ? (found?.g12Terms && found.g12Terms > 0 ? found.g12Terms : (found?.terms || 1))
+    : (found?.g11Terms && found.g11Terms > 0 ? found.g11Terms : (found?.terms || 3));
 
-    let category = found.category;
-    let cluster = found.cluster;
-
-    if (isG12 && category === 'SSHS - CORE') {
-      category = 'SSHS - ACADEMIC';
-      cluster = 'ARTS, SOCIAL SCIENCES, AND HUMANITIES';
-      terms = 1;
-    }
-
-    if (subject.term === 1 || subject.term === 2 || subject.term === 3 || String(subject.term) === '1' || String(subject.term) === '2' || String(subject.term) === '3') {
-      terms = 1;
-    } else if (subject.term === 'all') {
-      terms = 3;
-    }
-
-    const explicitUnits = Number((subject as any)?.units);
-    let unitsPerTerm = !isNaN(explicitUnits) && explicitUnits > 0 
-      ? explicitUnits 
-      : (category === 'SSHS - CORE' ? 2 : (category === 'SSHS - TECH-PRO' ? (isG12 ? 12 : 4) : 3));
-
-    if (!explicitUnits && (subject as any)?.hours) {
-      const h = Number((subject as any).hours);
-      if (h >= 320) unitsPerTerm = isG12 ? 12 : 4;
-      else if (h >= 160) unitsPerTerm = terms === 3 ? 2 : 6;
-      else if (h >= 80) unitsPerTerm = 3;
-    }
-
-    const unitsPerYear = unitsPerTerm * terms;
-
-    return {
-      ...found,
-      category,
-      cluster,
-      terms,
-      unitsPerTerm,
-      unitsPerYear,
-      weights: {
-        ww: found.ww,
-        pt: found.pt,
-        ex: found.ex,
-        st1: found.st1,
-        st2: found.st2,
-        te: found.te
-      }
-    };
-  }
-
-  // 3. Fallback resolution for custom or unlisted subjects
-  let category: 'SSHS - CORE' | 'SSHS - ACADEMIC' | 'SSHS - TECH-PRO' = 'SSHS - ACADEMIC';
-  if (!isG12 && (rawCat.includes('CORE') || normSubj.includes('komunikasyon') || normSubj.includes('general mathematics') || normSubj.includes('general science') || normSubj.includes('kasaysayan') || normSubj.includes('life and career'))) {
-    category = 'SSHS - CORE';
-  } else if (rawCat.includes('TECH') || rawCat.includes('PRO') || normSubj.includes('welding') || normSubj.includes('automotive') || normSubj.includes('carpentry') || normSubj.includes('caregiving') || normSubj.includes('tourism') || normSubj.includes('maritime') || normSubj.includes('electrical')) {
-    category = 'SSHS - TECH-PRO';
-  }
-
-  let cluster = 'CORE';
   if (category === 'SSHS - CORE') {
-    cluster = 'CORE';
-  } else if (category === 'SSHS - TECH-PRO') {
-    cluster = rawClust || 'CONSTRUCTION AND BUILDING TECHNOLOGIES';
-  } else if (rawClust) {
-    cluster = rawClust;
-  } else if (normSubj.includes('calculus') || normSubj.includes('math') || normSubj.includes('physics') || normSubj.includes('chemistry') || normSubj.includes('biology')) {
-    cluster = 'SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS';
-  } else if (normSubj.includes('business') || normSubj.includes('accounting') || normSubj.includes('management') || normSubj.includes('entrepreneurship')) {
-    cluster = 'BUSINESS AND ENTREPRENEURSHIP';
-  } else if (normSubj.includes('research') || normSubj.includes('innovation') || normSubj.includes('immersion') || normSubj.includes('apprenticeship')) {
-    cluster = 'FIELD EXPERIENCE';
-  } else if (normSubj.includes('sports') || normSubj.includes('physical education') || normSubj.includes('health') || normSubj.includes('first aid')) {
-    cluster = 'SPORTS, HEALTH, AND WELLNESS';
-  } else {
-    cluster = 'ARTS, SOCIAL SCIENCES, AND HUMANITIES';
+    terms = 3;
+  } else if (category === 'SSHS - TECH-PRO' && !isG12) {
+    terms = 3;
   }
 
-  let terms = category === 'SSHS - CORE' ? 3 : 1;
   if (subject.term === 1 || subject.term === 2 || subject.term === 3 || String(subject.term) === '1' || String(subject.term) === '2' || String(subject.term) === '3') {
     terms = 1;
   } else if (subject.term === 'all') {
@@ -2455,22 +2393,34 @@ export function resolveSSHSMetadata(subject: Subject, gradeLevel = 11): Resolved
     ? explicitUnits 
     : (category === 'SSHS - CORE' ? 2 : (category === 'SSHS - TECH-PRO' ? (isG12 ? 12 : 4) : 3));
 
-  if (!explicitUnits && (subject as any)?.hours) {
-    const h = Number((subject as any).hours);
-    if (h >= 320) unitsPerTerm = isG12 ? 12 : 4;
-    else if (h >= 160) unitsPerTerm = terms === 3 ? 2 : 6;
-    else if (h >= 80) unitsPerTerm = 3;
+  if (!explicitUnits) {
+    if (normSubj.includes('540 hours')) {
+      unitsPerTerm = terms === 2 ? 10.5 : 21;
+    } else if (normSubj.includes('640 hours')) {
+      unitsPerTerm = terms === 2 ? 12 : 24;
+    } else if (normSubj.includes('in-campus field exposure for sports')) {
+      unitsPerTerm = 3;
+    } else if (normSubj.includes('arts apprenticeship') || normSubj.includes('creative production and presentation')) {
+      unitsPerTerm = 6;
+    } else if (normSubj.includes('work immersion')) {
+      unitsPerTerm = 12;
+    } else if ((subject as any)?.hours) {
+      const h = Number((subject as any).hours);
+      if (h >= 320) unitsPerTerm = isG12 ? 12 : 4;
+      else if (h >= 160) unitsPerTerm = terms === 3 ? 2 : 6;
+      else if (h >= 80) unitsPerTerm = 3;
+    }
   }
 
   const unitsPerYear = unitsPerTerm * terms;
 
-  // Default weights per DepEd Order 15, s. 2026
-  let ww = 20;
-  let pt = 50;
-  let ex = 30;
-  let st1 = 30;
-  let st2 = 30;
-  let te = 40;
+  // Default weights per DepEd Order 17, s. 2026
+  let ww = found?.ww ?? 20;
+  let pt = found?.pt ?? 50;
+  let ex = found?.ex ?? 30;
+  let st1 = found?.st1 ?? 30;
+  let st2 = found?.st2 ?? 30;
+  let te = found?.te ?? 40;
 
   if (category === 'SSHS - TECH-PRO') {
     if (cluster.includes('IMMERSION') || normSubj.includes('immersion')) {
@@ -2478,15 +2428,15 @@ export function resolveSSHSMetadata(subject: Subject, gradeLevel = 11): Resolved
     } else {
       ww = 15; pt = 65; ex = 20; st1 = 30; st2 = 30; te = 40;
     }
-  } else if (cluster === 'FIELD EXPERIENCE') {
+  } else if (cluster.includes('FIELD EXPERIENCE')) {
     if (normSubj.includes('research') || normSubj.includes('innovation') || normSubj.includes('design')) {
       ww = 40; pt = 60; ex = 0; st1 = 0; st2 = 0; te = 0;
     } else if (normSubj.includes('immersion')) {
-      ww = 20; pt = 80; ex = 0; st1 = 0; st2 = 0; te = 100;
+      ww = 20; pt = 80; ex = 0; st1 = 0; st2 = 0; te = 0;
     } else {
       ww = 15; pt = 70; ex = 15; st1 = 0; st2 = 0; te = 100;
     }
-  } else if (cluster === 'ARTS, SOCIAL SCIENCES, AND HUMANITIES') {
+  } else if (cluster.includes('ARTS, SOCIAL SCIENCES, AND HUMANITIES')) {
     const isStudioOrArts = normSubj.includes('art') || normSubj.includes('creative') || normSubj.includes('music') ||
       normSubj.includes('theater') || normSubj.includes('dance') || normSubj.includes('media');
     if (isStudioOrArts) {
@@ -2494,16 +2444,16 @@ export function resolveSSHSMetadata(subject: Subject, gradeLevel = 11): Resolved
     } else {
       ww = 20; pt = 50; ex = 30; st1 = 30; st2 = 30; te = 40;
     }
-  } else if (cluster === 'SPORTS, HEALTH, AND WELLNESS') {
+  } else if (cluster.includes('SPORTS, HEALTH, AND WELLNESS')) {
     ww = 20; pt = 60; ex = 20; st1 = 30; st2 = 30; te = 40;
-  } else if (cluster === 'SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS') {
+  } else if (cluster.includes('SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS')) {
     ww = 20; pt = 50; ex = 30; st1 = 0; st2 = 0; te = 100;
   }
 
   return {
     category,
     cluster,
-    subject: subject.subject_name.trim(),
+    subject: targetSubjectName,
     gradeLvl: isG12 ? '12' : '11',
     g11Terms: isG12 ? 0 : terms,
     g12Terms: isG12 ? terms : 0,
@@ -2720,8 +2670,12 @@ export function resolveSSHSTerms(
     return { numTerms: 3, termBlock: '', termDesc: '1ST, 2ND, 3RD', code: 33 };
   }
 
-  // 7. Grade 11 Core has already returned above. Non-Core SSHS offerings are
-  // adviser-selected; never infer their term from a subject name or catalog.
+  // 7. Grade 11 TechPro Electives default to 3 terms (full school year, 12 units) per DO 017, s. 2026
+  if (gradeLevel === 11 && getSshsCategoryForSubject(sName) === 'SSHS - TECH-PRO') {
+    return { numTerms: 3, termBlock: '', termDesc: '1ST, 2ND, 3RD', code: 33 };
+  }
+
+  // 8. Non-Core offerings check default term
   if (sName) {
     const defTerm = getDefaultTermForSubject(sName, gradeLevel);
     if (defTerm === 1) return { numTerms: 1, termBlock: 'FIRST TERM', termDesc: '1ST', code: 11 };
@@ -2766,10 +2720,16 @@ function populateSSHSInputDataXml(sheetXml: string, options: SSHSExportOptions):
     options.numTerms
   );
 
-  const numTermsTaught = resolvedTerms.numTerms;
-  const termBlockDisplay = resolvedTerms.termBlock;
-  const termBlockNum = resolvedTerms.numTerms === 3 ? 3 : (resolvedTerms.termBlock === 'FIRST TERM' ? 1 : resolvedTerms.termBlock === 'SECOND TERM' ? 2 : 3);
-  const helperCode = resolvedTerms.code;
+  const effectiveTerms: ResolvedSSHSTerms = resolvedTerms.numTerms > 0 ? resolvedTerms : (
+    gradeLevel === 11 && (category === 'SSHS - CORE' || category === 'SSHS - TECH-PRO')
+      ? { numTerms: 3, termBlock: '', termDesc: '1ST, 2ND, 3RD', code: 33 }
+      : { numTerms: 1, termBlock: 'FIRST TERM', termDesc: '1ST', code: 11 }
+  );
+
+  const numTermsTaught = effectiveTerms.numTerms;
+  const termBlockDisplay = effectiveTerms.termBlock;
+  const termBlockNum = effectiveTerms.numTerms === 3 ? 3 : (effectiveTerms.termBlock === 'FIRST TERM' ? 1 : effectiveTerms.termBlock === 'SECOND TERM' ? 2 : 3);
+  const helperCode = effectiveTerms.code;
 
   const males = sortStudentsAlphabetically(
     students.filter(s => (s.gender || '').toLowerCase() === 'male')
@@ -3475,9 +3435,17 @@ export async function populateSSHSWorkbookZip(
     options.numTerms
   );
 
-  if (resolvedTerms.numTerms < 1) {
-    throw new Error('Set the offered term(s) for this SSHS subject before exporting its E-Class Record.');
-  }
+  const gradeMatch = String(options.section?.section_grade_level || (options.subject as any)?.grade_level || '').match(/(\d+)/);
+  const gradeLevel = gradeMatch ? parseInt(gradeMatch[1], 10) : 11;
+  const sName = options.subject?.subject_name || '';
+  const category = getSshsCategoryForSubject(sName);
+
+  const effectiveTerms: ResolvedSSHSTerms = (resolvedTerms && resolvedTerms.numTerms >= 1) ? resolvedTerms : (
+    gradeLevel === 11 && (category === 'SSHS - CORE' || category === 'SSHS - TECH-PRO')
+      ? { numTerms: 3, termBlock: '', termDesc: '1ST, 2ND, 3RD', code: 33 }
+      : { numTerms: 1, termBlock: 'FIRST TERM', termDesc: '1ST', code: 11 }
+  );
+
   const maleCount = options.students.filter(s => String(s.gender || '').trim().toLowerCase() === 'male').length;
   const femaleCount = options.students.filter(s => String(s.gender || '').trim().toLowerCase() === 'female').length;
   if (maleCount > MAX_STUDENTS_PER_GENDER || femaleCount > MAX_STUDENTS_PER_GENDER) {
@@ -3486,9 +3454,9 @@ export async function populateSSHSWorkbookZip(
 
   const resolvedOptions: SSHSExportOptions = {
     ...options,
-    termBlock: resolvedTerms.termBlock,
-    numTerms: resolvedTerms.numTerms,
-    resolvedTerms
+    termBlock: effectiveTerms.termBlock,
+    numTerms: effectiveTerms.numTerms,
+    resolvedTerms: effectiveTerms
   };
 
   const zip = await JSZip.loadAsync(templateBuffer);

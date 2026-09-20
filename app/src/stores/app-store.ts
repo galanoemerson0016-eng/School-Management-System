@@ -15,6 +15,7 @@ import { normalizeGrade12PESubjectName } from '../utils/grading-helpers';
 import { getCurriculumPreset } from '../lib/curriculumPresets';
 import { reconcileOrphanedGradesAndSubjects, generateDeterministicSubjectId } from '../utils/grade-reconciliation';
 import { purgeGhostEinsteinData } from '../utils/ghost-data-purge';
+import { isTestSection, isTestStudent } from '../utils/testSectionGuards';
 import {
   buildAttendanceRecordsFromSf2Sheet,
   buildAutoFilledDateLabels,
@@ -1878,6 +1879,13 @@ export async function initializeAppStore() {
 
     finalSections = ghostPurge.sections;
     finalStudents = ghostPurge.students;
+
+    // Production client protection: Ensure test sections and mock test students are never visible or loaded by clients
+    if (!import.meta.env.DEV) {
+      finalSections = finalSections.filter(s => !isTestSection(s));
+      finalStudents = finalStudents.filter(s => !isTestStudent(s));
+    }
+
     const finalClassRecords = ghostPurge.classRecords;
     const finalGradingSheetRecords = ghostPurge.gradingSheetRecords;
     const finalAttendanceRecords = ghostPurge.attendanceRecords;

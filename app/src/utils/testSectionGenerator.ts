@@ -18,7 +18,7 @@
  * - One-click cleanup removes 100% of test records without altering authentic user data.
  */
 
-import type { Section, Subject, Student, SubjectTermSelection, ClassRecord, HPSRecord } from '../types';
+import type { Section, Subject, Student, SubjectTermSelection, ClassRecord, HPSRecord, Enrollment } from '../types';
 import { getCurriculumPreset, getDepEdWeightsForSubject } from '../lib/curriculumPresets';
 import {
     getCurriculumTemplatesForSection,
@@ -1510,128 +1510,221 @@ export async function clearTestSections(): Promise<{
     deletedStudents: number;
     deletedHpsRecords: number;
     deletedClassRecords: number;
+    deletedGradingSheetRecords: number;
+    deletedEnrollments: number;
 }> {
-    const currentSections = useAppStore.getState().sections;
-    const currentSubjects = useAppStore.getState().subjects;
-    const currentStudents = useAppStore.getState().students;
-    const currentHpsRecords = useAppStore.getState().hpsRecords;
-    const currentClassRecords = useAppStore.getState().classRecords;
-    const currentGradingSheetRecords = useAppStore.getState().gradingSheetRecords;
+    const store = useAppStore.getState();
+    const currentSections = store.sections || [];
+    const currentSubjects = store.subjects || [];
+    const currentStudents = store.students || [];
+    const currentHpsRecords = store.hpsRecords || [];
+    const currentClassRecords = store.classRecords || [];
+    const currentGradingSheetRecords = store.gradingSheetRecords || [];
+    const currentEnrollments = store.enrollments || [];
 
-    const testSectionIds = currentSections.filter(isTestSection).map((s) => s.id);
-    const testSubjectIds = currentSubjects.filter(isTestSubject).map((s) => s.id);
-    const testStudentLrns = currentStudents.filter(isTestStudent).map((s) => s.lrn);
-    const testHpsIds = currentHpsRecords.filter(isTestHpsRecord).map((h) => h.id);
-    const testClassRecordIds = currentClassRecords.filter(isTestClassRecord).map((c) => c.id);
-    const testGradingSheetIds = currentGradingSheetRecords.filter(isTestClassRecord).map((g) => g.id);
+    // Query IndexedDB directly to ensure records not in the in-memory store are also found and cleared
+    let dbSections: Section[] = [];
+    let dbSubjects: Subject[] = [];
+    let dbStudents: Student[] = [];
+    let dbHpsRecords: HPSRecord[] = [];
+    let dbClassRecords: ClassRecord[] = [];
+    let dbGradingSheetRecords: ClassRecord[] = [];
+    let dbEnrollments: Enrollment[] = [];
 
-    // Delete from IndexedDB (Dexie)
-    for (const secId of testSectionIds) {
-        await db.deleteRecord('sections', secId);
+    try {
+        dbSections = (await db.getAllRecords<Section>('sections')) || [];
+    } catch (_e) {
+        // Ignore DB read failure
     }
-    for (const subjId of testSubjectIds) {
-        await db.deleteRecord('subjects', subjId);
+    try {
+        dbSubjects = (await db.getAllRecords<Subject>('subjects')) || [];
+    } catch (_e) {
+        // Ignore DB read failure
     }
-    for (const lrn of testStudentLrns) {
-        await db.deleteRecord('students', lrn);
+    try {
+        dbStudents = (await db.getAllRecords<Student>('students')) || [];
+    } catch (_e) {
+        // Ignore DB read failure
     }
-    for (const hpsId of testHpsIds) {
-        await db.deleteRecord('hpsRecords', hpsId);
+    try {
+        dbHpsRecords = (await db.getAllRecords<HPSRecord>('hpsRecords')) || [];
+    } catch (_e) {
+        // Ignore DB read failure
     }
-    for (const crId of testClassRecordIds) {
-        await db.deleteRecord('classRecords', crId);
+    try {
+        dbClassRecords = (await db.getAllRecords<ClassRecord>('classRecords')) || [];
+    } catch (_e) {
+        // Ignore DB read failure
     }
-    for (const gsId of testGradingSheetIds) {
-        await db.deleteRecord('gradingSheetRecords', gsId);
+    try {
+        dbGradingSheetRecords = (await db.getAllRecords<ClassRecord>('gradingSheetRecords')) || [];
+    } catch (_e) {
+        // Ignore DB read failure
     }
+    try {
+        dbEnrollments = (await db.getAllRecords<Enrollment>('enrollments')) || [];
+    } catch (_e) {
+        // Ignore DB read failure
+    }
+
+    // Deduplicate lists of all existing entities across in-memory store and IndexedDB
+    const allSectionsMap = new Map<string, Section>();
+    [...currentSections, ...dbSections].forEach((s) => { if (s?.id) allSectionsMap.set(s.id, s); });
+    const allSections = Array.from(allSectionsMap.values());
+
+    const allSubjectsMap = new Map<string, Subject>();
+    [...currentSubjects, ...dbSubjects].forEach((s) => { if (s?.id) allSubjectsMap.set(s.id, s); });
+    const allSubjects = Array.from(allSubjectsMap.values());
+
+    const allStudentsMap = new Map<string, Student>();
+    [...currentStudents, ...dbStudents].forEach((s) => { if (s?.lrn) allStudentsMap.set(s.lrn, s); });
+    const allStudents = Array.from(allStudentsMap.values());
+
+    const allHpsMap = new Map<string, HPSRecord>();
+    [...currentHpsRecords, ...dbHpsRecords].forEach((h) => { if (h?.id) allHpsMap.set(h.id, h); });
+    const allHpsRecords = Array.from(allHpsMap.values());
+
+    const allClassRecordsMap = new Map<string, ClassRecord>();
+    [...currentClassRecords, ...dbClassRecords].forEach((c) => { if (c?.id) allClassRecordsMap.set(c.id, c); });
+    const allClassRecords = Array.from(allClassRecordsMap.values());
+
+    const allGradingSheetRecordsMap = new Map<string, ClassRecord>();
+    [...currentGradingSheetRecords, ...dbGradingSheetRecords].forEach((g) => { if (g?.id) allGradingSheetRecordsMap.set(g.id, g); });
+    const allGradingSheetRecords = Array.from(allGradingSheetRecordsMap.values());
+
+    const allEnrollmentsMap = new Map<string, Enrollment>();
+    [...currentEnrollments, ...dbEnrollments].forEach((e) => { if (e?.id) allEnrollmentsMap.set(e.id, e); });
+    const allEnrollments = Array.from(allEnrollmentsMap.values());
+
+    // Identify test entities
+    const testSections = allSections.filter(isTestSection);
+    const testSectionIds = new Set(testSections.map((s) => s.id));
+
+    const testSubjects = allSubjects.filter((s) => isTestSubject(s) || (s.section_id && testSectionIds.has(s.section_id)));
+    const testSubjectIds = new Set(testSubjects.map((s) => s.id));
+
+    const testStudents = allStudents.filter((s) => isTestStudent(s) || (s.student_section && testSectionIds.has(s.student_section)));
+    const testStudentLrns = new Set(testStudents.map((s) => s.lrn));
+
+    const testHpsRecords = allHpsRecords.filter((h) =>
+        isTestHpsRecord(h) ||
+        (h.section_id && testSectionIds.has(h.section_id)) ||
+        (h.subject_id && testSubjectIds.has(h.subject_id))
+    );
+    const testHpsIds = new Set(testHpsRecords.map((h) => h.id));
+
+    const testClassRecords = allClassRecords.filter((c) =>
+        isTestClassRecord(c) ||
+        (c.section_id && testSectionIds.has(c.section_id)) ||
+        (c.student_lrn && testStudentLrns.has(c.student_lrn)) ||
+        (c.subject_id && testSubjectIds.has(c.subject_id))
+    );
+    const testClassRecordIds = new Set(testClassRecords.map((c) => c.id));
+
+    const testGradingSheets = allGradingSheetRecords.filter((g) =>
+        isTestClassRecord(g) ||
+        (g.section_id && testSectionIds.has(g.section_id)) ||
+        (g.student_lrn && testStudentLrns.has(g.student_lrn)) ||
+        (g.subject_id && testSubjectIds.has(g.subject_id))
+    );
+    const testGradingSheetIds = new Set(testGradingSheets.map((g) => g.id));
+
+    const testEnrollments = allEnrollments.filter((e) => {
+        const sec = e.student_section || '';
+        return (
+            (e.id && (e.id.startsWith('test-') || e.id.includes('[TEST]'))) ||
+            (sec && (testSectionIds.has(sec) || sec.startsWith('test-sec-') || sec.includes('[TEST]'))) ||
+            (e.student_lrn && testStudentLrns.has(e.student_lrn))
+        );
+    });
+    const testEnrollmentIds = new Set(testEnrollments.map((e) => e.id));
+
+    // Delete from IndexedDB in bulk transactions (single transaction per store = runs in milliseconds)
+    const delSecArr = Array.from(testSectionIds);
+    const delSubjArr = Array.from(testSubjectIds);
+    const delStudArr = Array.from(testStudentLrns);
+    const delHpsArr = Array.from(testHpsIds);
+    const delCrArr = Array.from(testClassRecordIds);
+    const delGsArr = Array.from(testGradingSheetIds);
+    const delEnrArr = Array.from(testEnrollmentIds);
+
+    if (delSecArr.length > 0) await db.deleteRecordsBulk('sections', delSecArr);
+    if (delSubjArr.length > 0) await db.deleteRecordsBulk('subjects', delSubjArr);
+    if (delStudArr.length > 0) await db.deleteRecordsBulk('students', delStudArr);
+    if (delHpsArr.length > 0) await db.deleteRecordsBulk('hpsRecords', delHpsArr);
+    if (delCrArr.length > 0) await db.deleteRecordsBulk('classRecords', delCrArr);
+    if (delGsArr.length > 0) await db.deleteRecordsBulk('gradingSheetRecords', delGsArr);
+    if (delEnrArr.length > 0) await db.deleteRecordsBulk('enrollments', delEnrArr);
 
     // Update Zustand store
-    const cleanSections = currentSections.filter((s) => !testSectionIds.includes(s.id));
-    const cleanSubjects = currentSubjects.filter((s) => !testSubjectIds.includes(s.id));
-    const cleanStudents = currentStudents.filter((s) => !testStudentLrns.includes(s.lrn));
-    const cleanHpsRecords = currentHpsRecords.filter((h) => !testHpsIds.includes(h.id));
-    const cleanClassRecords = currentClassRecords.filter((c) => !testClassRecordIds.includes(c.id));
-    const cleanGradingSheetRecords = currentGradingSheetRecords.filter((g) => !testGradingSheetIds.includes(g.id));
+    const cleanSections = currentSections.filter((s) => !testSectionIds.has(s.id));
+    const cleanSubjects = currentSubjects.filter((s) => !testSubjectIds.has(s.id));
+    const cleanStudents = currentStudents.filter((s) => !testStudentLrns.has(s.lrn));
+    const cleanHpsRecords = currentHpsRecords.filter((h) => !testHpsIds.has(h.id));
+    const cleanClassRecords = currentClassRecords.filter((c) => !testClassRecordIds.has(c.id));
+    const cleanGradingSheetRecords = currentGradingSheetRecords.filter((g) => !testGradingSheetIds.has(g.id));
+    const cleanEnrollments = currentEnrollments.filter((e) => !testEnrollmentIds.has(e.id));
 
     useAppStore.setState({
         sections: cleanSections,
         subjects: cleanSubjects,
         students: cleanStudents,
-        studentProfiles: cleanStudents,
+        studentProfiles: (store.studentProfiles || []).filter((s) => !testStudentLrns.has(s.lrn)),
         hpsRecords: cleanHpsRecords,
         classRecords: cleanClassRecords,
-        gradingSheetRecords: cleanGradingSheetRecords
+        gradingSheetRecords: cleanGradingSheetRecords,
+        enrollments: cleanEnrollments
     });
 
     return {
-        deletedSections: testSectionIds.length,
-        deletedSubjects: testSubjectIds.length,
-        deletedStudents: testStudentLrns.length,
-        deletedHpsRecords: testHpsIds.length,
-        deletedClassRecords: testClassRecordIds.length
+        deletedSections: delSecArr.length,
+        deletedSubjects: delSubjArr.length,
+        deletedStudents: delStudArr.length,
+        deletedHpsRecords: delHpsArr.length,
+        deletedClassRecords: delCrArr.length,
+        deletedGradingSheetRecords: delGsArr.length,
+        deletedEnrollments: delEnrArr.length
     };
 }
 
-/**
- * Check whether a section is a generated test section
- */
-export function isTestSection(section: Section): boolean {
-    if (!section) return false;
-    return (
-        section.id.startsWith('test-sec-') ||
-        section.section_name.startsWith('[TEST]') ||
-        Boolean(section.adviser_id?.startsWith('test-adv-'))
-    );
-}
+import {
+    isTestSection,
+    isTestSubject,
+    isTestStudent,
+    isTestClassRecord
+} from './testSectionGuards';
 
-/**
- * Check whether a subject is an associated test subject
- */
-export function isTestSubject(subject: Subject): boolean {
-    if (!subject) return false;
-    return (
-        subject.id.startsWith('test-subj-') ||
-        Boolean(subject.section_id && subject.section_id.startsWith('test-sec-'))
-    );
-}
-
-/**
- * Check whether a student is a generated test student
- */
-export function isTestStudent(student: Student): boolean {
-    if (!student) return false;
-    return (
-        Boolean(student.id && student.id.startsWith('test-stud-')) ||
-        Boolean(student.lrn && student.lrn.startsWith('999')) ||
-        Boolean(student.student_section && (
-            student.student_section.startsWith('test-sec-') ||
-            student.student_section.startsWith('[TEST]')
-        ))
-    );
-}
-
-/**
- * Check whether a class record is a generated test class record
- */
-export function isTestClassRecord(record: ClassRecord): boolean {
-    if (!record) return false;
-    return (
-        Boolean(record.id && (record.id.startsWith('test-cr-') || record.id.startsWith('test-gs-'))) ||
-        Boolean(record.section_id && (record.section_id.startsWith('test-sec-') || record.section_id.startsWith('[TEST]'))) ||
-        Boolean(record.student_lrn && record.student_lrn.startsWith('999')) ||
-        Boolean(record.subject_id && record.subject_id.startsWith('test-subj-'))
-    );
-}
+export {
+    isTestSection,
+    isTestSubject,
+    isTestStudent,
+    isTestClassRecord
+};
 
 /**
  * Check whether an HPS record is a generated test HPS record
  */
-export function isTestHpsRecord(record: HPSRecord): boolean {
+export function isTestHpsRecord(record: HPSRecord | Record<string, unknown>): boolean {
     if (!record) return false;
-    return (
-        Boolean(record.id && record.id.startsWith('test-hps-')) ||
-        Boolean(record.section_id && (record.section_id.startsWith('test-sec-') || record.section_id.startsWith('[TEST]'))) ||
-        Boolean(record.subject_id && record.subject_id.startsWith('test-subj-'))
+    const r = record as Record<string, unknown>;
+    const id = typeof r.id === 'string' ? r.id : '';
+    const sectionId = typeof r.section_id === 'string' ? r.section_id : '';
+    const subjectId = typeof r.subject_id === 'string' ? r.subject_id : '';
+
+    return Boolean(
+        (id && (
+            id.startsWith('test-hps-') ||
+            id.startsWith('test-') ||
+            id.includes('[TEST]')
+        )) ||
+        (sectionId && (
+            sectionId.startsWith('test-sec-') ||
+            sectionId.includes('[TEST]')
+        )) ||
+        (subjectId && (
+            subjectId.startsWith('test-subj-') ||
+            subjectId.startsWith('test-')
+        ))
     );
 }
 

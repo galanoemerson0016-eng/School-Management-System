@@ -143,7 +143,7 @@ export const SSHS_G12_TECHPRO_SUBJECTS = [
     // Cluster: ICT SUPPORT AND COMPUTER PROGRAMMING TECHNOLOGIES
     { name: 'Broadband Installation', code: '' },
     { name: 'Computer Programming (.Net Technology)', code: '' },
-    { name: 'Computer Programming (Java) ( NC III )', code: '' },
+    { name: 'Computer Programming (Java)', code: '' },
     { name: 'Computer Programming (Oracle Database)', code: '' },
     { name: 'Computer Systems Servicing', code: '' },
     { name: 'Contact Center Services', code: '' },
@@ -1225,6 +1225,7 @@ export const SSHS_TECHPRO_CLUSTERS: Record<string, string[]> = {
     ],
     'Artisanry and Creative Enterprise': [
         'Garments Artisanry',
+        'Handicrafts: Weaving',
         'Handicrafts (Weaving)'
     ],
     'Automotive and Small Engine Technologies': [
@@ -1263,6 +1264,7 @@ export const SSHS_TECHPRO_CLUSTERS: Record<string, string[]> = {
     ],
     'ICT Support and Computer Programming Technologies': [
         'Broadband Installation',
+        'Computer Programming (Java)',
         'Computer Programming (Java) ( NC III )',
         'Computer Programming (.Net Technology)',
         'Computer Programming (Oracle Database)',
@@ -1315,7 +1317,10 @@ export function getClustersForGrade11Track(track: string | undefined): string[] 
  * matching ECR_3Term - SSHS - SY2026-2027 (1).xlsx
  */
 export function getSshsCategoryForSubject(subjectName: string): 'SSHS - CORE' | 'SSHS - ACADEMIC' | 'SSHS - TECH-PRO' {
-    const norm = (subjectName || '').trim().toLowerCase();
+    const raw = (subjectName || '').trim().toLowerCase();
+    const norm = raw.replace(/[\u2013\u2014]/g, '-').replace(/\s+/g, ' ');
+    const normClean = norm.replace(/[^a-z0-9]/g, '');
+
     const cores = [
         'effective communication',
         'mabisang komunikasyon',
@@ -1325,15 +1330,42 @@ export function getSshsCategoryForSubject(subjectName: string): 'SSHS - CORE' | 
         'pag-aaral ng kasaysayan at lipunang pilipino',
         'kasaysayan at lipunang pilipino'
     ];
-    if (cores.some(c => norm.includes(c))) {
+    if (cores.some(c => norm.includes(c) || normClean.includes(c.replace(/[^a-z0-9]/g, '')))) {
         return 'SSHS - CORE';
     }
 
-    const techProMatch = Object.values(SSHS_TECHPRO_CLUSTERS).some(list =>
-        list.some(s => s.toLowerCase() === norm || norm.includes(s.toLowerCase()) || s.toLowerCase().includes(norm))
+    // Explicit Academic Track subjects that might otherwise trigger TechPro keywords or partial matches
+    if (normClean === 'entrepreneurship') {
+        return 'SSHS - ACADEMIC';
+    }
+    if (norm.includes('academic') || norm.includes('arts apprenticeship') || norm.includes('creative production') || norm.includes('field exposure')) {
+        return 'SSHS - ACADEMIC';
+    }
+
+    // Check Academic clusters explicitly
+    const academicMatch = Object.values(SSHS_ACADEMIC_CLUSTERS).some(list =>
+        list.some(s => {
+            const sClean = s.toLowerCase().replace(/[\u2013\u2014]/g, '-').replace(/[^a-z0-9]/g, '');
+            return normClean === sClean;
+        })
     );
-    if (techProMatch || norm.includes('immersion') || norm.includes('servicing') || norm.includes('welding') || norm.includes('carpentry')) {
+    if (academicMatch) {
+        return 'SSHS - ACADEMIC';
+    }
+
+    // Check TechPro clusters explicitly
+    const techProMatch = Object.values(SSHS_TECHPRO_CLUSTERS).some(list =>
+        list.some(s => {
+            const sClean = s.toLowerCase().replace(/[\u2013\u2014]/g, '-').replace(/[^a-z0-9]/g, '');
+            return normClean === sClean;
+        })
+    );
+    if (techProMatch || norm.includes('tech-pro') || norm.includes('servicing') || norm.includes('welding') || norm.includes('carpentry')) {
         return 'SSHS - TECH-PRO';
+    }
+
+    if (norm.includes('immersion')) {
+        return norm.includes('academic') ? 'SSHS - ACADEMIC' : 'SSHS - TECH-PRO';
     }
 
     return 'SSHS - ACADEMIC';
@@ -1344,7 +1376,10 @@ export function getSshsCategoryForSubject(subjectName: string): 'SSHS - CORE' | 
  * Maps an SSHS course title to its specific Cluster
  */
 export function getSshsClusterForSubject(subjectName: string): string {
-    const norm = (subjectName || '').trim().toLowerCase();
+    const raw = (subjectName || '').trim().toLowerCase();
+    const norm = raw.replace(/[\u2013\u2014]/g, '-').replace(/\s+/g, ' ');
+    const normClean = norm.replace(/[^a-z0-9]/g, '');
+
     const cores = [
         'effective communication',
         'mabisang komunikasyon',
@@ -1354,59 +1389,88 @@ export function getSshsClusterForSubject(subjectName: string): string {
         'pag-aaral ng kasaysayan at lipunang pilipino',
         'kasaysayan at lipunang pilipino'
     ];
-    if (cores.some(c => norm.includes(c))) {
+    if (cores.some(c => norm.includes(c) || normClean.includes(c.replace(/[^a-z0-9]/g, '')))) {
         return 'CORE';
     }
 
+    // Explicit checks for known collisions before fallbacks
+    if (normClean === 'agroentrepreneurship') {
+        return 'AGRI-FISHERY BUSINESS AND FOOD INNOVATION  ';
+    }
+    if (normClean === 'entrepreneurship') {
+        return 'BUSINESS AND ENTREPRENEURSHIP';
+    }
+
+    // Match Academic clusters
     for (const [cluster, subjects] of Object.entries(SSHS_ACADEMIC_CLUSTERS)) {
-        if (subjects.some(s => s.toLowerCase() === norm || norm.includes(s.toLowerCase()) || s.toLowerCase().includes(norm))) {
-            return cluster;
+        if (subjects.some(s => {
+            const sClean = s.toLowerCase().replace(/[\u2013\u2014]/g, '-').replace(/[^a-z0-9]/g, '');
+            return normClean === sClean;
+        })) {
+            return cluster.toUpperCase();
         }
     }
 
+    // Match TechPro clusters
     for (const [cluster, subjects] of Object.entries(SSHS_TECHPRO_CLUSTERS)) {
-        if (subjects.some(s => s.toLowerCase() === norm || norm.includes(s.toLowerCase()) || s.toLowerCase().includes(norm))) {
-            return cluster;
+        if (subjects.some(s => {
+            const sClean = s.toLowerCase().replace(/[\u2013\u2014]/g, '-').replace(/[^a-z0-9]/g, '');
+            return normClean === sClean;
+        })) {
+            const upper = cluster.toUpperCase();
+            if (upper.includes('AGRI-FISHERY')) return 'AGRI-FISHERY BUSINESS AND FOOD INNOVATION  ';
+            if (upper.includes('ARTISANRY')) return 'ARTISANRY AND CREATIVE ENTERPRISE ';
+            if (upper.includes('AUTOMOTIVE')) return 'AUTOMOTIVE AND SMALL ENGINE TECHNOLOGIES ';
+            return upper;
         }
     }
 
-    if (norm.includes('immersion')) {
-        return 'Work Immersion';
+    if (norm.includes('work immersion') || norm.includes('immersion')) {
+        return norm.includes('academic') ? 'FIELD EXPERIENCE' : 'WORK IMMERSION';
     }
 
-    // Keyword fallbacks for common aliases and specialized offerings
+    // Keyword fallbacks
     if (norm.includes('creative writing') || norm.includes('literature') || norm.includes('humanities') || norm.includes('politics') || norm.includes('governance')) {
-        return 'Arts, Social Sciences, and Humanities';
+        return 'ARTS, SOCIAL SCIENCES, AND HUMANITIES';
     }
-    if (norm.includes('calculus') || norm.includes('physics') || norm.includes('chemistry') || norm.includes('biology') || norm.includes('analytics')) {
-        return 'Science, Technology, Engineering, and Mathematics';
+    if (norm.includes('calculus') || norm.includes('physics') || norm.includes('chemistry') || norm.includes('biology') || norm.includes('analytics') || norm.includes('earth and space')) {
+        return 'SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS';
     }
     if (norm.includes('accounting') || norm.includes('accountancy') || norm.includes('business') || norm.includes('finance') || norm.includes('marketing')) {
-        return 'Business and Entrepreneurship';
+        return 'BUSINESS AND ENTREPRENEURSHIP';
     }
-    if (norm.includes('sports') || norm.includes('movement') || norm.includes('exercise')) {
-        return 'Sports, Health, and Wellness';
+    if (norm.includes('sports') || norm.includes('movement') || norm.includes('exercise') || norm.includes('basic life support')) {
+        return 'SPORTS, HEALTH, AND WELLNESS';
     }
-    if (norm.includes('computer') || norm.includes('programming') || norm.includes('broadband') || norm.includes('ict')) {
-        return 'ICT Support and Computer Programming Technologies';
+    if (norm.includes('computer') || norm.includes('programming') || norm.includes('broadband') || norm.includes('ict') || norm.includes('contact center')) {
+        return 'ICT SUPPORT AND COMPUTER PROGRAMMING TECHNOLOGIES';
     }
     if (norm.includes('automotive') || norm.includes('motorcycle') || norm.includes('driving')) {
-        return 'Automotive and Small Engine Technologies';
+        return 'AUTOMOTIVE AND SMALL ENGINE TECHNOLOGIES ';
     }
     if (norm.includes('welding') || norm.includes('carpentry') || norm.includes('drafting') || norm.includes('construction')) {
-        return 'Construction and Building Technologies';
+        return 'CONSTRUCTION AND BUILDING TECHNOLOGIES';
     }
     if (norm.includes('aesthetic') || norm.includes('beauty') || norm.includes('caregiving') || norm.includes('hairdressing')) {
-        return 'Aesthetic, Wellness, and Human Care';
+        return 'AESTHETIC, WELLNESS, AND HUMAN CARE';
     }
-    if (norm.includes('agri') || norm.includes('aquaculture') || norm.includes('crop') || norm.includes('food processing')) {
-        return 'Agri-Fishery Business and Food Innovation';
+    if (norm.includes('agri') || norm.includes('aquaculture') || norm.includes('crop') || norm.includes('food processing') || norm.includes('poultry') || norm.includes('swine') || norm.includes('ruminant')) {
+        return 'AGRI-FISHERY BUSINESS AND FOOD INNOVATION  ';
     }
     if (norm.includes('hospitality') || norm.includes('tourism') || norm.includes('hotel') || norm.includes('kitchen') || norm.includes('bakery')) {
-        return 'Hospitality and Tourism';
+        return 'HOSPITALITY AND TOURISM';
+    }
+    if (norm.includes('garment') || norm.includes('handicraft') || norm.includes('weaving')) {
+        return 'ARTISANRY AND CREATIVE ENTERPRISE ';
+    }
+    if (norm.includes('marine') || norm.includes('ship')) {
+        return 'MARITIME';
+    }
+    if (norm.includes('refrigeration') || norm.includes('air-conditioning') || norm.includes('mechatronics') || norm.includes('photovoltaic') || norm.includes('electronic products') || norm.includes('electrical installation')) {
+        return 'INDUSTRIAL TECHNOLOGIES';
     }
 
-    return 'General Academic Elective';
+    return 'GENERAL ACADEMIC ELECTIVE';
 }
 
 /**
@@ -1745,11 +1809,22 @@ export function getShsSubjectUnitInfo(subjectName: string, gradeLevel: string): 
     }
 
     // 2. Arts Electives (160 hours in one term = 6 units)
-    if (norm.includes('arts apprenticeship') || norm.includes('creative production and presentation') || norm.includes('in-campus field exposure for sports')) {
+    if (norm.includes('arts apprenticeship') || norm.includes('creative production and presentation')) {
         return { unitsPerTerm: 6, yearUnits: 6, category: 'arts_elective' };
     }
 
-    // 3. Work Immersion (Grade 12: 320 hours in one term = 12 units)
+    // 3. Work Immersion & Field Exposure
+    if (norm.includes('540 hours')) {
+        const is2Terms = norm.includes('2 term');
+        return { unitsPerTerm: is2Terms ? 10.5 : 21, yearUnits: 21, category: 'work_immersion' };
+    }
+    if (norm.includes('640 hours')) {
+        const is2Terms = norm.includes('2 term');
+        return { unitsPerTerm: is2Terms ? 12 : 24, yearUnits: 24, category: 'work_immersion' };
+    }
+    if (norm.includes('in-campus field exposure for sports')) {
+        return { unitsPerTerm: 3, yearUnits: 3, category: 'academic_elective' };
+    }
     if (norm.includes('work immersion')) {
         return { unitsPerTerm: 12, yearUnits: 12, category: 'work_immersion' };
     }

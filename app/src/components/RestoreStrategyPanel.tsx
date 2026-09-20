@@ -91,7 +91,7 @@ export function RestoreStrategyPanel({
 
             {/* Strategy Description */}
             <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 flex gap-2">
-                <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                 <p className="text-sm text-blue-800">
                     <strong>
                         {RESTORE_STRATEGIES[selectedStrategy].name}:
@@ -103,7 +103,7 @@ export function RestoreStrategyPanel({
             {/* Risk Warning */}
             {RESTORE_STRATEGIES[selectedStrategy].riskLevel !== 'none' && (
                 <div className="bg-red-50 p-3 rounded-lg border border-red-200 flex gap-2">
-                    <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
                     <p className="text-sm text-red-800">
                         <strong>⚠️ Warning:</strong> This strategy will make destructive changes to
                         your database. Please ensure you have a recent backup before proceeding.
@@ -214,7 +214,7 @@ export function RestoreStrategyPanel({
                         <p className="text-xs font-bold text-gray-700 uppercase mb-2">
                             Full Operation Plan
                         </p>
-                        <pre className="text-xs text-gray-600 whitespace-pre-wrap break-words overflow-auto max-h-48 font-mono">
+                        <pre className="text-xs text-gray-600 whitespace-pre-wrap wrap-break-word overflow-auto max-h-48 font-mono">
                             {generateRestorePlan(
                                 preview,
                                 new Date().toLocaleString()

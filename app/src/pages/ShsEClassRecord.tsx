@@ -10,9 +10,8 @@ import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollment
 import { exportSSHSEClassRecord, resolveSSHSMetadata, resolveSSHSTerms, SSHS_GRADE11_CATALOG } from '../services/sshs-excel-export';
 import { exportSHSG12EClassRecord, resolveSHSG12Terms } from '../services/shs-g12-excel-export';
 import { exportDirectDatabaseToExcel } from '../services/database-rescue-export';
-import { isGrade11CoreSubject, getDefaultTermForSubject, getShsSubjectUnitInfo, SSHS_ELECTIVE_CATALOG } from '../lib/curriculum';
+import { isGrade11CoreSubject, getDefaultTermForSubject, getShsSubjectUnitInfo, SSHS_ELECTIVE_CATALOG, getSshsCategoryForSubject } from '../lib/curriculum';
 import { isMatchingSubject, isSameSubject, findHpsRecord, resolveStudentQuarterGrade, computeLiveTransmutedGradeFromRecord, isStudentInSection, isMaleStudent, isFemaleStudent } from '../utils/grading-helpers';
-
 import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore, normalizeWeightFraction, normalizeWeightPercent, type SubjectCluster } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
 import { useTableCrosshair } from '../hooks/useTableCrosshair';
@@ -736,9 +735,9 @@ export function ShsEClassRecord() {
         }
         if (effTerm === 'none') return [];
 
-        // Grade 11 Core Subjects: DO 017, s. 2026 mandates all 3 terms
+        // Grade 11 Core Subjects and TechPro Electives: DO 017, s. 2026 mandates all 3 terms
         const isG11 = (sectionGradeLevel || '').includes('11');
-        if (isG11 && isGrade11CoreSubject(selectedSubjectObj.subject_name)) {
+        if (isG11 && (isGrade11CoreSubject(selectedSubjectObj.subject_name) || getSshsCategoryForSubject(selectedSubjectObj.subject_name) === 'SSHS - TECH-PRO')) {
             return [1, 2, 3];
         }
 
@@ -992,15 +991,32 @@ export function ShsEClassRecord() {
         const norm = (selectedSubjectObj.subject_name || '').trim().toLowerCase();
         const normClean = norm.replace(/[^a-z0-9]/g, '');
 
-        // 1. Explicit Curriculum / Version Flags
+        // 1. Explicit Curriculum / Version Flags on Subject or Section
+        const secAny = (selectedSectionObj || {}) as unknown as Record<string, unknown>;
         if (subjAny.is_sshs === true || subjAny.sshs === true || subjAny.curriculum === 'sshs' || subjAny.curriculum === '2026' || subjAny.curriculum === 'do15' || subjAny.curriculum === 'do17') {
+            return true;
+        }
+        if (secAny.is_sshs === true || secAny.sshs === true || secAny.curriculum === 'sshs' || secAny.curriculum === '2026') {
             return true;
         }
         if (subjAny.is_legacy === true || subjAny.is_old === true || subjAny.curriculum === 'legacy' || subjAny.curriculum === 'old' || subjAny.curriculum === '2016' || subjAny.curriculum === 'do8' || subjAny.curriculum === 'k12') {
             return false;
         }
+        if (secAny.is_legacy === true || secAny.is_old === true || secAny.curriculum === 'legacy' || secAny.curriculum === 'old' || secAny.curriculum === '2016' || secAny.curriculum === 'do8' || secAny.curriculum === 'k12') {
+            return false;
+        }
 
-        // 2. Known Distinct Legacy K-12 Grade 12 Subjects & Core/Applied/Specialized (DO 8, s. 2015)
+        // 2. Section Track / Strand check:
+        const rawTrack = ((secAny.section_track as string | undefined) || (secAny.track as string | undefined) || sectionTrack || '').toLowerCase();
+        const rawStrand = ((secAny.section_strand as string | undefined) || '').toLowerCase();
+        const isLegacyStrand = ['abm', 'humss', 'gas', 'stem', 'tvl - ict', 'tvl - he', 'tvl - ia', 'tvl - afa'].some(st => rawStrand.includes(st));
+        const isSshsTrack = rawTrack.includes('tech-pro') || rawTrack.includes('techpro') || rawTrack.includes('technical-professional') || rawTrack.includes('sshs');
+
+        if (isSshsTrack && !isLegacyStrand) {
+            return true;
+        }
+
+        // 3. Known Distinct Legacy K-12 Grade 12 Subjects & Core/Applied/Specialized (DO 8, s. 2015)
         const legacyDistinctSubjects = [
             'practical research 2',
             'practical research 1',
@@ -1094,18 +1110,12 @@ export function ShsEClassRecord() {
             return false;
         }
 
-        // 3. Section Track / Strand check:
-        // If the section is configured with legacy K-12 Strands (STEM, ABM, HUMSS, GAS, ICT, HE, IA, AFA)
-        // and does NOT have explicit SSHS elective catalog match
-        const rawStrand = (((selectedSectionObj as unknown as Record<string, unknown>)?.section_strand as string | undefined) || sectionTrack || '').toLowerCase();
-        const isLegacyStrand = ['abm', 'humss', 'gas', 'tvl - ict', 'tvl - he', 'tvl - ia', 'tvl - afa'].some(st => rawStrand.includes(st));
-
         // 4. SSHS Official DO 17 s. 2026 Elective Catalogs (Pilot Schools & 2026 Offerings)
         const inElectiveCatalog = SSHS_ELECTIVE_CATALOG.some(e => {
             const eNorm = e.title.toLowerCase().replace(/[^a-z0-9]/g, '');
             return eNorm === normClean || norm.includes(e.title.toLowerCase()) || e.title.toLowerCase().includes(norm);
         });
-        if (inElectiveCatalog) return true;
+        if (inElectiveCatalog && !isLegacyStrand) return true;
 
         const inFullCatalog = SSHS_GRADE11_CATALOG.some(c => {
             const cNorm = c.subject.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -2633,86 +2643,88 @@ export function ShsEClassRecord() {
                                 </div>
 
                                 <div className="flex items-stretch justify-between text-[10px] font-bold text-black uppercase w-full gap-4">
-                                    <div className="flex flex-col gap-1 w-[56%]">
-                                        <div className="flex items-stretch gap-2">
-                                            <div className="flex items-center flex-[1.1]">
+                                    <div className="flex flex-col gap-1 w-[56%] min-w-0">
+                                        <div className="flex items-stretch gap-2 min-w-0">
+                                            <div className="flex items-center flex-[1.1] min-w-0">
                                                 <span className="w-20 text-right pr-2 font-bold text-[10px] shrink-0">REGION</span>
-                                                <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold">{schoolProfile.region}</div>
+                                                <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold truncate min-w-0">{schoolProfile.region}</div>
                                             </div>
-                                            <div className="flex items-center flex-[1.2]">
+                                            <div className="flex items-center flex-[1.2] min-w-0">
                                                 <span className="w-18 text-right pr-2 font-bold text-[10px] shrink-0">DIVISION</span>
-                                                <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold">{schoolProfile.division}</div>
+                                                <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold truncate min-w-0">{schoolProfile.division}</div>
                                             </div>
                                         </div>
-                                        <div className="flex items-center">
+                                        <div className="flex items-center min-w-0">
                                             <span className="w-20 text-right pr-2 font-bold text-[10px] shrink-0">SCHOOL NAME</span>
-                                            <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold">{schoolProfile.name}</div>
+                                            <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold truncate min-w-0">{schoolProfile.name}</div>
                                         </div>
                                     </div>
-                                    <div className="flex flex-col gap-1 w-[38%]">
-                                        <div className="flex items-center">
+                                    <div className="flex flex-col gap-1 w-[38%] min-w-0">
+                                        <div className="flex items-center min-w-0">
                                             <span className="w-24 text-right pr-2 font-bold text-[10px] shrink-0">SCHOOL ID</span>
-                                            <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold">{schoolProfile.school_id}</div>
+                                            <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold truncate min-w-0">{schoolProfile.school_id}</div>
                                         </div>
-                                        <div className="flex items-center">
+                                        <div className="flex items-center min-w-0">
                                             <span className="w-24 text-right pr-2 font-bold text-[10px] shrink-0">SCHOOL YEAR</span>
-                                            <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold">{activeSchoolYear}</div>
+                                            <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold truncate min-w-0">{activeSchoolYear}</div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <table className="w-full border-collapse border border-black text-[9px] font-sans text-black mb-2 bg-white">
+                            <table className="w-full table-fixed border-collapse border border-black text-[9px] font-sans text-black mb-2 bg-white">
                                 <tbody>
-                                    <tr className="h-6">
-                                        <td rowSpan={2} className="border border-black text-center font-black text-[11px] uppercase w-[12%] px-2">
-                                            {quarter === 'summary_final' ? 'FINAL SUMMARY' :
-                                             quarter === 'summary_t1' ? 'TERM 1 SUMMARY' :
-                                             quarter === 'summary_t2' ? 'TERM 2 SUMMARY' :
-                                             quarter === 'summary_t3' ? 'TERM 3 SUMMARY' :
-                                             'SUMMARY OF GRADES'}
+                                    <tr className="h-7.5">
+                                        <td rowSpan={2} className="border border-black text-center font-black text-[8.5px] uppercase w-[13%] px-1 leading-tight align-middle">
+                                            {quarter === 'summary_final' ? <>FINAL<br />SUMMARY</> :
+                                             quarter === 'summary_t1' ? <>TERM 1<br />SUMMARY</> :
+                                             quarter === 'summary_t2' ? <>TERM 2<br />SUMMARY</> :
+                                             quarter === 'summary_t3' ? <>TERM 3<br />SUMMARY</> :
+                                             <>SUMMARY OF<br />GRADES</>}
                                         </td>
-                                        <td rowSpan={2} className="border border-black px-2 py-0.5 text-black font-black text-[11px] w-[13%] text-center uppercase leading-tight">
+                                        <td rowSpan={2} className="border border-black px-1 py-0.5 text-black font-black text-[8px] w-[13%] text-center uppercase leading-tight align-middle">
                                             GRADE LEVEL AND<br/>SECTION
                                         </td>
-                                        <td rowSpan={2} className="border border-black text-center font-black text-[11px] w-[15%] uppercase px-1 whitespace-nowrap">
-                                            {sectionGradeLevel.replace('Grade ', '')} - {selectedSection.replace(sectionGradeLevel.replace('Grade ', ''), '').replace('-', '').trim()}
-                                        </td>
-                                        <td className="border border-black px-2 py-1 w-[30%] text-left align-middle">
-                                            <div className="flex items-center h-full leading-none">
-                                                <span className="font-black text-black mr-1.5 text-[11px] shrink-0">TEACHER:</span>
-                                                <span className="uppercase font-bold text-black text-[11px] flex-1 leading-none">{teacherName}</span>
+                                        <td rowSpan={2} className="border border-black text-center font-black text-[8px] w-[22%] uppercase px-1 py-0.5 leading-tight align-middle overflow-hidden">
+                                            <div className="leading-tight line-clamp-2 wrap-break-word overflow-hidden text-[8px] font-black text-center max-w-full" title={`${sectionGradeLevel.replace('Grade ', '')} - ${selectedSection.replace(sectionGradeLevel.replace('Grade ', ''), '').replace('-', '').trim()}`}>
+                                                {sectionGradeLevel.replace('Grade ', '')} - {selectedSection.replace(sectionGradeLevel.replace('Grade ', ''), '').replace('-', '').trim()}
                                             </div>
                                         </td>
-                                        <td className="border border-black px-2 py-1 w-[30%] text-left align-middle">
-                                            <div className="flex items-center h-full leading-none">
-                                                <span className="font-black text-black mr-1.5 text-[11px] shrink-0">SUBJECT:</span>
-                                                <span className="uppercase font-bold text-black text-[11px] truncate flex-1 leading-none" title={subjectName}>{subjectName}</span>
+                                        <td className="border border-black px-1.5 py-0.5 w-[26%] text-left align-middle overflow-hidden">
+                                            <div className="flex flex-col justify-center min-w-0 w-full overflow-hidden leading-tight">
+                                                <span className="font-black text-black text-[7.5px] uppercase tracking-wide shrink-0">TEACHER:</span>
+                                                <span className="uppercase font-bold text-black text-[8.5px] truncate flex-1 min-w-0" title={teacherName}>{teacherName}</span>
+                                            </div>
+                                        </td>
+                                        <td className="border border-black px-1.5 py-0.5 w-[26%] text-left align-middle overflow-hidden">
+                                            <div className="flex flex-col justify-center min-w-0 w-full overflow-hidden leading-tight">
+                                                <span className="font-black text-black text-[7.5px] uppercase tracking-wide shrink-0">SUBJECT:</span>
+                                                <span className="uppercase font-bold text-black text-[8.5px] truncate flex-1 min-w-0" title={subjectName}>{subjectName}</span>
                                             </div>
                                         </td>
                                     </tr>
-                                    <tr className="h-6">
-                                        <td className="border border-black px-2 py-1 text-left align-middle">
-                                            <div className="flex items-center h-full leading-none">
-                                                <span className="font-black text-black mr-1.5 text-[11px] shrink-0">TRACK:</span>
-                                                <span className="uppercase font-bold text-black text-[11px] flex-1 leading-none">{sectionTrack}</span>
+                                    <tr className="h-7.5">
+                                        <td className="border border-black px-1.5 py-0.5 text-left align-middle overflow-hidden">
+                                            <div className="flex flex-col justify-center min-w-0 w-full overflow-hidden leading-tight">
+                                                <span className="font-black text-black text-[7.5px] uppercase tracking-wide shrink-0">TRACK:</span>
+                                                <span className="uppercase font-bold text-black text-[8.5px] truncate flex-1 min-w-0" title={sectionTrack}>{sectionTrack}</span>
                                             </div>
                                         </td>
-                                        <td className="border border-black px-2 py-1 text-left align-middle">
-                                            <div className="flex items-center h-full leading-none">
-                                                <span className="font-black text-black mr-1.5 text-[11px] shrink-0">SUBJECT TYPE:</span>
-                                                <span className="uppercase font-bold text-black text-[11px] flex-1 leading-none">{getSubjectCategory(subjectName, sectionGradeLevel)}</span>
+                                        <td className="border border-black px-1.5 py-0.5 text-left align-middle overflow-hidden">
+                                            <div className="flex flex-col justify-center min-w-0 w-full overflow-hidden leading-tight">
+                                                <span className="font-black text-black text-[7.5px] uppercase tracking-wide shrink-0">SUBJECT TYPE:</span>
+                                                <span className="uppercase font-bold text-black text-[8px] truncate flex-1 min-w-0" title={getSubjectCategory(subjectName, sectionGradeLevel)}>{getSubjectCategory(subjectName, sectionGradeLevel)}</span>
                                             </div>
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
 
-                            <table className="crosshair-table w-full border-collapse border border-black text-[11px] font-sans bg-white text-black">
+                            <table className="crosshair-table w-full table-fixed border-collapse border border-black text-[11px] font-sans bg-white text-black">
                                 <thead className="print:table-header-group bg-white font-bold uppercase">
                                     <tr className="text-center text-[10px] font-bold bg-gray-100 h-10">
                                         <th className="border border-black w-8" data-col-key="row-num"></th>
-                                        <th className="border border-black p-2 align-middle w-62.5 text-center tracking-wider" data-col-key="learner-name">LEARNERS' NAMES</th>
+                                        <th className="border border-black p-2 align-middle text-center tracking-wider" data-col-key="learner-name">LEARNERS' NAMES</th>
                                         {isSingleTerm ? (
                                             <th className="border border-black p-1 w-24 text-center leading-tight" data-col-key="final-grade">
                                                 TERM {singleTermNum}<br />FINAL GRADE
@@ -2983,18 +2995,18 @@ export function ShsEClassRecord() {
                                          /* OLD SHS GRADE 12 METADATA HEADER LAYOUT */
                                          <>
                                              {/* Row 1 */}
-                                             <tr className="h-6 text-[8.5px] font-bold border-b border-black">
+                                             <tr className="h-7.5 text-[8.5px] font-bold border-b border-black">
                                                  {/* 1. Term Block spanning 2 rows */}
                                                  <th
                                                      rowSpan={2}
-                                                     className="border-2 border-black p-0.5 align-middle text-sm font-black uppercase text-center bg-white tracking-wide"
+                                                     className="border-2 border-black p-0.5 align-middle text-xs font-black uppercase text-center bg-white tracking-wide"
                                                      style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}
                                                  >
                                                      {typeof quarter === 'string' && quarter.startsWith('summary') ? (
-                                                         quarter === 'summary_final' ? 'FINAL SUMMARY' :
-                                                         quarter === 'summary_t1' ? 'TERM 1 SUMMARY' :
-                                                         quarter === 'summary_t2' ? 'TERM 2 SUMMARY' :
-                                                         quarter === 'summary_t3' ? 'TERM 3 SUMMARY' :
+                                                         quarter === 'summary_final' ? <>FINAL<br />SUMMARY</> :
+                                                         quarter === 'summary_t1' ? <>TERM 1<br />SUMMARY</> :
+                                                         quarter === 'summary_t2' ? <>TERM 2<br />SUMMARY</> :
+                                                         quarter === 'summary_t3' ? <>TERM 3<br />SUMMARY</> :
                                                          'SUMMARY'
                                                      ) : (
                                                          getTermUpperLabel(Number(quarter))
@@ -3005,7 +3017,7 @@ export function ShsEClassRecord() {
                                                  <th
                                                      rowSpan={2}
                                                      colSpan={colSpanGls}
-                                                     className="border-2 border-black p-1 align-middle text-center font-black text-[9px] uppercase bg-white leading-tight"
+                                                     className="border-2 border-black p-0.5 align-middle text-center font-black text-[8px] uppercase bg-white leading-tight"
                                                  >
                                                      GRADE LEVEL AND<br />SECTION
                                                  </th>
@@ -3014,48 +3026,57 @@ export function ShsEClassRecord() {
                                                  <th
                                                      rowSpan={2}
                                                      colSpan={colSpanSection}
-                                                     className="border-2 border-black p-1 align-middle text-center font-black text-[10px] uppercase bg-white truncate"
+                                                     className="border-2 border-black p-1 align-middle text-center font-black text-[8px] uppercase bg-white overflow-hidden"
+                                                     title={`${displayGradeNum} - ${displaySectionClean}`}
                                                  >
-                                                     {displayGradeNum} - {displaySectionClean}
+                                                     <div className="line-clamp-2 wrap-break-word w-full leading-tight">{displayGradeNum} - {displaySectionClean}</div>
                                                  </th>
 
                                                  {/* 4. TEACHER */}
                                                  <th
                                                      colSpan={colSpanTeacher}
-                                                     className="border-2 border-black border-b border-b-black px-2 text-left font-black text-[9px] uppercase bg-white truncate"
+                                                     className="border-2 border-black border-b border-b-black px-1.5 py-0.5 text-left font-black uppercase bg-white overflow-hidden"
                                                  >
-                                                     <span className="font-black mr-1 text-black">TEACHER:</span>
-                                                     <span className="font-black text-black">{teacherName}</span>
+                                                     <div className="flex flex-col justify-center overflow-hidden w-full leading-tight">
+                                                         <span className="font-black text-black text-[7.5px] uppercase tracking-wide shrink-0">TEACHER:</span>
+                                                         <span className="font-black text-black text-[8.5px] truncate flex-1 min-w-0" title={teacherName}>{teacherName}</span>
+                                                     </div>
                                                  </th>
 
                                                  {/* 5. SUBJECT */}
                                                  <th
                                                      colSpan={colSpanSubject}
-                                                     className="border-2 border-black border-b border-b-black px-2 text-left font-black text-[9px] uppercase bg-white truncate"
+                                                     className="border-2 border-black border-b border-b-black px-1.5 py-0.5 text-left font-black uppercase bg-white overflow-hidden"
                                                  >
-                                                     <span className="font-black mr-1 text-black">SUBJECT:</span>
-                                                     <span className="font-black text-black">{displaySubjectName}</span>
+                                                     <div className="flex flex-col justify-center overflow-hidden w-full leading-tight">
+                                                         <span className="font-black text-black text-[7.5px] uppercase tracking-wide shrink-0">SUBJECT:</span>
+                                                         <span className="font-black text-black text-[8.5px] truncate flex-1 min-w-0" title={displaySubjectName}>{displaySubjectName}</span>
+                                                     </div>
                                                  </th>
                                              </tr>
 
                                              {/* Row 2 */}
-                                             <tr className="h-6 text-[8.5px] font-bold border-b-2 border-black">
+                                             <tr className="h-7.5 text-[8.5px] font-bold border-b-2 border-black">
                                                  {/* 4. TRACK */}
                                                  <th
                                                      colSpan={colSpanTeacher}
-                                                     className="border-2 border-black border-t-0 px-2 text-left font-black text-[9px] uppercase bg-white truncate"
+                                                     className="border-2 border-black border-t-0 px-1.5 py-0.5 text-left font-black uppercase bg-white overflow-hidden"
                                                  >
-                                                     <span className="font-black mr-1 text-black">TRACK:</span>
-                                                     <span className="font-black text-black">{sectionTrack || displayCluster}</span>
+                                                     <div className="flex flex-col justify-center overflow-hidden w-full leading-tight">
+                                                         <span className="font-black text-black text-[7.5px] uppercase tracking-wide shrink-0">TRACK:</span>
+                                                         <span className="font-black text-black text-[8.5px] truncate flex-1 min-w-0" title={sectionTrack || displayCluster}>{sectionTrack || displayCluster}</span>
+                                                     </div>
                                                  </th>
 
                                                  {/* 5. SUBJECT TYPE */}
                                                  <th
                                                      colSpan={colSpanSubject}
-                                                     className="border-2 border-black border-t-0 px-2 text-left font-black text-[9px] uppercase bg-white truncate"
+                                                     className="border-2 border-black border-t-0 px-1.5 py-0.5 text-left font-black uppercase bg-white overflow-hidden"
                                                  >
-                                                     <span className="font-black mr-1 text-black">SUBJECT TYPE:</span>
-                                                     <span className="font-black text-black">{subjectType}</span>
+                                                     <div className="flex flex-col justify-center overflow-hidden w-full leading-tight">
+                                                         <span className="font-black text-black text-[7.5px] uppercase tracking-wide shrink-0">SUBJECT TYPE:</span>
+                                                         <span className="font-black text-black text-[8px] truncate flex-1 min-w-0" title={subjectType}>{subjectType}</span>
+                                                     </div>
                                                  </th>
                                              </tr>
                                          </>
@@ -3091,16 +3112,16 @@ export function ShsEClassRecord() {
                                                  <th colSpan={3} className="border border-black text-center font-bold text-[8.5px] bg-white px-1">
                                                      SECTION
                                                  </th>
-                                                 <th colSpan={5} className="border border-black text-center font-black uppercase text-[9px] bg-white px-1 truncate">
-                                                     {displaySectionClean}
+                                                 <th colSpan={5} className="border border-black text-center font-black uppercase text-[9px] bg-white px-1 overflow-hidden" title={displaySectionClean}>
+                                                     <div className="truncate w-full">{displaySectionClean}</div>
                                                  </th>
 
                                                  {/* SUBJECT */}
                                                  <th colSpan={3} className="border border-black text-center font-bold text-blue-600 text-[8.5px] bg-white px-1">
                                                      SUBJECT
                                                  </th>
-                                                 <th colSpan={10} className="border border-black text-left pl-2 font-black text-blue-600 uppercase text-[9.5px] bg-white truncate">
-                                                     {displaySubjectName}
+                                                 <th colSpan={10} className="border border-black text-left pl-2 font-black text-blue-600 uppercase text-[9.5px] bg-white overflow-hidden" title={displaySubjectName}>
+                                                     <div className="truncate w-full">{displaySubjectName}</div>
                                                  </th>
 
                                                  {/* Over Examinations (8 cols or 3 cols) & Summary Grades (2 cols) */}
@@ -3112,16 +3133,16 @@ export function ShsEClassRecord() {
                                                  <th colSpan={3} className="border border-black text-center font-bold text-[8.5px] bg-white px-1">
                                                      TEACHER
                                                  </th>
-                                                 <th colSpan={10} className="border border-black text-left pl-2 font-black uppercase text-[9px] bg-white truncate">
-                                                     {teacherName}
+                                                 <th colSpan={10} className="border border-black text-left pl-2 font-black uppercase text-[9px] bg-white overflow-hidden" title={teacherName}>
+                                                     <div className="truncate w-full">{teacherName}</div>
                                                  </th>
 
                                                  {/* CLUSTER */}
                                                  <th colSpan={3} className="border border-black text-center font-bold text-[8.5px] bg-white px-1">
                                                      CLUSTER
                                                  </th>
-                                                 <th colSpan={10} className="border border-black text-left pl-2 font-black uppercase text-[9px] bg-white truncate">
-                                                     {displayCluster}
+                                                 <th colSpan={10} className="border border-black text-left pl-2 font-black uppercase text-[9px] bg-white overflow-hidden" title={displayCluster}>
+                                                     <div className="truncate w-full">{displayCluster}</div>
                                                  </th>
 
                                                  {/* UNITS */}

@@ -3068,115 +3068,123 @@ export function EClassRecord() {
                                  </div>
                              </div>
 
-                            <table className="w-full border-collapse border border-black text-[11px] font-sans bg-white">
-                                <thead className="print:table-header-group bg-white text-black font-bold uppercase">
-                                    <tr>
-                                        <th rowSpan={3} className="border border-black w-8"></th>
-                                        <th rowSpan={3} className="border border-black p-2 align-middle w-62.5 text-center tracking-wider">LEARNERS' NAMES</th>
-                                        <th colSpan={3} className="border border-black text-left p-1 text-[10px]">
-                                            <div className="flex items-center overflow-hidden h-full">
-                                                <span className="font-bold mr-2 whitespace-nowrap shrink-0">GRADE & SECTION:</span>
-                                                <span className="flex-1 text-center font-normal uppercase truncate">{sectionGradeLevel} - {selectedSection}</span>
-                                            </div>
-                                        </th>
-                                        <th colSpan={3} className="border border-black text-left p-1 text-[10px]">
-                                            <div className="flex items-center overflow-hidden h-full">
-                                                <span className="font-bold mr-2 whitespace-nowrap shrink-0">SCHOOL YEAR:</span>
-                                                <span className="flex-1 text-center font-normal uppercase truncate">{activeSchoolYear}</span>
-                                            </div>
-                                        </th>
-                                    </tr>
-                                    <tr>
-                                        <th colSpan={3} className="border border-black text-left p-1 text-[10px]">
-                                            <div className="flex items-center overflow-hidden h-full">
-                                                <span className="font-bold mr-2 whitespace-nowrap shrink-0">TEACHER:</span>
-                                                <span className="flex-1 text-center font-normal uppercase truncate">{teacherName}</span>
-                                            </div>
-                                        </th>
-                                        <th colSpan={3} className="border border-black text-left p-1 text-[10px]">
-                                            <div className="flex items-center overflow-hidden h-full">
-                                                <span className="font-bold mr-2 whitespace-nowrap shrink-0">SUBJECT:</span>
-                                                <span className="flex-1 text-center font-normal uppercase truncate">{subjectName}</span>
-                                            </div>
-                                        </th>
-                                    </tr>
-                                    <tr className="text-center text-[10px] font-bold bg-white h-10">
-                                        {subjectName.toUpperCase() === 'MAPEH' ? (
-                                            quarter === 'summary_final' ? (
-                                                <>
-                                                    <th className="border border-black p-1 w-25">TERM 1<br/>MAPEH</th>
-                                                    <th className="border border-black p-1 w-25">TERM 2<br/>MAPEH</th>
-                                                    <th className="border border-black p-1 w-25">TERM 3<br/>MAPEH</th>
-                                                    <th className="border border-black p-1 w-25">FINAL GRADE</th>
-                                                    <th className="border border-black p-1 w-25">DESCRIPTOR</th>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <th className="border border-black p-1 w-30">MUSIC & ARTS<br/>({quarter === 'summary_t2' ? 'TERM 2' : quarter === 'summary_t3' ? 'TERM 3' : 'TERM 1'})</th>
-                                                    <th className="border border-black p-1 w-30">PE & HEALTH<br/>({quarter === 'summary_t2' ? 'TERM 2' : quarter === 'summary_t3' ? 'TERM 3' : 'TERM 1'})</th>
-                                                    <th className="border border-black p-1 w-30">MAPEH<br/>({quarter === 'summary_t2' ? 'TERM 2' : quarter === 'summary_t3' ? 'TERM 3' : 'TERM 1'} GRADE)</th>
-                                                    <th className="border border-black p-1 w-30">DESCRIPTOR</th>
-                                                </>
-                                            )
-                                        ) : (
-                                            <>
-                                                <th className="border border-black p-1 w-17.5">TERM 1</th>
-                                                <th className="border border-black p-1 w-17.5">TERM 2</th>
-                                                <th className="border border-black p-1 w-17.5">TERM 3</th>
-                                                <th className="border border-black p-1 w-20">FINAL GRADE</th>
-                                                <th className="border border-black p-1 w-25">DESCRIPTOR</th>
-                                                <th className="border border-black p-1 w-20">REMARK</th>
-                                            </>
-                                        )}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr className="bg-gray-200 font-bold">
-                                        <td colSpan={8} className="border border-black text-left px-2 py-0.5 text-[10px] tracking-widest uppercase">MALE</td>
-                                    </tr>
-                                    {maleStudents.map((student, i) => {
-                                        const summary = getSummaryGrades(student);
-                                        return (
-                                            <tr key={student.lrn} className="h-7 hover:bg-gray-50 transition-colors">
-                                                <td className="border border-black text-center font-bold text-[10px]">{i + 1}</td>
-                                                <td className="border border-black text-left px-2 uppercase text-[10px] font-bold truncate max-w-62.5">
-                                                    {formatStudentFullName(student)}
-                                                </td>
-                                                {summary.isMapeh ? (
-                                                    summary.mapehMode === 'final' ? (
+                            {(() => {
+                                const isMapeh = subjectName.toUpperCase() === 'MAPEH';
+                                const summaryNonNameCols = isMapeh ? (quarter === 'summary_final' ? 5 : 4) : 6;
+                                const colSpanMeta1 = Math.ceil(summaryNonNameCols / 2);
+                                const colSpanMeta2 = summaryNonNameCols - colSpanMeta1;
+                                const totalSummaryCols = 2 + summaryNonNameCols;
+
+                                return (
+                                    <table className="w-full table-fixed border-collapse border border-black text-[11px] font-sans bg-white">
+                                        <thead className="print:table-header-group bg-white text-black font-bold uppercase">
+                                            <tr>
+                                                <th rowSpan={3} className="border border-black w-8"></th>
+                                                <th rowSpan={3} className="border border-black p-2 align-middle w-62.5 text-center tracking-wider">LEARNERS' NAMES</th>
+                                                <th colSpan={colSpanMeta1} className="border border-black text-left p-1 text-[10px] overflow-hidden">
+                                                    <div className="flex items-center overflow-hidden min-w-0 h-full">
+                                                        <span className="font-bold mr-2 whitespace-nowrap shrink-0">GRADE & SECTION:</span>
+                                                        <span className="flex-1 text-center font-normal uppercase truncate min-w-0" title={`${sectionGradeLevel} - ${selectedSection}`}>{sectionGradeLevel} - {selectedSection}</span>
+                                                    </div>
+                                                </th>
+                                                <th colSpan={colSpanMeta2} className="border border-black text-left p-1 text-[10px] overflow-hidden">
+                                                    <div className="flex items-center overflow-hidden min-w-0 h-full">
+                                                        <span className="font-bold mr-2 whitespace-nowrap shrink-0">SCHOOL YEAR:</span>
+                                                        <span className="flex-1 text-center font-normal uppercase truncate min-w-0" title={activeSchoolYear}>{activeSchoolYear}</span>
+                                                    </div>
+                                                </th>
+                                            </tr>
+                                            <tr>
+                                                <th colSpan={colSpanMeta1} className="border border-black text-left p-1 text-[10px] overflow-hidden">
+                                                    <div className="flex items-center overflow-hidden min-w-0 h-full">
+                                                        <span className="font-bold mr-2 whitespace-nowrap shrink-0">TEACHER:</span>
+                                                        <span className="flex-1 text-center font-normal uppercase truncate min-w-0" title={teacherName}>{teacherName}</span>
+                                                    </div>
+                                                </th>
+                                                <th colSpan={colSpanMeta2} className="border border-black text-left p-1 text-[10px] overflow-hidden">
+                                                    <div className="flex items-center overflow-hidden min-w-0 h-full">
+                                                        <span className="font-bold mr-2 whitespace-nowrap shrink-0">SUBJECT:</span>
+                                                        <span className="flex-1 text-center font-normal uppercase truncate min-w-0" title={subjectName}>{subjectName}</span>
+                                                    </div>
+                                                </th>
+                                            </tr>
+                                            <tr className="text-center text-[10px] font-bold bg-white h-10">
+                                                {isMapeh ? (
+                                                    quarter === 'summary_final' ? (
                                                         <>
-                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t1, sectionGradeLevel)}</td>
-                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t2, sectionGradeLevel)}</td>
-                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t3, sectionGradeLevel)}</td>
-                                                            <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
-                                                            <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
+                                                            <th className="border border-black p-1 w-25">TERM 1<br/>MAPEH</th>
+                                                            <th className="border border-black p-1 w-25">TERM 2<br/>MAPEH</th>
+                                                            <th className="border border-black p-1 w-25">TERM 3<br/>MAPEH</th>
+                                                            <th className="border border-black p-1 w-25">FINAL GRADE</th>
+                                                            <th className="border border-black p-1 w-25">DESCRIPTOR</th>
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.ma, sectionGradeLevel)}</td>
-                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.pe, sectionGradeLevel)}</td>
-                                                            <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
-                                                            <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
+                                                            <th className="border border-black p-1 w-30">MUSIC & ARTS<br/>({quarter === 'summary_t2' ? 'TERM 2' : quarter === 'summary_t3' ? 'TERM 3' : 'TERM 1'})</th>
+                                                            <th className="border border-black p-1 w-30">PE & HEALTH<br/>({quarter === 'summary_t2' ? 'TERM 2' : quarter === 'summary_t3' ? 'TERM 3' : 'TERM 1'})</th>
+                                                            <th className="border border-black p-1 w-30">MAPEH<br/>({quarter === 'summary_t2' ? 'TERM 2' : quarter === 'summary_t3' ? 'TERM 3' : 'TERM 1'} GRADE)</th>
+                                                            <th className="border border-black p-1 w-30">DESCRIPTOR</th>
                                                         </>
                                                     )
                                                 ) : (
                                                     <>
-                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t1, sectionGradeLevel)}</td>
-                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t2, sectionGradeLevel)}</td>
-                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t3, sectionGradeLevel)}</td>
-                                                        <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
-                                                        <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
-                                                        <td className={`border border-black text-center font-bold text-[9px] ${summary.final !== '' && Number(summary.final) >= 75 ? 'text-green-700' : 'text-red-600'}`}>
-                                                            {summary.final !== '' ? (Number(summary.final) >= 75 ? 'PASSED' : 'FAILED') : ''}
-                                                        </td>
+                                                        <th className="border border-black p-1 w-17.5">TERM 1</th>
+                                                        <th className="border border-black p-1 w-17.5">TERM 2</th>
+                                                        <th className="border border-black p-1 w-17.5">TERM 3</th>
+                                                        <th className="border border-black p-1 w-20">FINAL GRADE</th>
+                                                        <th className="border border-black p-1 w-25">DESCRIPTOR</th>
+                                                        <th className="border border-black p-1 w-20">REMARK</th>
                                                     </>
                                                 )}
                                             </tr>
-                                        );
-                                    })}
-                                    <tr className="bg-gray-200 font-bold">
-                                        <td colSpan={8} className="border border-black text-left px-2 py-0.5 text-[10px] tracking-widest uppercase">FEMALE</td>
-                                    </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr className="bg-gray-200 font-bold">
+                                                <td colSpan={totalSummaryCols} className="border border-black text-left px-2 py-0.5 text-[10px] tracking-widest uppercase">MALE</td>
+                                            </tr>
+                                            {maleStudents.map((student, i) => {
+                                                const summary = getSummaryGrades(student);
+                                                return (
+                                                    <tr key={student.lrn} className="h-7 hover:bg-gray-50 transition-colors">
+                                                        <td className="border border-black text-center font-bold text-[10px]">{i + 1}</td>
+                                                        <td className="border border-black text-left px-2 uppercase text-[10px] font-bold truncate max-w-62.5">
+                                                            {formatStudentFullName(student)}
+                                                        </td>
+                                                        {summary.isMapeh ? (
+                                                            summary.mapehMode === 'final' ? (
+                                                                <>
+                                                                    <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t1, sectionGradeLevel)}</td>
+                                                                    <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t2, sectionGradeLevel)}</td>
+                                                                    <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t3, sectionGradeLevel)}</td>
+                                                                    <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
+                                                                    <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.ma, sectionGradeLevel)}</td>
+                                                                    <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.pe, sectionGradeLevel)}</td>
+                                                                    <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
+                                                                    <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
+                                                                </>
+                                                            )
+                                                        ) : (
+                                                            <>
+                                                                <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t1, sectionGradeLevel)}</td>
+                                                                <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t2, sectionGradeLevel)}</td>
+                                                                <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t3, sectionGradeLevel)}</td>
+                                                                <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
+                                                                <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
+                                                                <td className={`border border-black text-center font-bold text-[9px] ${summary.final !== '' && Number(summary.final) >= 75 ? 'text-green-700' : 'text-red-600'}`}>
+                                                                    {summary.final !== '' ? (Number(summary.final) >= 75 ? 'PASSED' : 'FAILED') : ''}
+                                                                </td>
+                              </>
+                                                        )}
+                                                    </tr>
+                                                );
+                                            })}
+                                            <tr className="bg-gray-200 font-bold">
+                                                <td colSpan={totalSummaryCols} className="border border-black text-left px-2 py-0.5 text-[10px] tracking-widest uppercase">FEMALE</td>
+                                            </tr>
                                     {femaleStudents.map((student, i) => {
                                         const summary = getSummaryGrades(student);
                                         return (
@@ -3219,6 +3227,8 @@ export function EClassRecord() {
                                     })}
                                 </tbody>
                             </table>
+                                );
+                            })()}
                         </div>
                     ) : (
                     <div className="bg-slate-50/50 dark:bg-[#070a12] p-3 md:p-4 overflow-x-auto">
@@ -3291,17 +3301,19 @@ export function EClassRecord() {
                                 <div className="h-9 px-3 border-r-2 border-black font-bold bg-yellow-100 flex items-center justify-center text-center shrink-0 min-w-28 text-[10.5px] uppercase tracking-wide">
                                     {(typeof quarter === 'string' && quarter.startsWith('summary')) ? 'SUMMARY OF GRADES' : getTermUpperLabel(Number(quarter))}
                                 </div>
-                                <div className="h-9 px-4 border-r-2 border-black flex items-center justify-center whitespace-nowrap flex-1 text-[10.5px]">
+                                <div className="h-9 px-3 border-r-2 border-black flex items-center justify-center min-w-0 overflow-hidden flex-1 text-[10.5px]">
                                     <span className="font-bold mr-1.5 shrink-0">GRADE & SECTION:</span>
-                                    <span className="uppercase font-semibold">{sectionGradeLevel} - {selectedSectionObj?.section_name || selectedSection}</span>
+                                    <span className="uppercase font-semibold truncate min-w-0" title={`${sectionGradeLevel} - ${selectedSectionObj?.section_name || selectedSection}`}>{sectionGradeLevel} - {selectedSectionObj?.section_name || selectedSection}</span>
                                 </div>
-                                <div className="h-9 px-4 border-r-2 border-black flex items-center justify-center whitespace-nowrap flex-[1.6] text-[10.5px]">
+                                <div className="h-9 px-3 border-r-2 border-black flex items-center justify-center min-w-0 overflow-hidden flex-[1.4] text-[10.5px]">
                                     <span className="font-bold mr-1.5 shrink-0">TEACHER:</span>
-                                    <span className="uppercase font-semibold ml-1 truncate">{teacherName || selectedSectionObj?.adviser_name || ''}</span>
+                                    <span className="uppercase font-semibold ml-1 truncate min-w-0" title={teacherName || selectedSectionObj?.adviser_name || ''}>{teacherName || selectedSectionObj?.adviser_name || ''}</span>
                                 </div>
-                                <div className="h-9 px-4 flex items-center justify-center whitespace-nowrap flex-1 text-[10.5px]">
+                                <div className="h-9 px-3 flex items-center justify-center min-w-0 overflow-hidden flex-1 text-[10.5px]">
                                     <span className="font-bold mr-1.5 shrink-0">SUBJECT:</span>
-                                    <span className="uppercase font-semibold ml-1 truncate">{isGMRCSubject ? normalizeSubjectForECR(subjectName || selectedSectionObj?.subject_name || '', undefined, sectionGradeLevel) : (subjectName || selectedSectionObj?.subject_name || '')}</span>
+                                    <span className="uppercase font-semibold ml-1 truncate min-w-0" title={isGMRCSubject ? normalizeSubjectForECR(subjectName || selectedSectionObj?.subject_name || '', undefined, sectionGradeLevel) : (subjectName || selectedSectionObj?.subject_name || '')}>
+                                        {isGMRCSubject ? normalizeSubjectForECR(subjectName || selectedSectionObj?.subject_name || '', undefined, sectionGradeLevel) : (subjectName || selectedSectionObj?.subject_name || '')}
+                                    </span>
                                 </div>
                             </div>
 

@@ -2029,27 +2029,29 @@ function SF9Pages({
                                             </Text>
                                         </View>
                                     </View>
-                                    <View style={styles.singleInfoRow}>
-                                        {/* Track Cell — 45%, matching LRN width */}
-                                        <View style={{ width: '45%', flexDirection: 'row', alignItems: 'center' }}>
-                                            <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, marginRight: 4 }}>Track (if SHS only):</Text>
-                                            <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: trackFontSize }]}>
-                                                {hideLearnerInfo ? ' ' : (isSHS ? (trackDisplay || ' ') : ' ')}
-                                            </Text>
+                                    {isSHS && (
+                                        <View style={styles.singleInfoRow}>
+                                            {/* Track Cell — 45%, matching LRN width */}
+                                            <View style={{ width: '45%', flexDirection: 'row', alignItems: 'center' }}>
+                                                <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, marginRight: 4 }}>Track (if SHS only):</Text>
+                                                <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: trackFontSize }]}>
+                                                    {hideLearnerInfo ? ' ' : (trackDisplay || ' ')}
+                                                </Text>
+                                            </View>
+                                            {/* Strand / Cluster Cell — 55% */}
+                                            <View style={{ width: '55%', flexDirection: 'row', alignItems: 'center', paddingLeft: 5 }}>
+                                                <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, marginRight: 4 }}>{strandOrClusterLabel}</Text>
+                                                <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: strandFontSize }]}>
+                                                    {hideLearnerInfo ? ' ' : (strandDisplay || ' ')}
+                                                </Text>
+                                            </View>
                                         </View>
-                                        {/* Strand / Cluster Cell — 55% */}
-                                        <View style={{ width: '55%', flexDirection: 'row', alignItems: 'center', paddingLeft: 5 }}>
-                                            <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, marginRight: 4 }}>{strandOrClusterLabel}</Text>
-                                            <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: strandFontSize }]}>
-                                                {hideLearnerInfo ? ' ' : (isSHS ? (strandDisplay || ' ') : ' ')}
-                                            </Text>
-                                        </View>
-                                    </View>
+                                    )}
                                 </View>
                                 );
                             })()}
 
-                            <Text style={[styles.singleMessageText, isValuesOnly ? { color: transparentBorder } : {}, { marginTop: isG11Academic ? 0 : -20, marginBottom: isG11Academic ? 1 : 3 }]}>
+                            <Text style={[styles.singleMessageText, isValuesOnly ? { color: transparentBorder } : {}, { marginTop: isG11Academic ? 0 : (isSHS ? -20 : -10), marginBottom: isG11Academic ? 1 : 3 }]}>
                                 <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: isG11Academic ? 8 : 9 }}>{"Dear Parents,\n"}</Text>
                                 <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: isG11Academic ? 7.5 : 8.5 }}>
                                     {isG11Academic

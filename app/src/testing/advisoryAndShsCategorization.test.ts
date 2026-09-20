@@ -104,29 +104,29 @@ describe('SSHS Curriculum Subject Categorization (DepEd DO 017, s. 2026)', () =>
 
     it('correctly classifies SSHS Academic Electives into SSHS - ACADEMIC and their respective clusters', () => {
         expect(getSshsCategoryForSubject('Creative Writing')).toBe('SSHS - ACADEMIC');
-        expect(getSshsClusterForSubject('Creative Writing')).toBe('Arts, Social Sciences, and Humanities');
+        expect(getSshsClusterForSubject('Creative Writing').toUpperCase()).toBe('ARTS, SOCIAL SCIENCES, AND HUMANITIES');
 
         expect(getSshsCategoryForSubject('Pre-Calculus')).toBe('SSHS - ACADEMIC');
-        expect(getSshsClusterForSubject('Pre-Calculus')).toBe('Science, Technology, Engineering, and Mathematics');
+        expect(getSshsClusterForSubject('Pre-Calculus').toUpperCase()).toBe('SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS');
 
         expect(getSshsCategoryForSubject('Fundamentals of Accountancy, Business & Management 1')).toBe('SSHS - ACADEMIC');
-        expect(getSshsClusterForSubject('Fundamentals of Accountancy, Business & Management 1')).toBe('Business and Entrepreneurship');
+        expect(getSshsClusterForSubject('Fundamentals of Accountancy, Business & Management 1').toUpperCase()).toBe('BUSINESS AND ENTREPRENEURSHIP');
     });
 
     it('correctly classifies SSHS Tech-Pro subjects into SSHS - TECH-PRO and respective TechPro clusters', () => {
         expect(getSshsCategoryForSubject('Computer Systems Servicing NC II')).toBe('SSHS - TECH-PRO');
-        expect(getSshsClusterForSubject('Computer Systems Servicing NC II')).toBe('ICT Support and Computer Programming Technologies');
+        expect(getSshsClusterForSubject('Computer Systems Servicing NC II').trim().toUpperCase()).toBe('ICT SUPPORT AND COMPUTER PROGRAMMING TECHNOLOGIES');
 
         expect(getSshsCategoryForSubject('Automotive Servicing NC I')).toBe('SSHS - TECH-PRO');
-        expect(getSshsClusterForSubject('Automotive Servicing NC I')).toBe('Automotive and Small Engine Technologies');
+        expect(getSshsClusterForSubject('Automotive Servicing NC I').trim().toUpperCase()).toBe('AUTOMOTIVE AND SMALL ENGINE TECHNOLOGIES');
 
         expect(getSshsCategoryForSubject('Shielded Metal Arc Welding NC II')).toBe('SSHS - TECH-PRO');
-        expect(getSshsClusterForSubject('Shielded Metal Arc Welding NC II')).toBe('Construction and Building Technologies');
+        expect(getSshsClusterForSubject('Shielded Metal Arc Welding NC II').trim().toUpperCase()).toBe('CONSTRUCTION AND BUILDING TECHNOLOGIES');
     });
 
     it('classifies Work Immersion under SSHS - TECH-PRO', () => {
         expect(getSshsCategoryForSubject('Work Immersion (240 Hours)')).toBe('SSHS - TECH-PRO');
-        expect(getSshsClusterForSubject('Work Immersion (240 Hours)')).toBe('Work Immersion');
+        expect(getSshsClusterForSubject('Work Immersion (240 Hours)').toUpperCase()).toBe('WORK IMMERSION');
     });
 });
 

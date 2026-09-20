@@ -429,9 +429,9 @@ export const LIRRenderer: React.FC<LIRRendererProps> = ({
                                     <tbody>
                                         <tr>
                                             <td className="label-green border-2 whitespace-nowrap" style={{ fontSize: subjectTeacherFontSize * scale + 'rem', padding: `${headerTablePadding * scale}px ${headerTablePadding * 2 * scale}px`, borderColor: outlineColor }}>SUBJECT</td>
-                                            <td className="data-field font-extrabold border-2 whitespace-nowrap" style={{ fontSize: subjectFontSize + 'rem', padding: `${headerTablePadding * scale}px ${headerTablePadding * 2.5 * scale}px`, borderColor: outlineColor }}>{subject}</td>
+                                            <td className="data-field font-extrabold border-2 max-w-45 truncate" title={subject} style={{ fontSize: subjectFontSize + 'rem', padding: `${headerTablePadding * scale}px ${headerTablePadding * 2.5 * scale}px`, borderColor: outlineColor }}>{subject}</td>
                                             <td className="label-green border-2 whitespace-nowrap" style={{ fontSize: subjectTeacherFontSize * scale + 'rem', padding: `${headerTablePadding * scale}px ${headerTablePadding * 2 * scale}px`, borderColor: outlineColor }}>TEACHER</td>
-                                            <td className="data-field font-extrabold border-2 whitespace-nowrap" style={{ fontSize: teacherFontSize + 'rem', padding: `${headerTablePadding * scale}px ${headerTablePadding * 2.5 * scale}px`, borderColor: outlineColor }}>{teacher}</td>
+                                            <td className="data-field font-extrabold border-2 max-w-45 truncate" title={teacher} style={{ fontSize: teacherFontSize + 'rem', padding: `${headerTablePadding * scale}px ${headerTablePadding * 2.5 * scale}px`, borderColor: outlineColor }}>{teacher}</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -465,7 +465,7 @@ export const LIRRenderer: React.FC<LIRRendererProps> = ({
                                             <td className="data-field uppercase font-bold border-2 whitespace-nowrap" style={{ borderColor: outlineColor, height: 0.5 * scale + 'in' }}>{student.last_name}</td>
                                             <td className="data-field uppercase font-bold border-2 whitespace-nowrap" style={{ borderColor: outlineColor, height: 0.5 * scale + 'in' }}>{student.first_name}</td>
                                             <td className="data-field uppercase font-bold border-2 whitespace-nowrap px-1" style={{ width: '40px', borderColor: outlineColor, height: 0.5 * scale + 'in' }}>{student.middle_name?.charAt(0) || ''}</td>
-                                            <td className="data-field uppercase font-bold border-2 whitespace-nowrap" style={{ borderColor: outlineColor, height: 0.5 * scale + 'in' }}>{student.student_section}</td>
+                                            <td className="data-field uppercase font-bold border-2 max-w-37.5 truncate" title={student.student_section} style={{ borderColor: outlineColor, height: 0.5 * scale + 'in' }}>{student.student_section}</td>
                                             <td className="data-field uppercase font-bold border-2 whitespace-nowrap" style={{ borderColor: outlineColor, height: 0.5 * scale + 'in' }}>{student.lrn}</td>
                                         </tr>
                                         <tr style={{ height: 0.5 * scale + 'in' }}>
