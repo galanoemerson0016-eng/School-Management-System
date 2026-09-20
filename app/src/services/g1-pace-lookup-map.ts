@@ -623,14 +623,6 @@ export const G1_PACE_LOOKUP_MAP: Record<string, { s: string; c: string }> = {
     "s": "TERM 3 READING & LITERACY",
     "c": "AR"
   },
-  "55_right_t1": {
-    "s": "TERM 1 READING & LITERACY",
-    "c": "CT"
-  },
-  "55_right_t2": {
-    "s": "TERM 2 READING & LITERACY",
-    "c": "CT"
-  },
   "55_right_t3": {
     "s": "TERM 3 READING & LITERACY",
     "c": "CT"
@@ -647,14 +639,6 @@ export const G1_PACE_LOOKUP_MAP: Record<string, { s: string; c: string }> = {
     "s": "TERM 3 READING & LITERACY",
     "c": "AS"
   },
-  "56_right_t1": {
-    "s": "TERM 1 READING & LITERACY",
-    "c": "CU"
-  },
-  "56_right_t2": {
-    "s": "TERM 2 READING & LITERACY",
-    "c": "CU"
-  },
   "56_right_t3": {
     "s": "TERM 3 READING & LITERACY",
     "c": "CU"
@@ -666,14 +650,6 @@ export const G1_PACE_LOOKUP_MAP: Record<string, { s: string; c: string }> = {
   "57_left_t3": {
     "s": "TERM 3 READING & LITERACY",
     "c": "AT"
-  },
-  "57_right_t1": {
-    "s": "TERM 1 READING & LITERACY",
-    "c": "CV"
-  },
-  "57_right_t2": {
-    "s": "TERM 2 READING & LITERACY",
-    "c": "CV"
   },
   "57_right_t3": {
     "s": "TERM 3 READING & LITERACY",
@@ -690,14 +666,6 @@ export const G1_PACE_LOOKUP_MAP: Record<string, { s: string; c: string }> = {
   "58_left_t3": {
     "s": "TERM 3 READING & LITERACY",
     "c": "AU"
-  },
-  "58_right_t1": {
-    "s": "TERM 1 READING & LITERACY",
-    "c": "CW"
-  },
-  "58_right_t2": {
-    "s": "TERM 2 READING & LITERACY",
-    "c": "CW"
   },
   "58_right_t3": {
     "s": "TERM 3 READING & LITERACY",
@@ -738,14 +706,6 @@ export const G1_PACE_LOOKUP_MAP: Record<string, { s: string; c: string }> = {
   "60_left_t3": {
     "s": "TERM 3 READING & LITERACY",
     "c": "AW"
-  },
-  "60_right_t1": {
-    "s": "TERM 1 READING & LITERACY",
-    "c": "CY"
-  },
-  "60_right_t2": {
-    "s": "TERM 2 READING & LITERACY",
-    "c": "CY"
   },
   "60_right_t3": {
     "s": "TERM 3 READING & LITERACY",
@@ -823,14 +783,6 @@ export const G1_PACE_LOOKUP_MAP: Record<string, { s: string; c: string }> = {
     "s": "TERM 3 READING & LITERACY",
     "c": "BA"
   },
-  "64_right_t1": {
-    "s": "TERM 1 READING & LITERACY",
-    "c": "DB"
-  },
-  "64_right_t2": {
-    "s": "TERM 2 READING & LITERACY",
-    "c": "DB"
-  },
   "64_right_t3": {
     "s": "TERM 3 READING & LITERACY",
     "c": "DB"
@@ -846,14 +798,6 @@ export const G1_PACE_LOOKUP_MAP: Record<string, { s: string; c: string }> = {
   "65_left_t3": {
     "s": "TERM 3 READING & LITERACY",
     "c": "BB"
-  },
-  "65_right_t1": {
-    "s": "TERM 1 READING & LITERACY",
-    "c": "DC"
-  },
-  "65_right_t2": {
-    "s": "TERM 2 READING & LITERACY",
-    "c": "DC"
   },
   "65_right_t3": {
     "s": "TERM 3 READING & LITERACY",
@@ -871,14 +815,6 @@ export const G1_PACE_LOOKUP_MAP: Record<string, { s: string; c: string }> = {
     "s": "TERM 3 READING & LITERACY",
     "c": "BC"
   },
-  "66_right_t1": {
-    "s": "TERM 1 READING & LITERACY",
-    "c": "DD"
-  },
-  "66_right_t2": {
-    "s": "TERM 2 READING & LITERACY",
-    "c": "DD"
-  },
   "66_right_t3": {
     "s": "TERM 3 READING & LITERACY",
     "c": "DD"
@@ -894,14 +830,6 @@ export const G1_PACE_LOOKUP_MAP: Record<string, { s: string; c: string }> = {
   "67_left_t3": {
     "s": "TERM 3 READING & LITERACY",
     "c": "BD"
-  },
-  "67_right_t1": {
-    "s": "TERM 1 READING & LITERACY",
-    "c": "DE"
-  },
-  "67_right_t2": {
-    "s": "TERM 2 READING & LITERACY",
-    "c": "DE"
   },
   "67_right_t3": {
     "s": "TERM 3 READING & LITERACY",

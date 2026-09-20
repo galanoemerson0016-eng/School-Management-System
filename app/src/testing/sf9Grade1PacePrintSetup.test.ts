@@ -94,7 +94,7 @@ describe('Grade 1 Master ECR, PACE, and SF9 Export - PACE Form Print Setup', () 
     expect(sf9Xml).toContain('<pageSetup paperSize="9" scale="65" orientation="portrait"');
 
     // 4. Verify PACE rating formulas are guarded so unrated cells stay blank instead of resulting in 0
-    expect(paceXml).toContain('IF(VLOOKUP(G6,\'TERM 1 READING &amp; LITERACY\'!C15:DG115,9,0)="","",VLOOKUP(G6,\'TERM 1 READING &amp; LITERACY\'!C15:DG115,9,0))');
+    expect(paceXml).toContain('IFERROR(IF(OR(VLOOKUP(G6,\'TERM 1 READING &amp; LITERACY\'!C15:DG115,9,0)=0,VLOOKUP(G6,\'TERM 1 READING &amp; LITERACY\'!C15:DG115,9,0)=""),"",VLOOKUP(G6,\'TERM 1 READING &amp; LITERACY\'!C15:DG115,9,0)),"")');
     expect(paceXml).not.toContain('<v>0</v>');
 
     // 5. Verify all rows across all sheets strictly preserve OpenXML alphabetical column ordering

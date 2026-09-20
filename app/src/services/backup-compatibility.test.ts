@@ -201,6 +201,15 @@ describe('Backup Backward Compatibility & Restoration', () => {
       expect(extractBackupPayload(undefined)).toBeNull();
       expect(extractBackupPayload('string-data')).toBeNull();
     });
+
+    it('successfully parses serialized JSON string backup payloads', () => {
+      const jsonStr = JSON.stringify({
+        students: [{ lrn: '123456789012', first_name: 'Maria', last_name: 'Santos' }]
+      });
+      const extracted = extractBackupPayload(jsonStr);
+      expect(extracted).not.toBeNull();
+      expect((extracted?.students as unknown[]).length).toBe(1);
+    });
   });
 
   describe('Field & Table Aliases & Primary Key Sanitization in importFromBackup', () => {
@@ -277,6 +286,23 @@ describe('Backup Backward Compatibility & Restoration', () => {
 
       expect(localStorage.getItem('activeSchoolYear')).toBe('2025-2026');
       expect(localStorage.getItem('formease_active_school_year')).toBe('2025-2026');
+    });
+
+    it('safely restores backups containing users table without throwing', async () => {
+      const payloadWithUsers = {
+        students: [{ lrn: '555666777888', first_name: 'David', last_name: 'Dizon' }],
+        sections: [{ id: 'sec-sapphire', section_name: 'Sapphire', section_grade_level: 'Grade 9' }],
+        users: [{ id: 'user-001', username: 'teacher1', displayName: 'Teacher 1' }],
+        schoolProfile: { school_id: '300001', school_name: 'Test High School', school_year: '2025-2026' }
+      };
+
+      await expect(db.importFromBackup(payloadWithUsers)).resolves.not.toThrow();
+
+      const students = await db.getAllRecords<{ lrn: string }>('students');
+      expect(students.some(s => s.lrn === '555666777888')).toBe(true);
+
+      const sections = await db.getAllRecords<{ id: string }>('sections');
+      expect(sections.some(sec => sec.id === 'sec-sapphire')).toBe(true);
     });
   });
 

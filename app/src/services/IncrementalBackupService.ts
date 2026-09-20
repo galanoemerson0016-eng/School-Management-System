@@ -29,6 +29,9 @@ export const IncrementalBackupService = {
   },
 
   async triggerIncrementalBackup(): Promise<void> {
+    if (db.isPreviewMode()) {
+      return;
+    }
     try {
       console.log('📦 Background scheduler: modifications detected. Generating incremental backup...');
       const comprehensive = await exportFullDatabaseBackup('Incremental Snapshot');

@@ -63,6 +63,8 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
       c === '#000000' ||
       c === '#000' ||
       c === 'black' ||
+      c === '#3f3f3f' ||
+      c === '#434343' ||
       c === '#b7b7b7' ||
       c === '#b8c0c8' ||
       c === '#18181b' ||

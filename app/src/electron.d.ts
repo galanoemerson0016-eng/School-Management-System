@@ -13,7 +13,7 @@ declare global {
       getAllLocalIps: () => Promise<Array<{ name: string; address: string }>>;
       checkForUpdates: () => void;
       onUpdateMessage: (callback: (message: SafeAny) => void) => void;
-      saveAutoBackup: (data: unknown, filename: string) => Promise<{ success: boolean; path?: string; error?: string }>;
+      saveAutoBackup: (data: unknown, filename: string, retentionLimit?: number) => Promise<{ success: boolean; path?: string; error?: string }>;
       logError: (payload: { kind: string; message: string; stack?: string }) => void;
       licenseStatus: () => Promise<{
         activated: boolean;

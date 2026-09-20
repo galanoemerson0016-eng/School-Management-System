@@ -301,7 +301,7 @@ ipcMain.handle('get-all-local-ips', () => {
   }
 });
 
-ipcMain.handle('save-auto-backup', async (event, { data, filename }) => {
+ipcMain.handle('save-auto-backup', async (event, { data, filename, retentionLimit }) => {
   try {
     const userDataPath = app.getPath('userData');
     const backupDir = path.join(userDataPath, 'backups');
@@ -313,19 +313,22 @@ ipcMain.handle('save-auto-backup', async (event, { data, filename }) => {
     const filePath = path.join(backupDir, filename);
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     
-    const files = fs.readdirSync(backupDir)
-      .filter(f => f.endsWith('.json'))
-      .map(f => ({ name: f, time: fs.statSync(path.join(backupDir, f)).mtime.getTime() }))
-      .sort((a, b) => b.time - a.time);
+    const limit = typeof retentionLimit === 'number' ? retentionLimit : 0;
+    if (limit > 0) {
+      const files = fs.readdirSync(backupDir)
+        .filter(f => f.endsWith('.json'))
+        .map(f => ({ name: f, time: fs.statSync(path.join(backupDir, f)).mtime.getTime() }))
+        .sort((a, b) => b.time - a.time);
 
-    if (files.length > 10) {
-      files.slice(10).forEach(f => {
-        try {
-          fs.unlinkSync(path.join(backupDir, f.name));
-        } catch (e) {
-          console.error('Failed to delete old backup:', e);
-        }
-      });
+      if (files.length > limit) {
+        files.slice(limit).forEach(f => {
+          try {
+            fs.unlinkSync(path.join(backupDir, f.name));
+          } catch (e) {
+            console.error('Failed to delete old backup:', e);
+          }
+        });
+      }
     }
 
     return { success: true, path: filePath };

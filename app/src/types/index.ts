@@ -113,6 +113,7 @@ export interface SchoolYear {
 }
 
 export interface Student {
+    id?: string;
     lrn: string;
     first_name: string;
     last_name: string;

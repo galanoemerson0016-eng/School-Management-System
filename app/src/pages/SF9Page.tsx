@@ -48,21 +48,24 @@ try {
 import { useAppStore } from '../stores/app-store';
 import { useAuthStore } from '../stores/auth-store';
 import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2Sheet, SchoolProfile, CalendarEvent, SF9SignatureSettings, AttendanceRecord } from '../types';
+import type { PaceRatingDescriptor } from '../types/pace';
 import { db } from '../services/database';
 import { resolveStudentQuarterGrade, isMatchingSubject, isStudentEligibleForSectionSubject, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
 import { getStandardSubjectPriority } from '../lib/subjectConfig';
 import { reconcileOrphanedGradesAndSubjects } from '../utils/grade-reconciliation';
 import { computeStudentAttendance } from '../utils/sf9-attendance';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3, FileSpreadsheet, Bug, RefreshCcw } from 'lucide-react';
+import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3, FileSpreadsheet, Bug, RefreshCcw, Upload } from 'lucide-react';
 import { exportSF9ToExcel, exportSF9BatchToExcel } from '../services/sf9-excel-export';
-import { isGrade1, getStudentBoSyEoSyAge, formatDateToMMDDYYYY } from '../services/sf9-g1-excel-export';
+import { isGrade1, getStudentBoSyEoSyAge, formatDateToMMDDYYYY, type SF9Grade1Remarks } from '../services/sf9-g1-excel-export';
 import { isGrade11Academic } from '../services/sf9-g11-academic-excel-export';
 import type { SF9ExcelExportOptions } from '../services/sf9-excel-export';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
 import { formatLearnerName } from '../utils/student-name';
 import { getShsSubjectUnitInfo, getCurriculumTemplatesForSection, getDefaultTermForSubject, resolveSubjectOfferedTerms } from '../lib/curriculum';
+import { MasterExcelImportModal } from '../components/MasterExcelImportModal';
+import type { CurrentGrade1Data, ApplyImportResult } from '../services/sf9-g1-excel-import';
 import {
     SF9Template2Document,
     SF9Template2BatchDocument,
@@ -3639,6 +3642,77 @@ export function SF9Page() {
         };
     }, []);
 
+    const [isMasterImportModalOpen, setIsMasterImportModalOpen] = useState(false);
+
+    const getG1RemarksForStudent = useCallback((sLrn?: string, studentId?: string) => {
+        try {
+            const cleanLrn = (sLrn || '').trim();
+            const cleanId = (studentId || '').trim();
+            const keysToTry = [
+                cleanLrn ? `g1_remarks_${cleanLrn}_${activeSchoolYear}` : null,
+                sLrn ? `g1_remarks_${sLrn}_${activeSchoolYear}` : null,
+                cleanId ? `g1_remarks_${cleanId}_${activeSchoolYear}` : null,
+                studentId ? `g1_remarks_${studentId}_${activeSchoolYear}` : null,
+            ].filter(Boolean) as string[];
+
+            for (const k of keysToTry) {
+                const stored = localStorage.getItem(k);
+                if (stored) {
+                    try {
+                        const parsed = JSON.parse(stored);
+                        if (parsed && typeof parsed === 'object') return parsed;
+                    } catch { /* continue */ }
+                }
+            }
+            return undefined;
+        } catch {
+            return undefined;
+        }
+    }, [activeSchoolYear]);
+
+    const currentGrade1Data: CurrentGrade1Data = useMemo(() => {
+        const remarks: Record<string, SF9Grade1Remarks> = {};
+        const sortedStudents = [...males, ...females];
+        for (const st of sortedStudents) {
+            const rem = getG1RemarksForStudent(st.lrn, st.id);
+            if (rem) {
+                remarks[st.lrn] = rem;
+            }
+        }
+
+        const reading = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || localStorage.getItem('formease_pace_ratings') || '{}');
+        const language = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
+        const math = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
+        const gmrcMakabansa = {
+            ...JSON.parse(localStorage.getItem('formease_pace_gmrc_ratings') || '{}'),
+            ...JSON.parse(localStorage.getItem('formease_pace_makabansa_ratings') || '{}'),
+            ...JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}')
+        };
+
+        return {
+            schoolYear: activeSchoolYear,
+            remarks,
+            paceRatings: {
+                reading,
+                language,
+                math,
+                gmrcMakabansa
+            }
+        };
+    }, [males, females, activeSchoolYear, getG1RemarksForStudent]);
+
+    const handleMasterImportSuccess = (result: ApplyImportResult) => {
+        if (selectedStudent) {
+            const r = getG1RemarksForStudent(selectedStudent.lrn, selectedStudent.id) || {};
+            setG1RemarksState(r);
+            setTempG1Remarks(r);
+        }
+        useAppStore.getState().showNotification(
+            `Master Excel imported! Updated ${result.updatedPaceCount} PACE ratings and ${result.updatedRemarksCount} SF9 remarks.`,
+            'success'
+        );
+    };
+
     /** Export single student SF9 to Excel */
     const handleExcelExport = useCallback(async () => {
         if (!selectedStudent || !selectedSectionObj) return;
@@ -3658,18 +3732,46 @@ export function SF9Page() {
                 return { ...st, grades: stGrades || {}, attendance: stAttendance };
             });
 
-            const getPaceRatingsForStudent = (sLrn: string) => {
+            const getPaceRatingsForStudent = (sLrn?: string, studentId?: string) => {
                 try {
-                    const reading = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || localStorage.getItem('formease_pace_ratings') || '{}');
-                    const language = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
-                    const math = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
-                    const gmrcMakabansa = JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}');
+                    const readingStore = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || localStorage.getItem('formease_pace_ratings') || '{}');
+                    const languageStore = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
+                    const mathStore = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
+                    const gmrcMakabansaStore = {
+                        ...JSON.parse(localStorage.getItem('formease_pace_gmrc_ratings') || '{}'),
+                        ...JSON.parse(localStorage.getItem('formease_pace_makabansa_ratings') || '{}'),
+                        ...JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}')
+                    };
+
+                    const extractRatings = (store: Record<string, unknown>) => {
+                        if (!store || typeof store !== 'object') return {};
+                        const cleanLrn = (sLrn || '').trim();
+                        const cleanId = (studentId || '').trim();
+
+                        let found: unknown = (cleanLrn && store[cleanLrn]) || (sLrn && store[sLrn]) || (cleanId && store[cleanId]) || (studentId && store[studentId]);
+
+                        if (!found && cleanLrn) {
+                            for (const [k, v] of Object.entries(store)) {
+                                if (k.trim() === cleanLrn || (cleanId && k.trim() === cleanId)) {
+                                    found = v;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!found || typeof found !== 'object') return {};
+                        const obj = found as Record<string, unknown>;
+                        if (obj.ratings && typeof obj.ratings === 'object') {
+                            return obj.ratings as Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
+                        }
+                        return obj as Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
+                    };
 
                     return {
-                        reading: reading[sLrn]?.ratings || {},
-                        language: language[sLrn]?.ratings || {},
-                        math: math[sLrn]?.ratings || {},
-                        gmrcMakabansa: gmrcMakabansa[sLrn]?.ratings || {},
+                        reading: extractRatings(readingStore),
+                        language: extractRatings(languageStore),
+                        math: extractRatings(mathStore),
+                        gmrcMakabansa: extractRatings(gmrcMakabansaStore),
                     };
                 } catch {
                     return undefined;
@@ -3694,16 +3796,34 @@ export function SF9Page() {
                 observedValues: studentValues,
                 comments: studentComments,
                 g1Remarks: g1RemarksState,
-                paceRatings: getPaceRatingsForStudent(selectedStudent.lrn),
+                paceRatings: getPaceRatingsForStudent(selectedStudent.lrn, selectedStudent.id),
                 sectionStudents: sortedStudents,
-                getStudentRemarks: (sLrn: string) => {
+                getStudentRemarks: (sLrn?: string, sId?: string) => {
                     try {
-                        const stored = localStorage.getItem(`g1_remarks_${sLrn}_${activeSchoolYear}`);
-                        return stored ? JSON.parse(stored) : undefined;
+                        const cleanLrn = (sLrn || '').trim();
+                        const cleanId = (sId || '').trim();
+                        const keysToTry = [
+                            cleanLrn ? `g1_remarks_${cleanLrn}_${activeSchoolYear}` : null,
+                            sLrn ? `g1_remarks_${sLrn}_${activeSchoolYear}` : null,
+                            cleanId ? `g1_remarks_${cleanId}_${activeSchoolYear}` : null,
+                            sId ? `g1_remarks_${sId}_${activeSchoolYear}` : null,
+                        ].filter(Boolean) as string[];
+
+                        for (const k of keysToTry) {
+                            const stored = localStorage.getItem(k);
+                            if (stored) {
+                                try {
+                                    const parsed = JSON.parse(stored);
+                                    if (parsed && typeof parsed === 'object') return parsed;
+                                } catch { /* continue */ }
+                            }
+                        }
+                        return undefined;
                     } catch {
                         return undefined;
                     }
                 },
+                getStudentPaceRatings: (sLrn?: string, sId?: string) => getPaceRatingsForStudent(sLrn, sId),
                 attendance,
                 gradeLevel: selectedStudent.grade_level,
                 subjectTerm: buildSubjectTermResolver(),
@@ -3729,27 +3849,72 @@ export function SF9Page() {
                 return;
             }
 
-            const getG1RemarksForStudent = (sLrn: string) => {
+            const getG1RemarksForStudent = (sLrn?: string, studentId?: string) => {
                 try {
-                    const stored = localStorage.getItem(`g1_remarks_${sLrn}_${activeSchoolYear}`);
-                    return stored ? JSON.parse(stored) : undefined;
+                    const cleanLrn = (sLrn || '').trim();
+                    const cleanId = (studentId || '').trim();
+                    const keysToTry = [
+                        cleanLrn ? `g1_remarks_${cleanLrn}_${activeSchoolYear}` : null,
+                        sLrn ? `g1_remarks_${sLrn}_${activeSchoolYear}` : null,
+                        cleanId ? `g1_remarks_${cleanId}_${activeSchoolYear}` : null,
+                        studentId ? `g1_remarks_${studentId}_${activeSchoolYear}` : null,
+                    ].filter(Boolean) as string[];
+
+                    for (const k of keysToTry) {
+                        const stored = localStorage.getItem(k);
+                        if (stored) {
+                            try {
+                                const parsed = JSON.parse(stored);
+                                if (parsed && typeof parsed === 'object') return parsed;
+                            } catch { /* continue */ }
+                        }
+                    }
+                    return undefined;
                 } catch {
                     return undefined;
                 }
             };
 
-            const getPaceRatingsForStudent = (sLrn: string) => {
+            const getPaceRatingsForStudent = (sLrn?: string, studentId?: string) => {
                 try {
-                    const reading = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || localStorage.getItem('formease_pace_ratings') || '{}');
-                    const language = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
-                    const math = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
-                    const gmrcMakabansa = JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}');
+                    const readingStore = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || localStorage.getItem('formease_pace_ratings') || '{}');
+                    const languageStore = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
+                    const mathStore = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
+                    const gmrcMakabansaStore = {
+                        ...JSON.parse(localStorage.getItem('formease_pace_gmrc_ratings') || '{}'),
+                        ...JSON.parse(localStorage.getItem('formease_pace_makabansa_ratings') || '{}'),
+                        ...JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}')
+                    };
+
+                    const extractRatings = (store: Record<string, unknown>) => {
+                        if (!store || typeof store !== 'object') return {};
+                        const cleanLrn = (sLrn || '').trim();
+                        const cleanId = (studentId || '').trim();
+
+                        let found: unknown = (cleanLrn && store[cleanLrn]) || (sLrn && store[sLrn]) || (cleanId && store[cleanId]) || (studentId && store[studentId]);
+
+                        if (!found && cleanLrn) {
+                            for (const [k, v] of Object.entries(store)) {
+                                if (k.trim() === cleanLrn || (cleanId && k.trim() === cleanId)) {
+                                    found = v;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!found || typeof found !== 'object') return {};
+                        const obj = found as Record<string, unknown>;
+                        if (obj.ratings && typeof obj.ratings === 'object') {
+                            return obj.ratings as Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
+                        }
+                        return obj as Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
+                    };
 
                     return {
-                        reading: reading[sLrn]?.ratings || {},
-                        language: language[sLrn]?.ratings || {},
-                        math: math[sLrn]?.ratings || {},
-                        gmrcMakabansa: gmrcMakabansa[sLrn]?.ratings || {},
+                        reading: extractRatings(readingStore),
+                        language: extractRatings(languageStore),
+                        math: extractRatings(mathStore),
+                        gmrcMakabansa: extractRatings(gmrcMakabansaStore),
                     };
                 } catch {
                     return undefined;
@@ -3787,10 +3952,11 @@ export function SF9Page() {
                     subjects: compSubjects,
                     observedValues: values,
                     comments: studentComments,
-                    g1Remarks: getG1RemarksForStudent(student.lrn),
-                    paceRatings: getPaceRatingsForStudent(student.lrn),
+                    g1Remarks: getG1RemarksForStudent(student.lrn, student.id),
+                    paceRatings: getPaceRatingsForStudent(student.lrn, student.id),
                     sectionStudents: allEnrichedStudents,
-                    getStudentRemarks: getG1RemarksForStudent,
+                    getStudentRemarks: (sLrn?: string, sId?: string) => getG1RemarksForStudent(sLrn, sId),
+                    getStudentPaceRatings: (sLrn?: string, sId?: string) => getPaceRatingsForStudent(sLrn, sId),
                     attendance,
                     gradeLevel: student.grade_level,
                     subjectTerm: buildSubjectTermResolver(),
@@ -4168,17 +4334,27 @@ export function SF9Page() {
                         {!isBatchReady && singleDocument && !isShsSf9Section && (
                             <div className="flex items-center gap-1 shrink-0">
                                 {isGrade1Level(selectedStudent?.grade_level) && (
-                                    <button
-                                        onClick={() => {
-                                            setTempG1Remarks(g1RemarksState);
-                                            setIsG1ModalOpen(true);
-                                        }}
-                                        className="h-7.5 px-2 rounded-lg bg-purple-600 text-white font-black text-[8px] uppercase tracking-wider shadow-xs hover:bg-purple-700 active:scale-95 transition-all flex items-center gap-1 whitespace-nowrap shrink-0"
-                                        title="Edit Grade 1 Learner Progress"
-                                    >
-                                        <Edit3 className="w-3 h-3" />
-                                        Progress
-                                    </button>
+                                    <>
+                                        <button
+                                            onClick={() => {
+                                                setTempG1Remarks(g1RemarksState);
+                                                setIsG1ModalOpen(true);
+                                            }}
+                                            className="h-7.5 px-2 rounded-lg bg-purple-600 text-white font-black text-[8px] uppercase tracking-wider shadow-xs hover:bg-purple-700 active:scale-95 transition-all flex items-center gap-1 whitespace-nowrap shrink-0"
+                                            title="Edit Grade 1 Learner Progress"
+                                        >
+                                            <Edit3 className="w-3 h-3" />
+                                            Progress
+                                        </button>
+                                        <button
+                                            onClick={() => setIsMasterImportModalOpen(true)}
+                                            className="h-7.5 px-2 rounded-lg bg-emerald-600 text-white font-black text-[8px] uppercase tracking-wider shadow-xs hover:bg-emerald-700 active:scale-95 transition-all flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+                                            title="Import edited Grade 1 Master Excel (.xlsx) with two-way sync, visual diffs, and merge strategies"
+                                        >
+                                            <Upload className="w-3 h-3" />
+                                            Import Master
+                                        </button>
+                                    </>
                                 )}
                                 <button
                                     onClick={handlePrint}
@@ -4409,6 +4585,20 @@ export function SF9Page() {
                                         <FileSpreadsheet className="w-4 h-4" />
                                         <span>Export Excel Batch</span>
                                     </motion.button>
+
+                                    {isGrade1Level(selectedSectionObj?.section_grade_level) && (
+                                        <motion.button
+                                            initial={{ y: 20, opacity: 0 }}
+                                            animate={{ y: 0, opacity: 1 }}
+                                            onClick={() => setIsMasterImportModalOpen(true)}
+                                            disabled={isPending}
+                                            className="px-8 py-3.5 rounded-xl text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-xl bg-teal-600 hover:bg-teal-700 hover:scale-105 active:scale-95 shadow-teal-500/30 transition-all flex items-center gap-3 cursor-pointer"
+                                            title="Import edited Grade 1 Master Excel (.xlsx) with two-way sync, visual diffs, and merge strategies"
+                                        >
+                                            <Upload className="w-4 h-4" />
+                                            <span>Import Master (.xlsx)</span>
+                                        </motion.button>
+                                    )}
 
                                     <motion.button
                                         initial={{ y: 20, opacity: 0 }}
@@ -5168,6 +5358,16 @@ export function SF9Page() {
                     </div>
                 )}
             </AnimatePresence>
+
+            <MasterExcelImportModal
+                isOpen={isMasterImportModalOpen}
+                onClose={() => setIsMasterImportModalOpen(false)}
+                gradeLevel={selectedSectionObj?.section_grade_level || 'Grade 1'}
+                schoolYear={activeSchoolYear}
+                section={selectedSectionObj?.section_name || ''}
+                currentData={currentGrade1Data}
+                onImportSuccess={handleMasterImportSuccess}
+            />
         </div>
     );
 }

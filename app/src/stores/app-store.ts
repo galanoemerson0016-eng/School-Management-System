@@ -1933,6 +1933,16 @@ export async function initializeAppStore() {
       await db.deleteRecordsBulk('subjects', reconciliation.deletedSubjectIds);
     }
 
+    if (reconciliation.deletedClassRecordIds && reconciliation.deletedClassRecordIds.length > 0) {
+      console.log(`[FormEase Pro] Self-healing purged ${reconciliation.deletedClassRecordIds.length} orphaned temporary grade record(s).`);
+      await db.deleteRecordsBulk('classRecords', reconciliation.deletedClassRecordIds);
+    }
+
+    if (reconciliation.deletedGradingSheetRecordIds && reconciliation.deletedGradingSheetRecordIds.length > 0) {
+      console.log(`[FormEase Pro] Self-healing purged ${reconciliation.deletedGradingSheetRecordIds.length} orphaned temporary grading sheet record(s).`);
+      await db.deleteRecordsBulk('gradingSheetRecords', reconciliation.deletedGradingSheetRecordIds);
+    }
+
     if (reconciliation.sectionsModified && reconciliation.sections) {
       console.log(`[FormEase Pro] Self-healing updated ${reconciliation.sections.length} section(s) with synchronized subjects.`);
       await db.putRecordsBulk('sections', reconciliation.sections);

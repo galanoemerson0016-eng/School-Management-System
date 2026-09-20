@@ -23,7 +23,7 @@ import {
 import { RestoreStrategyPanel } from './RestoreStrategyPanel';
 import type { RestoreStrategy } from '../utils/restore-options';
 import type { ComprehensiveBackup } from '../utils/backup-restore';
-import { useAppStore } from '../stores/app-store';
+import { useAppStore, initializeAppStore } from '../stores/app-store';
 import { decryptBackup } from '../utils/backup-encryption';
 
 interface RestoreSummary {
@@ -423,6 +423,22 @@ export function BackupRestoreModal({
                 }`
             );
 
+            // Align active school year in store
+            const restoredSchoolYear = state.backup.payload.activeSchoolYear || state.backup.summary?.activeSchoolYear || '2026-2027';
+            useAppStore.setState({ activeSchoolYear: restoredSchoolYear });
+
+            // Re-initialize app store from the freshly restored database
+            await initializeAppStore();
+
+            // Auto-align selected section
+            const currentSections = useAppStore.getState().sections;
+            const advisorySec = currentSections.find(s => s.is_advisory || (s as { is_advisory_class?: boolean }).is_advisory_class);
+            const defaultSec = advisorySec ? advisorySec.section_name : (currentSections[0]?.section_name || null);
+            if (defaultSec) {
+                localStorage.setItem('formease-selected-section', defaultSec);
+                useAppStore.setState({ selectedSection: defaultSec });
+            }
+
             try {
                 const historyEntry = {
                     type: 'Restore Backup',
@@ -444,7 +460,7 @@ export function BackupRestoreModal({
             }));
             
             if (onRestoreComplete) {
-                onRestoreComplete();
+                await onRestoreComplete();
             }
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
@@ -934,12 +950,23 @@ export function BackupRestoreModal({
                                 </div>
                             )}
 
-                            <button
-                                onClick={onClose}
-                                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                            >
-                                Close
-                            </button>
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={onClose}
+                                    className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 cursor-pointer transition-colors"
+                                >
+                                    Stay on Settings
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        useAppStore.setState({ currentView: 'dashboard' });
+                                        onClose();
+                                    }}
+                                    className="flex-1 px-4 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 cursor-pointer shadow-xs transition-colors"
+                                >
+                                    Go to Restored Dashboard →
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>

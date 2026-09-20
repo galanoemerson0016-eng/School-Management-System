@@ -33,6 +33,10 @@ export const AutoBackupManager = {
    * Initializes the scheduler by checking if a backup is due and runs it.
    */
   async init(): Promise<void> {
+    if (db.isPreviewMode()) {
+      console.log('👁️ Snapshot preview mode active: skipping automated backup initialization.');
+      return;
+    }
     try {
       const lastBackupTime = localStorage.getItem('formease_last_autobackup_time');
       const now = Date.now();
@@ -98,10 +102,9 @@ export const AutoBackupManager = {
     // Initial check after 10 seconds of app load
     setTimeout(runHourlyCheck, 10000);
 
-    // Periodic check every 5 minutes
-    this._hourlyIntervalId = setInterval(runHourlyCheck, 5 * 60 * 1000);
+    // Run check every hour
+    this._hourlyIntervalId = setInterval(runHourlyCheck, 60 * 60 * 1000);
 
-    // Listen for network reconnect
     window.addEventListener('online', () => {
       console.log('🌐 Internet connection restored: checking if cloud sync is due...');
       runHourlyCheck();
@@ -112,6 +115,9 @@ export const AutoBackupManager = {
    * Executes database export and Google Drive sync before app closing.
    */
   async syncBeforeExit(): Promise<void> {
+    if (db.isPreviewMode()) {
+      return;
+    }
     try {
       console.log('🔄 Application closing: saving snapshot and syncing to Google Drive...');
       // 1. Save local snapshot
@@ -136,6 +142,10 @@ export const AutoBackupManager = {
    * Manually triggers a new automated backup snapshot.
    */
   async triggerBackup(): Promise<string> {
+    if (db.isPreviewMode()) {
+      console.log('👁️ Snapshot preview mode active: skipping automated backup trigger.');
+      return '';
+    }
     try {
       const comprehensive = await exportFullDatabaseBackup('Automated Daily Backup Snapshot');
       const data = (await embedChecksum(comprehensive as unknown as Record<string, unknown>)) as unknown as ComprehensiveBackup;
@@ -175,7 +185,9 @@ export const AutoBackupManager = {
         try {
           const timestampStr = new Date(timestamp).toISOString().replace(/[:.]/g, '-');
           const fsFilename = `SMS_Backup_Comprehensive_${timestampStr}.json`;
-          await window.electronAPI.saveAutoBackup(data, fsFilename);
+          const pref = localStorage.getItem('formease_snapshot_retention_limit') || 'unlimited';
+          const retentionLimit = pref === 'unlimited' ? 0 : parseInt(pref, 10) || 0;
+          await window.electronAPI.saveAutoBackup(data, fsFilename, retentionLimit);
         } catch (fsErr) {
           console.error('Failed to write backup snapshot to local drive:', fsErr);
         }
@@ -184,7 +196,7 @@ export const AutoBackupManager = {
       // Update localStorage timestamp
       localStorage.setItem('formease_last_autobackup_time', timestamp.toString());
 
-      // Rotate automated backups: Keep only the 10 most recent
+      // Rotate automated backups: Keep according to user retention preference (default: unlimited)
       await this.rotateBackups();
 
       console.log('✅ Automated daily database backup complete:', backupId);
@@ -232,13 +244,22 @@ export const AutoBackupManager = {
   },
 
   /**
-   * Cleans up older backups to enforce a maximum of 10 rotating snapshots.
+   * Cleans up older backups according to the user's snapshot retention preference.
+   * If set to 'unlimited' (default), no backups are pruned.
    */
   async rotateBackups(): Promise<void> {
     try {
+      const pref = localStorage.getItem('formease_snapshot_retention_limit') || 'unlimited';
+      if (pref === 'unlimited') {
+        return; // User has selected unlimited retention; keep all checkpoints
+      }
+      const limit = parseInt(pref, 10);
+      if (isNaN(limit) || limit <= 0) {
+        return;
+      }
       const backups = await this.getAutomatedBackups();
-      if (backups.length > 10) {
-        const oldBackups = backups.slice(10);
+      if (backups.length > limit) {
+        const oldBackups = backups.slice(limit);
         for (const ob of oldBackups) {
           await this.deleteBackup(ob.id);
           console.log(`Rotated (deleted) old automated backup: ${ob.id}`);

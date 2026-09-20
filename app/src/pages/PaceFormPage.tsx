@@ -12,6 +12,9 @@ import { computeStudentAttendance } from '../utils/sf9-attendance';
 import { PACE_DESCRIPTORS } from '../services/pace-template-config';
 import type { PaceFormData, PaceRatingDescriptor, PaceDescriptorInfo } from '../types/pace';
 import { formatLearnerName } from '../utils/student-name';
+import { MasterExcelImportModal } from '../components/MasterExcelImportModal';
+import type { CurrentGrade1Data, ApplyImportResult } from '../services/sf9-g1-excel-import';
+import type { SF9Grade1Remarks } from '../services/sf9-g1-excel-export';
 import { 
   ArrowLeft, 
   FileSpreadsheet, 
@@ -29,7 +32,8 @@ import {
   Download,
   Loader2,
   Edit3,
-  X
+  X,
+  Upload
 } from 'lucide-react';
 
 export type PacePageFormType = 'reading' | 'language' | 'math' | 'gmrc-makabansa' | 'sf9';
@@ -241,28 +245,74 @@ export function PaceFormPage() {
     }, 300);
   };
 
-  const getPaceRatingsForStudent = (sLrn: string) => {
+  const getPaceRatingsForStudent = useCallback((sLrn?: string, studentId?: string) => {
     try {
-      const reading = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || localStorage.getItem('formease_pace_ratings') || '{}');
-      const language = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
-      const math = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
-      const gmrcMakabansa = JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}');
+      const readingStore = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || localStorage.getItem('formease_pace_ratings') || '{}');
+      const languageStore = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
+      const mathStore = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
+      const gmrcMakabansaStore = {
+        ...JSON.parse(localStorage.getItem('formease_pace_gmrc_ratings') || '{}'),
+        ...JSON.parse(localStorage.getItem('formease_pace_makabansa_ratings') || '{}'),
+        ...JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}')
+      };
+
+      const extractRatings = (store: Record<string, unknown>) => {
+        if (!store || typeof store !== 'object') return {};
+        const cleanLrn = (sLrn || '').trim();
+        const cleanId = (studentId || '').trim();
+
+        let found: unknown = (cleanLrn && store[cleanLrn]) || (sLrn && store[sLrn]) || (cleanId && store[cleanId]) || (studentId && store[studentId]);
+
+        if (!found && cleanLrn) {
+          for (const [k, v] of Object.entries(store)) {
+            if (k.trim() === cleanLrn || (cleanId && k.trim() === cleanId)) {
+              found = v;
+              break;
+            }
+          }
+        }
+
+        if (!found || typeof found !== 'object') return {};
+        const obj = found as Record<string, unknown>;
+        if (obj.ratings && typeof obj.ratings === 'object') {
+          return obj.ratings as Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
+        }
+        return obj as Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
+      };
 
       return {
-        reading: reading[sLrn]?.ratings || {},
-        language: language[sLrn]?.ratings || {},
-        math: math[sLrn]?.ratings || {},
-        gmrcMakabansa: gmrcMakabansa[sLrn]?.ratings || {},
+        reading: extractRatings(readingStore),
+        language: extractRatings(languageStore),
+        math: extractRatings(mathStore),
+        gmrcMakabansa: extractRatings(gmrcMakabansaStore),
       };
     } catch {
       return undefined;
     }
-  };
+  }, []);
 
-  const getG1RemarksForStudent = useCallback((sLrn: string) => {
+  const getG1RemarksForStudent = useCallback((sLrn?: string, studentId?: string) => {
     try {
-      const stored = localStorage.getItem(`g1_remarks_${sLrn}_${activeSchoolYear}`);
-      return stored ? JSON.parse(stored) : undefined;
+      const cleanLrn = (sLrn || '').trim();
+      const cleanId = (studentId || '').trim();
+
+      const keysToTry = [
+        cleanLrn ? `g1_remarks_${cleanLrn}_${activeSchoolYear}` : null,
+        sLrn ? `g1_remarks_${sLrn}_${activeSchoolYear}` : null,
+        cleanId ? `g1_remarks_${cleanId}_${activeSchoolYear}` : null,
+        studentId ? `g1_remarks_${studentId}_${activeSchoolYear}` : null,
+      ].filter(Boolean) as string[];
+
+      for (const k of keysToTry) {
+        const stored = localStorage.getItem(k);
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (parsed && typeof parsed === 'object') return parsed;
+          } catch { /* continue */ }
+        }
+      }
+      return undefined;
     } catch {
       return undefined;
     }
@@ -278,14 +328,14 @@ export function PaceFormPage() {
   }
 
   const [g1RemarksState, setG1RemarksState] = useState<G1RemarksData>(() => {
-    return selectedStudent ? getG1RemarksForStudent(selectedStudent.lrn) || {} : {};
+    return selectedStudent ? getG1RemarksForStudent(selectedStudent.lrn, selectedStudent.id) || {} : {};
   });
   const [isG1ModalOpen, setIsG1ModalOpen] = useState(false);
   const [tempG1Remarks, setTempG1Remarks] = useState<G1RemarksData>(g1RemarksState);
 
   useEffect(() => {
     if (selectedStudent) {
-      const r = getG1RemarksForStudent(selectedStudent.lrn) || {};
+      const r = getG1RemarksForStudent(selectedStudent.lrn, selectedStudent.id) || {};
       setG1RemarksState(r);
       setTempG1Remarks(r);
     } else {
@@ -297,9 +347,65 @@ export function PaceFormPage() {
   const handleSaveG1Progress = () => {
     setG1RemarksState(tempG1Remarks);
     if (selectedStudent) {
-      localStorage.setItem(`g1_remarks_${selectedStudent.lrn}_${activeSchoolYear}`, JSON.stringify(tempG1Remarks));
+      if (selectedStudent.lrn) {
+        localStorage.setItem(`g1_remarks_${selectedStudent.lrn.trim()}_${activeSchoolYear}`, JSON.stringify(tempG1Remarks));
+        if (selectedStudent.lrn !== selectedStudent.lrn.trim()) {
+          localStorage.setItem(`g1_remarks_${selectedStudent.lrn}_${activeSchoolYear}`, JSON.stringify(tempG1Remarks));
+        }
+      }
+      const studentId = selectedStudent.id;
+      if (studentId) {
+        localStorage.setItem(`g1_remarks_${studentId}_${activeSchoolYear}`, JSON.stringify(tempG1Remarks));
+      }
     }
     setIsG1ModalOpen(false);
+  };
+
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+
+  const currentGrade1Data: CurrentGrade1Data = useMemo(() => {
+    const remarks: Record<string, SF9Grade1Remarks> = {};
+    for (const st of sectionStudents) {
+      const rem = getG1RemarksForStudent(st.lrn, st.id);
+      if (rem) {
+        remarks[st.lrn] = rem;
+      }
+    }
+
+    const reading = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || '{}');
+    const language = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
+    const math = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
+    const gmrcMakabansa = {
+      ...JSON.parse(localStorage.getItem('formease_pace_gmrc_ratings') || '{}'),
+      ...JSON.parse(localStorage.getItem('formease_pace_makabansa_ratings') || '{}'),
+      ...JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}')
+    };
+
+    return {
+      schoolYear: activeSchoolYear,
+      remarks,
+      paceRatings: {
+        reading,
+        language,
+        math,
+        gmrcMakabansa
+      }
+    };
+  }, [sectionStudents, activeSchoolYear, getG1RemarksForStudent]);
+
+  const handleImportSuccess = (result: ApplyImportResult) => {
+    if (selectedStudent) {
+      const r = getG1RemarksForStudent(selectedStudent.lrn, selectedStudent.id) || {};
+      setG1RemarksState(r);
+      setTempG1Remarks(r);
+    }
+    if (formType !== 'sf9') {
+      setRatingsStore(loadRatingsStore(formType));
+    }
+    useAppStore.getState().showNotification(
+      `Master Excel imported! Updated ${result.updatedPaceCount} PACE ratings and ${result.updatedRemarksCount} SF9 remarks.`,
+      'success'
+    );
   };
 
   const getStudentAttendance = useCallback((st: (typeof sectionStudents)[0]) => {
@@ -405,12 +511,12 @@ export function PaceFormPage() {
         principal: schoolProfile.head_name || '',
         principalTitle: schoolProfile.head_position || 'School Principal',
         attendance,
-        g1Remarks: getG1RemarksForStudent(baseStudent.lrn),
-        paceRatings: getPaceRatingsForStudent(baseStudent.lrn),
+        g1Remarks: getG1RemarksForStudent(baseStudent.lrn, baseStudent.id),
+        paceRatings: getPaceRatingsForStudent(baseStudent.lrn, baseStudent.id),
         sectionStudents,
-        getStudentRemarks: getG1RemarksForStudent,
+        getStudentRemarks: (sLrn?: string, sId?: string) => getG1RemarksForStudent(sLrn, sId),
         getStudentAttendance,
-        getStudentPaceRatings: getPaceRatingsForStudent,
+        getStudentPaceRatings: (sLrn?: string, sId?: string) => getPaceRatingsForStudent(sLrn, sId),
       };
 
       await exportGrade1AllInOneSectionMasterToExcel(opts);
@@ -657,6 +763,16 @@ export function PaceFormPage() {
               <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-200" />
               <span>Export Master (.xlsx)</span>
             </button>
+
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              disabled={sectionStudents.length === 0}
+              className="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-xs shadow-emerald-600/20 disabled:opacity-50 shrink-0 cursor-pointer"
+              title="Import edited master workbook (.xlsx) with two-way sync, visual diff preview, and flexible merge"
+            >
+              <Upload className="w-3.5 h-3.5 text-emerald-200" />
+              <span>Import Master (.xlsx)</span>
+            </button>
           </div>
 
         </div>
@@ -827,6 +943,16 @@ export function PaceFormPage() {
           </div>
         )}
       </AnimatePresence>
+
+      <MasterExcelImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        gradeLevel="Grade 1"
+        schoolYear={activeSchoolYear}
+        section={selectedSection?.section_name || ''}
+        currentData={currentGrade1Data}
+        onImportSuccess={handleImportSuccess}
+      />
     </div>
   );
 }

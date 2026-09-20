@@ -122,8 +122,22 @@ async function decryptRecordIfNeeded<T>(storeName: string, record: unknown): Pro
 }
 
 // IndexedDB database name and stores
-const DB_NAME = 'FormEaseDB';
-const DB_VERSION = 12;
+export const PRODUCTION_DB_NAME = 'FormEaseDB';
+export const PREVIEW_DB_NAME = 'FormEaseDB_Preview';
+export const DB_VERSION = 12;
+
+export function isPreviewMode(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return localStorage.getItem('formease_preview_mode_active') === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function getActiveDbName(): string {
+  return isPreviewMode() ? PREVIEW_DB_NAME : PRODUCTION_DB_NAME;
+}
 
 export interface BackupMetadata {
   id: string;
@@ -190,11 +204,20 @@ function notifyChange(storeName: string, type: 'put' | 'delete') {
  * Open IndexedDB database with all required object stores
  */
 function openDatabase(): Promise<IDBDatabase> {
-  if (dbInstance) {
+  const targetDbName = getActiveDbName();
+  if (dbInstance && dbInstance.name === targetDbName) {
     return Promise.resolve(dbInstance);
   }
+  if (dbInstance) {
+    try {
+      dbInstance.close();
+    } catch (_e) {
+      // ignore
+    }
+    dbInstance = null;
+  }
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(targetDbName, DB_VERSION);
 
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
@@ -263,6 +286,7 @@ function openDatabase(): Promise<IDBDatabase> {
         ['backups', 'id'],
         ['automated_backups', 'id'],
         ['activityLog', 'id'],
+        ['users', 'id'],
       ];
 
       for (const [store, keyPath] of storeConfigs) {
@@ -308,6 +332,9 @@ function openDatabase(): Promise<IDBDatabase> {
  */
 async function getAllRecords<T>(storeName: string): Promise<T[]> {
   const db = await openDatabase();
+  if (!db.objectStoreNames.contains(storeName)) {
+    return [];
+  }
   const rawList = await new Promise<unknown[]>((resolve, reject) => {
     const transaction = db.transaction(storeName, 'readonly');
     const store = transaction.objectStore(storeName);
@@ -324,6 +351,9 @@ async function getAllRecords<T>(storeName: string): Promise<T[]> {
  */
 async function getRecord<T>(storeName: string, key: string): Promise<T | undefined> {
   const db = await openDatabase();
+  if (!db.objectStoreNames.contains(storeName)) {
+    return undefined;
+  }
   const raw = await new Promise<unknown>((resolve, reject) => {
     const transaction = db.transaction(storeName, 'readonly');
     const store = transaction.objectStore(storeName);
@@ -346,6 +376,10 @@ async function putRecord<T>(
   try {
     const encrypted = await encryptRecordIfNeeded(storeName, record);
     const db = await openDatabase();
+    if (!db.objectStoreNames.contains(storeName)) {
+      console.warn(`[Database] Object store "${storeName}" does not exist. Skipping put.`);
+      return '';
+    }
     const result = await new Promise<string>((resolve, reject) => {
       const transaction = db.transaction(storeName, 'readwrite');
       const store = transaction.objectStore(storeName);
@@ -375,6 +409,10 @@ async function putRecordsBulk<T>(
       records.map(record => encryptRecordIfNeeded(storeName, record))
     );
     const db = await openDatabase();
+    if (!db.objectStoreNames.contains(storeName)) {
+      console.warn(`[Database] Object store "${storeName}" does not exist. Skipping putRecordsBulk.`);
+      return;
+    }
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(storeName, 'readwrite');
       const store = transaction.objectStore(storeName);
@@ -399,6 +437,9 @@ async function deleteRecord(storeName: string, key: string): Promise<void> {
   notifyWriteChange(1);
   try {
     const db = await openDatabase();
+    if (!db.objectStoreNames.contains(storeName)) {
+      return;
+    }
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(storeName, 'readwrite');
       const store = transaction.objectStore(storeName);
@@ -421,6 +462,9 @@ async function deleteRecordsBulk(storeName: string, keys: string[]): Promise<voi
   notifyWriteChange(keys.length);
   try {
     const db = await openDatabase();
+    if (!db.objectStoreNames.contains(storeName)) {
+      return;
+    }
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(storeName, 'readwrite');
       const store = transaction.objectStore(storeName);
@@ -445,6 +489,9 @@ async function clearStore(storeName: string): Promise<void> {
   notifyWriteChange(1);
   try {
     const db = await openDatabase();
+    if (!db.objectStoreNames.contains(storeName)) {
+      return;
+    }
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(storeName, 'readwrite');
       const store = transaction.objectStore(storeName);
@@ -568,6 +615,21 @@ export interface BackupImportPayload {
  * (handles ComprehensiveBackup, AutomatedBackupEntry, raw dumps, etc.)
  */
 export function extractBackupPayload(rawBackupData: unknown): Record<string, unknown> | null {
+  if (!rawBackupData) return null;
+
+  if (typeof rawBackupData === 'string') {
+    try {
+      const parsed = JSON.parse(rawBackupData);
+      if (parsed && typeof parsed === 'object') {
+        rawBackupData = parsed;
+      } else {
+        return null;
+      }
+    } catch {
+      return null;
+    }
+  }
+
   if (!rawBackupData || typeof rawBackupData !== 'object') return null;
 
   let current: unknown = rawBackupData;
@@ -842,7 +904,11 @@ async function importFromBackup(rawBackupData: BackupImportPayload) {
         id: String(u.id || u.uid).trim(),
       }));
     if (sanitized.length > 0) {
-      await putRecordsBulk('users', sanitized);
+      try {
+        await putRecordsBulk('users', sanitized);
+      } catch (err) {
+        console.warn('[Database] Could not restore users store records:', err);
+      }
     }
   }
 
@@ -1049,6 +1115,46 @@ async function getStoreStats(): Promise<Record<string, { count: number; sizeByte
   return stats;
 }
 
+async function resetConnection(): Promise<void> {
+  if (dbInstance) {
+    try {
+      dbInstance.close();
+    } catch (_e) {
+      // ignore
+    }
+    dbInstance = null;
+  }
+}
+
+async function cleanupPreviewDatabase(): Promise<void> {
+  if (dbInstance && dbInstance.name === PREVIEW_DB_NAME) {
+    try {
+      dbInstance.close();
+    } catch (_e) {
+      // ignore
+    }
+    dbInstance = null;
+  }
+  return new Promise((resolve) => {
+    try {
+      if (typeof indexedDB === 'undefined') {
+        resolve();
+        return;
+      }
+      const req = indexedDB.deleteDatabase(PREVIEW_DB_NAME);
+      req.onsuccess = () => resolve();
+      req.onerror = () => resolve();
+      req.onblocked = () => resolve();
+    } catch (_err) {
+      resolve();
+    }
+  });
+}
+
+async function preparePreviewDatabase(): Promise<void> {
+  await cleanupPreviewDatabase();
+}
+
 export const db = {
   getStoreStats,
   setDatabaseEncryptionKey,
@@ -1072,6 +1178,11 @@ export const db = {
   addActivityEntry,
   getRecordsByIndex,
   migrateDatabaseForIndexing,
+  isPreviewMode,
+  getActiveDbName,
+  resetConnection,
+  cleanupPreviewDatabase,
+  preparePreviewDatabase,
   _encryptRecord: encryptRecordIfNeeded,
   _decryptRecord: decryptRecordIfNeeded,
   nukeDatabase: async (): Promise<void> => {
@@ -1103,3 +1214,4 @@ export const db = {
     }
   }
 };
+

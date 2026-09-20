@@ -67,7 +67,13 @@ export interface SF9ExcelExportOptions {
     gmrcMakabansa?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
   };
   sectionStudents?: Student[];
-  getStudentRemarks?: (lrn: string) => SF9Grade1Remarks | undefined;
+  getStudentRemarks?: (lrn?: string, studentId?: string) => SF9Grade1Remarks | undefined;
+  getStudentPaceRatings?: (lrn?: string, studentId?: string) => {
+    reading?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
+    language?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
+    math?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
+    gmrcMakabansa?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
+  } | undefined;
   subjectTerm?: (subjectName: string, subjectId?: string) => 1 | 2 | 3 | 'all' | 'none' | undefined;
   pageSize?: 'A4' | 'LETTER';
 }

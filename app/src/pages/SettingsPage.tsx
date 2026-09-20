@@ -3,11 +3,12 @@ import { useAuthStore } from '../stores/auth-store';
 import { useAppStore, initializeAppStore } from '../stores/app-store';
 import { useUpdateStore } from '../stores/update-store';
 import { db } from '../services/database';
-import { Database, User, Shield, Upload, Cloud, Info, Sparkles, Sun, Moon, Monitor, Download, MessageSquare, FileSpreadsheet, RefreshCw, CheckCircle2, Archive, Search } from 'lucide-react';
+import { Database, User, Shield, Upload, Cloud, Info, Sparkles, Sun, Moon, Monitor, Download, MessageSquare, FileSpreadsheet, RefreshCw, CheckCircle2, Archive, Search, Eye } from 'lucide-react';
 import { AboutPage } from './AboutPage';
 import { VersionHistoryTimeline } from '../components/settings/VersionHistoryTimeline';
 import { SmsGatewaySettings } from '../components/settings/SmsGatewaySettings';
 import { AutoBackupManager, type AutomatedBackupEntry } from '../services/AutoBackupManager';
+import { SnapshotPreviewService } from '../services/SnapshotPreviewService';
 import { CloudSyncService } from '../services/cloud-sync';
 import { DiagnosticEngine, type DiagnosticIssue } from '../services/diagnostic-engine';
 import { canPurgeMaintenance } from '../lib/rbac';
@@ -85,6 +86,21 @@ export function SettingsPage() {
     const [autoBackups, setAutoBackups] = useState<AutomatedBackupEntry[]>([]);
     const [fsBackups, setFsBackups] = useState<FsBackupEntry[]>([]);
     const [snapshotSearchQuery, setSnapshotSearchQuery] = useState("");
+    const [snapshotRetentionLimit, setSnapshotRetentionLimit] = useState<string>(() => {
+        return localStorage.getItem('formease_snapshot_retention_limit') || 'unlimited';
+    });
+    const [snapshotTypeFilter, setSnapshotTypeFilter] = useState<'all' | 'auto' | 'fs'>('all');
+
+    const handleRetentionLimitChange = async (newLimit: string) => {
+        setSnapshotRetentionLimit(newLimit);
+        localStorage.setItem('formease_snapshot_retention_limit', newLimit);
+        if (newLimit !== 'unlimited') {
+            await AutoBackupManager.rotateBackups();
+            loadAutoBackups();
+            loadFsBackups();
+        }
+    };
+
     const [inspectingSnapshot, setInspectingSnapshot] = useState<{
         title: string;
         timestamp: number;
@@ -99,6 +115,8 @@ export function SettingsPage() {
         attendance: number;
         subjects: number;
         onRestore: () => void;
+        onDownload?: () => void;
+        onPreview?: () => void;
     } | null>(null);
     const updateStore = useUpdateStore();
     const [activeTab, setActiveTab] = useState<'general' | 'account' | 'backups' | 'cloud' | 'sms' | 'maintenance' | 'versions' | 'about'>('general');
@@ -257,6 +275,39 @@ export function SettingsPage() {
         }
     }, [cloudSyncState.linked]);
 
+    const handlePreviewCloudBackup = async (fileId: string, filename: string) => {
+        setIsRestoringCloudBackup(true);
+        try {
+            const fileContentStr = await CloudSyncService.downloadCloudBackup(fileId);
+            const backupData = JSON.parse(fileContentStr);
+            const raw = backupData.data || backupData;
+            const payload = (raw as Record<string, unknown>).payload as Record<string, unknown> | undefined;
+            const summary = (raw as Record<string, unknown>).summary as Record<string, unknown> | undefined;
+
+            const sy = (payload?.activeSchoolYear as string) || (summary?.activeSchoolYear as string) || 'Active S.Y.';
+            const studentsCount = (summary?.students as number) || (Array.isArray(payload?.students) ? payload.students.length : 0);
+            const sectionsCount = (summary?.sections as number) || (Array.isArray(payload?.sections) ? payload.sections.length : 0);
+            const gradesCount = (summary?.grades as number) || (Array.isArray(payload?.classRecords) ? payload.classRecords.length : 0);
+
+            await SnapshotPreviewService.startPreview(raw, {
+                id: fileId,
+                filename,
+                sourceType: 'cloud',
+                title: filename,
+                timestamp: Date.now(),
+                schoolYear: sy,
+                studentsCount,
+                sectionsCount,
+                gradesCount,
+            });
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            alert('Failed to preview cloud backup: ' + message);
+        } finally {
+            setIsRestoringCloudBackup(false);
+        }
+    };
+
     const handleRestoreCloudBackup = (fileId: string, filename: string) => {
         setPendingConfirmation({
             title: 'Restore Cloud Backup?',
@@ -270,9 +321,24 @@ export function SettingsPage() {
                     const fileContentStr = await CloudSyncService.downloadCloudBackup(fileId);
                     const backupData = JSON.parse(fileContentStr);
                     
-                    await db.importFromBackup(backupData.data || backupData);
+                    const raw = backupData.data || backupData;
+                    await db.importFromBackup(raw);
+
+                    const payload = (raw as Record<string, unknown>).payload as Record<string, unknown> | undefined;
+                    const sy = (payload?.activeSchoolYear as string) || 
+                               ((raw as Record<string, unknown>)?.summary as Record<string, unknown>)?.activeSchoolYear as string;
+                    if (sy && typeof sy === 'string') {
+                        localStorage.setItem('activeSchoolYear', sy);
+                        localStorage.setItem('formease_active_school_year', sy);
+                        useAppStore.setState({ activeSchoolYear: sy });
+                    }
+
+                    localStorage.removeItem('formease_selected_section');
+                    localStorage.removeItem('selectedSection');
+
                     await initializeAppStore();
-                    alert('✅ Database state successfully restored from Google Drive cloud backup!');
+                    alert('✅ Database state successfully restored from Google Drive cloud backup!\n\nThe application will now reload to display all restored classes and records.');
+                    window.location.reload();
                 } catch (err: unknown) {
                     const message = err instanceof Error ? err.message : String(err);
                     alert('Restore failed: ' + message);
@@ -281,6 +347,25 @@ export function SettingsPage() {
                 }
             }
         });
+    };
+
+    const handleDownloadCloudBackup = async (fileId: string, filename: string) => {
+        try {
+            const fileContentStr = await CloudSyncService.downloadCloudBackup(fileId);
+            const downloadName = filename.endsWith('.json') ? filename : `${filename}.json`;
+            const blob = new Blob([fileContentStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = downloadName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            alert('Failed to download cloud backup: ' + message);
+        }
     };
 
     const [diagnosticIssues, setDiagnosticIssues] = useState<DiagnosticIssue[]>([]);
@@ -365,6 +450,39 @@ export function SettingsPage() {
         }
     }, [activeTab, cloudSyncState.linked, loadCloudBackupsList]);
 
+    const handlePreviewFsBackup = async (filename: string, fb?: FsBackupEntry) => {
+        try {
+            if (!window.electronAPI?.readFsBackupContent) {
+                throw new Error('Local disk read capability not available.');
+            }
+            const data = await window.electronAPI.readFsBackupContent(filename);
+            if (!data) throw new Error('Could not read backup file content from disk.');
+
+            const studentCount = fb?.summary?.students ?? 0;
+            const sectionCount = fb?.summary?.sections ?? 0;
+            const gradeCount = fb?.summary?.grades ?? 0;
+            const attendanceCount = fb?.summary?.attendanceRecords ?? 0;
+            const subjectCount = fb?.summary?.subjects ?? 0;
+            const sy = fb?.summary?.activeSchoolYear || 'Active S.Y.';
+
+            await SnapshotPreviewService.startPreview(data, {
+                filename,
+                sourceType: 'fs',
+                title: filename,
+                timestamp: fb?.mtime || Date.now(),
+                schoolYear: sy,
+                studentsCount: studentCount,
+                sectionsCount: sectionCount,
+                gradesCount: gradeCount,
+                attendanceCount,
+                subjectsCount: subjectCount,
+            });
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            alert('Failed to start snapshot preview: ' + msg);
+        }
+    };
+
     const handleRestoreFsBackup = (filename: string) => {
         setPendingConfirmation({
             title: 'Restore Local Backup?',
@@ -378,10 +496,24 @@ export function SettingsPage() {
                         const backupData = await window.electronAPI.readFsBackupContent(filename);
                         if (!backupData) throw new Error('Could not read backup file content.');
                         
-                        await db.importFromBackup(backupData.data || backupData);
+                        const raw = backupData.data || backupData;
+                        await db.importFromBackup(raw);
+
+                        const payload = (raw as Record<string, unknown>).payload as Record<string, unknown> | undefined;
+                        const sy = (payload?.activeSchoolYear as string) || 
+                                   ((raw as Record<string, unknown>)?.summary as Record<string, unknown>)?.activeSchoolYear as string;
+                        if (sy && typeof sy === 'string') {
+                            localStorage.setItem('activeSchoolYear', sy);
+                            localStorage.setItem('formease_active_school_year', sy);
+                            useAppStore.setState({ activeSchoolYear: sy });
+                        }
+
+                        localStorage.removeItem('formease_selected_section');
+                        localStorage.removeItem('selectedSection');
+
                         await initializeAppStore();
-                        alert('Database state successfully restored from local backup!');
-                        loadFsBackups();
+                        alert('✅ Database state successfully restored from local backup!\n\nThe application will now reload to display all restored classes and records.');
+                        window.location.reload();
                     }
                 } catch (err) {
                     alert('Restore failed: ' + err);
@@ -413,6 +545,32 @@ export function SettingsPage() {
                 }
             }
         });
+    };
+
+    const handleDownloadFsBackup = async (filename: string) => {
+        try {
+            let content = '';
+            if (window.electronAPI?.readFsBackupContent) {
+                const data = await window.electronAPI.readFsBackupContent(filename);
+                content = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+            }
+            if (!content) {
+                throw new Error('Unable to read snapshot content from disk.');
+            }
+
+            const downloadName = filename.endsWith('.json') ? filename : `${filename}.json`;
+            const blob = new Blob([content], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = downloadName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            alert('Failed to download disk backup: ' + err);
+        }
     };
 
     const handleCheckForUpdates = () => {
@@ -467,6 +625,56 @@ export function SettingsPage() {
         }
     };
 
+    const handleDownloadAutoBackup = (b: AutomatedBackupEntry) => {
+        try {
+            const raw = b.data || b;
+            const content = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
+            const sy = getAutoBackupSchoolYear(b).replace(/[^a-zA-Z0-9_-]/g, '-');
+            const safeLabel = b.label.replace(/[^a-zA-Z0-9_-]/g, '_');
+            const dateStr = new Date(b.timestamp).toISOString().split('T')[0];
+            const filename = `FormEase_Snapshot_${sy}_${safeLabel}_${dateStr}.json`;
+
+            const blob = new Blob([content], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            alert('Failed to download snapshot: ' + err);
+        }
+    };
+
+    const handlePreviewAutoBackup = async (b: AutomatedBackupEntry) => {
+        try {
+            const studentsCount = b?.recordCounts?.students ?? 0;
+            const sectionsCount = b?.recordCounts?.sections ?? 0;
+            const gradesCount = b?.recordCounts?.classRecords ?? 0;
+            const attendanceCount = b?.recordCounts?.attendanceRecords ?? 0;
+            const subjectsCount = b?.recordCounts?.subjects ?? 0;
+            const sy = getAutoBackupSchoolYear(b);
+
+            await SnapshotPreviewService.startPreview(b.data || b, {
+                id: b.id,
+                sourceType: 'auto',
+                title: b.label,
+                timestamp: b.timestamp,
+                schoolYear: sy,
+                studentsCount,
+                sectionsCount,
+                gradesCount,
+                attendanceCount,
+                subjectsCount,
+            });
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            alert('Failed to start snapshot preview: ' + msg);
+        }
+    };
+
     const handleRestoreAutoBackup = (backupId: string, label: string, entry?: AutomatedBackupEntry) => {
         const b = entry || autoBackups.find(item => item.id === backupId);
         const studentsCount = b?.recordCounts?.students ?? 0;
@@ -486,9 +694,17 @@ export function SettingsPage() {
             onConfirm: async () => {
                 try {
                     await AutoBackupManager.restoreFromBackup(backupId);
+                    if (sy && sy !== 'Active S.Y.') {
+                        localStorage.setItem('activeSchoolYear', sy);
+                        localStorage.setItem('formease_active_school_year', sy);
+                        useAppStore.setState({ activeSchoolYear: sy });
+                    }
+                    localStorage.removeItem('formease_selected_section');
+                    localStorage.removeItem('selectedSection');
                     await initializeAppStore();
-                    alert('✅ Database state successfully restored from automated backup!');
                     loadAutoBackups();
+                    alert(`✅ Snapshot successfully restored!\n\n• Active School Year: S.Y. ${sy}\n• Enrolled Learners: ${studentsCount}\n• Sections: ${sectionsCount}\n• Recorded Grades: ${gradesCount}\n\nThe application will now reload to display all restored classes and records.`);
+                    window.location.reload();
                 } catch (err) {
                     alert('Restore failed: ' + err);
                 }
@@ -2474,13 +2690,32 @@ export function SettingsPage() {
                                                     <p className="font-extrabold text-slate-700 dark:text-slate-200 truncate">{snap.name}</p>
                                                     <p className="text-[10px] text-slate-400">{new Date(snap.createdTime).toLocaleString()}</p>
                                                 </div>
-                                                <button
-                                                    onClick={() => handleRestoreCloudBackup(snap.id, snap.name)}
-                                                    disabled={isRestoringCloudBackup}
-                                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer shrink-0"
-                                                >
-                                                    {isRestoringCloudBackup ? 'Restoring...' : 'Restore'}
-                                                </button>
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    <button
+                                                        onClick={() => handlePreviewCloudBackup(snap.id, snap.name)}
+                                                        disabled={isRestoringCloudBackup}
+                                                        className="px-2 py-1 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer inline-flex items-center gap-1 transition-colors"
+                                                        title="Live sandbox preview of this cloud backup across all pages"
+                                                    >
+                                                        <Eye className="w-2.5 h-2.5" />
+                                                        Preview
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDownloadCloudBackup(snap.id, snap.name)}
+                                                        className="px-2 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer inline-flex items-center gap-1 transition-colors"
+                                                        title="Download cloud backup JSON file"
+                                                    >
+                                                        <Download className="w-2.5 h-2.5" />
+                                                        Download
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleRestoreCloudBackup(snap.id, snap.name)}
+                                                        disabled={isRestoringCloudBackup}
+                                                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer transition-colors"
+                                                    >
+                                                        {isRestoringCloudBackup ? 'Restoring...' : 'Restore'}
+                                                    </button>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -2580,41 +2815,99 @@ export function SettingsPage() {
 
                         {/* Local Snapshots Vault & History Table */}
                         <div className="rounded-2xl border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-150 dark:border-white/5">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-150 dark:border-white/5 pb-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400">
-                                        <Database className="h-5 w-5" />
-                                    </div>
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Local Snapshot Vault</h3>
-                                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300">
-                                                10 Checkpoints Retained
-                                            </span>
+                                        <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400">
+                                            <Database className="h-5 w-5" />
                                         </div>
-                                        <p className="text-xs font-medium text-slate-400 mt-0.5">Automated hourly checkpoints with detailed learner, section, and grade record breakdown.</p>
+                                        <div>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Local Snapshot Vault</h3>
+                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300">
+                                                    {snapshotRetentionLimit === 'unlimited' ? '♾️ Unlimited Checkpoints' : `Last ${snapshotRetentionLimit} Retained`}
+                                                </span>
+                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300">
+                                                    {autoBackups.length + fsBackups.length} Saved
+                                                </span>
+                                            </div>
+                                            <p className="text-xs font-medium text-slate-400 mt-0.5">Automated checkpoints with detailed learner, section, and grade record breakdown. Scrollable history without limits.</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {/* Retention Policy Selector */}
+                                        <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 px-2.5 py-1.5 rounded-xl">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Retention:</span>
+                                            <select
+                                                value={snapshotRetentionLimit}
+                                                onChange={(e) => handleRetentionLimitChange(e.target.value)}
+                                                className="text-xs font-bold bg-transparent text-purple-600 dark:text-purple-400 focus:outline-none cursor-pointer"
+                                                title="Choose retention policy for automatic snapshots"
+                                            >
+                                                <option value="unlimited" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-slate-200">♾️ Unlimited (Keep All)</option>
+                                                <option value="100" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-slate-200">Keep Last 100</option>
+                                                <option value="50" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-slate-200">Keep Last 50</option>
+                                                <option value="25" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-slate-200">Keep Last 25</option>
+                                                <option value="10" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-slate-200">Keep Last 10</option>
+                                            </select>
+                                        </div>
+                                        <div className="relative">
+                                            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                            <input
+                                                type="text"
+                                                value={snapshotSearchQuery}
+                                                onChange={(e) => setSnapshotSearchQuery(e.target.value)}
+                                                placeholder="Search by date, class, or S.Y...."
+                                                className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:border-purple-500 font-medium w-44 sm:w-56"
+                                            />
+                                        </div>
+                                        <button
+                                            onClick={handleManualAutoBackup}
+                                            className="inline-flex items-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white px-3.5 py-2 text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer self-start sm:self-auto"
+                                        >
+                                            <Database className="w-3.5 h-3.5" />
+                                            Take Instant Snapshot
+                                        </button>
                                     </div>
                                 </div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <div className="relative">
-                                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                                        <input
-                                            type="text"
-                                            value={snapshotSearchQuery}
-                                            onChange={(e) => setSnapshotSearchQuery(e.target.value)}
-                                            placeholder="Search by date, class, or S.Y...."
-                                            className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:border-purple-500 font-medium w-48 sm:w-60"
-                                        />
+
+                                {/* Filter Tabs & Scroll Hint */}
+                                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            onClick={() => setSnapshotTypeFilter('all')}
+                                            className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer ${
+                                                snapshotTypeFilter === 'all'
+                                                    ? 'bg-purple-600 text-white shadow-xs'
+                                                    : 'bg-slate-100 dark:bg-white/5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                                            }`}
+                                        >
+                                            All ({autoBackups.length + fsBackups.length})
+                                        </button>
+                                        <button
+                                            onClick={() => setSnapshotTypeFilter('auto')}
+                                            className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer ${
+                                                snapshotTypeFilter === 'auto'
+                                                    ? 'bg-purple-600 text-white shadow-xs'
+                                                    : 'bg-slate-100 dark:bg-white/5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                                            }`}
+                                        >
+                                            Auto Snapshots ({autoBackups.length})
+                                        </button>
+                                        <button
+                                            onClick={() => setSnapshotTypeFilter('fs')}
+                                            className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer ${
+                                                snapshotTypeFilter === 'fs'
+                                                    ? 'bg-purple-600 text-white shadow-xs'
+                                                    : 'bg-slate-100 dark:bg-white/5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                                            }`}
+                                        >
+                                            Disk Files ({fsBackups.length})
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={handleManualAutoBackup}
-                                        className="inline-flex items-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white px-3.5 py-2 text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer self-start sm:self-auto"
-                                    >
-                                        <Database className="w-3.5 h-3.5" />
-                                        Take Instant Snapshot
-                                    </button>
+                                    <span className="text-[10px] font-bold text-slate-400">
+                                        📜 Scrollable Vault • Drag or scroll to view all checkpoints
+                                    </span>
                                 </div>
-                            </div>
 
                             {/* Snapshots Table */}
                             {autoBackups.length === 0 && fsBackups.length === 0 ? (
@@ -2622,10 +2915,10 @@ export function SettingsPage() {
                                     No local snapshots saved yet. Snapshots are automatically captured hourly and upon sign-out.
                                 </div>
                             ) : (
-                                <div className="overflow-x-auto">
+                                <div className="max-h-130 overflow-y-auto overflow-x-auto custom-scrollbar border border-slate-200/80 dark:border-white/10 rounded-2xl shadow-inner">
                                     <table className="w-full text-left text-xs border-collapse">
-                                        <thead>
-                                            <tr className="border-b border-slate-150 dark:border-white/5 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                        <thead className="sticky top-0 bg-slate-50/95 dark:bg-[#0d1225]/95 backdrop-blur-md z-10 border-b border-slate-200 dark:border-white/10 shadow-xs">
+                                            <tr className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                                                 <th className="py-2.5 px-3">Snapshot Name / Date</th>
                                                 <th className="py-2.5 px-3">Type</th>
                                                 <th className="py-2.5 px-3">School Year</th>
@@ -2634,7 +2927,7 @@ export function SettingsPage() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                            {autoBackups
+                                            {(snapshotTypeFilter === 'all' || snapshotTypeFilter === 'auto') && autoBackups
                                                 .filter((b) => {
                                                     if (!snapshotSearchQuery.trim()) return true;
                                                     const q = snapshotSearchQuery.toLowerCase();
@@ -2726,10 +3019,28 @@ export function SettingsPage() {
                                                                         attendance: attendanceCount,
                                                                         subjects: subjectCount,
                                                                         onRestore: () => handleRestoreAutoBackup(b.id, b.label, b),
+                                                                        onDownload: () => handleDownloadAutoBackup(b),
+                                                                        onPreview: () => handlePreviewAutoBackup(b),
                                                                     })}
                                                                     className="px-2.5 py-1 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors"
                                                                 >
                                                                     Inspect
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handlePreviewAutoBackup(b)}
+                                                                    className="px-2.5 py-1 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors inline-flex items-center gap-1"
+                                                                    title="Live sandbox preview of this snapshot across all pages"
+                                                                >
+                                                                    <Eye className="w-3 h-3" />
+                                                                    Preview
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDownloadAutoBackup(b)}
+                                                                    className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors inline-flex items-center gap-1"
+                                                                    title="Download snapshot JSON file to send or inspect"
+                                                                >
+                                                                    <Download className="w-3 h-3" />
+                                                                    Download
                                                                 </button>
                                                                 <button
                                                                     onClick={() => handleRestoreAutoBackup(b.id, b.label, b)}
@@ -2747,7 +3058,7 @@ export function SettingsPage() {
                                                         </tr>
                                                     );
                                                 })}
-                                            {fsBackups
+                                            {(snapshotTypeFilter === 'all' || snapshotTypeFilter === 'fs') && fsBackups
                                                 .filter((fb) => {
                                                     if (!snapshotSearchQuery.trim()) return true;
                                                     const q = snapshotSearchQuery.toLowerCase();
@@ -2830,10 +3141,28 @@ export function SettingsPage() {
                                                                         attendance: attendanceCount,
                                                                         subjects: subjectCount,
                                                                         onRestore: () => handleRestoreFsBackup(fb.filename),
+                                                                        onDownload: () => handleDownloadFsBackup(fb.filename),
+                                                                        onPreview: () => handlePreviewFsBackup(fb.filename, fb),
                                                                     })}
                                                                     className="px-2.5 py-1 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors"
                                                                 >
                                                                     Inspect
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handlePreviewFsBackup(fb.filename, fb)}
+                                                                    className="px-2.5 py-1 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors inline-flex items-center gap-1"
+                                                                    title="Live sandbox preview of this backup file across all pages"
+                                                                >
+                                                                    <Eye className="w-3 h-3" />
+                                                                    Preview
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDownloadFsBackup(fb.filename)}
+                                                                    className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors inline-flex items-center gap-1"
+                                                                    title="Download snapshot JSON file to send or inspect"
+                                                                >
+                                                                    <Download className="w-3 h-3" />
+                                                                    Download
                                                                 </button>
                                                                 <button
                                                                     onClick={() => handleRestoreFsBackup(fb.filename)}
@@ -2933,23 +3262,51 @@ export function SettingsPage() {
                                     </div>
 
                                     {/* Modal Buttons */}
-                                    <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-150 dark:border-white/5">
-                                        <button
-                                            onClick={() => setInspectingSnapshot(null)}
-                                            className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer"
-                                        >
-                                            Close
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                const restoreFn = inspectingSnapshot.onRestore;
-                                                setInspectingSnapshot(null);
-                                                restoreFn();
-                                            }}
-                                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm cursor-pointer"
-                                        >
-                                            Restore This Snapshot
-                                        </button>
+                                    <div className="flex items-center justify-between pt-3 border-t border-slate-150 dark:border-white/5">
+                                        <div>
+                                            {inspectingSnapshot.onDownload && (
+                                                <button
+                                                    onClick={() => inspectingSnapshot.onDownload?.()}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                                    title="Download snapshot JSON file to send or inspect"
+                                                >
+                                                    <Download className="w-3.5 h-3.5" />
+                                                    Download JSON
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-2.5">
+                                            <button
+                                                onClick={() => setInspectingSnapshot(null)}
+                                                className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+                                            >
+                                                Close
+                                            </button>
+                                            {inspectingSnapshot.onPreview && (
+                                                <button
+                                                    onClick={() => {
+                                                        const p = inspectingSnapshot.onPreview;
+                                                        setInspectingSnapshot(null);
+                                                        p?.();
+                                                    }}
+                                                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer"
+                                                    title="Explore all pages and records of this snapshot in live sandbox before restoring"
+                                                >
+                                                    <Eye className="w-3.5 h-3.5" />
+                                                    Preview in App
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => {
+                                                    const restoreFn = inspectingSnapshot.onRestore;
+                                                    setInspectingSnapshot(null);
+                                                    restoreFn();
+                                                }}
+                                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                            >
+                                                Restore This Snapshot
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

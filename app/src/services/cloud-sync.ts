@@ -1,5 +1,6 @@
 import { exportFullDatabaseBackup } from '../utils/backup-restore';
 import { embedChecksum } from '../utils/backup-integrity';
+import { db } from './database';
 
 export interface CloudSyncState {
   linked: boolean;
@@ -273,6 +274,10 @@ export const CloudSyncService = {
   },
 
   async syncNow(): Promise<boolean> {
+    if (db.isPreviewMode()) {
+      console.log('👁️ Snapshot preview mode active: skipping cloud sync.');
+      return false;
+    }
     const state = await this.getStateAsync();
     if (!state.linked) {
       throw new Error('Google Drive account is not linked.');

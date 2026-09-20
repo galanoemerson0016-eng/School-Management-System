@@ -11,6 +11,8 @@ import type { Student, SchoolProfile } from '../types';
 import type { PaceRatingDescriptor } from '../types/pace';
 import { formatLearnerName } from '../utils/student-name';
 import { G1_PACE_LOOKUP_MAP } from './g1-pace-lookup-map';
+import { PACE_MASTER_CELL_COLORS } from './pace-template-config';
+import { PACE_LANGUAGE_MASTER_CELL_COLORS } from './pace-language-template-config';
 
 export interface SF9Grade1Remarks {
   term1CanDo?: string;
@@ -44,14 +46,14 @@ export interface SF9Grade1ExcelExportOptions {
     gmrcMakabansa?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
   };
   sectionStudents?: Student[];
-  getStudentRemarks?: (lrn: string) => SF9Grade1Remarks | undefined;
+  getStudentRemarks?: (lrn?: string, studentId?: string) => SF9Grade1Remarks | undefined;
   getStudentAttendance?: (student: Student) => {
     months: string[];
     schoolDays: number[];
     daysPresent: number[];
     daysAbsent: number[];
   } | undefined;
-  getStudentPaceRatings?: (lrn: string) => {
+  getStudentPaceRatings?: (lrn?: string, studentId?: string) => {
     reading?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
     language?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
     math?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
@@ -367,6 +369,16 @@ function escapeXml(str: unknown): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+function unescapeXml(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
 }
 
 /**
@@ -753,17 +765,51 @@ async function getWorkbookSheetMap(zip: JSZip): Promise<Record<string, string>> 
 
   const wbXml = await wbFile.async('string');
   const relXml = await relFile.async('string');
-  const sRegex = /<sheet\s+name="([^"]+)"\s+sheetId="(\d+)"\s+r:id="([^"]+)"/g;
+  const sRegex = /<sheet\b([^>]*?)\/?>/g;
   let match: RegExpExecArray | null;
   while ((match = sRegex.exec(wbXml)) !== null) {
-    const [, name, , rId] = match;
-    const relMatch = relXml.match(new RegExp(`<Relationship\\s+Id="${rId}"[^>]*Target="([^"]+)"`));
-    if (relMatch) {
-      const target = ('xl/' + relMatch[1]).replace('xl/xl/', 'xl/');
-      const unescapedName = name.replace(/&amp;/g, '&');
-      sheetMap[unescapedName] = target;
+    const attrs = match[1];
+    const nameMatch = attrs.match(/name="([^"]+)"/);
+    const rIdMatch = attrs.match(/r:id="([^"]+)"/);
+    if (nameMatch && rIdMatch) {
+      const name = nameMatch[1];
+      const rId = rIdMatch[1];
+      const relMatch = relXml.match(new RegExp(`<Relationship\\s+Id="${rId}"[^>]*Target="([^"]+)"`));
+      if (relMatch) {
+        const target = ('xl/' + relMatch[1]).replace('xl/xl/', 'xl/');
+        const unescapedName = name.replace(/&amp;/g, '&');
+        sheetMap[unescapedName] = target;
+      }
     }
   }
+
+  // Fallback defaults for Grade 1 17-sheet master workbook if any were missed
+  const defaultSheetPaths: Record<string, string> = {
+    'Home': 'xl/worksheets/sheet1.xml',
+    'INPUT DATA': 'xl/worksheets/sheet2.xml',
+    'SF9 - GRADE 1': 'xl/worksheets/sheet3.xml',
+    'TERM 1 SUMMARY': 'xl/worksheets/sheet4.xml',
+    'TERM 2 SUMMARY': 'xl/worksheets/sheet5.xml',
+    'TERM 3 SUMMARY': 'xl/worksheets/sheet6.xml',
+    'PACE - GRADE 1': 'xl/worksheets/sheet7.xml',
+    'TERM 1 READING & LITERACY': 'xl/worksheets/sheet8.xml',
+    'TERM 2 READING & LITERACY': 'xl/worksheets/sheet9.xml',
+    'TERM 3 READING & LITERACY': 'xl/worksheets/sheet10.xml',
+    'TERM 1 LANGUAGE': 'xl/worksheets/sheet11.xml',
+    'TERM 2 LANGUAGE': 'xl/worksheets/sheet12.xml',
+    'TERM 3 LANGUAGE': 'xl/worksheets/sheet13.xml',
+    'TERM 1-3 MATHEMATICS': 'xl/worksheets/sheet14.xml',
+    'TERM 1-3 GMRC': 'xl/worksheets/sheet15.xml',
+    'G1 PACE FORM MAKABANSA': 'xl/worksheets/sheet16.xml',
+    'G1 - ATTENDANCE SUMMARY': 'xl/worksheets/sheet17.xml',
+  };
+
+  for (const [name, defaultPath] of Object.entries(defaultSheetPaths)) {
+    if (!sheetMap[name] && zip.file(defaultPath)) {
+      sheetMap[name] = defaultPath;
+    }
+  }
+
   return sheetMap;
 }
 
@@ -1173,6 +1219,26 @@ async function populateUpdatedAllInOneGrade1Workbook(
     { key: 'TERM 3 SUMMARY', term: 'term3' as const, file: sheetMap['TERM 3 SUMMARY'] || 'xl/worksheets/sheet6.xml' }
   ];
 
+  const getStudentRemarks = (st?: Student) => {
+    if (!st) return undefined;
+    const stId = st.id;
+    const optStudentId = opts.student.id;
+    if (opts.getStudentRemarks) {
+      const r = opts.getStudentRemarks(st.lrn, stId)
+        || (st.lrn ? opts.getStudentRemarks(st.lrn.trim(), stId?.trim()) : null)
+        || (stId ? opts.getStudentRemarks(stId) : null);
+      if (r) return r;
+    }
+    const isCurrentStudent = 
+      (st.lrn && opts.student.lrn && st.lrn.trim() === opts.student.lrn.trim()) ||
+      (stId && optStudentId && stId === optStudentId) ||
+      st.lrn === opts.student.lrn;
+    if (isCurrentStudent && opts.g1Remarks) {
+      return opts.g1Remarks;
+    }
+    return undefined;
+  };
+
   for (const { file, term } of termSummaryDefs) {
     const sumFile = zip.file(file);
     if (!sumFile) continue;
@@ -1200,6 +1266,9 @@ async function populateUpdatedAllInOneGrade1Workbook(
       const fL = getAgeFormula(r, EOSY_EXCEL_DATE, 'YM');
 
       if (st) {
+        const stName = formatLearnerName(st).toUpperCase();
+        sumXml = setCellFormulaInSheetXml(sumXml, `C${r}`, `IF('INPUT DATA'!L${11 + i}="","",'INPUT DATA'!L${11 + i})`, stName, false, '684');
+
         const bosyAge = calculateAge(st.birthday, BOSY_DATE_2026);
         const eosyAge = calculateAge(st.birthday, EOSY_DATE_2027);
         const bSerial = birthDateToExcelSerial(st.birthday);
@@ -1211,12 +1280,13 @@ async function populateUpdatedAllInOneGrade1Workbook(
         sumXml = setCellFormulaInSheetXml(sumXml, `K${r}`, fK, hasBday ? eosyAge.years : null, true, '698');
         sumXml = setCellFormulaInSheetXml(sumXml, `L${r}`, fL, hasBday ? eosyAge.months : null, true, '698');
 
-        const rem = opts.getStudentRemarks ? opts.getStudentRemarks(st.lrn) : (st.lrn === opts.student.lrn ? opts.g1Remarks : undefined);
+        const rem = getStudentRemarks(st);
         const canDo = rem ? (term === 'term1' ? rem.term1CanDo : term === 'term2' ? rem.term2CanDo : rem.term3CanDo) : undefined;
         const toImp = rem ? (term === 'term1' ? rem.term1ToImprove : term === 'term2' ? rem.term2ToImprove : rem.term3ToImprove) : undefined;
         sumCells[`N${r}`] = canDo || '';
         sumCells[`Q${r}`] = toImp || '';
       } else {
+        sumXml = setCellFormulaInSheetXml(sumXml, `C${r}`, `IF('INPUT DATA'!L${11 + i}="","",'INPUT DATA'!L${11 + i})`, null, false, '684');
         sumCells[`N${r}`] = '';
         sumCells[`Q${r}`] = '';
         sumXml = setCellFormulaInSheetXml(sumXml, `H${r}`, fH, null, true, '766');
@@ -1238,6 +1308,9 @@ async function populateUpdatedAllInOneGrade1Workbook(
       const fL = getAgeFormula(r, EOSY_EXCEL_DATE, 'YM');
 
       if (st) {
+        const stName = formatLearnerName(st).toUpperCase();
+        sumXml = setCellFormulaInSheetXml(sumXml, `C${r}`, `IF('INPUT DATA'!Q${11 + i}="","",'INPUT DATA'!Q${11 + i})`, stName, false, '704');
+
         const bosyAge = calculateAge(st.birthday, BOSY_DATE_2026);
         const eosyAge = calculateAge(st.birthday, EOSY_DATE_2027);
         const bSerial = birthDateToExcelSerial(st.birthday);
@@ -1249,12 +1322,13 @@ async function populateUpdatedAllInOneGrade1Workbook(
         sumXml = setCellFormulaInSheetXml(sumXml, `K${r}`, fK, hasBday ? eosyAge.years : null, true, '704');
         sumXml = setCellFormulaInSheetXml(sumXml, `L${r}`, fL, hasBday ? eosyAge.months : null, true, '704');
 
-        const rem = opts.getStudentRemarks ? opts.getStudentRemarks(st.lrn) : (st.lrn === opts.student.lrn ? opts.g1Remarks : undefined);
+        const rem = getStudentRemarks(st);
         const canDo = rem ? (term === 'term1' ? rem.term1CanDo : term === 'term2' ? rem.term2CanDo : rem.term3CanDo) : undefined;
         const toImp = rem ? (term === 'term1' ? rem.term1ToImprove : term === 'term2' ? rem.term2ToImprove : rem.term3ToImprove) : undefined;
         sumCells[`N${r}`] = canDo || '';
         sumCells[`Q${r}`] = toImp || '';
       } else {
+        sumXml = setCellFormulaInSheetXml(sumXml, `C${r}`, `IF('INPUT DATA'!Q${11 + i}="","",'INPUT DATA'!Q${11 + i})`, null, false, '704');
         sumCells[`N${r}`] = '';
         sumCells[`Q${r}`] = '';
         sumXml = setCellFormulaInSheetXml(sumXml, `H${r}`, fH, null, true, '766');
@@ -1289,11 +1363,21 @@ async function populateUpdatedAllInOneGrade1Workbook(
   }
 
   const getStudentRatings = (st: Student) => {
+    const stId = st.id;
+    const optStudentId = opts.student.id;
     if (opts.getStudentPaceRatings) {
-      const r = opts.getStudentPaceRatings(st.lrn);
-      if (r) return r;
+      const r = opts.getStudentPaceRatings(st.lrn, stId)
+        || (st.lrn ? opts.getStudentPaceRatings(st.lrn.trim(), stId?.trim()) : null)
+        || (stId ? opts.getStudentPaceRatings(stId) : null);
+      if (r && (Object.keys(r.reading || {}).length > 0 || Object.keys(r.language || {}).length > 0 || Object.keys(r.math || {}).length > 0 || Object.keys(r.gmrcMakabansa || {}).length > 0)) {
+        return r;
+      }
     }
-    if (st.lrn === opts.student.lrn && opts.paceRatings) {
+    const isCurrentStudent = 
+      (st.lrn && opts.student.lrn && st.lrn.trim() === opts.student.lrn.trim()) ||
+      (stId && optStudentId && stId === optStudentId) ||
+      st.lrn === opts.student.lrn;
+    if (isCurrentStudent && opts.paceRatings) {
       return opts.paceRatings;
     }
     return null;
@@ -1309,19 +1393,24 @@ async function populateUpdatedAllInOneGrade1Workbook(
     if (!ratings) continue;
 
     const applyRatings = (
-      catRatings: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }> | undefined,
+      catRatings: unknown,
       rowMap: Record<string, number>,
       side: 'left' | 'right'
     ) => {
-      if (!catRatings) return;
-      for (const [subId, r] of Object.entries(catRatings)) {
-        if (!r) continue;
+      if (!catRatings || typeof catRatings !== 'object') return;
+      const catObj = catRatings as Record<string, unknown>;
+      const actualRatings = (catObj.ratings && typeof catObj.ratings === 'object')
+        ? (catObj.ratings as Record<string, unknown>)
+        : catObj;
+      for (const [subId, r] of Object.entries(actualRatings)) {
+        if (!r || typeof r !== 'object') continue;
         const paceRow = rowMap[subId];
         if (!paceRow) continue;
 
+        const rObj = r as Record<string, string | undefined>;
         const terms: ('t1' | 't2' | 't3')[] = ['t1', 't2', 't3'];
         for (const term of terms) {
-          const val = r[term];
+          const val = rObj[term];
           if (!val) continue;
 
           const key = `${paceRow}_${side}_${term}`;
@@ -1408,6 +1497,34 @@ async function populateUpdatedAllInOneGrade1Workbook(
     const activeBosy = calculateAge(opts.student.birthday, BOSY_DATE_2026);
     const activeEosy = calculateAge(opts.student.birthday, EOSY_DATE_2027);
     const hasActiveBday = Boolean(opts.student.birthday && parseBirthDateParts(opts.student.birthday));
+
+    const activeRem = getStudentRemarks(opts.student);
+    const activeT1CanDo = activeRem?.term1CanDo || '';
+    const activeT1ToImp = activeRem?.term1ToImprove || '';
+    const activeT2CanDo = activeRem?.term2CanDo || '';
+    const activeT2ToImp = activeRem?.term2ToImprove || '';
+    const activeT3CanDo = activeRem?.term3CanDo || '';
+    const activeT3ToImp = activeRem?.term3ToImprove || '';
+
+    const replaceSf9RemarksCell = (xml: string, cellRef: string, termSheet: string, colNum: number, val: string) => {
+      const vlookup = `VLOOKUP(D15,'${termSheet}'!C14:T114,${colNum},0)`;
+      const guardedFormula = `IFERROR(IF(OR(${vlookup}=0,${vlookup}=""),"",${vlookup}),"")`;
+      const cellReg = new RegExp(`(<c\\s+r="${cellRef}"[^>]*?)(?:\\/>|>([\\s\\S]*?)<\\/c>)`);
+      return xml.replace(cellReg, (_m, openTag) => {
+        const cleanOpen = openTag.replace(/\s+t="[^"]*"/g, '');
+        const styleMatch = cleanOpen.match(/\s+s="(\d+)"/);
+        const styleAttr = styleMatch ? '' : ' s="704"';
+        const inner = val ? `<v>${escapeXml(val)}</v>` : '<v/>';
+        return `${cleanOpen}${styleAttr} t="str"><f>${guardedFormula}</f>${inner}</c>`;
+      });
+    };
+
+    sf9Xml = replaceSf9RemarksCell(sf9Xml, 'E23', 'TERM 1 SUMMARY', 12, activeT1CanDo);
+    sf9Xml = replaceSf9RemarksCell(sf9Xml, 'E31', 'TERM 1 SUMMARY', 15, activeT1ToImp);
+    sf9Xml = replaceSf9RemarksCell(sf9Xml, 'E43', 'TERM 2 SUMMARY', 12, activeT2CanDo);
+    sf9Xml = replaceSf9RemarksCell(sf9Xml, 'E51', 'TERM 2 SUMMARY', 15, activeT2ToImp);
+    sf9Xml = replaceSf9RemarksCell(sf9Xml, 'E63', 'TERM 3 SUMMARY', 12, activeT3CanDo);
+    sf9Xml = replaceSf9RemarksCell(sf9Xml, 'E71', 'TERM 3 SUMMARY', 15, activeT3ToImp);
 
     sf9Xml = updateCellsBatch(sf9Xml, {
       // Front page header fields
@@ -1506,7 +1623,7 @@ async function populateUpdatedAllInOneGrade1Workbook(
         const vm = formula.match(/VLOOKUP\([^,]+,'([^']+)'!([A-Z]+)\d+:[A-Z]+\d+,\s*(\d+),\s*0\)/);
         let evaluatedVal = '';
         if (vm) {
-          const sheetName = vm[1];
+          const sheetName = unescapeXml(vm[1]);
           const startCol = vm[2];
           const colIdx = parseInt(vm[3], 10);
           const targetColNum = lettersToColNumber(startCol) + colIdx - 1;
@@ -1520,11 +1637,12 @@ async function populateUpdatedAllInOneGrade1Workbook(
         }
 
         const cleanOpen = openTag.replace(/\s+t="[^"]*"/g, '');
-        // Guard formula so that in Excel, blank cells evaluate to blank ("") instead of 0
-        const cleanFormula = formula.trim();
-        const guardedFormula = cleanFormula.startsWith('IF(')
-          ? cleanFormula
-          : `IF(${cleanFormula}="","",${cleanFormula})`;
+        // Extract raw VLOOKUP to cleanly wrap with zero-to-blank guard
+        const vlookupMatch = formula.match(/VLOOKUP\([^,]+,'[^']+'![A-Z]+\d+:[A-Z]+\d+,\s*\d+,\s*0\)/);
+        const rawFormula = vlookupMatch ? vlookupMatch[0] : formula.trim();
+        const guardedFormula = rawFormula.includes('VLOOKUP')
+          ? `IFERROR(IF(OR(${rawFormula}=0,${rawFormula}=""),"",${rawFormula}),"")`
+          : rawFormula;
 
         if (isSingleSubject) {
           if (evaluatedVal) {
@@ -2157,20 +2275,27 @@ export async function populateGrade1TemplateBuffer(
     // Rating cell style overrides (e.g. style 445 is centered without affecting left-aligned text descriptions)
     const paceStyles: Record<string, string> = {};
 
+    const isUnassessedPaceCell = (subId: string, term: 't1' | 't2' | 't3', isLang: boolean = false) => {
+      const colors = isLang ? PACE_LANGUAGE_MASTER_CELL_COLORS[subId] : PACE_MASTER_CELL_COLORS[subId];
+      if (!colors) return false;
+      const c = (colors[term] || '').toUpperCase();
+      return c === '#3F3F3F' || c === '#434343' || c === '#B7B7B7' || c === '#000000';
+    };
+
     // Reading & Literacy Ratings
     const readingRatings = paceRatings?.reading || {};
     Object.entries(readingRatings).forEach(([subId, r]) => {
       if (!r) return;
       if (READING_LEFT_ROW_MAP[subId]) {
         const rNum = READING_LEFT_ROW_MAP[subId];
-        if (r.t1) paceCells[`G${rNum}`] = r.t1;
-        if (r.t2) paceCells[`H${rNum}`] = r.t2;
-        if (r.t3) paceCells[`I${rNum}`] = r.t3;
+        if (r.t1 && !isUnassessedPaceCell(subId, 't1', false)) paceCells[`G${rNum}`] = r.t1;
+        if (r.t2 && !isUnassessedPaceCell(subId, 't2', false)) paceCells[`H${rNum}`] = r.t2;
+        if (r.t3 && !isUnassessedPaceCell(subId, 't3', false)) paceCells[`I${rNum}`] = r.t3;
       } else if (READING_RIGHT_ROW_MAP[subId]) {
         const rNum = READING_RIGHT_ROW_MAP[subId];
-        if (r.t1) paceCells[`P${rNum}`] = r.t1;
-        if (r.t2) paceCells[`Q${rNum}`] = r.t2;
-        if (r.t3) paceCells[`R${rNum}`] = r.t3;
+        if (r.t1 && !isUnassessedPaceCell(subId, 't1', false)) paceCells[`P${rNum}`] = r.t1;
+        if (r.t2 && !isUnassessedPaceCell(subId, 't2', false)) paceCells[`Q${rNum}`] = r.t2;
+        if (r.t3 && !isUnassessedPaceCell(subId, 't3', false)) paceCells[`R${rNum}`] = r.t3;
       }
     });
 
@@ -2180,14 +2305,14 @@ export async function populateGrade1TemplateBuffer(
       if (!r) return;
       if (LANGUAGE_LEFT_ROW_MAP[subId]) {
         const rNum = LANGUAGE_LEFT_ROW_MAP[subId];
-        if (r.t1) paceCells[`G${rNum}`] = r.t1;
-        if (r.t2) paceCells[`H${rNum}`] = r.t2;
-        if (r.t3) paceCells[`I${rNum}`] = r.t3;
+        if (r.t1 && !isUnassessedPaceCell(subId, 't1', true)) paceCells[`G${rNum}`] = r.t1;
+        if (r.t2 && !isUnassessedPaceCell(subId, 't2', true)) paceCells[`H${rNum}`] = r.t2;
+        if (r.t3 && !isUnassessedPaceCell(subId, 't3', true)) paceCells[`I${rNum}`] = r.t3;
       } else if (LANGUAGE_RIGHT_ROW_MAP[subId]) {
         const rNum = LANGUAGE_RIGHT_ROW_MAP[subId];
-        if (r.t1) paceCells[`P${rNum}`] = r.t1;
-        if (r.t2) paceCells[`Q${rNum}`] = r.t2;
-        if (r.t3) paceCells[`R${rNum}`] = r.t3;
+        if (r.t1 && !isUnassessedPaceCell(subId, 't1', true)) paceCells[`P${rNum}`] = r.t1;
+        if (r.t2 && !isUnassessedPaceCell(subId, 't2', true)) paceCells[`Q${rNum}`] = r.t2;
+        if (r.t3 && !isUnassessedPaceCell(subId, 't3', true)) paceCells[`R${rNum}`] = r.t3;
       }
     });
 

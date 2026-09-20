@@ -222,6 +222,15 @@ export async function createComprehensiveBackup(
         }
     }
 
+    // Exclude orphaned temporary grade records (TEMP-*) with no matching student
+    const studentLrnSet = new Set(students.map((s) => s.lrn));
+    const cleanClassRecords = classRecords.filter(
+        (r) => !(r.student_lrn && r.student_lrn.startsWith('TEMP-') && !studentLrnSet.has(r.student_lrn))
+    );
+    const cleanGradingSheetRecords = gradingSheetRecords.filter(
+        (r) => !(r.student_lrn && r.student_lrn.startsWith('TEMP-') && !studentLrnSet.has(r.student_lrn))
+    );
+
     const backup: ComprehensiveBackup = {
         metadata: {
             exportDate: new Date().toISOString(),
@@ -236,8 +245,8 @@ export async function createComprehensiveBackup(
             studentProfiles: studentProfiles.length,
             sections: sections.length,
             subjects: subjects.length,
-            grades: classRecords.length,
-            gradingSheetRecords: gradingSheetRecords.length,
+            grades: cleanClassRecords.length,
+            gradingSheetRecords: cleanGradingSheetRecords.length,
             observedValues: observedValues.length,
             hpsRecords: hpsRecords.length,
             sf2Sheets: sf2Sheets.length,
@@ -261,8 +270,8 @@ export async function createComprehensiveBackup(
             studentProfiles,
             sections,
             subjects,
-            classRecords,
-            gradingSheetRecords,
+            classRecords: cleanClassRecords,
+            gradingSheetRecords: cleanGradingSheetRecords,
             observedValues,
             hpsRecords,
             sf2Sheets,

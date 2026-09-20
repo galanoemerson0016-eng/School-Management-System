@@ -13,7 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('update-message');
     ipcRenderer.on('update-message', (_event, message) => callback(message));
   },
-  saveAutoBackup: (data, filename) => ipcRenderer.invoke('save-auto-backup', { data, filename }),
+  saveAutoBackup: (data, filename, retentionLimit) => ipcRenderer.invoke('save-auto-backup', { data, filename, retentionLimit }),
   logError: (payload) => ipcRenderer.send('log-renderer-error', payload),
   licenseStatus: () => ipcRenderer.invoke('license:status'),
   licenseActivate: (payload) => ipcRenderer.invoke('license:activate', payload),

@@ -22,6 +22,8 @@ import { pushAttendanceSessionToBackend, revokeAttendancePairing, subscribeToAtt
 import { triggerParentAttendanceSms } from './services/sms-gateway';
 import { formatLearnerName } from './utils/student-name';
 import { CloudSyncService } from './services/cloud-sync';
+import { SnapshotPreviewBanner } from './components/SnapshotPreviewBanner';
+import { SnapshotPreviewService } from './services/SnapshotPreviewService';
 
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const AccountSetupPage = lazy(() => import('./pages/AccountSetupPage').then(m => ({ default: m.AccountSetupPage })));
@@ -363,6 +365,7 @@ function App() {
   useEffect(() => {
     const init = async () => {
       try {
+        await SnapshotPreviewService.checkAndCleanOrphanPreviewSession();
         await initializeAppStore();
         await initializeAuthStore();
         const isMobile = typeof window !== 'undefined' && 
@@ -665,6 +668,7 @@ function App() {
         <main data-tour="workspace" className="flex-1 flex flex-col min-h-0 overflow-hidden bg-slate-50 dark:bg-[#0B0F19] rounded-none border-l border-slate-200 dark:border-slate-800 relative print:bg-white print:border-none print:shadow-none print:rounded-none print:block print:overflow-visible">
           <div className="print:hidden">
             <Header />
+            <SnapshotPreviewBanner />
           </div>
           <div className={`flex-1 flex flex-col min-h-0 ${['sf9', 'sf10', 'sf8', 'sf5', 'sf6', 'attendance', 'lir', 'certificates', 'name-tags', 'class-record', 'eclass', 'student-id-generator', 'consolidated-grades', 'tgs', 'pace'].includes(currentView) ? 'overflow-hidden p-0' : 'overflow-y-auto p-3 lg:p-4 custom-scrollbar'} print:p-0 print:overflow-visible`}>
             <ErrorBoundary>
