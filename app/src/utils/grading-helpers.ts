@@ -786,8 +786,8 @@ export function computeLiveTransmutedGradeFromRecord(
         const cluster: SubjectCluster = (customCluster as SubjectCluster) || getSubjectCluster(subjectName, sectionGradeLevel, sectionTrack);
         const weights = customWeights || getWeights(cluster, { subject_name: subjectName } as Subject);
 
-        const wwTotalScore = rawWw.reduce<number>((a, b) => a + (isValidScore(b) ? Number(b) : 0), 0);
-        const ptTotalScore = rawPt.reduce<number>((a, b) => a + (isValidScore(b) ? Number(b) : 0), 0);
+        const wwTotalScore = rawWw.reduce<number>((a, b, idx) => a + (isValidScore(b) && (wwTotalHPS === 0 || (hps_ww[idx] || 0) > 0) ? Number(b) : 0), 0);
+        const ptTotalScore = rawPt.reduce<number>((a, b, idx) => a + (isValidScore(b) && (ptTotalHPS === 0 || (hps_pt[idx] || 0) > 0) ? Number(b) : 0), 0);
 
         const wwPS = wwTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (wwTotalScore / wwTotalHPS) * 100));
         const ptPS = ptTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (ptTotalScore / ptTotalHPS) * 100));
