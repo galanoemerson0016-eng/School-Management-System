@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { deriveDbKey, decryptPayload, encryptPayload, generateDataEncryptionKey, wrapDataEncryptionKey } from './db-crypto';
-import { migrateLegacyEncryptedDatabase, type WrappedDekMetadata } from './encryption-migration';
+import { migrateLegacyEncryptedDatabase, prepareLegacyDekMigration, type WrappedDekMetadata } from './encryption-migration';
 
 class SyntheticEncryptedDatabase {
   private primary: CryptoKey | null = null;
@@ -72,6 +72,22 @@ async function fixture() {
 }
 
 describe('interruption-safe legacy encryption migration', () => {
+  it.each(['dek_generated', 'password_wrapper_created', 'recovery_protector_created'] as const)(
+    'does not create durable migration state when interrupted after %s', async (stage) => {
+      const kek = await deriveDbKey('old password', new Uint8Array(32).fill(9));
+      let recoveryWrites = 0;
+      await expect(prepareLegacyDekMigration({
+        passwordKek: kek,
+        recoveryProtectorAvailable: true,
+        protectRecoveryDek: async () => { recoveryWrites += 1; return true; },
+        hooks: { afterStage: value => { if (value === stage) throw new Error('injected preparation interruption'); } },
+      })).rejects.toThrow('injected preparation interruption');
+      // The caller has no metadata to save until preparation returns. The only
+      // possible side effect is an OS-protected (not plaintext) recovery blob.
+      expect(recoveryWrites).toBe(stage === 'recovery_protector_created' ? 1 : 0);
+    },
+  );
+
   it('migrates every store and verifies it with the DEK alone', async () => {
     const { database, legacyKey, dek, metadata } = await fixture();
     let durable = metadata;

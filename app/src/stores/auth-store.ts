@@ -19,7 +19,7 @@ import { hashSecret, verifySecret } from '../utils/password-crypto';
 import { deriveDbKey, exportDataEncryptionKey, generateDataEncryptionKey, getDataEncryptionKeyFingerprint, getDbSalt, importDataEncryptionKey, unwrapDataEncryptionKey, wrapDataEncryptionKey } from '../utils/db-crypto';
 import { db, ENCRYPTED_STORE_NAMES } from '../services/database';
 import { getMachineId } from '../utils/machine-id';
-import { migrateLegacyEncryptedDatabase, type WrappedDekMetadata } from '../utils/encryption-migration';
+import { migrateLegacyEncryptedDatabase, prepareLegacyDekMigration, type WrappedDekMetadata } from '../utils/encryption-migration';
 
 const CREDS_KEY = 'formease-credentials-v2';
 const LEGACY_CREDS_KEY = 'formease-credentials';
@@ -303,22 +303,19 @@ async function setupDatabaseEncryption(password: string) {
 
   // Legacy v3.5.17 data is migrated only after the password has authenticated
   // and every encrypted store can still be read with the legacy key.
-  const dek = await generateDataEncryptionKey();
-  const passwordWrappedDek = await wrapDataEncryptionKey(dek, passwordKek);
-  await unwrapDataEncryptionKey(passwordWrappedDek, passwordKek);
   const api = window.electronAPI;
   const recoveryAvailable = Boolean(await api?.recoveryProtectorAvailable?.());
-  if (recoveryAvailable && !await api?.protectRecoveryDek?.(await exportDataEncryptionKey(dek))) {
+  let dek: CryptoKey;
+  let prepared: WrappedDekMetadata;
+  try {
+    ({ dek, metadata: prepared } = await prepareLegacyDekMigration({
+      passwordKek,
+      recoveryProtectorAvailable: recoveryAvailable,
+      protectRecoveryDek: api?.protectRecoveryDek,
+    }));
+  } catch {
     throw new Error('Secure recovery protection could not be initialized. Your legacy local records were not changed.');
   }
-  const prepared: WrappedDekMetadata = {
-    version: 1,
-    encryptionSchemaVersion: 'dek-v1',
-    state: 'migration_prepared',
-    passwordWrappedDek,
-    dekFingerprint: await getDataEncryptionKeyFingerprint(dek),
-    recoveryProtector: recoveryAvailable ? 'electron-safe-storage-v1' : 'unavailable',
-  };
   saveWrappedDekMetadata(prepared);
   await migrateLegacyEncryptedDatabase({
     database: db,

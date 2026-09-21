@@ -1,5 +1,12 @@
 import { isEncryptedDatabaseEnvelope } from '../services/database';
-import type { WrappedDataEncryptionKey } from './db-crypto';
+import {
+  exportDataEncryptionKey,
+  generateDataEncryptionKey,
+  getDataEncryptionKeyFingerprint,
+  unwrapDataEncryptionKey,
+  wrapDataEncryptionKey,
+  type WrappedDataEncryptionKey,
+} from './db-crypto';
 
 /** Durable states for the v3.5.18 legacy password-key to DEK migration. */
 export type EncryptionMigrationState =
@@ -8,6 +15,11 @@ export type EncryptionMigrationState =
   | 'migration_verifying'
   | 'migrated'
   | 'migration_failed_recoverable';
+
+export type EncryptionPreparationStage =
+  | 'dek_generated'
+  | 'password_wrapper_created'
+  | 'recovery_protector_created';
 
 export interface WrappedDekMetadata {
   version: 1;
@@ -27,7 +39,44 @@ export interface MigrationDatabase {
 
 export interface MigrationHooks {
   /** Test-only fault injection hook. It is never provided by production code. */
-  afterStage?: (stage: EncryptionMigrationState) => Promise<void> | void;
+  afterStage?: (stage: EncryptionMigrationState | EncryptionPreparationStage) => Promise<void> | void;
+}
+
+/**
+ * Builds and validates migration material before any IndexedDB record is
+ * changed. A failure at any preparation boundary leaves legacy records and
+ * durable migration metadata untouched.
+ */
+export async function prepareLegacyDekMigration(args: {
+  passwordKek: CryptoKey;
+  recoveryProtectorAvailable: boolean;
+  protectRecoveryDek?: (rawDek: string) => Promise<boolean>;
+  hooks?: MigrationHooks;
+}): Promise<{ dek: CryptoKey; metadata: WrappedDekMetadata }> {
+  const dek = await generateDataEncryptionKey();
+  await args.hooks?.afterStage?.('dek_generated');
+
+  const passwordWrappedDek = await wrapDataEncryptionKey(dek, args.passwordKek);
+  await unwrapDataEncryptionKey(passwordWrappedDek, args.passwordKek);
+  await args.hooks?.afterStage?.('password_wrapper_created');
+
+  if (args.recoveryProtectorAvailable) {
+    const protectedOk = await args.protectRecoveryDek?.(await exportDataEncryptionKey(dek));
+    if (!protectedOk) throw new Error('Secure recovery protection could not be initialized.');
+  }
+  await args.hooks?.afterStage?.('recovery_protector_created');
+
+  return {
+    dek,
+    metadata: {
+      version: 1,
+      encryptionSchemaVersion: 'dek-v1',
+      state: 'migration_prepared',
+      passwordWrappedDek,
+      dekFingerprint: await getDataEncryptionKeyFingerprint(dek),
+      recoveryProtector: args.recoveryProtectorAvailable ? 'electron-safe-storage-v1' : 'unavailable',
+    },
+  };
 }
 
 interface StoreSnapshot {
