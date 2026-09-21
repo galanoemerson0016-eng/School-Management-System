@@ -9,6 +9,12 @@ const ITERATIONS = 100000;
 // localStorage fallback key — only used when safeStorage IPC is unavailable (dev browser, Linux without libsecret, etc.)
 const SALT_FALLBACK_KEY = 'formease-db-salt-v1';
 
+export interface WrappedDataEncryptionKey {
+  version: 'dek-v1';
+  iv: string;
+  ciphertext: string;
+}
+
 function toBase64(bytes: Uint8Array): string {
   let binary = '';
   const chunkSize = 0x8000;
@@ -112,6 +118,54 @@ export async function deriveDbKey(secret: string, salt: Uint8Array): Promise<Cry
     true,
     ['encrypt', 'decrypt']
   );
+}
+
+/** Generate the random record-encryption key used by the wrapped-DEK design. */
+export async function generateDataEncryptionKey(): Promise<CryptoKey> {
+  return crypto.subtle.generateKey(
+    { name: 'AES-GCM', length: KEY_BITS },
+    true,
+    ['encrypt', 'decrypt'],
+  );
+}
+
+/** Transfer a DEK only to the narrow Electron recovery-protector IPC. */
+export async function exportDataEncryptionKey(dataKey: CryptoKey): Promise<string> {
+  return toBase64(new Uint8Array(await crypto.subtle.exportKey('raw', dataKey)));
+}
+
+/** Non-secret identity check for verifying that wrappers protect the same DEK. */
+export async function getDataEncryptionKeyFingerprint(dataKey: CryptoKey): Promise<string> {
+  const raw = await crypto.subtle.exportKey('raw', dataKey);
+  return toBase64(new Uint8Array(await crypto.subtle.digest('SHA-256', raw as BufferSource)));
+}
+
+export async function importDataEncryptionKey(raw: string): Promise<CryptoKey> {
+  const bytes = fromBase64(raw);
+  if (bytes.length !== KEY_BITS / 8) throw new Error('Invalid recovered database encryption key.');
+  return crypto.subtle.importKey('raw', bytes as BufferSource, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+}
+
+/** Encrypt an exportable DEK using a password- or recovery-derived KEK. */
+export async function wrapDataEncryptionKey(
+  dataKey: CryptoKey,
+  wrappingKey: CryptoKey,
+): Promise<WrappedDataEncryptionKey> {
+  const { ciphertext, iv } = await encryptPayload({ raw: await exportDataEncryptionKey(dataKey) }, wrappingKey);
+  return { version: 'dek-v1', ciphertext, iv };
+}
+
+/** Recover a DEK from authenticated wrapped-key metadata. */
+export async function unwrapDataEncryptionKey(
+  wrapped: WrappedDataEncryptionKey,
+  wrappingKey: CryptoKey,
+): Promise<CryptoKey> {
+  if (!wrapped || wrapped.version !== 'dek-v1' || !wrapped.iv || !wrapped.ciphertext) {
+    throw new Error('Invalid database encryption metadata.');
+  }
+  const payload = await decryptPayload<{ raw?: string }>(wrapped.ciphertext, wrapped.iv, wrappingKey);
+  if (!payload.raw) throw new Error('Database encryption metadata is incomplete.');
+  return importDataEncryptionKey(payload.raw);
 }
 
 export async function encryptPayload(payload: unknown, key: CryptoKey): Promise<{ ciphertext: string; iv: string }> {

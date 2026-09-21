@@ -44,6 +44,11 @@ declare global {
       minimizeApp: () => void;
       maximizeApp: () => void;
       printToPDF: (options: { defaultFilename?: string; autoSave?: boolean; landscape?: boolean; pageSize?: SafeAny }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+      readDbSalt?: () => Promise<string | null>;
+      storeDbSalt?: (saltHex: string) => Promise<boolean>;
+      recoveryProtectorAvailable?: () => Promise<boolean>;
+      protectRecoveryDek?: (rawDek: string) => Promise<boolean>;
+      recoverProtectedDek?: () => Promise<string | null>;
       verifyDiskSpace: () => Promise<{ success: boolean; freeBytes?: number; error?: string }>;
       writePreUpdateState: (state: SafeAny) => Promise<{ success: boolean; error?: string }>;
       readPreUpdateState: () => Promise<SafeAny>;

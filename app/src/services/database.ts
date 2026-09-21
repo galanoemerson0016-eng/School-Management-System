@@ -32,15 +32,24 @@ import { encryptPayload, decryptPayload } from '../utils/db-crypto';
 import { collectBackupLocalStorage, restoreBackupLocalStorage } from '../utils/backup-restore';
 
 let dbKey: CryptoKey | null = null;
+// During a resumable v3.5.18 migration, records may be encrypted by either
+// the new DEK or the legacy password-derived key. The legacy key is only kept
+// in memory for the authenticated migration session and is never persisted.
+let fallbackDbKeys: CryptoKey[] = [];
 
-export function setDatabaseEncryptionKey(key: CryptoKey | null) {
+export function setDatabaseEncryptionKey(
+  key: CryptoKey | null,
+  fallbackKeys: CryptoKey[] = [],
+  runIndexingMigration = true,
+) {
   dbKey = key;
-  if (key) {
+  fallbackDbKeys = key ? fallbackKeys.filter(fallback => fallback !== key) : [];
+  if (key && runIndexingMigration) {
     void migrateDatabaseForIndexing();
   }
 }
 
-const ENCRYPTED_STORES = new Set([
+export const ENCRYPTED_STORE_NAMES = [
   'students',
   'classRecords',
   'enrollments',
@@ -49,7 +58,8 @@ const ENCRYPTED_STORES = new Set([
   'gradingSheetRecords',
   'observedValues',
   'automated_backups'
-]);
+] as const;
+const ENCRYPTED_STORES = new Set<string>(ENCRYPTED_STORE_NAMES);
 
 interface EncryptedEnvelope {
   lrn?: string;
@@ -61,6 +71,24 @@ interface EncryptedEnvelope {
   student_lrn?: string;
   subject_id?: string;
   school_year?: string;
+}
+
+export function isEncryptedDatabaseEnvelope(record: unknown): boolean {
+  const candidate = record as Record<string, unknown> | null;
+  return Boolean(candidate?.is_encrypted && candidate.iv && candidate.ciphertext);
+}
+
+async function decryptWithAvailableKeys<T>(ciphertext: string, iv: string): Promise<T> {
+  if (!dbKey) throw new Error('Database encryption key is unavailable.');
+  let lastError: unknown;
+  for (const key of [dbKey, ...fallbackDbKeys]) {
+    try {
+      return await decryptPayload<T>(ciphertext, iv, key);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Database record could not be decrypted.');
 }
 
 async function encryptRecordIfNeeded<T>(storeName: string, record: T): Promise<T | EncryptedEnvelope> {
@@ -77,9 +105,9 @@ async function encryptRecordIfNeeded<T>(storeName: string, record: T): Promise<T
 
   let finalRecord = record;
   const rawRecord = record as Record<string, unknown>;
-  if (rawRecord.is_encrypted && rawRecord.iv && rawRecord.ciphertext) {
+  if (isEncryptedDatabaseEnvelope(rawRecord)) {
     try {
-      const decrypted = await decryptPayload<T>(rawRecord.ciphertext as string, rawRecord.iv as string, dbKey);
+      const decrypted = await decryptWithAvailableKeys<T>(rawRecord.ciphertext as string, rawRecord.iv as string);
       finalRecord = decrypted;
       keyValue = (finalRecord as Record<string, unknown>)[keyField] || keyValue;
     } catch (err) {
@@ -109,12 +137,12 @@ async function encryptRecordIfNeeded<T>(storeName: string, record: T): Promise<T
 async function decryptRecordIfNeeded<T>(storeName: string, record: unknown): Promise<T> {
   if (!record) return record as T;
   const rawRecord = record as Record<string, unknown>;
-  if (!dbKey || !rawRecord.is_encrypted || !rawRecord.iv || !rawRecord.ciphertext) {
+  if (!dbKey || !isEncryptedDatabaseEnvelope(rawRecord)) {
     return record as T;
   }
   
   try {
-    return await decryptPayload<T>(rawRecord.ciphertext as string, rawRecord.iv as string, dbKey);
+    return await decryptWithAvailableKeys<T>(rawRecord.ciphertext as string, rawRecord.iv as string);
   } catch (error) {
     console.error(`Failed to decrypt record in store ${storeName}:`, error);
     return record as T;

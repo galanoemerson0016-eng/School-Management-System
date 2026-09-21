@@ -12,18 +12,21 @@
  */
 
 import { create } from 'zustand';
-import type { User, Student, ClassRecord, Enrollment, AttendanceRecord, SF2Sheet, ObservedValues } from '../types';
+import type { User } from '../types';
 import { auth } from '../lib/firebase';
 import { signInAnonymously } from 'firebase/auth';
 import { hashSecret, verifySecret } from '../utils/password-crypto';
-import { deriveDbKey, getDbSalt } from '../utils/db-crypto';
-import { db } from '../services/database';
+import { deriveDbKey, exportDataEncryptionKey, generateDataEncryptionKey, getDataEncryptionKeyFingerprint, getDbSalt, importDataEncryptionKey, unwrapDataEncryptionKey, wrapDataEncryptionKey } from '../utils/db-crypto';
+import { db, ENCRYPTED_STORE_NAMES } from '../services/database';
 import { getMachineId } from '../utils/machine-id';
+import { migrateLegacyEncryptedDatabase, type WrappedDekMetadata } from '../utils/encryption-migration';
 
 const CREDS_KEY = 'formease-credentials-v2';
 const LEGACY_CREDS_KEY = 'formease-credentials';
 const SESSION_KEY = 'formease-session';
 const RECOVERY_ATTEMPTS_KEY = 'formease-recovery-attempts';
+const DB_KEY_ENVELOPE_KEY = 'formease-db-key-envelope-v1';
+const CREDENTIAL_TRANSACTION_KEY = 'formease-credential-key-transaction-v1';
 
 const SESSION_DURATION_MS = 12 * 60 * 60 * 1000; // 12 hours
 const MIN_PASSWORD_LENGTH = 8;
@@ -104,6 +107,70 @@ function loadCredentials(): StoredAuthV2 | null {
 
 function saveCredentials(creds: StoredAuthV2): void {
   localStorage.setItem(CREDS_KEY, JSON.stringify(creds));
+}
+
+function loadWrappedDekMetadata(): WrappedDekMetadata | null {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DB_KEY_ENVELOPE_KEY) || 'null') as WrappedDekMetadata | null;
+    return parsed?.version === 1
+      && parsed.encryptionSchemaVersion === 'dek-v1'
+      && typeof parsed.state === 'string'
+      && parsed.passwordWrappedDek
+      && typeof parsed.dekFingerprint === 'string'
+      ? parsed
+      : null;
+  } catch { return null; }
+}
+
+function saveWrappedDekMetadata(metadata: WrappedDekMetadata): void {
+  localStorage.setItem(DB_KEY_ENVELOPE_KEY, JSON.stringify(metadata));
+}
+
+interface CredentialKeyTransaction {
+  version: 1;
+  previousCredentials: StoredAuthV2;
+  nextCredentials: StoredAuthV2;
+  previousMetadata: WrappedDekMetadata;
+  nextMetadata: WrappedDekMetadata;
+}
+
+/** Complete or roll back a two-record localStorage credential update before login. */
+function recoverCredentialKeyTransaction(stored: StoredAuthV2): StoredAuthV2 {
+  try {
+    const transaction = JSON.parse(localStorage.getItem(CREDENTIAL_TRANSACTION_KEY) || 'null') as CredentialKeyTransaction | null;
+    if (!transaction || transaction.version !== 1) return stored;
+    if (stored.passwordHash === transaction.nextCredentials.passwordHash) {
+      saveWrappedDekMetadata(transaction.nextMetadata);
+      localStorage.removeItem(CREDENTIAL_TRANSACTION_KEY);
+      return transaction.nextCredentials;
+    }
+    if (stored.passwordHash === transaction.previousCredentials.passwordHash) {
+      saveWrappedDekMetadata(transaction.previousMetadata);
+      localStorage.removeItem(CREDENTIAL_TRANSACTION_KEY);
+      return transaction.previousCredentials;
+    }
+    throw new Error('Credential update recovery could not determine a safe state.');
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Credential update recovery metadata is invalid.');
+  }
+}
+
+function commitCredentialsAndWrapper(
+  previousCredentials: StoredAuthV2,
+  nextCredentials: StoredAuthV2,
+  previousMetadata: WrappedDekMetadata,
+  nextMetadata: WrappedDekMetadata,
+): void {
+  const transaction: CredentialKeyTransaction = {
+    version: 1, previousCredentials, nextCredentials, previousMetadata, nextMetadata,
+  };
+  localStorage.setItem(CREDENTIAL_TRANSACTION_KEY, JSON.stringify(transaction));
+  // Credential hash first means a restart deterministically finishes the new
+  // wrapper; a pre-write crash deterministically restores the old wrapper.
+  saveCredentials(nextCredentials);
+  saveWrappedDekMetadata(nextMetadata);
+  localStorage.removeItem(CREDENTIAL_TRANSACTION_KEY);
 }
 
 /**
@@ -208,8 +275,83 @@ function setRecoveryAttempts(attempts: RecoveryAttempts): void {
 
 async function setupDatabaseEncryption(password: string) {
   const salt = await getDbSalt();
-  const key = await deriveDbKey(password, salt);
-  db.setDatabaseEncryptionKey(key);
+  const passwordKek = await deriveDbKey(password, salt);
+  const rawMetadata = localStorage.getItem(DB_KEY_ENVELOPE_KEY);
+  const metadata = loadWrappedDekMetadata();
+  if (rawMetadata && !metadata) {
+    throw new Error('Database encryption migration metadata is invalid. Your local records were not changed.');
+  }
+  if (metadata) {
+    const dek = await unwrapDataEncryptionKey(metadata.passwordWrappedDek, passwordKek);
+    if (await getDataEncryptionKeyFingerprint(dek) !== metadata.dekFingerprint) {
+      throw new Error('Database encryption metadata does not match this account. Your local records were not changed.');
+    }
+    if (metadata.state === 'migrated') {
+      db.setDatabaseEncryptionKey(dek);
+      return;
+    }
+    await migrateLegacyEncryptedDatabase({
+      database: db,
+      stores: ENCRYPTED_STORE_NAMES,
+      legacyKey: passwordKek,
+      dek,
+      metadata,
+      saveMetadata: saveWrappedDekMetadata,
+    });
+    return;
+  }
+
+  // Legacy v3.5.17 data is migrated only after the password has authenticated
+  // and every encrypted store can still be read with the legacy key.
+  const dek = await generateDataEncryptionKey();
+  const passwordWrappedDek = await wrapDataEncryptionKey(dek, passwordKek);
+  await unwrapDataEncryptionKey(passwordWrappedDek, passwordKek);
+  const api = window.electronAPI;
+  const recoveryAvailable = Boolean(await api?.recoveryProtectorAvailable?.());
+  if (recoveryAvailable && !await api?.protectRecoveryDek?.(await exportDataEncryptionKey(dek))) {
+    throw new Error('Secure recovery protection could not be initialized. Your legacy local records were not changed.');
+  }
+  const prepared: WrappedDekMetadata = {
+    version: 1,
+    encryptionSchemaVersion: 'dek-v1',
+    state: 'migration_prepared',
+    passwordWrappedDek,
+    dekFingerprint: await getDataEncryptionKeyFingerprint(dek),
+    recoveryProtector: recoveryAvailable ? 'electron-safe-storage-v1' : 'unavailable',
+  };
+  saveWrappedDekMetadata(prepared);
+  await migrateLegacyEncryptedDatabase({
+    database: db,
+    stores: ENCRYPTED_STORE_NAMES,
+    legacyKey: passwordKek,
+    dek,
+    metadata: prepared,
+    saveMetadata: saveWrappedDekMetadata,
+  });
+}
+
+async function setupNewDatabaseEncryption(password: string): Promise<void> {
+  const salt = await getDbSalt();
+  const passwordKek = await deriveDbKey(password, salt);
+  const dek = await generateDataEncryptionKey();
+  const api = window.electronAPI;
+  const recoveryAvailable = Boolean(await api?.recoveryProtectorAvailable?.());
+  if (recoveryAvailable) {
+    const protectedOk = await api?.protectRecoveryDek?.(await exportDataEncryptionKey(dek));
+    if (!protectedOk) throw new Error('Secure recovery protection could not be initialized.');
+  }
+  const passwordWrappedDek = await wrapDataEncryptionKey(dek, passwordKek);
+  // Verify before making the new architecture authoritative.
+  await unwrapDataEncryptionKey(passwordWrappedDek, passwordKek);
+  saveWrappedDekMetadata({
+    version: 1,
+    encryptionSchemaVersion: 'dek-v1',
+    state: 'migrated',
+    passwordWrappedDek,
+    dekFingerprint: await getDataEncryptionKeyFingerprint(dek),
+    recoveryProtector: recoveryAvailable ? 'electron-safe-storage-v1' : 'unavailable',
+  });
+  db.setDatabaseEncryptionKey(dek);
 }
 
 async function setupTrialDatabaseEncryption() {
@@ -233,12 +375,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Username and password required');
       }
 
-      const stored = await loadOrMigrateCredentials();
+      let stored = await loadOrMigrateCredentials();
 
       if (!stored) {
         set({ needsAccountSetup: true });
         throw new Error('No account exists yet. Please set up your account.');
       }
+      stored = recoverCredentialKeyTransaction(stored);
 
       const passwordOk = await verifySecret(password, stored.passwordHash);
       const usernameMatch = stored.username.toLowerCase() === username.trim().toLowerCase();
@@ -293,11 +436,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         securityQuestion: hasRecovery ? input.securityQuestion!.trim() : undefined,
         securityAnswerHash: hasRecovery ? await hashSecret(normalizeAnswer(input.securityAnswer!)) : undefined,
       };
+      const user = buildUser(creds);
+      await setupNewDatabaseEncryption(input.password);
+      // The DEK architecture is established before credentials become usable.
+      // If setup is interrupted, no account is authenticated against a partial key setup.
       saveCredentials(creds);
       localStorage.removeItem(LEGACY_CREDS_KEY);
-
-      const user = buildUser(creds);
-      await setupDatabaseEncryption(input.password);
       await attachCloudIdentity(user);
 
       set({ user, isAuthenticated: true, isLoading: false, needsAccountSetup: false, error: null });
@@ -326,43 +470,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error('Username must be at least 3 characters');
     }
 
-    if (input.newPassword) {
-      try {
-        const salt = await getDbSalt();
-        const newKey = await deriveDbKey(input.newPassword, salt);
-
-        if (typeof indexedDB !== 'undefined') {
-          // 1. Load all decrypted records using the old key
-          const students = await db.getAllRecords<Student>('students');
-          const classRecords = await db.getAllRecords<ClassRecord>('classRecords');
-          const enrollments = await db.getAllRecords<Enrollment>('enrollments');
-          const attendanceRecords = await db.getAllRecords<AttendanceRecord>('attendanceRecords');
-          const sf2Sheets = await db.getAllRecords<SF2Sheet>('sf2Sheets');
-          const gradingSheetRecords = await db.getAllRecords<ClassRecord>('gradingSheetRecords');
-          const observedValues = await db.getAllRecords<ObservedValues>('observedValues');
-          const automatedBackups = await db.getAllRecords<unknown>('automated_backups');
-
-          // 2. Set the new key in the database service
-          db.setDatabaseEncryptionKey(newKey);
-
-          // 3. Overwrite all records under the new key
-          await db.putRecordsBulk('students', students);
-          await db.putRecordsBulk('classRecords', classRecords);
-          await db.putRecordsBulk('enrollments', enrollments);
-          await db.putRecordsBulk('attendanceRecords', attendanceRecords);
-          await db.putRecordsBulk('sf2Sheets', sf2Sheets);
-          await db.putRecordsBulk('gradingSheetRecords', gradingSheetRecords);
-          await db.putRecordsBulk('observedValues', observedValues);
-          await db.putRecordsBulk('automated_backups', automatedBackups);
-        } else {
-          db.setDatabaseEncryptionKey(newKey);
-        }
-      } catch (err) {
-        console.error('Failed to rotate database encryption key:', err);
-        throw new Error('Database re-encryption failed. Password was not changed.');
-      }
-    }
-
     const updated: StoredAuthV2 = {
       ...stored,
       username: input.username?.trim() || stored.username,
@@ -373,7 +480,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         ? await hashSecret(normalizeAnswer(input.securityAnswer))
         : stored.securityAnswerHash,
     };
-    saveCredentials(updated);
+    if (input.newPassword) {
+      try {
+        // Any legacy account is first brought through the verified migration.
+        // Password change then only replaces the DEK wrapper, never record ciphertext.
+        await setupDatabaseEncryption(input.currentPassword);
+        const metadata = loadWrappedDekMetadata();
+        if (!metadata || metadata.state !== 'migrated') {
+          throw new Error('Database encryption migration did not complete.');
+        }
+        const salt = await getDbSalt();
+        const currentKek = await deriveDbKey(input.currentPassword, salt);
+        const dek = await unwrapDataEncryptionKey(metadata.passwordWrappedDek, currentKek);
+        if (await getDataEncryptionKeyFingerprint(dek) !== metadata.dekFingerprint) {
+          throw new Error('Database encryption metadata does not match this account.');
+        }
+        const newKek = await deriveDbKey(input.newPassword, salt);
+        const passwordWrappedDek = await wrapDataEncryptionKey(dek, newKek);
+        await unwrapDataEncryptionKey(passwordWrappedDek, newKek);
+        const nextMetadata = { ...metadata, passwordWrappedDek };
+        commitCredentialsAndWrapper(stored, updated, metadata, nextMetadata);
+        db.setDatabaseEncryptionKey(dek);
+      } catch (err) {
+        console.error('Failed to update database encryption wrapper:', err);
+        throw new Error('Password was not changed because encrypted local data could not be verified.');
+      }
+    } else {
+      saveCredentials(updated);
+    }
 
     const user = get().user;
     if (user) {
@@ -430,8 +564,39 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error(`New password must be at least ${MIN_PASSWORD_LENGTH} characters`);
     }
 
+    const metadata = loadWrappedDekMetadata();
+    if (!metadata || metadata.recoveryProtector !== 'electron-safe-storage-v1') {
+      throw new Error('Password recovery cannot safely unlock this encrypted local data. Sign in with the current password or restore a verified backup.');
+    }
+    const rawDek = await window.electronAPI?.recoverProtectedDek?.();
+    if (!rawDek || rawDek === 'DECRYPTION_FAILED') {
+      throw new Error('Password recovery is unavailable for this device profile. Sign in with the current password or restore a verified backup.');
+    }
+    const salt = await getDbSalt();
+    let dek: CryptoKey;
+    try {
+      dek = await importDataEncryptionKey(rawDek);
+    } catch {
+      throw new Error('Password recovery is unavailable for this device profile. Sign in with the current password or restore a verified backup.');
+    }
+    if (await getDataEncryptionKeyFingerprint(dek) !== metadata.dekFingerprint) {
+      throw new Error('Password recovery is unavailable for this device profile. Sign in with the current password or restore a verified backup.');
+    }
+    const newKek = await deriveDbKey(newPassword, salt);
+    const passwordWrappedDek = await wrapDataEncryptionKey(dek, newKek);
+    await unwrapDataEncryptionKey(passwordWrappedDek, newKek);
+
+    // A journal makes the two localStorage records restart-safe: login can
+    // complete the exact old or new pair and never mixes a password hash with
+    // the wrong DEK wrapper.
+    commitCredentialsAndWrapper(
+      stored,
+      { ...stored, passwordHash: await hashSecret(newPassword) },
+      metadata,
+      { ...metadata, passwordWrappedDek },
+    );
+    db.setDatabaseEncryptionKey(dek);
     setRecoveryAttempts({ count: 0 });
-    saveCredentials({ ...stored, passwordHash: await hashSecret(newPassword) });
     return { username: stored.username };
   },
 }));

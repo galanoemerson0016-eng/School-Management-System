@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { useAuthStore } from '../stores/auth-store';
 
 describe('Authentication bypass prevention', () => {
+    let protectedDek: string | null = null;
+
     beforeEach(() => {
         localStorage.clear();
         sessionStorage.clear();
@@ -12,6 +14,15 @@ describe('Authentication bypass prevention', () => {
             needsAccountSetup: false,
             error: null,
         });
+        protectedDek = null;
+        window.electronAPI = {
+            recoveryProtectorAvailable: async () => true,
+            protectRecoveryDek: async (rawDek: string) => {
+                protectedDek = rawDek;
+                return true;
+            },
+            recoverProtectedDek: async () => protectedDek,
+        } as Window['electronAPI'];
     });
 
     it('rejects the former factory password for an existing account', async () => {
@@ -86,5 +97,55 @@ describe('Authentication bypass prevention', () => {
 
         expect(success).toBe(true);
         expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    });
+
+    it('keeps the same DEK through password change and password recovery', async () => {
+        await useAuthStore.getState().createAccount({
+            username: 'integrity.admin',
+            password: 'OriginalPassword123!',
+            securityQuestion: 'Synthetic test question?',
+            securityAnswer: 'Synthetic answer',
+        });
+        const initial = JSON.parse(localStorage.getItem('formease-db-key-envelope-v1') || '{}');
+        expect(initial.state).toBe('migrated');
+        expect(initial.dekFingerprint).toBeTruthy();
+
+        await useAuthStore.getState().changeCredentials({
+            currentPassword: 'OriginalPassword123!',
+            newPassword: 'ChangedPassword456!',
+        });
+        const afterChange = JSON.parse(localStorage.getItem('formease-db-key-envelope-v1') || '{}');
+        expect(afterChange.dekFingerprint).toBe(initial.dekFingerprint);
+        expect(afterChange.passwordWrappedDek.ciphertext).not.toBe(initial.passwordWrappedDek.ciphertext);
+
+        await useAuthStore.getState().logout();
+        expect(await useAuthStore.getState().login('integrity.admin', 'OriginalPassword123!')).toBe(false);
+        expect(await useAuthStore.getState().login('integrity.admin', 'ChangedPassword456!')).toBe(true);
+
+        await useAuthStore.getState().resetPasswordWithSecurityAnswer('synthetic answer', 'RecoveredPassword789!');
+        const afterRecovery = JSON.parse(localStorage.getItem('formease-db-key-envelope-v1') || '{}');
+        expect(afterRecovery.dekFingerprint).toBe(initial.dekFingerprint);
+        expect(afterRecovery.passwordWrappedDek.ciphertext).not.toBe(afterChange.passwordWrappedDek.ciphertext);
+
+        await useAuthStore.getState().logout();
+        expect(await useAuthStore.getState().login('integrity.admin', 'RecoveredPassword789!')).toBe(true);
+    });
+
+    it('rejects corrupt recovery material without changing the password wrapper', async () => {
+        await useAuthStore.getState().createAccount({
+            username: 'recovery.admin',
+            password: 'OriginalPassword123!',
+            securityQuestion: 'Synthetic test question?',
+            securityAnswer: 'Synthetic answer',
+        });
+        const before = localStorage.getItem('formease-db-key-envelope-v1');
+        protectedDek = 'not-a-valid-dek';
+
+        await expect(useAuthStore.getState().resetPasswordWithSecurityAnswer('synthetic answer', 'RecoveredPassword789!'))
+            .rejects.toThrow('Password recovery is unavailable');
+        expect(localStorage.getItem('formease-db-key-envelope-v1')).toBe(before);
+
+        await useAuthStore.getState().logout();
+        expect(await useAuthStore.getState().login('recovery.admin', 'OriginalPassword123!')).toBe(true);
     });
 });

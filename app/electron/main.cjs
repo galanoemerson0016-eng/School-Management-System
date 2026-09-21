@@ -343,6 +343,11 @@ ipcMain.handle('save-auto-backup', async (event, { data, filename, retentionLimi
 // Keeping it in safeStorage prevents it from being extracted by a script
 // that can read localStorage (e.g., a compromised renderer).
 const SALT_FILE = 'formease-db-salt.enc';
+const RECOVERY_DEK_FILE = 'formease-db-recovery-dek-v1.enc';
+
+function isValidRawDek(value) {
+  return typeof value === 'string' && /^[A-Za-z0-9+/]+={0,2}$/.test(value) && Buffer.from(value, 'base64').length === 32;
+}
 
 ipcMain.handle('db:read-salt', async () => {
   const { safeStorage } = require('electron');
@@ -369,6 +374,39 @@ ipcMain.handle('db:store-salt', async (event, saltHex) => {
   } catch (err) {
     log.error('db:store-salt failed:', err);
     return false;
+  }
+});
+
+// The renderer can only protect/recover a 32-byte DEK.  It cannot invoke
+// arbitrary safeStorage encryption/decryption or choose filesystem paths.
+ipcMain.handle('db:recovery-protector-available', () => {
+  const { safeStorage } = require('electron');
+  return safeStorage.isEncryptionAvailable();
+});
+
+ipcMain.handle('db:protect-recovery-dek', async (_event, rawDek) => {
+  const { safeStorage } = require('electron');
+  if (!safeStorage.isEncryptionAvailable() || !isValidRawDek(rawDek)) return false;
+  try {
+    fs.writeFileSync(path.join(app.getPath('userData'), RECOVERY_DEK_FILE), safeStorage.encryptString(rawDek));
+    return true;
+  } catch (err) {
+    log.error('db:protect-recovery-dek failed:', err);
+    return false;
+  }
+});
+
+ipcMain.handle('db:recover-protected-dek', async () => {
+  const { safeStorage } = require('electron');
+  if (!safeStorage.isEncryptionAvailable()) return null;
+  try {
+    const filePath = path.join(app.getPath('userData'), RECOVERY_DEK_FILE);
+    if (!fs.existsSync(filePath)) return null;
+    const rawDek = safeStorage.decryptString(fs.readFileSync(filePath));
+    return isValidRawDek(rawDek) ? rawDek : 'DECRYPTION_FAILED';
+  } catch (err) {
+    log.error('db:recover-protected-dek failed:', err);
+    return 'DECRYPTION_FAILED';
   }
 });
 
