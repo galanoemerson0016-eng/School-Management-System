@@ -425,7 +425,11 @@ export type UserRole =
     | 'subject_leader_esp';
 
 export interface User {
+    /** Stable offline identity used by sections and other local relationships. */
     uid: string;
+    localUserId?: string;
+    /** Firebase identity used only by cloud authorization. */
+    cloudUid?: string;
     email: string;
     role: UserRole;
     roles?: UserRole[];

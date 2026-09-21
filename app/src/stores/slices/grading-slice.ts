@@ -11,7 +11,7 @@ export interface GradingSlice {
 
   gradingSheetRecords: ClassRecord[];
   setGradingSheetRecords: (records: ClassRecord[]) => void;
-  updateGradingSheetRecord: (record: ClassRecord) => Promise<void>;
+  updateGradingSheetRecord: (record: ClassRecord, options?: { overwriteManualOverride?: boolean }) => Promise<void>;
   bulkUpdateGradingSheetRecords: (records: ClassRecord[]) => Promise<void>;
   deleteGradingSheetRecord: (id: string) => Promise<void>;
   clearGradingSheet: (sectionId?: string, quarter?: number | string, schoolYear?: string, studentLrns?: string[]) => Promise<void>;
@@ -81,7 +81,7 @@ export function createGradingSlice(set: (state: any) => void, get: () => any): G
     // ==================== GRADING SHEET RECORDS ====================
     gradingSheetRecords: [],
     setGradingSheetRecords: (records) => set({ gradingSheetRecords: records }),
-    updateGradingSheetRecord: async (record) => {
+    updateGradingSheetRecord: async (record, options) => {
       const previousRecords = get().gradingSheetRecords as ClassRecord[];
       try {
         const state = get();
@@ -102,15 +102,39 @@ export function createGradingSlice(set: (state: any) => void, get: () => any): G
 
         const matchingOldRecords = currentRecords.filter(isMatch);
         const remainingRecords = currentRecords.filter((r) => !isMatch(r));
+        const existingRecord = matchingOldRecords.find((r) => r.id === record.id) || matchingOldRecords[0];
+
+        // An E-Class sync is not permission to undo a teacher's explicit
+        // Grade Management decision.  Callers that intentionally replace an
+        // override must opt in so the action can be confirmed in their UI.
+        if (
+          existingRecord?.grade_source === 'manual_override'
+          && record.grade_source === 'eclass_sync'
+          && !options?.overwriteManualOverride
+        ) {
+          return;
+        }
+
+        // Grade synchronization owns the resolved final grade, not the
+        // assessment-level inputs already recorded in Grade Management.
+        const recordToPersist: ClassRecord = existingRecord && record.grade_source === 'eclass_sync'
+          ? {
+              ...existingRecord,
+              ...record,
+              written_works: existingRecord.written_works,
+              performance_tasks: existingRecord.performance_tasks,
+              quarterly_exam: existingRecord.quarterly_exam,
+            }
+          : record;
 
         for (const oldRec of matchingOldRecords) {
-          if (oldRec.id && oldRec.id !== record.id) {
+          if (oldRec.id && oldRec.id !== recordToPersist.id) {
             await db.deleteRecord('gradingSheetRecords', oldRec.id);
           }
         }
 
-        set({ gradingSheetRecords: [...remainingRecords, record] });
-        await db.putRecord('gradingSheetRecords', record);
+        set({ gradingSheetRecords: [...remainingRecords, recordToPersist] });
+        await db.putRecord('gradingSheetRecords', recordToPersist);
       } catch (error) {
         console.error('Error updating grading sheet record:', error);
         set({ gradingSheetRecords: previousRecords });

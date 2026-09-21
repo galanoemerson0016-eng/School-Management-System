@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { isStudentInSection, isMaleStudent, isFemaleStudent } from '../utils/grading-helpers';
-import { filterAttendanceSections } from '../lib/rbac';
+import { filterAttendanceSections, filterOfficialSectionsForUser, isSectionAdvisoryForUser } from '../lib/rbac';
 import type { Section, User } from '../types';
 
 describe('SF2 Learner Matching & Roster Inclusion', () => {
@@ -66,7 +66,7 @@ describe('SF2 Learner Matching & Roster Inclusion', () => {
         const adminUser: User = { uid: 'u2', email: 'a@school.edu', role: 'admin' };
         const principalUser: User = { uid: 'u3', email: 'p@school.edu', role: 'principal' };
 
-        expect(filterAttendanceSections(teacherUser, sections).map(s => s.id)).toEqual(['sec-1']);
+        expect(filterAttendanceSections(teacherUser, sections)).toEqual([]);
         expect(filterAttendanceSections(adminUser, sections).map(s => s.id)).toEqual(['sec-1', 'sec-2']);
         expect(filterAttendanceSections(principalUser, sections).map(s => s.id)).toEqual(['sec-1', 'sec-2']);
     });
@@ -82,5 +82,36 @@ describe('SF2 Learner Matching & Roster Inclusion', () => {
         expect(result.some(s => s.id === 'section_1789451336249')).toBe(true);
         expect(result.map(s => s.section_name)).toContain('Archimedes');
     });
-});
 
+    it('fails closed for an unassigned teacher and never uses an email substring as authorization', () => {
+        const sections: Section[] = [
+            { id: 'section_100001', section_name: 'Archimedes Test', section_grade_level: 'Grade 7', is_advisory: true, adviser_id: 'user-other' },
+            { id: 'section_100002', section_name: 'Paciolo Test', section_grade_level: 'Grade 7', is_advisory: true },
+        ];
+        const unassigned: User = {
+            uid: 'user-emerson',
+            email: 'emerson.user-other@example.test',
+            role: 'teacher',
+        };
+
+        expect(isSectionAdvisoryForUser(sections[0], unassigned)).toBe(false);
+        expect(filterAttendanceSections(unassigned, sections)).toEqual([]);
+        expect(filterOfficialSectionsForUser(unassigned, sections)).toEqual([]);
+    });
+
+    it('uses a stable local identity for explicit adviser authorization', () => {
+        const assigned: User = {
+            uid: 'firebase-anonymous-uid',
+            localUserId: 'user-emerson',
+            cloudUid: 'firebase-anonymous-uid',
+            email: 'teacher@school.example.test',
+            role: 'teacher',
+        };
+        const section: Section = {
+            id: 'section_100001', section_name: 'Archimedes Test', section_grade_level: 'Grade 7',
+            is_advisory: false, adviser_id: 'user-emerson',
+        };
+
+        expect(isSectionAdvisoryForUser(section, assigned)).toBe(true);
+    });
+});

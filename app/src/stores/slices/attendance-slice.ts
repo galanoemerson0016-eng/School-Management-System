@@ -47,7 +47,12 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
     if (!records.length) return;
     const activeSchoolYear = get().activeSchoolYear as string;
     const allSections = (get().sections || []) as Section[];
-    const grouped = new Map<string, AttendanceRecord[]>();
+    const grouped = new Map<string, {
+      sectionId: string;
+      schoolYear: string;
+      month: string;
+      records: AttendanceRecord[];
+    }>();
 
     for (const record of records) {
       const context = getSf2MonthContext(record.date, activeSchoolYear);
@@ -55,13 +60,20 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
       const matchedSection = allSections.find((s) => s.id === record.section_id || s.section_name === record.section_id);
       const targetSectionId = matchedSection?.id || record.section_id;
       const sheetId = `${targetSectionId}_${activeSchoolYear}_${context.month}`;
-      const bucket = grouped.get(sheetId) || [];
-      bucket.push(record);
-      grouped.set(sheetId, bucket);
+      const group = grouped.get(sheetId) || {
+        sectionId: targetSectionId,
+        schoolYear: activeSchoolYear,
+        month: context.month,
+        records: [],
+      };
+      group.records.push(record);
+      grouped.set(sheetId, group);
     }
 
     for (const [sheetId, group] of grouped.entries()) {
-      const [sectionId, schoolYear, month] = sheetId.split('_');
+      // Section IDs are opaque and routinely contain underscores.  The key is
+      // only a storage identifier; all business fields travel with the group.
+      const { sectionId, schoolYear, month, records } = group;
       const matchedSection = allSections.find((s) => s.id === sectionId || s.section_name === sectionId);
       let existing = await db.getRecord<SF2Sheet>('sf2Sheets', sheetId);
       if (!existing && matchedSection) {
@@ -82,7 +94,7 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
         remarks: {},
         updated_at: new Date().toISOString(),
       };
-      const nextSheet = buildSf2SheetAttendanceFromRecords(baseSheet, group);
+      const nextSheet = buildSf2SheetAttendanceFromRecords(baseSheet, records);
       await db.putRecord('sf2Sheets', nextSheet);
       syncSheetState(nextSheet);
     }
@@ -113,7 +125,9 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
         syncSheetState(sheet);
 
         const rebuilt = buildAttendanceRecordsFromSf2Sheet(sheet);
-        if (rebuilt.length > 0) {
+        // A saved SF2 is authoritative for its own section/month.  Reconcile
+        // even if every mark was cleared so stale attendance cannot resurface.
+        {
           const allAttendance = await db.getAllRecords<AttendanceRecord>('attendanceRecords');
           const monthIndex = [
             'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
@@ -136,9 +150,8 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
             return false;
           };
 
-          const rebuiltKeys = new Set(rebuilt.map((r) => `${r.student_lrn}_${r.date}`));
           const staleIds = allAttendance
-            .filter((record) => isRecordForSheetSection(record) && monthDates.has(record.date) && rebuiltKeys.has(`${record.student_lrn}_${record.date}`))
+            .filter((record) => isRecordForSheetSection(record) && monthDates.has(record.date))
             .map((record) => record.id);
 
           for (const id of staleIds) {

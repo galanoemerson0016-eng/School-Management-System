@@ -353,17 +353,11 @@ export function canAccessSF9Section(user: User | null | undefined, _section: Sec
 }
 
 export function isSectionAdvisoryForUser(s: Section, user: User): boolean {
-    const isExplicitAdviser = (s.adviser_id && s.adviser_id === user.uid) ||
-        (user.displayName && s.adviser_name && s.adviser_name.trim().toLowerCase() === user.displayName.trim().toLowerCase()) ||
-        (user.email && s.adviser_id && user.email.toLowerCase().includes(s.adviser_id.replace(/^user-/, '').toLowerCase()));
-    if (isExplicitAdviser) return true;
-    if (s.is_advisory) {
-        if (s.adviser_id && s.adviser_id !== user.uid) {
-            return false;
-        }
-        return true;
-    }
-    return false;
+    // A section is never granted by a name, email fragment, or an unassigned
+    // advisory flag. Existing records use uid; newer records carry the
+    // explicit localUserId, so accept only an exact stable local identity.
+    const localIds = new Set([user.localUserId, user.uid].filter(Boolean));
+    return Boolean(s.adviser_id && localIds.has(s.adviser_id));
 }
 
 export function filterSF9Sections(user: User | null | undefined, sections: Section[]): Section[] {
@@ -371,8 +365,7 @@ export function filterSF9Sections(user: User | null | undefined, sections: Secti
     const isSchoolWideRole = user.role === 'admin' || user.role === 'principal' ||
         user.roles?.includes('admin') || user.roles?.includes('principal');
     if (isSchoolWideRole) return sections;
-    const advisory = sections.filter((s) => isSectionAdvisoryForUser(s, user));
-    return advisory.length > 0 ? advisory : sections;
+    return sections.filter((s) => isSectionAdvisoryForUser(s, user));
 }
 
 export function canAccessAttendanceSection(user: User | null | undefined, _section: Section): boolean {
@@ -388,8 +381,7 @@ export function filterAttendanceSections(user: User | null | undefined, sections
     const isSchoolWideRole = user.role === 'admin' || user.role === 'principal' ||
         user.roles?.includes('admin') || user.roles?.includes('principal');
     if (isSchoolWideRole) return sections;
-    const advisory = sections.filter((s) => isSectionAdvisoryForUser(s, user));
-    return advisory.length > 0 ? advisory : sections;
+    return sections.filter((s) => isSectionAdvisoryForUser(s, user));
 }
 
 export function filterOfficialSectionsForUser(user: User | null | undefined, sections: Section[]): Section[] {
@@ -397,8 +389,7 @@ export function filterOfficialSectionsForUser(user: User | null | undefined, sec
     const isSchoolWideRole = user.role === 'admin' || user.role === 'principal' ||
         user.roles?.includes('admin') || user.roles?.includes('principal');
     if (isSchoolWideRole) return sections;
-    const advisory = sections.filter((s) => isSectionAdvisoryForUser(s, user));
-    return advisory.length > 0 ? advisory : sections;
+    return sections.filter((s) => isSectionAdvisoryForUser(s, user));
 }
 
 export function filterOfficialRecords<T extends { is_teaching_load?: boolean; is_advisory?: boolean }>(records: T[]): T[] {

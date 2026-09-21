@@ -216,3 +216,54 @@ describe('GradingSlice - bulkUpdateGradingSheetRecords', () => {
   });
 });
 
+describe('GradingSlice - final-grade synchronization', () => {
+  it('preserves assessment details when a synchronization updates only the final grade', async () => {
+    let state: MockStoreState = {
+      sections: [], students: [], classRecords: [], showNotification: vi.fn(),
+      gradingSheetRecords: [{
+        id: 'grade-detail', student_lrn: 'TEST000000001', subject_id: 'math', section_id: 'section_100001',
+        quarter: 1, school_year: '2026-2027', final_grade: 90,
+        written_works: [18, 20], performance_tasks: [38, 40], quarterly_exam: 19,
+        grade_source: 'subject_teacher',
+      }],
+    };
+    const set = (updater: any) => { state = { ...state, ...(typeof updater === 'function' ? updater(state) : updater) }; };
+    const slice = createGradingSlice(set, () => state);
+
+    await slice.updateGradingSheetRecord({
+      id: 'grade-detail', student_lrn: 'TEST000000001', subject_id: 'math', section_id: 'section_100001',
+      quarter: 1, school_year: '2026-2027', final_grade: 88,
+      written_works: [], performance_tasks: [], quarterly_exam: 0, grade_source: 'eclass_sync',
+    });
+
+    expect(state.gradingSheetRecords[0]).toMatchObject({
+      final_grade: 88,
+      written_works: [18, 20],
+      performance_tasks: [38, 40],
+      quarterly_exam: 19,
+      grade_source: 'eclass_sync',
+    });
+  });
+});
+
+describe('GradingSlice - manual overrides', () => {
+  it('does not let a normal E-Class sync replace an intentional manual override', async () => {
+    let state: MockStoreState = {
+      sections: [], students: [], classRecords: [], showNotification: vi.fn(),
+      gradingSheetRecords: [{
+        id: 'manual-grade', student_lrn: 'TEST000000001', subject_id: 'math', section_id: 'section_100001',
+        quarter: 1, school_year: '2026-2027', final_grade: 90,
+        written_works: [20], performance_tasks: [40], quarterly_exam: 20, grade_source: 'manual_override',
+      }],
+    };
+    const set = (updater: any) => { state = { ...state, ...(typeof updater === 'function' ? updater(state) : updater) }; };
+    const slice = createGradingSlice(set, () => state);
+
+    await slice.updateGradingSheetRecord({
+      ...state.gradingSheetRecords[0], final_grade: 88, grade_source: 'eclass_sync',
+    });
+
+    expect(state.gradingSheetRecords[0]).toMatchObject({ final_grade: 90, grade_source: 'manual_override' });
+  });
+});
+

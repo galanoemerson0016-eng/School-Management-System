@@ -117,41 +117,52 @@ function reconcileAttendanceAndSf2Data(
     sheetMap.set(sheet.id, sheet);
   }
 
-  const groupedRecords = new Map<string, AttendanceRecord[]>();
+  const groupedRecords = new Map<string, {
+    sectionId: string;
+    schoolYear: string;
+    month: string;
+    records: AttendanceRecord[];
+  }>();
   for (const record of mergedAttendanceRecords) {
     if (!record.section_id) continue;
     const context = getSf2MonthContext(record.date, activeSchoolYear);
     if (!context) continue;
     const sheetId = `${record.section_id}_${activeSchoolYear}_${context.month}`;
-    const bucket = groupedRecords.get(sheetId) || [];
-    bucket.push(record);
-    groupedRecords.set(sheetId, bucket);
+    const group = groupedRecords.get(sheetId) || {
+      sectionId: record.section_id,
+      schoolYear: activeSchoolYear,
+      month: context.month,
+      records: [],
+    };
+    group.records.push(record);
+    groupedRecords.set(sheetId, group);
   }
 
-  const repairedSheets: SF2Sheet[] = [];
-  for (const [sheetId, records] of groupedRecords.entries()) {
+  // Start from persisted sheets so an intentionally blank month is not lost
+  // during startup reconciliation.
+  const repairedSheets = new Map(sheetMap);
+  for (const [sheetId, group] of groupedRecords.entries()) {
     const existing = sheetMap.get(sheetId);
     if (!existing) {
-      const [sectionId, schoolYear, month] = sheetId.split('_');
       const baseSheet: SF2Sheet = {
         id: sheetId,
-        section_id: sectionId,
-        school_year: schoolYear,
-        month,
-        date_labels: buildAutoFilledDateLabels(month, schoolYear, localStorage.getItem('formease_sf2_include_saturdays') === 'true'),
+        section_id: group.sectionId,
+        school_year: group.schoolYear,
+        month: group.month,
+        date_labels: buildAutoFilledDateLabels(group.month, group.schoolYear, localStorage.getItem('formease_sf2_include_saturdays') === 'true'),
         attendance: {},
         remarks: {},
         updated_at: new Date().toISOString(),
       };
-      repairedSheets.push(buildSf2SheetAttendanceFromRecords(baseSheet, records));
+      repairedSheets.set(sheetId, buildSf2SheetAttendanceFromRecords(baseSheet, group.records));
       continue;
     }
-    repairedSheets.push(buildSf2SheetAttendanceFromRecords(existing, records));
+    repairedSheets.set(sheetId, buildSf2SheetAttendanceFromRecords(existing, group.records));
   }
 
   return {
     attendanceRecords: mergedAttendanceRecords,
-    sf2Sheets: repairedSheets,
+    sf2Sheets: [...repairedSheets.values()],
   };
 }
 

@@ -39,6 +39,24 @@ export interface RestoreExecutionResult {
     issues: string[];
 }
 
+const PLACEHOLDER_SCHOOL_NAMES = new Set(['', 'school name', 'unknown school', 'n/a']);
+const PLACEHOLDER_SCHOOL_IDS = new Set(['', 'school id', 'unknown', 'n/a']);
+
+/**
+ * A backup may contain an object-shaped placeholder for a profile.  Treating
+ * that as a profile would replace a real institution's details during a
+ * restore, so a source profile must identify a real school before it can be
+ * selected for restoration.
+ */
+export function isValidBackupSchoolProfile(candidate: unknown): candidate is Record<string, unknown> {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return false;
+    const profile = candidate as Record<string, unknown>;
+    const name = String(profile.name || profile.school_name || '').trim();
+    const schoolId = String(profile.school_id || profile.id || '').trim();
+    return !PLACEHOLDER_SCHOOL_NAMES.has(name.toLowerCase())
+        && !PLACEHOLDER_SCHOOL_IDS.has(schoolId.toLowerCase());
+}
+
 const stripUndefinedValues = <T extends object>(data: T) => {
     return Object.fromEntries(
         Object.entries(data as Record<string, unknown>).filter(([, value]) => value !== undefined)
@@ -54,12 +72,12 @@ export function resolveBestSchoolProfile(rawProfile: unknown): SchoolProfile | n
     if (!rawProfile) return null;
     if (Array.isArray(rawProfile)) {
         if (rawProfile.length === 0) return null;
-        const validObjects = rawProfile.filter((p): p is Record<string, unknown> => !!p && typeof p === 'object');
+        const validObjects = rawProfile.filter(isValidBackupSchoolProfile);
         if (validObjects.length === 0) return null;
 
         const scored = validObjects.map(p => {
             let score = 0;
-            const name = String(p.name || '').trim();
+            const name = String(p.name || p.school_name || '').trim();
             const schoolId = String(p.school_id || p.id || '').trim();
             const section = String(p.section || '').trim();
             const adviser = String(p.adviser_name || '').trim();
@@ -77,13 +95,13 @@ export function resolveBestSchoolProfile(rawProfile: unknown): SchoolProfile | n
         const best = scored[0]?.profile;
         if (!best) return null;
 
-        const school_id = String(best.school_id || best.id || '300001').trim() || '300001';
+        const school_id = String(best.school_id || best.id).trim();
         return { ...best, school_id } as unknown as SchoolProfile;
     }
 
-    if (typeof rawProfile === 'object' && rawProfile !== null) {
+    if (isValidBackupSchoolProfile(rawProfile)) {
         const p = rawProfile as Record<string, unknown>;
-        const school_id = String(p.school_id || p.id || '300001').trim() || '300001';
+        const school_id = String(p.school_id || p.id).trim();
         return { ...p, school_id } as unknown as SchoolProfile;
     }
 
@@ -268,13 +286,15 @@ async function restoreStoreData<T extends object>(
     keyField: string,
     strategy: RestoreStrategy
 ): Promise<{ created: number; updated: number; skipped: number }> {
-    if (items.length === 0) return { created: 0, updated: 0, skipped: 0 };
-
     if (strategy === 'replace') {
         await db.clearStore(storeName);
-        await db.putRecordsBulk(storeName, items);
+        if (items.length > 0) {
+            await db.putRecordsBulk(storeName, items);
+        }
         return { created: items.length, updated: 0, skipped: 0 };
     }
+
+    if (items.length === 0) return { created: 0, updated: 0, skipped: 0 };
 
     if (strategy === 'skip_existing') {
         const existingRecords = await db.getAllRecords<Record<string, unknown>>(storeName);
@@ -464,7 +484,7 @@ export async function restoreBackupToFirestore(
 
     // 14. Activity Log
     await runRestoreStep('activityLog', async () => {
-        if (Array.isArray(backup.payload.activityLog)) {
+        if (selected.has('activityLog') && Array.isArray(backup.payload.activityLog)) {
             const entries = backup.payload.activityLog.filter(
                 (entry): entry is { id: string } & Record<string, unknown> =>
                     Boolean(entry && typeof entry === 'object' && 'id' in entry)

@@ -153,8 +153,12 @@ async function loadOrMigrateCredentials(): Promise<StoredAuthV2 | null> {
 }
 
 function buildUser(stored: StoredAuthV2): User {
+  const localUserId = `user-${stored.username}`;
   return {
-    uid: `user-${stored.username}`,
+    // Keep uid as the legacy local identifier for compatibility with existing
+    // adviser assignments. Cloud authentication is stored separately.
+    uid: localUserId,
+    localUserId,
     email: stored.email || `${stored.username}@school.local`,
     displayName: stored.username.charAt(0).toUpperCase() + stored.username.slice(1),
     role: stored.role,
@@ -164,7 +168,7 @@ function buildUser(stored: StoredAuthV2): User {
 
 function persistSession(user: User, username: string): void {
   localStorage.setItem(SESSION_KEY, JSON.stringify({
-    uid: user.uid,
+    uid: user.localUserId || user.uid,
     username,
     expiresAt: Date.now() + SESSION_DURATION_MS,
   }));
@@ -175,8 +179,11 @@ async function attachCloudIdentity(user: User): Promise<void> {
   if (!navigator.onLine) return;
   try {
     const cloudUser = await signInAnonymously(auth);
-    user.uid = cloudUser.user.uid;
-    localStorage.setItem('auth_user_uid', user.uid);
+    user.cloudUid = cloudUser.user.uid;
+    // Existing local data consumers read this key. Keep it bound to the
+    // durable local identity rather than a transient anonymous Firebase UID.
+    localStorage.setItem('auth_user_uid', user.localUserId || user.uid);
+    localStorage.setItem('auth_cloud_uid', user.cloudUid);
   } catch (cloudErr) {
     console.warn('Cloud connection failed (Offline mode active):', cloudErr);
   }

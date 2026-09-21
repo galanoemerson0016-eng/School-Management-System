@@ -10,7 +10,7 @@ vi.mock('../services/database', () => ({
 }));
 
 import { db } from '../services/database';
-import { restoreBackupToFirestore, getInvalidGradeReferences } from './backup-import';
+import { restoreBackupToFirestore, getInvalidGradeReferences, resolveBestSchoolProfile } from './backup-import';
 import type { ComprehensiveBackup } from './backup-restore';
 import type { Student, ClassRecord } from '../types';
 
@@ -145,6 +145,60 @@ describe('restoreBackupToFirestore', () => {
         ]);
         expect(result.created).toBe(1);
         expect(result.skipped).toBe(1);
+    });
+
+    it('clears every selected collection when Replace receives an empty backup collection', async () => {
+        const backup = createMockBackup();
+        backup.payload.students = [];
+        backup.payload.sections = [];
+        backup.payload.subjects = [];
+        backup.payload.enrollments = [];
+        backup.payload.classRecords = [];
+        backup.payload.gradingSheetRecords = [];
+        backup.payload.attendanceRecords = [];
+        backup.payload.sf2Sheets = [];
+        backup.payload.hpsRecords = [];
+        backup.payload.observedValues = [];
+
+        await restoreBackupToFirestore(backup, {
+            strategy: 'replace',
+            selectedItems: new Set([
+                'students', 'sections', 'subjects', 'enrollments', 'classRecords',
+                'gradingSheetRecords', 'attendanceRecords', 'sf2Sheets', 'hpsRecords', 'observedValues',
+            ]),
+        });
+
+        for (const storeName of [
+            'students', 'sections', 'subjects', 'enrollments', 'classRecords',
+            'gradingSheetRecords', 'attendanceRecords', 'sf2Sheets', 'hpsRecords', 'observedValues',
+        ]) {
+            expect(db.clearStore).toHaveBeenCalledWith(storeName);
+        }
+    });
+
+    it('does not treat missing or placeholder school profiles as restorable data', async () => {
+        expect(resolveBestSchoolProfile(undefined)).toBeNull();
+        expect(resolveBestSchoolProfile({})).toBeNull();
+        expect(resolveBestSchoolProfile({ name: 'School Name' })).toBeNull();
+        expect(resolveBestSchoolProfile({ school_id: '300001' })).toBeNull();
+
+        expect(resolveBestSchoolProfile([
+            { name: 'School Name', school_id: '300001' },
+            { school_name: 'FORMEASE TEST INTEGRATED SCHOOL', school_id: '999999', division: 'Test Division' },
+        ])).toMatchObject({ school_id: '999999' });
+    });
+
+    it('leaves the current school profile untouched when Replace has no valid source profile', async () => {
+        const backup = createMockBackup();
+        backup.payload.schoolProfile = {} as never;
+
+        await restoreBackupToFirestore(backup, {
+            strategy: 'replace',
+            selectedItems: new Set(['schoolProfile']),
+        });
+
+        expect(db.clearStore).not.toHaveBeenCalledWith('schoolProfile');
+        expect(db.putRecord).not.toHaveBeenCalledWith('schoolProfile', expect.anything());
     });
 
     it('automatically ignores orphaned TEMP-* records but detects real missing student/subject references', () => {
