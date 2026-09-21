@@ -6,10 +6,12 @@ import { useAuthStore } from '../stores/auth-store';
 import { Printer, ArrowLeft, ArrowRight, ChevronDown, Plus, Minus, Search, Download, ShieldCheck, Eye, FileSpreadsheet, X } from 'lucide-react';
 import { canEditAttendanceSection, filterAttendanceSections } from '../lib/rbac';
 import { formatLearnerName } from '../utils/student-name';
+import { isStudentInSection, isMaleStudent } from '../utils/grading-helpers';
+import { getSf2MonthContext } from '../utils/sf2-sync';
 import { db } from '../services/database';
 import { exportSF2Excel } from '../lib/sf2-excel-export';
 
-import type { Section, Student, SF2Sheet, CalendarEvent } from '../types';
+import type { Section, Student, SF2Sheet, CalendarEvent, AttendanceRecord } from '../types';
 
 const MONTHS = ['JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER', 'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL'];
 
@@ -31,6 +33,54 @@ const SCHOOL_CALENDAR_2026_2027: Record<string, number[]> = {
     MARCH: [1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 15, 16, 17, 18, 19, 22, 23, 24, 29, 30, 31],
     APRIL: [1, 2, 5, 6, 7, 8],
 };
+
+function parseStudentStartDate(attDateStr?: string | null): Date | null {
+    if (!attDateStr) return null;
+    const clean = attDateStr.trim();
+    if (!clean) return null;
+
+    if (clean.includes('-')) {
+        const parts = clean.split('T')[0].split('-').map(Number);
+        if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+            if (parts[0] > 1000) {
+                return new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+            }
+            if (parts[2] > 1000) {
+                let month = parts[1] - 1;
+                let day = parts[0];
+                if (parts[0] <= 12 && parts[1] > 12) {
+                    month = parts[0] - 1;
+                    day = parts[1];
+                }
+                return new Date(parts[2], month, day, 0, 0, 0, 0);
+            }
+        }
+    } else if (clean.includes('/')) {
+        const parts = clean.split('/').map(Number);
+        if (parts.length === 3) {
+            if (parts[0] > 1000) {
+                return new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+            } else if (parts[2] > 1000) {
+                let month = parts[1] - 1;
+                let day = parts[0];
+                if (parts[0] > 12) {
+                    day = parts[0];
+                    month = parts[1] - 1;
+                } else if (parts[1] > 12) {
+                    month = parts[0] - 1;
+                    day = parts[1];
+                } else {
+                    month = parts[0] - 1;
+                    day = parts[1];
+                }
+                return new Date(parts[2], month, day, 0, 0, 0, 0);
+            }
+        }
+    }
+
+    const fallbackDate = new Date(clean);
+    return isNaN(fallbackDate.getTime()) ? null : fallbackDate;
+}
 
 /**
  * Helper to determine if a student is enrolled on or before the last day of the given SF2 month.
@@ -57,33 +107,10 @@ function isStudentEnrolledByMonth(
     const year = monthIndex >= 5 ? startYear : endYear;
 
     const lastDayOfMonth = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
-
-    let startDate: Date | null = null;
-    if (attDateStr.includes('-')) {
-        const clean = attDateStr.split('T')[0];
-        const parts = clean.split('-').map(Number);
-        if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
-            startDate = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
-        }
-    } else if (attDateStr.includes('/')) {
-        const parts = attDateStr.split('/').map(Number);
-        if (parts.length === 3) {
-            if (parts[0] > 1000) {
-                startDate = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
-            } else {
-                startDate = new Date(parts[2], parts[0] - 1, parts[1], 0, 0, 0, 0);
-            }
-        }
-    }
-
-    if (!startDate || isNaN(startDate.getTime())) {
-        const fallbackDate = new Date(attDateStr);
-        if (!isNaN(fallbackDate.getTime())) {
-            startDate = fallbackDate;
-        } else {
-            return true;
-        }
-    }
+    const startDate = parseStudentStartDate(attDateStr);
+    if (!startDate || isNaN(startDate.getTime())) return true;
+    if (startDate.getFullYear() < startYear) return true;
+    if (startDate.getFullYear() > endYear + 1) return true;
 
     return startDate <= lastDayOfMonth;
 }
@@ -114,33 +141,9 @@ function isDateBeforeStudentStart(
     const year = monthIndex >= 5 ? startYear : endYear;
 
     const cellDate = new Date(year, monthIndex, dayNumber, 23, 59, 59, 999);
-
-    let startDate: Date | null = null;
-    if (attDateStr.includes('-')) {
-        const clean = attDateStr.split('T')[0];
-        const parts = clean.split('-').map(Number);
-        if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
-            startDate = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
-        }
-    } else if (attDateStr.includes('/')) {
-        const parts = attDateStr.split('/').map(Number);
-        if (parts.length === 3) {
-            if (parts[0] > 1000) {
-                startDate = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
-            } else {
-                startDate = new Date(parts[2], parts[0] - 1, parts[1], 0, 0, 0, 0);
-            }
-        }
-    }
-
-    if (!startDate || isNaN(startDate.getTime())) {
-        const fallbackDate = new Date(attDateStr);
-        if (!isNaN(fallbackDate.getTime())) {
-            startDate = fallbackDate;
-        } else {
-            return false;
-        }
-    }
+    const startDate = parseStudentStartDate(attDateStr);
+    if (!startDate || isNaN(startDate.getTime())) return false;
+    if (startDate.getFullYear() < startYear) return false;
 
     return cellDate < startDate;
 }
@@ -367,6 +370,138 @@ export function AttendancePage() {
     }, [selectedMonth, activeSchoolYear, includeSaturdays]);
     const days = useMemo(() => Array.from({ length: totalColumns }, (_, i) => i + 1), [totalColumns]);
 
+    const buildAutoFilledDateLabels = useCallback((month: string, saturdaysOverride?: boolean): DateLabels => {
+        const sy = activeSchoolYear;
+        const filled: Record<number, string> = {};
+        const activeSaturdays = saturdaysOverride !== undefined ? saturdaysOverride : includeSaturdays;
+        const totalCols = getSf2TotalColumns(month, sy, activeSaturdays);
+        const colDays = Array.from({ length: totalCols }, (_, i) => i + 1);
+
+        const monthMap: Record<string, number> = {
+            'JANUARY': 0, 'FEBRUARY': 1, 'MARCH': 2, 'APRIL': 3, 'MAY': 4, 'JUNE': 5,
+            'JULY': 6, 'AUGUST': 7, 'SEPTEMBER': 8, 'OCTOBER': 9, 'NOVEMBER': 10, 'DECEMBER': 11
+        };
+        const monthIndex = monthMap[month];
+        const [startYear, endYear] = sy.split('-').map(Number);
+        const year = monthIndex >= 5 ? startYear : endYear;
+
+        // Fetch calendar holidays from localStorage
+        let holidays: string[] = [];
+        try {
+            const storedEvents = localStorage.getItem('school_calendar_events');
+            if (storedEvents) {
+                const parsedEvents = JSON.parse(storedEvents);
+                if (Array.isArray(parsedEvents)) {
+                    holidays = parsedEvents
+                        .filter((e: CalendarEvent) => e.type === 'holiday' || e.type === 'suspension')
+                        .flatMap((e: CalendarEvent) => {
+                            const dates: string[] = [];
+                            try {
+                                const curr = new Date(e.date + 'T00:00:00');
+                                const end = e.end_date ? new Date(e.end_date + 'T00:00:00') : new Date(curr);
+                                if (!isNaN(curr.getTime()) && !isNaN(end.getTime())) {
+                                    while (curr <= end) {
+                                        dates.push(curr.toISOString().split('T')[0]);
+                                        curr.setDate(curr.getDate() + 1);
+                                    }
+                                }
+                            } catch (dateErr) {
+                                console.error('Error parsing date range for event:', e, dateErr);
+                            }
+                            return dates;
+                        });
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load/parse calendar events for holiday filter', e);
+        }
+
+        const limitDow = activeSaturdays ? 6 : 5;
+        const weekMultiplier = activeSaturdays ? 6 : 5;
+
+        const activeWeeks = getActiveWeeks(month, sy, activeSaturdays);
+
+        if (sy === '2026-2027' && SCHOOL_CALENDAR_2026_2027[month]) {
+            const calendarDays = [...SCHOOL_CALENDAR_2026_2027[month]];
+            if (calendarDays.length === 0) return filled;
+            
+            const firstSchoolDay = calendarDays[0];
+            const lastSchoolDay = calendarDays[calendarDays.length - 1];
+
+            // Calculate day of week for the 1st of the month (Monday=0 ... Sunday=6)
+            const firstDateOfMonth = new Date(year, monthIndex, 1);
+            const firstDayOffset = firstDateOfMonth.getDay() === 0 ? 6 : firstDateOfMonth.getDay() - 1;
+
+            if (activeSaturdays) {
+                // Find all Saturdays in the month and add them if not already present and not holidays
+                // Restrict Saturdays to be within the active school days range (>= firstSchoolDay and <= lastSchoolDay)
+                for (let d = firstSchoolDay; d <= lastSchoolDay; d++) {
+                    const dateObj = new Date(year, monthIndex, d);
+                    if (dateObj.getDay() === 6) { // Saturday
+                        const dateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                        if (!holidays.includes(dateStr) && !calendarDays.includes(d)) {
+                            calendarDays.push(d);
+                        }
+                    }
+                }
+                calendarDays.sort((a, b) => a - b);
+            }
+
+            calendarDays.forEach((d) => {
+                const dateObj = new Date(year, monthIndex, d);
+                const dow = dateObj.getDay(); // 0 (Sun) to 6 (Sat)
+                
+                if (dow >= 1 && dow <= limitDow) {
+                    const dateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    if (holidays.includes(dateStr)) {
+                        return; // Skip holiday
+                    }
+
+                    const totalDaysFromMondayOfFirstWeek = d + firstDayOffset - 1;
+                    const calendarWeekIndex = Math.floor(totalDaysFromMondayOfFirstWeek / 7);
+                    const weekIndex = activeWeeks.indexOf(calendarWeekIndex);
+                    if (weekIndex !== -1) {
+                        const colIndex = (weekIndex * weekMultiplier) + (dow - 1);
+                        if (colIndex >= 0 && colIndex < totalCols) {
+                            filled[colDays[colIndex]] = d.toString();
+                        }
+                    }
+                }
+            });
+        } else {
+            // Fallback to Dynamic logic for other years
+            const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+
+            // Calculate day of week for the 1st of the month (Monday=0 ... Sunday=6)
+            const firstDateOfMonth = new Date(year, monthIndex, 1);
+            const firstDayOffset = firstDateOfMonth.getDay() === 0 ? 6 : firstDateOfMonth.getDay() - 1;
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateObj = new Date(year, monthIndex, d);
+                const dow = dateObj.getDay();
+
+                if (dow >= 1 && dow <= limitDow) {
+                    const dateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    if (holidays.includes(dateStr)) {
+                        continue; // Skip holiday
+                    }
+
+                    const totalDaysFromMondayOfFirstWeek = d + firstDayOffset - 1;
+                    const calendarWeekIndex = Math.floor(totalDaysFromMondayOfFirstWeek / 7);
+                    const weekIndex = activeWeeks.indexOf(calendarWeekIndex);
+                    if (weekIndex !== -1) {
+                        const colIndex = (weekIndex * weekMultiplier) + (dow - 1);
+                        if (colIndex >= 0 && colIndex < totalCols) {
+                            filled[colDays[colIndex]] = d.toString();
+                        }
+                    }
+                }
+            }
+        }
+
+        return filled;
+    }, [activeSchoolYear, includeSaturdays]);
+
     const lastLoadedIdRef = useRef<string | null>(null);
 
     // Persistence: Fetch on change with race-condition protection
@@ -377,100 +512,168 @@ export function AttendancePage() {
         const loadSheet = async () => {
             const sheetId = `${selectedSection}_${activeSchoolYear}_${selectedMonth}`;
             try {
-                const sheet = await db.getRecord<SF2Sheet>('sf2Sheets', sheetId);
+                let sheet = await db.getRecord<SF2Sheet>('sf2Sheets', sheetId);
+                const sectionObj = sections.find(s => s.id === selectedSection || s.section_name === selectedSection);
+                if (!sheet && sectionObj) {
+                    const fallbackId1 = `${sectionObj.section_name}_${activeSchoolYear}_${selectedMonth}`;
+                    const fallbackId2 = `${sectionObj.id}_${activeSchoolYear}_${selectedMonth}`;
+                    if (fallbackId1 !== sheetId) {
+                        sheet = await db.getRecord<SF2Sheet>('sf2Sheets', fallbackId1);
+                    }
+                    if (!sheet && fallbackId2 !== sheetId) {
+                        sheet = await db.getRecord<SF2Sheet>('sf2Sheets', fallbackId2);
+                    }
+                }
+                if (!sheet) {
+                    const storeSheets = useAppStore.getState().sf2Sheets || [];
+                    sheet = storeSheets.find(s =>
+                        s.id === sheetId ||
+                        (sectionObj && (s.id === `${sectionObj.section_name}_${activeSchoolYear}_${selectedMonth}` || s.id === `${sectionObj.id}_${activeSchoolYear}_${selectedMonth}`)) ||
+                        (s.school_year === activeSchoolYear && s.month === selectedMonth && (s.section_id === selectedSection || (sectionObj && (s.section_id === sectionObj.id || s.section_id === sectionObj.section_name))))
+                    );
+                }
                 if (!active) return;
 
-                if (sheet) {
-                    const dateLabels = sheet.date_labels || {};
-                    const rawAttendance = sheet.attendance || {};
+                const monthMap: Record<string, number> = {
+                    'JANUARY': 0, 'FEBRUARY': 1, 'MARCH': 2, 'APRIL': 3, 'MAY': 4, 'JUNE': 5,
+                    'JULY': 6, 'AUGUST': 7, 'SEPTEMBER': 8, 'OCTOBER': 9, 'NOVEMBER': 10, 'DECEMBER': 11
+                };
+                const monthIndex = monthMap[selectedMonth];
+                const [startYear, endYear] = activeSchoolYear.split('-').map(Number);
+                const year = monthIndex >= 5 ? startYear : endYear;
+                const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+                const firstDateOfMonth = new Date(year, monthIndex, 1);
+                const firstDayOffset = firstDateOfMonth.getDay() === 0 ? 6 : firstDateOfMonth.getDay() - 1;
+                const limitDow = includeSaturdays ? 6 : 5;
+                const weekMultiplier = includeSaturdays ? 6 : 5;
+                const activeWeeks = getActiveWeeks(selectedMonth, activeSchoolYear, includeSaturdays);
 
-                    // Correct/reposition date labels to correct columns based on the calendar month
-                    const monthMap: Record<string, number> = {
-                        'JANUARY': 0, 'FEBRUARY': 1, 'MARCH': 2, 'APRIL': 3, 'MAY': 4, 'JUNE': 5,
-                        'JULY': 6, 'AUGUST': 7, 'SEPTEMBER': 8, 'OCTOBER': 9, 'NOVEMBER': 10, 'DECEMBER': 11
-                    };
-                    const monthIndex = monthMap[selectedMonth];
-                    const [startYear, endYear] = activeSchoolYear.split('-').map(Number);
-                    const year = monthIndex >= 5 ? startYear : endYear;
-                    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-                    const firstDateOfMonth = new Date(year, monthIndex, 1);
-                    const firstDayOffset = firstDateOfMonth.getDay() === 0 ? 6 : firstDateOfMonth.getDay() - 1;
-                    const limitDow = includeSaturdays ? 6 : 5;
-                    const weekMultiplier = includeSaturdays ? 6 : 5;
-                    const activeWeeks = getActiveWeeks(selectedMonth, activeSchoolYear, includeSaturdays);
+                const correctedLabels: Record<number, string> = {};
+                for (let c = 1; c <= totalColumns; c++) {
+                    correctedLabels[c] = '';
+                }
 
-                    const correctedLabels: Record<number, string> = {};
-                    for (let c = 1; c <= totalColumns; c++) {
-                        correctedLabels[c] = '';
-                    }
-
-                    Object.values(dateLabels).forEach(dateVal => {
-                        if (dateVal && dateVal.trim()) {
-                            const d = Number(dateVal.trim());
-                            if (!isNaN(d) && d >= 1 && d <= daysInMonth) {
-                                const dateObj = new Date(year, monthIndex, d);
-                                const dow = dateObj.getDay();
-                                if (dow >= 1 && dow <= limitDow) {
-                                    const totalDaysFromMondayOfFirstWeek = d + firstDayOffset - 1;
-                                    const calendarWeekIndex = Math.floor(totalDaysFromMondayOfFirstWeek / 7);
-                                    const weekIndex = activeWeeks.indexOf(calendarWeekIndex);
-                                    if (weekIndex !== -1) {
-                                        const colIndex = (weekIndex * weekMultiplier) + (dow - 1);
-                                        const colNum = colIndex + 1;
-                                        if (colNum >= 1 && colNum <= totalColumns) {
-                                            correctedLabels[colNum] = dateVal.trim();
-                                        }
+                const dateLabels = sheet?.date_labels || {};
+                Object.values(dateLabels).forEach(dateVal => {
+                    if (dateVal && dateVal.trim()) {
+                        const d = Number(dateVal.trim());
+                        if (!isNaN(d) && d >= 1 && d <= daysInMonth) {
+                            const dateObj = new Date(year, monthIndex, d);
+                            const dow = dateObj.getDay();
+                            if (dow >= 1 && dow <= limitDow) {
+                                const totalDaysFromMondayOfFirstWeek = d + firstDayOffset - 1;
+                                const calendarWeekIndex = Math.floor(totalDaysFromMondayOfFirstWeek / 7);
+                                const weekIndex = activeWeeks.indexOf(calendarWeekIndex);
+                                if (weekIndex !== -1) {
+                                    const colIndex = (weekIndex * weekMultiplier) + (dow - 1);
+                                    const colNum = colIndex + 1;
+                                    if (colNum >= 1 && colNum <= totalColumns) {
+                                        correctedLabels[colNum] = dateVal.trim();
                                     }
                                 }
                             }
                         }
-                    });
-                    
-                    // Migrate column-index keys (1..30) to prefixed date-string keys on load
-                    const migratedAttendance: AttendanceMonthData = {};
-                    Object.keys(rawAttendance).forEach(studentId => {
-                        migratedAttendance[studentId] = {};
-                        Object.keys(rawAttendance[studentId]).forEach(key => {
-                            const colIdx = Number(key);
-                            if (!isNaN(colIdx) && colIdx >= 1 && colIdx <= 30) {
-                                const dateVal = dateLabels[colIdx];
-                                if (dateVal && dateVal.trim()) {
-                                    migratedAttendance[studentId][`date_${dateVal.trim()}`] = rawAttendance[studentId][key];
-                                } else {
-                                    migratedAttendance[studentId][key] = rawAttendance[studentId][key];
-                                }
+                    }
+                });
+
+                const autoLabels = buildAutoFilledDateLabels(selectedMonth, includeSaturdays);
+                const finalLabels = Object.values(correctedLabels).some(v => v && v.trim())
+                    ? correctedLabels
+                    : autoLabels;
+
+                const rawAttendance = sheet?.attendance || {};
+                const activeLabels = sheet?.date_labels && Object.values(sheet.date_labels).some(v => v && v.trim())
+                    ? sheet.date_labels
+                    : finalLabels;
+
+                // Migrate column-index keys (1..30) to prefixed date-string keys on load
+                const migratedAttendance: AttendanceMonthData = {};
+                Object.keys(rawAttendance).forEach(studentId => {
+                    migratedAttendance[studentId] = {};
+                    Object.keys(rawAttendance[studentId]).forEach(key => {
+                        const colIdx = Number(key);
+                        if (!isNaN(colIdx) && colIdx >= 1 && colIdx <= 30) {
+                            const dateVal = activeLabels[colIdx];
+                            if (dateVal && dateVal.trim()) {
+                                migratedAttendance[studentId][`date_${dateVal.trim()}`] = rawAttendance[studentId][key];
                             } else {
                                 migratedAttendance[studentId][key] = rawAttendance[studentId][key];
                             }
-                        });
+                        } else {
+                            migratedAttendance[studentId][key] = rawAttendance[studentId][key];
+                        }
                     });
+                });
 
-                    setAttendanceData(prev => ({
-                        ...prev,
-                        [selectedMonth]: migratedAttendance
-                    }));
-                    setMonthDateLabels(prev => ({
-                        ...prev,
-                        [selectedMonth]: correctedLabels
-                    }));
-                    setRemarksData(prev => ({
-                        ...prev,
-                        [selectedMonth]: sheet.remarks || {}
-                    }));
-                } else {
-                    setAttendanceData(prev => ({
-                        ...prev,
-                        [selectedMonth]: {}
-                    }));
-                    setMonthDateLabels(prev => ({
-                        ...prev,
-                        [selectedMonth]: {}
-                    }));
-                    setRemarksData(prev => ({
-                        ...prev,
-                        [selectedMonth]: {}
-                    }));
+                // Reconcile attendanceRecords from DB and in-memory store
+                const allDailyRecords = await db.getAllRecords<AttendanceRecord>('attendanceRecords').catch(() => []);
+                const storeDailyRecords = useAppStore.getState().attendanceRecords || [];
+                const dailyRecordMap = new Map<string, AttendanceRecord>();
+                allDailyRecords.forEach(r => dailyRecordMap.set(r.id, r));
+                storeDailyRecords.forEach(r => dailyRecordMap.set(r.id, r));
+
+                const currentSectionStudents = students.filter(s => isStudentInSection(s, sectionObj, selectedSection));
+                const studentByLrn = new Map<string, Student>();
+                currentSectionStudents.forEach(s => {
+                    if (s.lrn) studentByLrn.set(s.lrn, s);
+                    if (s.id) studentByLrn.set(s.id, s);
+                });
+
+                for (const record of dailyRecordMap.values()) {
+                    const ctx = getSf2MonthContext(record.date, activeSchoolYear);
+                    if (!ctx || ctx.month !== selectedMonth) continue;
+                    const matchedLearner = studentByLrn.get(record.student_lrn);
+                    if (!matchedLearner) continue;
+
+                    const lrnKey = matchedLearner.lrn;
+                    const idKey = matchedLearner.id;
+                    const lrnRow = lrnKey ? migratedAttendance[lrnKey] : undefined;
+                    const idRow = idKey ? migratedAttendance[idKey] : undefined;
+
+                    const hasMark = (lrnRow && lrnRow[ctx.dateKey] !== undefined) || (idRow && idRow[ctx.dateKey] !== undefined);
+                    if (!hasMark) {
+                        let sf2Status = '';
+                        if (record.status === 'absent') sf2Status = 'absent';
+                        else if (record.status === 'late' || (record.status as unknown as string) === 'tardy') sf2Status = 'tardy-upper';
+                        else if (record.status === 'cutting') sf2Status = 'tardy-lower';
+
+                        if (sf2Status) {
+                            if (lrnKey) {
+                                if (!migratedAttendance[lrnKey]) migratedAttendance[lrnKey] = {};
+                                migratedAttendance[lrnKey][ctx.dateKey] = sf2Status;
+                            }
+                            if (idKey) {
+                                if (!migratedAttendance[idKey]) migratedAttendance[idKey] = {};
+                                migratedAttendance[idKey][ctx.dateKey] = sf2Status;
+                            }
+                        }
+                    }
                 }
+
+                // Cross-index so both student.lrn and student.id resolve in migratedAttendance
+                currentSectionStudents.forEach(s => {
+                    const fromLrn = s.lrn ? migratedAttendance[s.lrn] : undefined;
+                    const fromId = s.id ? migratedAttendance[s.id] : undefined;
+                    if (fromLrn || fromId) {
+                        const merged = { ...(fromId || {}), ...(fromLrn || {}) };
+                        if (s.lrn) migratedAttendance[s.lrn] = merged;
+                        if (s.id) migratedAttendance[s.id] = merged;
+                    }
+                });
+
+                setAttendanceData(prev => ({
+                    ...prev,
+                    [selectedMonth]: migratedAttendance
+                }));
+                setMonthDateLabels(prev => ({
+                    ...prev,
+                    [selectedMonth]: finalLabels
+                }));
+                setRemarksData(prev => ({
+                    ...prev,
+                    [selectedMonth]: sheet?.remarks || {}
+                }));
+
                 lastLoadedIdRef.current = sheetId;
             } catch (error) {
                 console.error('Error loading SF2 sheet:', error);
@@ -483,7 +686,7 @@ export function AttendancePage() {
         return () => {
             active = false;
         };
-    }, [selectedSection, selectedMonth, activeSchoolYear, includeSaturdays, totalColumns]);
+    }, [selectedSection, selectedMonth, activeSchoolYear, includeSaturdays, totalColumns, students, sections, buildAutoFilledDateLabels]);
 
     // Persistence: Debounced Save
     const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -635,137 +838,7 @@ export function AttendancePage() {
         return canEditAttendanceSection(user, selectedSectionObj);
     }, [user, selectedSectionObj]);
 
-    const buildAutoFilledDateLabels = useCallback((month: string, saturdaysOverride?: boolean): DateLabels => {
-        const sy = activeSchoolYear;
-        const filled: Record<number, string> = {};
-        const activeSaturdays = saturdaysOverride !== undefined ? saturdaysOverride : includeSaturdays;
-        const totalCols = getSf2TotalColumns(month, sy, activeSaturdays);
-        const colDays = Array.from({ length: totalCols }, (_, i) => i + 1);
-
-        const monthMap: Record<string, number> = {
-            'JANUARY': 0, 'FEBRUARY': 1, 'MARCH': 2, 'APRIL': 3, 'MAY': 4, 'JUNE': 5,
-            'JULY': 6, 'AUGUST': 7, 'SEPTEMBER': 8, 'OCTOBER': 9, 'NOVEMBER': 10, 'DECEMBER': 11
-        };
-        const monthIndex = monthMap[month];
-        const [startYear, endYear] = sy.split('-').map(Number);
-        const year = monthIndex >= 5 ? startYear : endYear;
-
-        // Fetch calendar holidays from localStorage
-        let holidays: string[] = [];
-        try {
-            const storedEvents = localStorage.getItem('school_calendar_events');
-            if (storedEvents) {
-                const parsedEvents = JSON.parse(storedEvents);
-                if (Array.isArray(parsedEvents)) {
-                    holidays = parsedEvents
-                        .filter((e: CalendarEvent) => e.type === 'holiday' || e.type === 'suspension')
-                        .flatMap((e: CalendarEvent) => {
-                            const dates: string[] = [];
-                            try {
-                                const curr = new Date(e.date + 'T00:00:00');
-                                const end = e.end_date ? new Date(e.end_date + 'T00:00:00') : new Date(curr);
-                                if (!isNaN(curr.getTime()) && !isNaN(end.getTime())) {
-                                    while (curr <= end) {
-                                        dates.push(curr.toISOString().split('T')[0]);
-                                        curr.setDate(curr.getDate() + 1);
-                                    }
-                                }
-                            } catch (dateErr) {
-                                console.error('Error parsing date range for event:', e, dateErr);
-                            }
-                            return dates;
-                        });
-                }
-            }
-        } catch (e) {
-            console.error('Failed to load/parse calendar events for holiday filter', e);
-        }
-
-        const limitDow = activeSaturdays ? 6 : 5;
-        const weekMultiplier = activeSaturdays ? 6 : 5;
-
-        const activeWeeks = getActiveWeeks(month, sy, activeSaturdays);
-
-        if (sy === '2026-2027' && SCHOOL_CALENDAR_2026_2027[month]) {
-            const calendarDays = [...SCHOOL_CALENDAR_2026_2027[month]];
-            if (calendarDays.length === 0) return filled;
-            
-            const firstSchoolDay = calendarDays[0];
-            const lastSchoolDay = calendarDays[calendarDays.length - 1];
-
-            // Calculate day of week for the 1st of the month (Monday=0 ... Sunday=6)
-            const firstDateOfMonth = new Date(year, monthIndex, 1);
-            const firstDayOffset = firstDateOfMonth.getDay() === 0 ? 6 : firstDateOfMonth.getDay() - 1;
-
-            if (activeSaturdays) {
-                // Find all Saturdays in the month and add them if not already present and not holidays
-                // Restrict Saturdays to be within the active school days range (>= firstSchoolDay and <= lastSchoolDay)
-                for (let d = firstSchoolDay; d <= lastSchoolDay; d++) {
-                    const dateObj = new Date(year, monthIndex, d);
-                    if (dateObj.getDay() === 6) { // Saturday
-                        const dateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                        if (!holidays.includes(dateStr) && !calendarDays.includes(d)) {
-                            calendarDays.push(d);
-                        }
-                    }
-                }
-                calendarDays.sort((a, b) => a - b);
-            }
-
-            calendarDays.forEach((d) => {
-                const dateObj = new Date(year, monthIndex, d);
-                const dow = dateObj.getDay(); // 0 (Sun) to 6 (Sat)
-                
-                if (dow >= 1 && dow <= limitDow) {
-                    const dateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                    if (holidays.includes(dateStr)) {
-                        return; // Skip holiday
-                    }
-
-                    const totalDaysFromMondayOfFirstWeek = d + firstDayOffset - 1;
-                    const calendarWeekIndex = Math.floor(totalDaysFromMondayOfFirstWeek / 7);
-                    const weekIndex = activeWeeks.indexOf(calendarWeekIndex);
-                    if (weekIndex !== -1) {
-                        const colIndex = (weekIndex * weekMultiplier) + (dow - 1);
-                        if (colIndex >= 0 && colIndex < totalCols) {
-                            filled[colDays[colIndex]] = d.toString();
-                        }
-                    }
-                }
-            });
-        } else {
-            // Fallback to Dynamic logic for other years
-            const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-
-            // Calculate day of week for the 1st of the month (Monday=0 ... Sunday=6)
-            const firstDateOfMonth = new Date(year, monthIndex, 1);
-            const firstDayOffset = firstDateOfMonth.getDay() === 0 ? 6 : firstDateOfMonth.getDay() - 1;
-
-            for (let d = 1; d <= daysInMonth; d++) {
-                const dateObj = new Date(year, monthIndex, d);
-                const dow = dateObj.getDay();
-
-                if (dow >= 1 && dow <= limitDow) {
-                    const dateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                    if (holidays.includes(dateStr)) {
-                        continue; // Skip holiday
-                    }
-
-                    const totalDaysFromMondayOfFirstWeek = d + firstDayOffset - 1;
-                    const calendarWeekIndex = Math.floor(totalDaysFromMondayOfFirstWeek / 7);
-                    const weekIndex = activeWeeks.indexOf(calendarWeekIndex);
-                    if (weekIndex !== -1) {
-                        const colIndex = (weekIndex * weekMultiplier) + (dow - 1);
-                        if (colIndex >= 0 && colIndex < totalCols) {
-                            filled[colDays[colIndex]] = d.toString();
-                        }
-                    }
-                }
-            }
-        }
-
-        return filled;
-    }, [activeSchoolYear, includeSaturdays]);
+    // buildAutoFilledDateLabels moved above loadSheet
 
     const applyAutoFillDates = useCallback((month: string, immediate = false, saturdaysOverride?: boolean) => {
         const filled = buildAutoFilledDateLabels(month, saturdaysOverride);
@@ -803,18 +876,17 @@ export function AttendancePage() {
 
 
     const sectionStudents = useMemo(() => {
-        if (!selectedSection) return [];
-        const sectionId = sections.find(s => s.id === selectedSection || s.section_name === selectedSection)?.id;
-        return students.filter((s) => s.student_section === selectedSection || (sectionId && s.student_section === sectionId));
-    }, [selectedSection, students, sections]);
+        if (!selectedSection && !selectedSectionObj) return [];
+        return students.filter((s) => isStudentInSection(s, selectedSectionObj, selectedSection));
+    }, [selectedSection, selectedSectionObj, students]);
 
     const activeEnrolledStudents = useMemo(() => {
         return sectionStudents.filter(s => isStudentEnrolledByMonth(s, selectedMonth, activeSchoolYear));
     }, [sectionStudents, selectedMonth, activeSchoolYear]);
 
     const displayStudents = useMemo(() => {
-        const males = activeEnrolledStudents.filter(s => s.gender === 'Male').sort((a, b) => a.last_name.localeCompare(b.last_name));
-        const females = activeEnrolledStudents.filter(s => s.gender === 'Female').sort((a, b) => a.last_name.localeCompare(b.last_name));
+        const males = activeEnrolledStudents.filter(isMaleStudent).sort((a, b) => a.last_name.localeCompare(b.last_name));
+        const females = activeEnrolledStudents.filter(s => !isMaleStudent(s)).sort((a, b) => a.last_name.localeCompare(b.last_name));
         return { males, females };
     }, [activeEnrolledStudents]);
 
@@ -830,7 +902,8 @@ export function AttendancePage() {
 
         setAttendanceData(prev => {
             const monthData = prev[selectedMonth] || {};
-            const studentRecord = monthData[studentId] || {};
+            const matchedStudent = students.find(s => s.lrn === studentId || s.id === studentId);
+            const studentRecord = monthData[studentId] || (matchedStudent ? (matchedStudent.id ? monthData[matchedStudent.id] : undefined) || monthData[matchedStudent.lrn] : {}) || {};
             const dateVal = currentDateLabels[day];
             const key = (dateVal && dateVal.trim()) ? `date_${dateVal.trim()}` : day;
 
@@ -847,12 +920,16 @@ export function AttendancePage() {
                 delete newRecord[day];
             }
 
+            const updatedMonthData = {
+                ...monthData,
+                [studentId]: newRecord,
+                ...(matchedStudent?.id ? { [matchedStudent.id]: newRecord } : {}),
+                ...(matchedStudent?.lrn ? { [matchedStudent.lrn]: newRecord } : {}),
+            };
+
             const newData = {
                 ...prev,
-                [selectedMonth]: {
-                    ...monthData,
-                    [studentId]: newRecord
-                }
+                [selectedMonth]: updatedMonthData
             };
 
             triggerSave(selectedMonth, newData[selectedMonth], monthDateLabels[selectedMonth] || {}, remarksData[selectedMonth] || {});
@@ -904,7 +981,7 @@ export function AttendancePage() {
         const stats: Record<string, { absent: number; tardy: number; present: number }> = {};
 
         sectionStudents.forEach(student => {
-            const record = currentAttendance[student.lrn] || {};
+            const record = currentAttendance[student.lrn] || (student.id ? currentAttendance[student.id] : undefined) || {};
             let absentCount = 0;
             let tardyCount = 0;
             
@@ -921,11 +998,13 @@ export function AttendancePage() {
                     tardyCount++;
                 }
             }
-            stats[student.lrn] = {
+            const sStats = {
                 absent: absentCount,
                 tardy: tardyCount,
                 present: Math.max(0, filledDaysCount - absentCount)
             };
+            if (student.lrn) stats[student.lrn] = sStats;
+            if (student.id) stats[student.id] = sStats;
         });
         return stats;
     }, [currentAttendance, currentDateLabels, filledDaysCount, sectionStudents, totalColumns]);
@@ -945,7 +1024,7 @@ export function AttendancePage() {
 
             let maleCount = 0;
             displayStudents.males.forEach(student => {
-                const record = currentAttendance[student.lrn] || {};
+                const record = currentAttendance[student.lrn] || (student.id ? currentAttendance[student.id] : undefined) || {};
                 const status = dateKey
                     ? (record[dateKey] !== undefined ? record[dateKey] : record[day])
                     : record[day];
@@ -956,7 +1035,7 @@ export function AttendancePage() {
 
             let femaleCount = 0;
             displayStudents.females.forEach(student => {
-                const record = currentAttendance[student.lrn] || {};
+                const record = currentAttendance[student.lrn] || (student.id ? currentAttendance[student.id] : undefined) || {};
                 const status = dateKey
                     ? (record[dateKey] !== undefined ? record[dateKey] : record[day])
                     : record[day];
@@ -1213,8 +1292,8 @@ export function AttendancePage() {
         const femalePerc = femaleRegistered > 0 ? (femaleADA / femaleRegistered) * 100 : 0;
 
         // 5 Consecutive Absences (checks filled-in school dates using both dateKey and column index)
-        const hasConsecutiveAbsences = (s: { lrn: string }) => {
-            const record = currentAttendance[s.lrn] || {};
+        const hasConsecutiveAbsences = (s: { lrn: string; id?: string }) => {
+            const record = currentAttendance[s.lrn] || (s.id ? currentAttendance[s.id] : undefined) || {};
             let consecutive = 0;
 
             for (let colIdx = 1; colIdx <= totalColumns; colIdx++) {
@@ -1449,7 +1528,7 @@ export function AttendancePage() {
                             {gradeLevelText}
                         </div>
                         <span className="ml-6 mr-1 whitespace-nowrap">Section</span>
-                        <div className={`border border-black px-3 h-9 flex items-center justify-center text-center font-black text-black uppercase ${layoutConfig.sectionWidth} ${getHeaderBoxFontSize(selectedSection)}`}>{selectedSection}</div>
+                        <div className={`border border-black px-3 h-9 flex items-center justify-center text-center font-black text-black uppercase ${layoutConfig.sectionWidth} ${getHeaderBoxFontSize(selectedSectionObj?.section_name || selectedSection)}`}>{selectedSectionObj?.section_name || selectedSection}</div>
                     </div>
                 </div>
             </>
@@ -1552,14 +1631,15 @@ export function AttendancePage() {
     };
 
     const getStudentStatus = useCallback((studentId: string, colIdx: number) => {
-        const record = currentAttendance[studentId] || {};
+        const matched = students.find(s => s.lrn === studentId || s.id === studentId);
+        const record = currentAttendance[studentId] || (matched ? (matched.id ? currentAttendance[matched.id] : undefined) || currentAttendance[matched.lrn] : undefined) || {};
         const dateVal = currentDateLabels[colIdx];
         if (dateVal && dateVal.trim()) {
             const dateKey = `date_${dateVal.trim()}`;
             if (record[dateKey] !== undefined) return record[dateKey];
         }
         return record[colIdx];
-    }, [currentAttendance, currentDateLabels]);
+    }, [currentAttendance, currentDateLabels, students]);
 
     const renderStudentRow = (student: Student, displayIdx: number, key: string | number, ref?: Ref<HTMLTableRowElement>) => (
         <tr key={key} ref={ref} className="h-5.5 bg-white">
@@ -1594,14 +1674,17 @@ export function AttendancePage() {
             <td className={`border border-black px-1 text-left align-middle ${layoutConfig.tableTextSize}`}>
                 <DebouncedInput
                     type="text"
-                    value={currentRemarks[student.lrn] || ''}
+                    value={currentRemarks[student.lrn] || (student.id ? currentRemarks[student.id] : '') || ''}
                     readOnly={!canEditCurrentSection}
                     onChange={(val) => {
                         if (!canEditCurrentSection) return;
                         setRemarksData(prev => {
+                            const studentRemarks = { ...(prev[selectedMonth] || {}) };
+                            if (student.lrn) studentRemarks[student.lrn] = val;
+                            if (student.id) studentRemarks[student.id] = val;
                             const newRemarks = {
                                 ...prev,
-                                [selectedMonth]: { ...(prev[selectedMonth] || {}), [student.lrn]: val }
+                                [selectedMonth]: studentRemarks
                             };
                             triggerSave(selectedMonth, attendanceData[selectedMonth] || {}, monthDateLabels[selectedMonth] || {}, newRemarks[selectedMonth]);
                             return newRemarks;

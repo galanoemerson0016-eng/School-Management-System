@@ -1,4 +1,4 @@
-import type { SF2Sheet, AttendanceRecord } from '../../types';
+import type { SF2Sheet, AttendanceRecord, Section } from '../../types';
 import { db } from '../../services/database';
 import {
   buildAttendanceRecordsFromSf2Sheet,
@@ -46,12 +46,15 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
   const upsertAttendanceToSf2 = async (records: AttendanceRecord[]) => {
     if (!records.length) return;
     const activeSchoolYear = get().activeSchoolYear as string;
+    const allSections = (get().sections || []) as Section[];
     const grouped = new Map<string, AttendanceRecord[]>();
 
     for (const record of records) {
       const context = getSf2MonthContext(record.date, activeSchoolYear);
       if (!context || !record.section_id) continue;
-      const sheetId = `${record.section_id}_${activeSchoolYear}_${context.month}`;
+      const matchedSection = allSections.find((s) => s.id === record.section_id || s.section_name === record.section_id);
+      const targetSectionId = matchedSection?.id || record.section_id;
+      const sheetId = `${targetSectionId}_${activeSchoolYear}_${context.month}`;
       const bucket = grouped.get(sheetId) || [];
       bucket.push(record);
       grouped.set(sheetId, bucket);
@@ -59,7 +62,15 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
 
     for (const [sheetId, group] of grouped.entries()) {
       const [sectionId, schoolYear, month] = sheetId.split('_');
-      const existing = await db.getRecord<SF2Sheet>('sf2Sheets', sheetId);
+      const matchedSection = allSections.find((s) => s.id === sectionId || s.section_name === sectionId);
+      let existing = await db.getRecord<SF2Sheet>('sf2Sheets', sheetId);
+      if (!existing && matchedSection) {
+        const altId1 = `${matchedSection.section_name}_${schoolYear}_${month}`;
+        const altId2 = `${matchedSection.id}_${schoolYear}_${month}`;
+        if (altId1 !== sheetId) existing = await db.getRecord<SF2Sheet>('sf2Sheets', altId1);
+        if (!existing && altId2 !== sheetId) existing = await db.getRecord<SF2Sheet>('sf2Sheets', altId2);
+      }
+
       const includeSaturdays = localStorage.getItem('formease_sf2_include_saturdays') === 'true';
       const baseSheet: SF2Sheet = existing || {
         id: sheetId,
@@ -102,32 +113,45 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
         syncSheetState(sheet);
 
         const rebuilt = buildAttendanceRecordsFromSf2Sheet(sheet);
-        const allAttendance = await db.getAllRecords<AttendanceRecord>('attendanceRecords');
-        const monthIndex = [
-          'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
-          'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER',
-        ].indexOf(sheet.month);
-        const [startYear, endYear] = sheet.school_year.split('-').map(Number);
-        const year = monthIndex >= 5 ? startYear : endYear;
-        const monthDates = new Set(
-          Object.values(sheet.date_labels || {})
-            .map((label) => String(label || '').trim())
-            .filter((label) => /^\d{1,2}$/.test(label))
-            .map((dayLabel) => `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(Number(dayLabel)).padStart(2, '0')}`),
-        );
-        const staleIds = allAttendance
-          .filter((record) => record.section_id === sheet.section_id && monthDates.has(record.date))
-          .map((record) => record.id);
-
-        for (const id of staleIds) {
-          await db.deleteRecord('attendanceRecords', id);
-        }
         if (rebuilt.length > 0) {
+          const allAttendance = await db.getAllRecords<AttendanceRecord>('attendanceRecords');
+          const monthIndex = [
+            'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+            'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER',
+          ].indexOf(sheet.month);
+          const [startYear, endYear] = sheet.school_year.split('-').map(Number);
+          const year = monthIndex >= 5 ? startYear : endYear;
+          const monthDates = new Set(
+            Object.values(sheet.date_labels || {})
+              .map((label) => String(label || '').trim())
+              .filter((label) => /^\d{1,2}$/.test(label))
+              .map((dayLabel) => `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(Number(dayLabel)).padStart(2, '0')}`),
+          );
+
+          const allSections = (get().sections || []) as Section[];
+          const sheetSection = allSections.find((s) => s.id === sheet.section_id || s.section_name === sheet.section_id);
+          const isRecordForSheetSection = (rec: AttendanceRecord) => {
+            if (rec.section_id === sheet.section_id) return true;
+            if (sheetSection && (rec.section_id === sheetSection.id || rec.section_id === sheetSection.section_name)) return true;
+            return false;
+          };
+
+          const rebuiltKeys = new Set(rebuilt.map((r) => `${r.student_lrn}_${r.date}`));
+          const staleIds = allAttendance
+            .filter((record) => isRecordForSheetSection(record) && monthDates.has(record.date) && rebuiltKeys.has(`${record.student_lrn}_${record.date}`))
+            .map((record) => record.id);
+
+          for (const id of staleIds) {
+            await db.deleteRecord('attendanceRecords', id);
+          }
           await db.putRecordsBulk('attendanceRecords', rebuilt);
+          set((state: { attendanceRecords: AttendanceRecord[] }) => ({
+            attendanceRecords: [
+              ...state.attendanceRecords.filter((record) => !staleIds.includes(record.id)),
+              ...rebuilt,
+            ],
+          }));
         }
-        set((state: { attendanceRecords: AttendanceRecord[] }) => ({
-          attendanceRecords: [...state.attendanceRecords.filter((record) => !(record.section_id === sheet.section_id && monthDates.has(record.date))), ...rebuilt],
-        }));
       } catch (error) {
         console.error('Error saving SF2 sheet:', error);
         throw error;

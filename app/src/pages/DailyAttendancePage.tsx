@@ -13,6 +13,7 @@ import {
 import { generateQrDataUrl } from '../services/id-card/codes';
 import { triggerParentAttendanceSms } from '../services/sms-gateway';
 import { formatLearnerName } from '../utils/student-name';
+import { isStudentInSection } from '../utils/grading-helpers';
 import { broadcastAttendanceUpdate } from '../services/mobile-attendance-sync';
 import { PhoneAttendanceModal } from '../components/attendance/PhoneAttendanceModal';
 import {
@@ -304,10 +305,7 @@ export function DailyAttendancePage() {
         const activeSection = sections.find(s => s.id === sectionFilter || s.section_name === sectionFilter);
         const bySection = sectionFilter === 'all'
             ? students
-            : students.filter((s) =>
-                s.student_section === activeSection?.id ||
-                s.student_section === activeSection?.section_name
-            );
+            : students.filter((s) => isStudentInSection(s, activeSection, sectionFilter));
         const q = search.trim().toLowerCase();
         const searched = q
             ? bySection.filter((s) =>
@@ -355,12 +353,13 @@ export function DailyAttendancePage() {
             if (status === null) {
                 await deleteAttendanceRecords([id]);
             } else {
+                const activeSection = sections.find(s => s.id === sectionFilter || s.section_name === sectionFilter);
                 const record: AttendanceRecord = {
                     id,
                     student_lrn: student.lrn,
                     date,
                     status,
-                    section_id: student.student_section || '',
+                    section_id: activeSection?.id || student.student_section || '',
                 };
                 await upsertAttendanceRecords([record]);
 
@@ -384,7 +383,7 @@ export function DailyAttendancePage() {
         } catch {
             showNotification('Failed to save attendance mark', 'error');
         }
-    }, [date, deleteAttendanceRecords, upsertAttendanceRecords, showNotification, schoolProfile]);
+    }, [date, deleteAttendanceRecords, upsertAttendanceRecords, showNotification, schoolProfile, sectionFilter, sections]);
 
     const toggleStatus = useCallback((student: Student, status: DailyStatus) => {
         const current = marks.get(student.lrn);
@@ -393,12 +392,13 @@ export function DailyAttendancePage() {
 
     const bulkSet = useCallback(async (status: DailyStatus) => {
         if (roster.length === 0) return;
+        const activeSection = sections.find(s => s.id === sectionFilter || s.section_name === sectionFilter);
         const records: AttendanceRecord[] = roster.map((s) => ({
             id: `${s.lrn}_${date}`,
             student_lrn: s.lrn,
             date,
             status,
-            section_id: s.student_section || '',
+            section_id: activeSection?.id || s.student_section || '',
         }));
         try {
             await upsertAttendanceRecords(records);
@@ -420,17 +420,18 @@ export function DailyAttendancePage() {
         } catch {
             showNotification('Bulk update failed', 'error');
         }
-    }, [roster, date, upsertAttendanceRecords, showNotification, schoolProfile]);
+    }, [roster, date, upsertAttendanceRecords, showNotification, schoolProfile, sectionFilter, sections]);
 
     const bulkSetUnmarkedToPresent = useCallback(async () => {
         const unmarkedStudents = roster.filter((s) => !marks.has(s.lrn));
         if (unmarkedStudents.length === 0) return;
+        const activeSection = sections.find(s => s.id === sectionFilter || s.section_name === sectionFilter);
         const records: AttendanceRecord[] = unmarkedStudents.map((s) => ({
             id: `${s.lrn}_${date}`,
             student_lrn: s.lrn,
             date,
             status: 'present',
-            section_id: s.student_section || '',
+            section_id: activeSection?.id || s.student_section || '',
         }));
         try {
             await upsertAttendanceRecords(records);
@@ -451,7 +452,7 @@ export function DailyAttendancePage() {
         } catch {
             showNotification('Auto-mark failed', 'error');
         }
-    }, [roster, marks, date, upsertAttendanceRecords, showNotification, schoolProfile]);
+    }, [roster, marks, date, upsertAttendanceRecords, showNotification, schoolProfile, sectionFilter, sections]);
 
     const bulkClear = useCallback(async () => {
         const ids = roster.filter((s) => marks.has(s.lrn)).map((s) => `${s.lrn}_${date}`);

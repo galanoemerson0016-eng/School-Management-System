@@ -352,10 +352,26 @@ export function canAccessSF9Section(user: User | null | undefined, _section: Sec
     return !!user;
 }
 
+export function isSectionAdvisoryForUser(s: Section, user: User): boolean {
+    const isExplicitAdviser = (s.adviser_id && s.adviser_id === user.uid) ||
+        (user.displayName && s.adviser_name && s.adviser_name.trim().toLowerCase() === user.displayName.trim().toLowerCase()) ||
+        (user.email && s.adviser_id && user.email.toLowerCase().includes(s.adviser_id.replace(/^user-/, '').toLowerCase()));
+    if (isExplicitAdviser) return true;
+    if (s.is_advisory) {
+        if (s.adviser_id && s.adviser_id !== user.uid) {
+            return false;
+        }
+        return true;
+    }
+    return false;
+}
+
 export function filterSF9Sections(user: User | null | undefined, sections: Section[]): Section[] {
     if (!user) return [];
-    // Only advisory sections appear in official advisory documents and grade management
-    const advisory = sections.filter((s) => s.is_advisory);
+    const isSchoolWideRole = user.role === 'admin' || user.role === 'principal' ||
+        user.roles?.includes('admin') || user.roles?.includes('principal');
+    if (isSchoolWideRole) return sections;
+    const advisory = sections.filter((s) => isSectionAdvisoryForUser(s, user));
     return advisory.length > 0 ? advisory : sections;
 }
 
@@ -369,13 +385,19 @@ export function canEditAttendanceSection(user: User | null | undefined, _section
 
 export function filterAttendanceSections(user: User | null | undefined, sections: Section[]): Section[] {
     if (!user) return [];
-    const advisory = sections.filter((s) => s.is_advisory);
+    const isSchoolWideRole = user.role === 'admin' || user.role === 'principal' ||
+        user.roles?.includes('admin') || user.roles?.includes('principal');
+    if (isSchoolWideRole) return sections;
+    const advisory = sections.filter((s) => isSectionAdvisoryForUser(s, user));
     return advisory.length > 0 ? advisory : sections;
 }
 
 export function filterOfficialSectionsForUser(user: User | null | undefined, sections: Section[]): Section[] {
     if (!user) return [];
-    const advisory = sections.filter((s) => s.is_advisory);
+    const isSchoolWideRole = user.role === 'admin' || user.role === 'principal' ||
+        user.roles?.includes('admin') || user.roles?.includes('principal');
+    if (isSchoolWideRole) return sections;
+    const advisory = sections.filter((s) => isSectionAdvisoryForUser(s, user));
     return advisory.length > 0 ? advisory : sections;
 }
 

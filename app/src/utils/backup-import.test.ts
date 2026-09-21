@@ -103,7 +103,8 @@ describe('restoreBackupToFirestore', () => {
         expect(db.clearStore).toHaveBeenCalledWith('sections');
         expect(db.putRecordsBulk).toHaveBeenCalledWith('students', expect.any(Array));
         expect(db.putRecordsBulk).toHaveBeenCalledWith('sections', expect.any(Array));
-        expect(result.created).toBe(4); // 1 profile + 2 students + 1 section
+        expect(result.created).toBe(3); // 2 students + 1 section
+        expect(result.updated).toBe(1); // 1 profile updated
         expect(result.issues).toHaveLength(0);
         expect(localStorage.getItem('activeSchoolYear')).toBe('2026-2027');
     });

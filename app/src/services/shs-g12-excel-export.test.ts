@@ -708,6 +708,126 @@ describe('SHS Grade 12 E-Class Record Export Service', () => {
     });
   });
 
+  it('correctly calculates Practical Research 2 Archimedes where only TE is administered (matching PDF Initial Grade 94.20 -> Transmuted 95)', async () => {
+    const updatedTemplatePath = path.join(templatesDir, TEMPLATE_SHS_G12_UPDATED);
+    if (!fs.existsSync(updatedTemplatePath)) return;
+
+    const archimedesSection: Section = {
+      id: 'section_1789451336249',
+      section_name: 'Archimedes',
+      section_grade_level: 'Grade 12',
+      adviser_name: 'EMERSON M. GALANO',
+      strand: 'GAS',
+      track: 'Academic'
+    };
+
+    const pr2Subj: Subject = {
+      id: 'subj-pr2-archimedes',
+      subject_name: 'Practical Research 2',
+      grade_level: 'Grade 12',
+      category: 'APPLIED',
+      track: 'Academic'
+    } as any;
+
+    const studentBonilla: Student = {
+      lrn: '106777140026',
+      first_name: 'Jade Cyrus',
+      middle_name: 'Sandoval',
+      last_name: 'Bonilla',
+      name_extension: '',
+      gender: 'Male'
+    } as any;
+
+    const studentVivas: Student = {
+      lrn: '106777140030',
+      first_name: 'Allan',
+      middle_name: 'Chua',
+      last_name: 'Vivas',
+      name_extension: 'Jr.',
+      gender: 'Male'
+    } as any;
+
+    // HPS: WW1=50, PT1=100, PT2=100, PT3=100, TE=60 (no ST1/ST2)
+    const hpsRecord: HPSRecord = {
+      id: 'hps_pr2',
+      subject_id: 'subj-pr2-archimedes',
+      subject_name: 'Practical Research 2',
+      section_id: 'section_1789451336249',
+      school_year: '2026-2027',
+      quarter: 1,
+      written_works: [50, '', '', '', '', '', '', '', '', ''],
+      performance_tasks: [100, 100, 100, '', '', '', '', '', '', ''],
+      quarterly_exam: 60,
+      summative_tests: ['', '', 60]
+    } as any;
+
+    const bonillaRecord: ClassRecord = {
+      id: 'cr-bonilla',
+      student_lrn: '106777140026',
+      subject_id: 'subj-pr2-archimedes',
+      section_id: 'section_1789451336249',
+      school_year: '2026-2027',
+      quarter: 1,
+      written_works: [48, '', '', '', '', '', '', '', '', ''],
+      performance_tasks: [90, 87, 90, '', '', '', '', '', '', ''],
+      quarterly_exam: 60,
+      summative_tests: ['', '', 60]
+    } as any;
+
+    const vivasRecord: ClassRecord = {
+      id: 'cr-vivas',
+      student_lrn: '106777140030',
+      subject_id: 'subj-pr2-archimedes',
+      section_id: 'section_1789451336249',
+      school_year: '2026-2027',
+      quarter: 1,
+      written_works: [45, '', '', '', '', '', '', '', '', ''],
+      performance_tasks: [85, 88, 87, '', '', '', '', '', '', ''],
+      quarterly_exam: 55,
+      summative_tests: ['', '', 55]
+    } as any;
+
+    const templateBuffer = fs.readFileSync(updatedTemplatePath);
+    const populatedZip = await populateSHSG12WorkbookZip(templateBuffer, {
+      schoolProfile: mockSchoolProfile,
+      schoolYear: '2026-2027',
+      section: archimedesSection,
+      subject: pr2Subj,
+      students: [studentBonilla, studentVivas],
+      classRecords: [bonillaRecord, vivasRecord],
+      hpsRecords: [hpsRecord],
+      teacherName: 'Emerson M. Galano',
+      numTerms: 3
+    });
+
+    const t1Xml = await populatedZip.file('xl/worksheets/sheet3.xml')!.async('string');
+
+    // Row 14: Weights for TE should be 100 on AI14 since ST1/ST2 were not administered
+    expect(t1Xml).toMatch(/<c r="AI14"[^>]*><f[^>]*>.*?<\/f><v>100<\/v><\/c>/);
+    expect(t1Xml).toMatch(/<c r="AK14"[^>]*><f[^>]*>.*?<\/f><v>0.25<\/v><\/c>/);
+
+    // Row 17 (Bonilla):
+    // WW PS = 96, WW WS = 33.60
+    expect(t1Xml).toMatch(/<c r="N17"[^>]*><f[^>]*>.*?<\/f><v>48<\/v><\/c>/);
+    expect(t1Xml).toMatch(/<c r="O17"[^>]*><f[^>]*>.*?<\/f><v>96<\/v><\/c>/);
+    expect(t1Xml).toMatch(/<c r="P17"[^>]*><f[^>]*>.*?<\/f><v>33.6<\/v><\/c>/);
+    // PT PS = 89, PT WS = 35.60
+    expect(t1Xml).toMatch(/<c r="AA17"[^>]*><f[^>]*>.*?<\/f><v>267<\/v><\/c>/);
+    expect(t1Xml).toMatch(/<c r="AB17"[^>]*><f[^>]*>.*?<\/f><v>89<\/v><\/c>/);
+    expect(t1Xml).toMatch(/<c r="AC17"[^>]*><f[^>]*>.*?<\/f><v>35.6<\/v><\/c>/);
+    // Exam: TE score = 60, TE PS = 100, TE WS = 25.00
+    expect(t1Xml).toMatch(/<c r="AF17"[^>]*><v>60<\/v><\/c>/);
+    expect(t1Xml).toMatch(/<c r="AJ17"[^>]*><f[^>]*>.*?<\/f><v>100<\/v><\/c>/);
+    expect(t1Xml).toMatch(/<c r="AK17"[^>]*><f[^>]*>.*?<\/f><v>25<\/v><\/c>/);
+    // Initial Grade = 94.20, Transmuted = 95
+    expect(t1Xml).toMatch(/<c r="AL17"[^>]*><f[^>]*>.*?<\/f><v>94.2<\/v><\/c>/);
+    expect(t1Xml).toMatch(/<c r="AM17"[^>]*><f[^>]*>.*?<\/f><v>95<\/v><\/c>/);
+
+    // Check INPUT DATA for Vivas with Name Extension
+    const s2Xml = await populatedZip.file('xl/worksheets/sheet2.xml')!.async('string');
+    expect(s2Xml).toContain('VIVAS, ALLAN CHUA JR.');
+  });
+
   it('does not assign an unconfigured Grade 12 offering to First Term', () => {
     expect(resolveSHSG12Terms({ id: 'elective', subject_name: 'School-selected elective' } as Subject, [], [], '2026-2027')).toEqual({
       numTerms: 0,

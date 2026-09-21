@@ -18,11 +18,14 @@ import {
     prepareDataForRestore,
     getInvalidGradeReferences,
     restoreBackupToFirestore,
+    detectSchoolYearFromBackup,
+    resolveBestSchoolProfile,
     type RestoreValidation,
 } from '../utils/backup-import';
 import { RestoreStrategyPanel } from './RestoreStrategyPanel';
 import type { RestoreStrategy } from '../utils/restore-options';
 import type { ComprehensiveBackup } from '../utils/backup-restore';
+import type { SchoolProfile } from '../types';
 import { useAppStore, initializeAppStore } from '../stores/app-store';
 import { decryptBackup } from '../utils/backup-encryption';
 
@@ -212,10 +215,21 @@ export function BackupRestoreModal({
 
             if (rawData && (rawData.payload || rawData.students || rawData.data || rawData.schoolProfile)) {
                 const dbData = rawData.payload || rawData.data || rawData;
+                const detectedSy = detectSchoolYearFromBackup(dbData, file.name);
+                const bestProfile: SchoolProfile = resolveBestSchoolProfile(dbData.schoolProfile) || {
+                    school_id: '',
+                    name: 'School Name',
+                    region: '',
+                    division: '',
+                    district: '',
+                    head_name: '',
+                    head_position: '',
+                    grade_levels_offered: '',
+                };
                 
                 const payloadData = {
-                    activeSchoolYear: dbData.activeSchoolYear || 'Unknown',
-                    schoolProfile: Array.isArray(dbData.schoolProfile) ? dbData.schoolProfile[0] : (dbData.schoolProfile || null),
+                    activeSchoolYear: detectedSy,
+                    schoolProfile: bestProfile,
                     students: dbData.students || [],
                     studentProfiles: dbData.studentProfiles || [],
                     sections: dbData.sections || [],
@@ -245,7 +259,7 @@ export function BackupRestoreModal({
                         note: `Backup file: ${file.name}`,
                     },
                     summary: rawData.summary || {
-                        activeSchoolYear: dbData.activeSchoolYear || 'Unknown',
+                        activeSchoolYear: detectedSy,
                         students: payloadData.students.length,
                         studentProfiles: payloadData.studentProfiles.length,
                         sections: payloadData.sections.length,
@@ -424,16 +438,23 @@ export function BackupRestoreModal({
             );
 
             // Align active school year in store
-            const restoredSchoolYear = state.backup.payload.activeSchoolYear || state.backup.summary?.activeSchoolYear || '2026-2027';
-            useAppStore.setState({ activeSchoolYear: restoredSchoolYear });
+            const restoredSchoolYear = detectSchoolYearFromBackup(state.backup.payload, state.file?.name, state.backup.summary?.activeSchoolYear);
+            if (restoredSchoolYear && restoredSchoolYear.toLowerCase() !== 'unknown') {
+                localStorage.setItem('activeSchoolYear', restoredSchoolYear);
+                localStorage.setItem('formease_active_school_year', restoredSchoolYear);
+                useAppStore.setState({ activeSchoolYear: restoredSchoolYear });
+            }
 
             // Re-initialize app store from the freshly restored database
             await initializeAppStore();
 
-            // Auto-align selected section
+            // Auto-align selected section ensuring profile section or advisory class has priority
             const currentSections = useAppStore.getState().sections;
+            const currentProfile = useAppStore.getState().schoolProfile;
+            const profileSection = (currentProfile?.section || '').trim();
+            const matchingProfileSec = profileSection ? currentSections.find(s => s.section_name.toLowerCase() === profileSection.toLowerCase()) : null;
             const advisorySec = currentSections.find(s => s.is_advisory || (s as { is_advisory_class?: boolean }).is_advisory_class);
-            const defaultSec = advisorySec ? advisorySec.section_name : (currentSections[0]?.section_name || null);
+            const defaultSec = matchingProfileSec ? matchingProfileSec.section_name : (advisorySec ? advisorySec.section_name : (currentSections[0]?.section_name || null));
             if (defaultSec) {
                 localStorage.setItem('formease-selected-section', defaultSec);
                 useAppStore.setState({ selectedSection: defaultSec });
@@ -959,8 +980,11 @@ export function BackupRestoreModal({
                                 </button>
                                 <button
                                     onClick={() => {
-                                        useAppStore.setState({ currentView: 'dashboard' });
+                                        useAppStore.getState().setCurrentView('dashboard');
+                                        localStorage.setItem('formease_current_view', 'dashboard');
+                                        localStorage.setItem('currentView', 'dashboard');
                                         onClose();
+                                        window.location.reload();
                                     }}
                                     className="flex-1 px-4 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 cursor-pointer shadow-xs transition-colors"
                                 >

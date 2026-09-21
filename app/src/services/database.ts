@@ -714,7 +714,28 @@ async function importFromBackup(rawBackupData: BackupImportPayload) {
   const rawProfile = payload.schoolProfile || payload.school_profile || payload.school || payload.profile;
   let profileRecord: SchoolProfile | undefined;
   if (rawProfile) {
-    const rawObj = Array.isArray(rawProfile) ? rawProfile[0] : rawProfile;
+    let rawObj: unknown = rawProfile;
+    if (Array.isArray(rawProfile) && rawProfile.length > 0) {
+      const validObjects = rawProfile.filter((p): p is Record<string, unknown> => !!p && typeof p === 'object');
+      const scored = validObjects.map(p => {
+        let score = 0;
+        const name = String(p.name || '').trim();
+        const schoolId = String(p.school_id || p.id || '').trim();
+        const section = String(p.section || '').trim();
+        const adviser = String(p.adviser_name || '').trim();
+
+        if (name && name.toLowerCase() !== 'school name') score += 10;
+        if (schoolId && schoolId !== '300001' && schoolId !== '') score += 10;
+        if (section) score += 5;
+        if (adviser && adviser.toLowerCase() !== 'admin') score += 5;
+        if (p.division) score += 2;
+        if (p.region) score += 2;
+        return { profile: p, score };
+      });
+      scored.sort((a, b) => b.score - a.score);
+      rawObj = scored[0]?.profile || rawProfile[0];
+    }
+
     if (rawObj && typeof rawObj === 'object') {
       const p = rawObj as Record<string, unknown>;
       const school_id = String(p.school_id || p.id || '300001').trim() || '300001';
@@ -930,12 +951,21 @@ async function importFromBackup(rawBackupData: BackupImportPayload) {
 
   // 16. School Year Resynchronization
   // Automatically detect active school year from payload, schoolProfile, or records
+  const isValidSy = (sy: unknown): sy is string => {
+    if (!sy || typeof sy !== 'string') return false;
+    const s = sy.trim();
+    return s.length >= 7 && s.toLowerCase() !== 'unknown' && /(?:20\d{2}-20\d{2})/.test(s);
+  };
+
   const detectedSchoolYear = (
-    (typeof payload.activeSchoolYear === 'string' && payload.activeSchoolYear.trim()) ||
-    (localData && typeof localData.activeSchoolYear === 'string' && localData.activeSchoolYear.trim()) ||
-    (profileRecord && typeof profileRecord.school_year === 'string' && profileRecord.school_year.trim()) ||
-    (importedClassRecords.find(r => r.school_year && typeof r.school_year === 'string')?.school_year) ||
-    undefined
+    (isValidSy(payload.activeSchoolYear) && payload.activeSchoolYear.trim()) ||
+    (localData && isValidSy(localData.activeSchoolYear) && localData.activeSchoolYear.trim()) ||
+    (localData && isValidSy(localData.formease_active_school_year) && localData.formease_active_school_year.trim()) ||
+    (profileRecord && isValidSy(profileRecord.school_year) && profileRecord.school_year.trim()) ||
+    (importedClassRecords.find(r => isValidSy(r.school_year))?.school_year) ||
+    ((payload.gradingSheetRecords as Record<string, unknown>[] | undefined)?.find(r => isValidSy(r.school_year))?.school_year as string | undefined) ||
+    ((payload.sf2Sheets as Record<string, unknown>[] | undefined)?.find(s => isValidSy(s.school_year))?.school_year as string | undefined) ||
+    '2026-2027'
   );
 
   if (detectedSchoolYear && typeof localStorage !== 'undefined') {

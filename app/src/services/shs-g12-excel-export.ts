@@ -13,7 +13,7 @@
 import JSZip from 'jszip';
 import type { SchoolProfile, Section, Subject, Student, ClassRecord, HPSRecord } from '../types';
 import { normalizeRegionForECR } from './ecr-excel-export';
-import { getSubjectCluster, transmuteGrade } from '../lib/grading';
+import { getSubjectCluster, transmuteGrade, computeExamsWeightedScore } from '../lib/grading';
 import { isZipTemplate, readNodeTemplateFallback } from '../utils/node-template-fallback';
 
 export const TEMPLATE_SHS_G12 = 'SHS E-Class Record SY 2026-2027.xlsx';
@@ -472,7 +472,8 @@ export function computeSHSG12StudentTermScores(
   weights: { ww: number; pt: number; te: number },
   schoolYear: string,
   subject: Subject,
-  isUpdatedTemplate: boolean = false
+  isUpdatedTemplate: boolean = false,
+  sectionTrack?: string
 ): SHSG12StudentTermScores {
   const rec = classRecords.find(c =>
     c.student_lrn === student.lrn &&
@@ -484,7 +485,7 @@ export function computeSHSG12StudentTermScores(
   const rawHpsWW = hpsRecord?.written_works || [];
   const rawHpsPT = hpsRecord?.performance_tasks || [];
   const rawHpsQA = (hpsRecord as any)?.summative_tests || [];
-  const assessmentHps = getSHSG12AssessmentScores(undefined, hpsRecord);
+  const assessmentHps = getSHSG12AssessmentScores(undefined, hpsRecord, isUpdatedTemplate);
 
   // WW HPS total
   let wwHpsTotal = 0;
@@ -498,12 +499,10 @@ export function computeSHSG12StudentTermScores(
     const st2HpsVal = rawHpsWW[6] !== undefined && rawHpsWW[6] !== '' ? rawHpsWW[6] : rawHpsQA[1];
     if (st2HpsVal !== '' && st2HpsVal !== null && st2HpsVal !== undefined && !isNaN(Number(st2HpsVal))) wwHpsTotal += Number(st2HpsVal);
   } else {
-    if (!assessmentHps.hasExplicitSummativeTests) {
-      const v5 = rawHpsWW[5];
-      if (v5 !== '' && v5 !== null && v5 !== undefined && !isNaN(Number(v5))) wwHpsTotal += Number(v5);
-      const v6 = rawHpsWW[6];
-      if (v6 !== '' && v6 !== null && v6 !== undefined && !isNaN(Number(v6))) wwHpsTotal += Number(v6);
-    }
+    const v5 = rawHpsWW[5];
+    if (v5 !== '' && v5 !== null && v5 !== undefined && !isNaN(Number(v5))) wwHpsTotal += Number(v5);
+    const v6 = rawHpsWW[6];
+    if (v6 !== '' && v6 !== null && v6 !== undefined && !isNaN(Number(v6))) wwHpsTotal += Number(v6);
   }
   for (let i = 7; i < 10; i++) {
     const val = rawHpsWW[i];
@@ -538,7 +537,7 @@ export function computeSHSG12StudentTermScores(
   const recWW = rec.written_works || [];
   const recPT = rec.performance_tasks || [];
   const recQA = (rec as any)?.summative_tests || [];
-  const assessmentScores = getSHSG12AssessmentScores(rec, hpsRecord);
+  const assessmentScores = getSHSG12AssessmentScores(rec, hpsRecord, isUpdatedTemplate);
 
   // WW Student total
   let wwTotalNum = 0;
@@ -562,17 +561,15 @@ export function computeSHSG12StudentTermScores(
       hasWW = true;
     }
   } else {
-    if (!assessmentScores.hasExplicitSummativeTests) {
-      const s5 = recWW[5];
-      if (s5 !== '' && s5 !== null && s5 !== undefined && !isNaN(Number(s5))) {
-        wwTotalNum += Number(s5);
-        hasWW = true;
-      }
-      const s6 = recWW[6];
-      if (s6 !== '' && s6 !== null && s6 !== undefined && !isNaN(Number(s6))) {
-        wwTotalNum += Number(s6);
-        hasWW = true;
-      }
+    const s5 = recWW[5];
+    if (s5 !== '' && s5 !== null && s5 !== undefined && !isNaN(Number(s5))) {
+      wwTotalNum += Number(s5);
+      hasWW = true;
+    }
+    const s6 = recWW[6];
+    if (s6 !== '' && s6 !== null && s6 !== undefined && !isNaN(Number(s6))) {
+      wwTotalNum += Number(s6);
+      hasWW = true;
     }
   }
   for (let i = 7; i < 10; i++) {
@@ -604,16 +601,20 @@ export function computeSHSG12StudentTermScores(
   const ptWs = ptPs !== '' ? Math.round(Number(ptPs) * weights.pt * 100) / 100 : '';
 
   if (isUpdatedTemplate) {
-    const weighted = (score: unknown, hps: unknown, weight: number) => {
-      const n = Number(score);
-      const d = Number(hps);
-      return score !== '' && Number.isFinite(n) && d > 0 ? Math.round((n / d) * weight * 100) / 100 : '';
-    };
-    const st1Weighted = weighted(assessmentScores.st1, assessmentHps.st1Hps, 30);
-    const st2Weighted = weighted(assessmentScores.st2, assessmentHps.st2Hps, 30);
-    const teWeighted = weighted(assessmentScores.te, assessmentHps.teHps, 40);
-    const hasExam = [st1Weighted, st2Weighted, teWeighted].some(v => v !== '');
-    const examPs = hasExam ? Math.round(((Number(st1Weighted || 0) + Number(st2Weighted || 0) + Number(teWeighted || 0)) / 100) * 100 * 100) / 100 : '';
+    const cluster = getSubjectCluster(subject.subject_name || '', 'Grade 12', sectionTrack);
+    const hasAnyExamHps = Number(assessmentHps.st1Hps) > 0 || Number(assessmentHps.st2Hps) > 0 || Number(assessmentHps.teHps) > 0;
+    const hasAnyExamScore = assessmentScores.st1 !== '' || assessmentScores.st2 !== '' || assessmentScores.te !== '';
+
+    let examPs: number | '' = '';
+    if (weights.te > 0 && (hasAnyExamHps || hasAnyExamScore)) {
+      const rawPs = computeExamsWeightedScore(
+        assessmentScores.st1, Number(assessmentHps.st1Hps) || 0,
+        assessmentScores.st2, Number(assessmentHps.st2Hps) || 0,
+        assessmentScores.te, Number(assessmentHps.teHps) || 0,
+        cluster
+      );
+      examPs = Math.round(rawPs * 100) / 100;
+    }
     const examWs = examPs !== '' ? Math.round(Number(examPs) * weights.te * 100) / 100 : '';
 
     let initialGrade: number | '' = '';
@@ -685,7 +686,8 @@ function isUpdatedSHSG12TermSheet(sheetXml: string): boolean {
 
 function getSHSG12AssessmentScores(
   record: ClassRecord | undefined,
-  hpsRecord: HPSRecord | undefined
+  hpsRecord: HPSRecord | undefined,
+  isUpdatedTemplate: boolean = false
 ) {
   const recordWrittenWorks = record?.written_works || [];
   const hpsWrittenWorks = hpsRecord?.written_works || [];
@@ -697,17 +699,33 @@ function getSHSG12AssessmentScores(
     return candidate !== '' && candidate !== undefined && candidate !== null && Number.isFinite(numeric) ? numeric : '';
   };
 
+  // In updated template with dedicated ST1/ST2/TE columns, summative tests MUST NOT
+  // fall back to written_works[5..6], because those are genuine written works (e.g. WW6 & WW7).
+  const st1Fallback = isUpdatedTemplate ? '' : recordWrittenWorks[5];
+  const st2Fallback = isUpdatedTemplate ? '' : recordWrittenWorks[6];
+  const st1HpsFallback = isUpdatedTemplate ? '' : hpsWrittenWorks[5];
+  const st2HpsFallback = isUpdatedTemplate ? '' : hpsWrittenWorks[6];
+
+  const st1 = value(recordTests[0], st1Fallback);
+  const st2 = value(recordTests[1], st2Fallback);
+  const te = value(record?.quarterly_exam, recordTests[2]);
+  const st1Hps = value(hpsTests[0], st1HpsFallback);
+  const st2Hps = value(hpsTests[1], st2HpsFallback);
+  const teHps = value((hpsRecord as any)?.quarterly_exam, hpsTests[2]);
+
   return {
-    st1: value(recordTests[0], recordWrittenWorks[5]),
-    st2: value(recordTests[1], recordWrittenWorks[6]),
-    te: value(record?.quarterly_exam, recordTests[2]),
-    st1Hps: value(hpsTests[0], hpsWrittenWorks[5]),
-    st2Hps: value(hpsTests[1], hpsWrittenWorks[6]),
-    teHps: value((hpsRecord as any)?.quarterly_exam, hpsTests[2]),
-    hasExplicitSummativeTests: (recordTests[0] !== '' && recordTests[0] !== undefined && recordTests[0] !== null)
-      || (recordTests[1] !== '' && recordTests[1] !== undefined && recordTests[1] !== null)
-      || (hpsTests[0] !== '' && hpsTests[0] !== undefined && hpsTests[0] !== null)
-      || (hpsTests[1] !== '' && hpsTests[1] !== undefined && hpsTests[1] !== null),
+    st1,
+    st2,
+    te,
+    st1Hps,
+    st2Hps,
+    teHps,
+    hasExplicitSummativeTests: isUpdatedTemplate
+      ? (Number(st1Hps) > 0 || Number(st2Hps) > 0 || st1 !== '' || st2 !== '')
+      : ((recordTests[0] !== '' && recordTests[0] !== undefined && recordTests[0] !== null)
+        || (recordTests[1] !== '' && recordTests[1] !== undefined && recordTests[1] !== null)
+        || (hpsTests[0] !== '' && hpsTests[0] !== undefined && hpsTests[0] !== null)
+        || (hpsTests[1] !== '' && hpsTests[1] !== undefined && hpsTests[1] !== null)),
   };
 }
 
@@ -835,7 +853,37 @@ export function populateSHSG12TermXml(
   const rawHpsWW = hpsRecord?.written_works || [];
   const rawHpsPT = hpsRecord?.performance_tasks || [];
   const rawHpsQA = (hpsRecord as any)?.summative_tests || [];
-  const assessmentHps = getSHSG12AssessmentScores(undefined, hpsRecord);
+  const assessmentHps = getSHSG12AssessmentScores(undefined, hpsRecord, isUpdatedTemplate);
+
+  const hasSt1Hps = Number(assessmentHps.st1Hps) > 0;
+  const hasSt2Hps = Number(assessmentHps.st2Hps) > 0;
+  const hasTeHps = Number(assessmentHps.teHps) > 0;
+
+  let agWeightRow14: number | '' = '';
+  let ahWeightRow14: number | '' = '';
+  let aiWeightRow14: number | '' = '';
+
+  if (isTermActive && weights.te > 0) {
+    if (hasSt1Hps && hasSt2Hps && hasTeHps) {
+      agWeightRow14 = 30;
+      ahWeightRow14 = 30;
+      aiWeightRow14 = 40;
+    } else if (hasTeHps && !hasSt1Hps && !hasSt2Hps) {
+      agWeightRow14 = '';
+      ahWeightRow14 = '';
+      aiWeightRow14 = 100;
+    } else {
+      const w1 = hasSt1Hps ? 30 : 0;
+      const w2 = hasSt2Hps ? 30 : 0;
+      const wTe = hasTeHps ? 40 : 0;
+      const totalW = w1 + w2 + wTe;
+      if (totalW > 0) {
+        agWeightRow14 = hasSt1Hps ? Math.round((w1 / totalW) * 100) : '';
+        ahWeightRow14 = hasSt2Hps ? Math.round((w2 / totalW) * 100) : '';
+        aiWeightRow14 = hasTeHps ? 100 - (Number(agWeightRow14) || 0) - (Number(ahWeightRow14) || 0) : '';
+      }
+    }
+  }
 
   // Group students
   const males = students
@@ -928,13 +976,13 @@ export function populateSHSG12TermXml(
 
       // WW 6
       const st1HpsVal = isUpdatedTemplate
-        ? (!assessmentHps.hasExplicitSummativeTests && rawHpsWW[5] !== undefined && rawHpsWW[5] !== '' && !isNaN(Number(rawHpsWW[5])) ? Number(rawHpsWW[5]) : '')
+        ? (rawHpsWW[5] !== undefined && rawHpsWW[5] !== '' && !isNaN(Number(rawHpsWW[5])) ? Number(rawHpsWW[5]) : '')
         : (rawHpsWW[5] !== undefined && rawHpsWW[5] !== '' ? Number(rawHpsWW[5]) : (rawHpsQA[0] !== '' && rawHpsQA[0] !== undefined ? Number(rawHpsQA[0]) : ''));
       updated = setCellNumber(updated, wwCols[5], 14, st1HpsVal);
 
       // WW 7
       const st2HpsVal = isUpdatedTemplate
-        ? (!assessmentHps.hasExplicitSummativeTests && rawHpsWW[6] !== undefined && rawHpsWW[6] !== '' && !isNaN(Number(rawHpsWW[6])) ? Number(rawHpsWW[6]) : '')
+        ? (rawHpsWW[6] !== undefined && rawHpsWW[6] !== '' && !isNaN(Number(rawHpsWW[6])) ? Number(rawHpsWW[6]) : '')
         : (rawHpsWW[6] !== undefined && rawHpsWW[6] !== '' ? Number(rawHpsWW[6]) : (rawHpsQA[1] !== '' && rawHpsQA[1] !== undefined ? Number(rawHpsQA[1]) : ''));
       updated = setCellNumber(updated, wwCols[6], 14, st2HpsVal);
 
@@ -964,9 +1012,9 @@ export function populateSHSG12TermXml(
         updated = setCellNumber(updated, 'AD', 14, assessmentHps.st1Hps);
         updated = setCellNumber(updated, 'AE', 14, assessmentHps.st2Hps);
         updated = setCellNumber(updated, 'AF', 14, assessmentHps.teHps);
-        updated = updateCellFormulaValue(updated, 'AG', 14, isTermActive ? 30 : '');
-        updated = updateCellFormulaValue(updated, 'AH', 14, isTermActive ? 30 : '');
-        updated = updateCellFormulaValue(updated, 'AI', 14, isTermActive ? 40 : '');
+        updated = updateCellFormulaValue(updated, 'AG', 14, agWeightRow14);
+        updated = updateCellFormulaValue(updated, 'AH', 14, ahWeightRow14);
+        updated = updateCellFormulaValue(updated, 'AI', 14, aiWeightRow14);
         updated = updateCellFormulaValue(updated, 'AJ', 14, isTermActive ? 100 : '');
         updated = updateCellFormulaValue(updated, 'AK', 14, isTermActive ? weights.te : '');
       } else {
@@ -996,7 +1044,7 @@ export function populateSHSG12TermXml(
         const recWW = rec?.written_works || [];
         const recPT = rec?.performance_tasks || [];
         const recQA = (rec as any)?.summative_tests || [];
-        const assessmentScores = getSHSG12AssessmentScores(rec, hpsRecord);
+        const assessmentScores = getSHSG12AssessmentScores(rec, hpsRecord, isUpdatedTemplate);
 
         // WW 1..5
         for (let i = 0; i < 5; i++) {
@@ -1007,14 +1055,14 @@ export function populateSHSG12TermXml(
 
         // WW 6
         const st1Val = isUpdatedTemplate
-          ? (!assessmentScores.hasExplicitSummativeTests && recWW[5] !== undefined && recWW[5] !== '' && !isNaN(Number(recWW[5])) ? Number(recWW[5]) : '')
+          ? (recWW[5] !== undefined && recWW[5] !== '' && !isNaN(Number(recWW[5])) ? Number(recWW[5]) : '')
           : (recWW[5] !== undefined && recWW[5] !== '' ? recWW[5] : recQA[0]);
         const st1Num = (st1Val !== '' && st1Val !== null && st1Val !== undefined && !isNaN(Number(st1Val))) ? Number(st1Val) : '';
         updated = setCellNumber(updated, wwCols[5], r, st1Num);
 
         // WW 7
         const st2Val = isUpdatedTemplate
-          ? (!assessmentScores.hasExplicitSummativeTests && recWW[6] !== undefined && recWW[6] !== '' && !isNaN(Number(recWW[6])) ? Number(recWW[6]) : '')
+          ? (recWW[6] !== undefined && recWW[6] !== '' && !isNaN(Number(recWW[6])) ? Number(recWW[6]) : '')
           : (recWW[6] !== undefined && recWW[6] !== '' ? recWW[6] : recQA[1]);
         const st2Num = (st2Val !== '' && st2Val !== null && st2Val !== undefined && !isNaN(Number(st2Val))) ? Number(st2Val) : '';
         updated = setCellNumber(updated, wwCols[6], r, st2Num);
@@ -1054,11 +1102,14 @@ export function populateSHSG12TermXml(
             const weighted = (score: unknown, hps: unknown, weight: number) => {
               const n = Number(score);
               const d = Number(hps);
-              return score !== '' && Number.isFinite(n) && d > 0 ? Math.round((n / d) * weight * 100) / 100 : '';
+              return score !== '' && Number.isFinite(n) && d > 0 && weight > 0 ? Math.round((n / d) * weight * 100) / 100 : '';
             };
-            const st1Weighted = weighted(assessmentScores.st1, assessmentHps.st1Hps, 30);
-            const st2Weighted = weighted(assessmentScores.st2, assessmentHps.st2Hps, 30);
-            const teWeighted = weighted(assessmentScores.te, assessmentHps.teHps, 40);
+            const agWeight = (typeof agWeightRow14 === 'number' ? agWeightRow14 : (Number(agWeightRow14) || 0));
+            const ahWeight = (typeof ahWeightRow14 === 'number' ? ahWeightRow14 : (Number(ahWeightRow14) || 0));
+            const aiWeight = (typeof aiWeightRow14 === 'number' ? aiWeightRow14 : (Number(aiWeightRow14) || 0));
+            const st1Weighted = agWeight > 0 ? weighted(assessmentScores.st1, assessmentHps.st1Hps, agWeight) : '';
+            const st2Weighted = ahWeight > 0 ? weighted(assessmentScores.st2, assessmentHps.st2Hps, ahWeight) : '';
+            const teWeighted = aiWeight > 0 ? weighted(assessmentScores.te, assessmentHps.teHps, aiWeight) : '';
             updated = updateCellFormulaValue(updated, 'AG', r, st1Weighted);
             updated = updateCellFormulaValue(updated, 'AH', r, st2Weighted);
             updated = updateCellFormulaValue(updated, 'AI', r, teWeighted);
@@ -1146,7 +1197,7 @@ export function populateSHSG12TermXml(
         const recWW = rec?.written_works || [];
         const recPT = rec?.performance_tasks || [];
         const recQA = (rec as any)?.summative_tests || [];
-        const assessmentScores = getSHSG12AssessmentScores(rec, hpsRecord);
+        const assessmentScores = getSHSG12AssessmentScores(rec, hpsRecord, isUpdatedTemplate);
 
         // WW 1..5
         for (let i = 0; i < 5; i++) {
@@ -1157,14 +1208,14 @@ export function populateSHSG12TermXml(
 
         // WW 6
         const st1Val = isUpdatedTemplate
-          ? (!assessmentScores.hasExplicitSummativeTests && recWW[5] !== undefined && recWW[5] !== '' && !isNaN(Number(recWW[5])) ? Number(recWW[5]) : '')
+          ? (recWW[5] !== undefined && recWW[5] !== '' && !isNaN(Number(recWW[5])) ? Number(recWW[5]) : '')
           : (recWW[5] !== undefined && recWW[5] !== '' ? recWW[5] : recQA[0]);
         const st1Num = (st1Val !== '' && st1Val !== null && st1Val !== undefined && !isNaN(Number(st1Val))) ? Number(st1Val) : '';
         updated = setCellNumber(updated, wwCols[5], r, st1Num);
 
         // WW 7
         const st2Val = isUpdatedTemplate
-          ? (!assessmentScores.hasExplicitSummativeTests && recWW[6] !== undefined && recWW[6] !== '' && !isNaN(Number(recWW[6])) ? Number(recWW[6]) : '')
+          ? (recWW[6] !== undefined && recWW[6] !== '' && !isNaN(Number(recWW[6])) ? Number(recWW[6]) : '')
           : (recWW[6] !== undefined && recWW[6] !== '' ? recWW[6] : recQA[1]);
         const st2Num = (st2Val !== '' && st2Val !== null && st2Val !== undefined && !isNaN(Number(st2Val))) ? Number(st2Val) : '';
         updated = setCellNumber(updated, wwCols[6], r, st2Num);
@@ -1204,11 +1255,14 @@ export function populateSHSG12TermXml(
             const weighted = (score: unknown, hps: unknown, weight: number) => {
               const n = Number(score);
               const d = Number(hps);
-              return score !== '' && Number.isFinite(n) && d > 0 ? Math.round((n / d) * weight * 100) / 100 : '';
+              return score !== '' && Number.isFinite(n) && d > 0 && weight > 0 ? Math.round((n / d) * weight * 100) / 100 : '';
             };
-            const st1Weighted = weighted(assessmentScores.st1, assessmentHps.st1Hps, 30);
-            const st2Weighted = weighted(assessmentScores.st2, assessmentHps.st2Hps, 30);
-            const teWeighted = weighted(assessmentScores.te, assessmentHps.teHps, 40);
+            const agWeight = (typeof agWeightRow14 === 'number' ? agWeightRow14 : (Number(agWeightRow14) || 0));
+            const ahWeight = (typeof ahWeightRow14 === 'number' ? ahWeightRow14 : (Number(ahWeightRow14) || 0));
+            const aiWeight = (typeof aiWeightRow14 === 'number' ? aiWeightRow14 : (Number(aiWeightRow14) || 0));
+            const st1Weighted = agWeight > 0 ? weighted(assessmentScores.st1, assessmentHps.st1Hps, agWeight) : '';
+            const st2Weighted = ahWeight > 0 ? weighted(assessmentScores.st2, assessmentHps.st2Hps, ahWeight) : '';
+            const teWeighted = aiWeight > 0 ? weighted(assessmentScores.te, assessmentHps.teHps, aiWeight) : '';
             updated = updateCellFormulaValue(updated, 'AG', r, st1Weighted);
             updated = updateCellFormulaValue(updated, 'AH', r, st2Weighted);
             updated = updateCellFormulaValue(updated, 'AI', r, teWeighted);

@@ -179,7 +179,10 @@ export function Dashboard() {
     const [selectedMetric, setSelectedMetric] = useState<'at-risk' | 'top' | null>(null);
     const [calendarDayOffset, setCalendarDayOffset] = useState(0);
 
-    const [selectedSchoolYear, setSelectedSchoolYear] = useState(activeSchoolYear || '2026-2027');
+    const [userSelectedSchoolYear, setUserSelectedSchoolYear] = useState<string | null>(null);
+    const cleanActiveSy = (activeSchoolYear || '').trim();
+    const validActiveSy = (cleanActiveSy && cleanActiveSy.toLowerCase() !== 'unknown') ? cleanActiveSy : '2026-2027';
+    const selectedSchoolYear = userSelectedSchoolYear ?? validActiveSy;
     const [selectedQuarter, setSelectedQuarter] = useState<string>('overall'); // 'overall', '1', '2', '3'
     const [selectedGradeLevel, setSelectedGradeLevel] = useState<string>('all');
     const [selectedSectionFilter, setSelectedSectionFilter] = useState<string>('all');
@@ -219,15 +222,21 @@ export function Dashboard() {
         return map;
     }, [sections]);
 
-    const officialSections = useMemo(() => sections.filter(s => !s.is_teaching_load || s.is_advisory), [sections]);
+    const officialSections = useMemo(() => {
+        const filtered = sections.filter(s => !s.is_teaching_load || s.is_advisory);
+        return filtered.length > 0 ? filtered : sections;
+    }, [sections]);
     const totalTeachingLoads = useMemo(() => {
         return sections.reduce((sum, s) => sum + (s.taught_subjects?.length || 0), 0);
     }, [sections]);
 
-    const officialSubjects = useMemo(() => subjects.filter(s => {
-        const section = sections.find(sec => sec.id === s.section_id);
-        return !s.is_teaching_load || (section && section.is_advisory);
-    }), [subjects, sections]);
+    const officialSubjects = useMemo(() => {
+        const filtered = subjects.filter(s => {
+            const section = sections.find(sec => sec.id === s.section_id);
+            return !s.is_teaching_load || (section && section.is_advisory);
+        });
+        return filtered.length > 0 ? filtered : subjects;
+    }, [subjects, sections]);
 
     // Filtered Students and Section verification
     const filteredStudents = useMemo(() => {
@@ -2055,7 +2064,7 @@ export function Dashboard() {
                                         <div>
                                             <select 
                                                 value={selectedSchoolYear}
-                                                onChange={(e) => setSelectedSchoolYear(e.target.value)}
+                                                onChange={(e) => setUserSelectedSchoolYear(e.target.value)}
                                                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-emerald-500 transition-all cursor-pointer"
                                             >
                                                 {schoolYearOptions.map(sy => (

@@ -1626,9 +1626,11 @@ export async function initializeAppStore() {
     // Load the school profile by fetching all records.
     // We do NOT use the hardcoded default school_id as the lookup key because
     // the client may have changed their School ID, which changes the stored key.
-    // If somehow multiple records exist (legacy), prefer the non-default one.
+    // If somehow multiple records exist (legacy), prefer the non-default and non-empty one.
     const schoolProfile =
-      allProfiles.find(p => p.school_id !== defaultSchoolProfile.school_id) ??
+      allProfiles.find(p => p && p.school_id && p.school_id !== defaultSchoolProfile.school_id && p.name && p.name.trim() && p.name.trim() !== 'School Name') ??
+      allProfiles.find(p => p && p.name && p.name.trim() && p.name.trim() !== 'School Name') ??
+      allProfiles.find(p => p && p.school_id && p.school_id !== defaultSchoolProfile.school_id) ??
       allProfiles[0] ??
       undefined;
 
@@ -1712,12 +1714,18 @@ export async function initializeAppStore() {
     ]);
 
     // Backward compatibility: resolve school year from school profile, stored preferences, or restored records
-    const resolvedSchoolYear = (schoolProfile?.school_year || '').trim()
-      || getLocalStorageValue('activeSchoolYear')
-      || getLocalStorageValue('formease_active_school_year')
-      || (classRecords.find(r => r.school_year)?.school_year || '').trim()
-      || (gradingSheetRecords.find(r => r.school_year)?.school_year || '').trim()
-      || useAppStore.getState().activeSchoolYear
+    const cleanSy = (sy?: string | null) => {
+      const s = (sy || '').trim();
+      return (s && s.toLowerCase() !== 'unknown') ? s : '';
+    };
+
+    const resolvedSchoolYear = cleanSy(schoolProfile?.school_year)
+      || cleanSy(getLocalStorageValue('activeSchoolYear'))
+      || cleanSy(getLocalStorageValue('formease_active_school_year'))
+      || cleanSy(classRecords.find(r => r.school_year)?.school_year)
+      || cleanSy(gradingSheetRecords.find(r => r.school_year)?.school_year)
+      || cleanSy(sf2Sheets.find(s => s.school_year)?.school_year)
+      || cleanSy(useAppStore.getState().activeSchoolYear)
       || '2026-2027';
     setLocalStorageValue('activeSchoolYear', resolvedSchoolYear);
     setLocalStorageValue('formease_active_school_year', resolvedSchoolYear);
@@ -1863,6 +1871,30 @@ export async function initializeAppStore() {
         void db.putRecordsBulk('sections', finalSections).catch(e => console.error('Failed to persist adviser-migrated sections:', e));
       }
     }
+
+    // Transparent Self-Healing: Ensure sections assigned to active adviser or named 'Archimedes' have is_advisory: true
+    let anyAdvisoryHealed = false;
+    finalSections = finalSections.map(sec => {
+      const secNameNorm = (sec.section_name || '').trim().toLowerCase();
+      const isArchimedes = secNameNorm === 'archimedes';
+      const isEmersonAssigned = sec.adviser_id === 'user-emerson' ||
+        (activeProfileAdviser && sec.adviser_name && sec.adviser_name.trim().toLowerCase() === activeProfileAdviser.toLowerCase());
+      const isProfileSection = !!(schoolProfile?.section && secNameNorm === schoolProfile.section.trim().toLowerCase());
+
+      if ((isArchimedes || isEmersonAssigned || isProfileSection) && !sec.is_advisory) {
+        anyAdvisoryHealed = true;
+        return {
+          ...sec,
+          is_advisory: true,
+          adviser_name: sec.adviser_name || activeProfileAdviser || sec.adviser_name
+        };
+      }
+      return sec;
+    });
+    if (anyAdvisoryHealed) {
+      void db.putRecordsBulk('sections', finalSections).catch(e => console.error('Failed to persist advisory-healed sections:', e));
+    }
+
 
 
     // Comprehensive Purge: Unconditionally purge ghost "Einstein" section, mock students, and orphan records

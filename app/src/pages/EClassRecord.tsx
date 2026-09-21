@@ -759,7 +759,8 @@ export function EClassRecord() {
 
     const formatStudentFullName = useCallback((student: typeof students[number]) => {
         const middleName = student.middle_name?.trim();
-        return `${student.last_name}, ${student.first_name}${middleName ? ` ${middleName}` : ''}`.toUpperCase();
+        const ext = student.name_extension?.trim();
+        return `${student.last_name}, ${student.first_name}${middleName ? ` ${middleName}` : ''}${ext ? ` ${ext}` : ''}`.toUpperCase();
     }, []);
 
     // Sync store with local state
