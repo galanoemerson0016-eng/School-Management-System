@@ -1915,12 +1915,7 @@ export async function initializeAppStore() {
     const finalSf2Sheets = repaired.sf2Sheets;
     const finalEnrollments = enrollments;
 
-    // Ensure schoolProfile does not cling to ghost Einstein section
     let finalSchoolProfile = schoolProfile;
-    if (finalSchoolProfile && (finalSchoolProfile.section || '').trim().toLowerCase() === 'einstein') {
-      finalSchoolProfile = { ...finalSchoolProfile, section: '' };
-      void db.putRecord('schoolProfile', finalSchoolProfile).catch(() => {});
-    }
 
     // Re-resolve selectedSection ensuring configured section or advisory class has priority
     const configuredSectionName = (finalSchoolProfile?.section || '').trim();

@@ -15,13 +15,17 @@ import type { ComprehensiveBackup } from '../utils/backup-restore';
 const filePath = process.env.FORMEASE_CLIENT_SNAPSHOT_PATH;
 const hasSnapshot = Boolean(filePath && fs.existsSync(filePath));
 const fileName = filePath ? path.basename(filePath) : '';
+const snapshotPath = (): string => {
+    if (!filePath) throw new Error('FORMEASE_CLIENT_SNAPSHOT_PATH is required for this opt-in diagnostic.');
+    return filePath;
+};
 
 describe.skipIf(!hasSnapshot)('Client Snapshot Restore & Reconciliation Verification', () => {
 
     it('should verify the snapshot file exists and contains valid raw data', () => {
-        expect(fs.existsSync(filePath)).toBe(true);
+        expect(fs.existsSync(snapshotPath())).toBe(true);
 
-        const rawText = fs.readFileSync(filePath, 'utf8');
+        const rawText = fs.readFileSync(snapshotPath(), 'utf8');
         const rawData = JSON.parse(rawText);
 
         expect(Array.isArray(rawData.students)).toBe(true);
@@ -39,7 +43,7 @@ describe.skipIf(!hasSnapshot)('Client Snapshot Restore & Reconciliation Verifica
     });
 
     it('should correctly detect active school year from filename and records', () => {
-        const rawText = fs.readFileSync(filePath, 'utf8');
+        const rawText = fs.readFileSync(snapshotPath(), 'utf8');
         const rawData = JSON.parse(rawText);
 
         // 1. With filename when it carries a school-year hint.
@@ -52,7 +56,7 @@ describe.skipIf(!hasSnapshot)('Client Snapshot Restore & Reconciliation Verifica
     });
 
     it('should accurately resolve the populated school profile over the blank dummy profile', () => {
-        const rawText = fs.readFileSync(filePath, 'utf8');
+        const rawText = fs.readFileSync(snapshotPath(), 'utf8');
         const rawData = JSON.parse(rawText);
 
         const best = resolveBestSchoolProfile(rawData.schoolProfile);
@@ -62,7 +66,7 @@ describe.skipIf(!hasSnapshot)('Client Snapshot Restore & Reconciliation Verifica
     });
 
     it('should validate the constructed backup and report zero blocking issues', () => {
-        const rawText = fs.readFileSync(filePath, 'utf8');
+        const rawText = fs.readFileSync(snapshotPath(), 'utf8');
         const rawData = JSON.parse(rawText);
 
         const detectedSy = detectSchoolYearFromBackup(rawData, fileName);
@@ -136,7 +140,7 @@ describe.skipIf(!hasSnapshot)('Client Snapshot Restore & Reconciliation Verifica
     });
 
     it('reconciles grades and subjects without dropping records from the supplied snapshot', () => {
-        const rawText = fs.readFileSync(filePath, 'utf8');
+        const rawText = fs.readFileSync(snapshotPath(), 'utf8');
         const rawData = JSON.parse(rawText);
 
         const input = {

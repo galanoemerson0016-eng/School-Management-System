@@ -458,7 +458,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
 
           set({ reconciliationReport: report });
           if (api?.clearPreUpdateState) await api.clearPreUpdateState();
-        } else if (api?.listFsBackups && api?.readFsBackupContent) {
+        } else if (api) {
           const recoveryBackup = await findVerifiedV3517RecoveryBackup(api);
           if (recoveryBackup) {
             const currentCounts = {

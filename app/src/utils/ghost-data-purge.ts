@@ -6,7 +6,7 @@ import type { AttendanceRecord, ClassRecord, Enrollment, Section, SF2Sheet, Stud
  */
 export const LEGACY_DEMO_SECTION_ID = 'section_1777547467815';
 
-export function isGhostEinsteinSection(section: { id?: string }): boolean {
+export function isGhostEinsteinSection(section: { id?: string; section_name?: string }): boolean {
   return section?.id === LEGACY_DEMO_SECTION_ID;
 }
 
