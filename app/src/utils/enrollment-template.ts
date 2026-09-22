@@ -59,14 +59,17 @@ export const parseEnrollmentTemplate = async (file: File): Promise<Partial<Stude
     return new Promise((resolve, reject) => {
         try { assertSafeWorkbookFile(file); } catch (error) { reject(error); return; }
         const reader = new FileReader();
+        const isCsv = file.name.toLowerCase().endsWith('.csv');
 
         reader.onload = (e) => {
             try {
                 const data = e.target?.result;
                 if (!data) return reject("No data read from file");
 
-                // Parse workbook (works for .xlsx, .xls, and .csv)
-                const workbook = readSafeWorkbook(data as ArrayBuffer);
+                // Parse workbook while preserving the UI's supported .xlsx, .xls, and .csv formats.
+                const workbook = isCsv
+                    ? readSafeWorkbook(data as string, { allowCsv: true })
+                    : readSafeWorkbook(data as ArrayBuffer);
                 const sheetName = workbook.SheetNames[0];
                 const sheet = workbook.Sheets[sheetName];
 
@@ -167,6 +170,7 @@ export const parseEnrollmentTemplate = async (file: File): Promise<Partial<Stude
         };
 
         reader.onerror = () => reject("File reading failed");
-        reader.readAsArrayBuffer(file);
+        if (isCsv) reader.readAsText(file);
+        else reader.readAsArrayBuffer(file);
     });
 };

@@ -60,13 +60,16 @@ export const parseSF1 = async (file: File): Promise<Student[]> => {
     return new Promise((resolve, reject) => {
         try { assertSafeWorkbookFile(file); } catch (error) { reject(error); return; }
         const reader = new FileReader();
+        const isCsv = file.name.toLowerCase().endsWith('.csv');
 
         reader.onload = (e) => {
             try {
                 const data = e.target?.result;
                 if (!data) return reject("No data read from file");
 
-                const workbook = readSafeWorkbook(data as ArrayBuffer);
+                const workbook = isCsv
+                    ? readSafeWorkbook(data as string, { allowCsv: true })
+                    : readSafeWorkbook(data as ArrayBuffer);
                 const sheetName = workbook.SheetNames[0];
                 const sheet = workbook.Sheets[sheetName];
 
@@ -292,6 +295,7 @@ export const parseSF1 = async (file: File): Promise<Student[]> => {
         };
 
         reader.onerror = () => reject("File reading failed");
-        reader.readAsArrayBuffer(file);
+        if (isCsv) reader.readAsText(file);
+        else reader.readAsArrayBuffer(file);
     });
 };
