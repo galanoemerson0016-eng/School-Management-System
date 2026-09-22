@@ -20,7 +20,8 @@
     "electron:build:mac": "cross-env CSC_LINK=null WIN_CSC_LINK=null npm run build && npm run obfuscate:electron && electron-builder --mac && node scripts/copy-release-to-root.cjs",
     "electron:build:win": "cross-env CSC_LINK=null WIN_CSC_LINK=null npm run build && npm run obfuscate:electron && electron-builder --win && node scripts/copy-release-to-root.cjs",
     "sync:gdrive": "node scripts/sync-gdrive-release.cjs",
-    "release:check": "node scripts/check-release.cjs"
+    "release:check": "node scripts/check-release.cjs",
+    "release:check-tag": "node scripts/check-tag-version.cjs"
   },
   "build": {
     "appId": "com.formease.pro",

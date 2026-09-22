@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag in v<version> format
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -16,6 +21,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -27,6 +34,14 @@ jobs:
       - name: Install dependencies
         working-directory: app
         run: npm ci
+
+      - name: Validate release version and tag
+        working-directory: app
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          npm run release:check
+          npm run release:check-tag
 
       - name: Run tests
         working-directory: app
@@ -52,6 +67,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -63,6 +80,14 @@ jobs:
       - name: Install dependencies
         working-directory: app
         run: npm ci
+
+      - name: Validate release version and tag
+        working-directory: app
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          npm run release:check
+          npm run release:check-tag
 
       - name: Run tests
         working-directory: app
@@ -89,11 +114,21 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+
+      - name: Validate release version and tag
+        working-directory: app
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          npm run release:check
+          npm run release:check-tag
 
       - name: Create release directory
         run: mkdir -p app/release
@@ -110,20 +145,45 @@ jobs:
           name: windows-artifacts
           path: app/release
 
+      - name: Verify mandatory release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          required_patterns=(
+            'app/release/*.exe'
+            'app/release/latest.yml'
+            'app/release/*.dmg'
+            'app/release/*.zip'
+            'app/release/latest-mac.yml'
+          )
+
+          for pattern in "${required_patterns[@]}"; do
+            files=( $pattern )
+            if (( ${#files[@]} == 0 )); then
+              echo "Missing mandatory release artifact: $pattern" >&2
+              exit 1
+            fi
+          done
+
       - name: Run CI/CD asset patching and renaming
         run: node app/scripts/patch-metadata-ci.cjs
 
       - name: Extract version from tag
         id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: echo "VERSION=${RELEASE_TAG#v}" >> $GITHUB_OUTPUT
 
-      # 1. Create Private Repo Release (historical record)
-      - name: Create Private GitHub Release
+      # Stage both release records privately before any production endpoint
+      # advertises the new updater metadata. Draft releases are not public.
+      - name: Stage Private GitHub Release Draft
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
           name: FormEase Pro v${{ steps.get_version.outputs.VERSION }}
-          draft: false
+          draft: true
           prerelease: false
           generate_release_notes: true
           files: |
@@ -135,15 +195,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 2. Create Public Repo Release (FormEase-Releases)
-      - name: Create Public GitHub Release
+      - name: Stage Public GitHub Release Draft
         uses: softprops/action-gh-release@v2
         with:
           repository: galanoemerson0016-eng/FormEase-Releases
           token: ${{ secrets.RELEASE_REPO_TOKEN }}
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
           name: FormEase Pro v${{ steps.get_version.outputs.VERSION }}
-          draft: false
+          draft: true
           prerelease: false
           generate_release_notes: true
           files: |
@@ -153,8 +212,75 @@ jobs:
             app/release/*.yml
             app/release/*.blockmap
 
+      # Required update and licensing infrastructure must succeed before the
+      # staged releases are made visible.
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Update Server to Firebase Hosting
+        working-directory: update-server
+        run: firebase deploy --only hosting --project formease-app-a3e68
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      - name: Install Licensing Portal dependencies
+        working-directory: license-portal
+        run: npm ci
+
+      - name: Build Licensing Portal website
+        working-directory: license-portal
+        run: npm run build
+
+      - name: Deploy Licensing Portal to Firebase Hosting
+        working-directory: license-portal
+        run: firebase deploy --only hosting --project formease-licensing
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      - name: Publish Private GitHub Release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const release = await github.rest.repos.getReleaseByTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag: '${{ inputs.release_tag || github.ref_name }}',
+            });
+            if (!release.data.draft) {
+              throw new Error('The private release must still be a draft before publication.');
+            }
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: release.data.id,
+              draft: false,
+            });
+
+      - name: Publish Public GitHub Release
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.RELEASE_REPO_TOKEN }}
+          script: |
+            const release = await github.rest.repos.getReleaseByTag({
+              owner: 'galanoemerson0016-eng',
+              repo: 'FormEase-Releases',
+              tag: '${{ inputs.release_tag || github.ref_name }}',
+            });
+            if (!release.data.draft) {
+              throw new Error('The public release must still be a draft before publication.');
+            }
+            await github.rest.repos.updateRelease({
+              owner: 'galanoemerson0016-eng',
+              repo: 'FormEase-Releases',
+              release_id: release.data.id,
+              draft: false,
+            });
+
       # 2.5 Auto-Purge Old Releases & Upload New Assets to Google Drive
       - name: Auto-Sync Release to Google Drive
+        # Google Drive is an optional mirror. Its failure is reported but must
+        # not retroactively mark an already-published release as failed.
+        continue-on-error: true
         working-directory: app
         run: npm run sync:gdrive
         env:
@@ -162,43 +288,3 @@ jobs:
           GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
           GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
           GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
-
-      # 3. Deploy update-server metadata to Firebase
-      - name: Install Firebase CLI
-        if: ${{ env.FIREBASE_TOKEN != '' }}
-        run: npm install -g firebase-tools
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-
-      - name: Deploy Update Server to Firebase Hosting
-        if: ${{ env.FIREBASE_TOKEN != '' }}
-        continue-on-error: true
-        working-directory: update-server
-        run: firebase deploy --only hosting --project formease-app-a3e68
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-
-      # 4. Build and Deploy license-portal to Firebase
-      - name: Install Licensing Portal dependencies
-        if: ${{ env.FIREBASE_TOKEN != '' }}
-        continue-on-error: true
-        working-directory: license-portal
-        run: npm ci || npm install
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-
-      - name: Build Licensing Portal website
-        if: ${{ env.FIREBASE_TOKEN != '' }}
-        continue-on-error: true
-        working-directory: license-portal
-        run: npm run build
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-
-      - name: Deploy Licensing Portal to Firebase Hosting
-        if: ${{ env.FIREBASE_TOKEN != '' }}
-        continue-on-error: true
-        working-directory: license-portal
-        run: firebase deploy --only hosting --project formease-licensing
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
