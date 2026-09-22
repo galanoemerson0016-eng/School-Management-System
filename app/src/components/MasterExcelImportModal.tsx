@@ -22,6 +22,7 @@ import {
   type ImportStrategy,
   type ApplyImportResult
 } from '../services/sf9-g1-excel-import';
+import { assertSafeWorkbookFile } from '../utils/safe-workbook-reader';
 
 interface MasterExcelImportModalProps {
   isOpen: boolean;
@@ -74,6 +75,13 @@ export const MasterExcelImportModal: React.FC<MasterExcelImportModalProps> = ({
   const handleFileProcess = async (file: File) => {
     if (!file.name.endsWith('.xlsx')) {
       setErrorMessage('Please select a valid Excel workbook (.xlsx file).');
+      return;
+    }
+
+    try {
+      assertSafeWorkbookFile(file);
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Workbook could not be read safely.');
       return;
     }
 
