@@ -6,6 +6,7 @@
 import * as XLSX from 'xlsx';
 import { db } from './database';
 import type { Student, Section, Subject } from '../types';
+import { readSafeWorkbook } from '../utils/safe-workbook-reader';
 
 const MAX_IMPORT_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
 
@@ -39,7 +40,7 @@ export async function importStudentsFromExcel(file: File): Promise<ImportResult>
       try {
         const data = event.target?.result;
         assertValidXlsx(data as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = readSafeWorkbook(data as ArrayBuffer);
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(worksheet);
@@ -124,7 +125,7 @@ export async function importSectionsFromExcel(file: File): Promise<ImportResult>
       try {
         const data = event.target?.result;
         assertValidXlsx(data as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = readSafeWorkbook(data as ArrayBuffer);
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(worksheet);
@@ -189,7 +190,7 @@ export async function importSubjectsFromExcel(file: File): Promise<ImportResult>
       try {
         const data = event.target?.result;
         assertValidXlsx(data as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = readSafeWorkbook(data as ArrayBuffer);
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(worksheet);

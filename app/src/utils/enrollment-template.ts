@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { Student } from '../types';
+import { assertSafeWorkbookFile, readSafeWorkbook } from './safe-workbook-reader';
 
 /**
  * Downloads a sample spreadsheet (.xlsx) for student enrollment
@@ -56,6 +57,7 @@ export const downloadEnrollmentTemplate = (sectionName: string, isAdvisory: bool
  */
 export const parseEnrollmentTemplate = async (file: File): Promise<Partial<Student>[]> => {
     return new Promise((resolve, reject) => {
+        try { assertSafeWorkbookFile(file); } catch (error) { reject(error); return; }
         const reader = new FileReader();
 
         reader.onload = (e) => {
@@ -64,7 +66,7 @@ export const parseEnrollmentTemplate = async (file: File): Promise<Partial<Stude
                 if (!data) return reject("No data read from file");
 
                 // Parse workbook (works for .xlsx, .xls, and .csv)
-                const workbook = XLSX.read(data, { type: 'binary' });
+                const workbook = readSafeWorkbook(data as ArrayBuffer);
                 const sheetName = workbook.SheetNames[0];
                 const sheet = workbook.Sheets[sheetName];
 
@@ -165,6 +167,6 @@ export const parseEnrollmentTemplate = async (file: File): Promise<Partial<Stude
         };
 
         reader.onerror = () => reject("File reading failed");
-        reader.readAsBinaryString(file);
+        reader.readAsArrayBuffer(file);
     });
 };

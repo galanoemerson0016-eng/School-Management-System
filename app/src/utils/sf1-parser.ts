@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { assertSafeWorkbookFile, readSafeWorkbook } from './safe-workbook-reader';
 import type { Student } from '../types';
 
 // Helper to convert Excel date serial to YYYY-MM-DD
@@ -57,6 +58,7 @@ const parseStringDate = (dateStr: string): string => {
 
 export const parseSF1 = async (file: File): Promise<Student[]> => {
     return new Promise((resolve, reject) => {
+        try { assertSafeWorkbookFile(file); } catch (error) { reject(error); return; }
         const reader = new FileReader();
 
         reader.onload = (e) => {
@@ -64,7 +66,7 @@ export const parseSF1 = async (file: File): Promise<Student[]> => {
                 const data = e.target?.result;
                 if (!data) return reject("No data read from file");
 
-                const workbook = XLSX.read(data, { type: 'binary' });
+                const workbook = readSafeWorkbook(data as ArrayBuffer);
                 const sheetName = workbook.SheetNames[0];
                 const sheet = workbook.Sheets[sheetName];
 
@@ -290,6 +292,6 @@ export const parseSF1 = async (file: File): Promise<Student[]> => {
         };
 
         reader.onerror = () => reject("File reading failed");
-        reader.readAsBinaryString(file);
+        reader.readAsArrayBuffer(file);
     });
 };

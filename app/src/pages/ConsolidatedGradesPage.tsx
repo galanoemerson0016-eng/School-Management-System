@@ -4,6 +4,7 @@ import { useAppStore } from '../stores/app-store';
 import { useAuthStore } from '../stores/auth-store';
 import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus, Download, Bug, AlertTriangle, CheckCircle2, Lock, Unlock, ChevronLeft, ChevronRight, RefreshCw, X, Search, RotateCcw, Sparkles, Crosshair } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { assertSafeWorkbookFile, readSafeWorkbook } from '../utils/safe-workbook-reader';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
 import { getSubjectsForGrade, normalizeSubjectName, sortSubjects, getCanonicalSubjectKey, getSubjectCategory, getStandardSubjectPriority } from '../lib/subjectConfig';
@@ -1224,6 +1225,7 @@ export function ConsolidatedGradesPage() {
     const handleImportGrades = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !sectionObj || selectedTerm === 'all') return;
+        try { assertSafeWorkbookFile(file); } catch (error) { showNotification((error as Error).message, 'error'); return; }
 
         const quarter = parseInt(selectedTerm.replace('q', '')) as 1 | 2 | 3;
         if (isQuarterLocked(quarter)) {
@@ -1234,8 +1236,7 @@ export function ConsolidatedGradesPage() {
         
         reader.onload = async (event) => {
             try {
-                const data = new Uint8Array(event.target?.result as ArrayBuffer);
-                const workbook = XLSX.read(data, { type: 'array' });
+                const workbook = readSafeWorkbook(event.target?.result as ArrayBuffer);
                 let importCount = 0;
                 let skipCount = 0;
 
