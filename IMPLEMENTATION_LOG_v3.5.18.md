@@ -218,3 +218,10 @@ The safe desktop-compatible design is a random AES-GCM DEK for records, wrapped 
 - **Warnings:** The full suite emitted repeated jsdom “navigation not implemented” messages from browser-link behavior. Vitest returned exit code zero and no test failed, but suppressing or explicitly mocking that behavior is a non-release-blocking test-hygiene follow-up.
 - **Data impact:** The generated `app/dist/` directory is ignored; no tracked file, local database, backup, credential, or user-generated file was changed by these checks.
 - **Release status:** **v3.5.18 remains NOT RELEASE READY.** Local Windows packaging and a real isolated updater/recovery validation remain mandatory; package version preparation and publication remain prohibited until those gates pass.
+
+## Isolated Windows packaging attempt
+
+- **Safety boundary:** The repository's normal packaging script would copy over historical installers and metadata in `release/` and `app/release/`. Those existing artifacts were left untouched. Packaging was invoked directly with a new output directory under the system temporary folder, without the copy-to-root script and without publication.
+- **Result:** `electron-builder --win` rebuilt native dependencies, downloaded/extracted Electron, and entered dependency processing for the temporary `win-unpacked` directory. It produced no installer, blockmap, or update metadata and did not advance after several bounded checks; the verified temporary process tree was stopped. The incomplete temporary directory was deliberately retained for later inspection rather than deleted.
+- **Data impact:** No tracked file, existing installer, release metadata, local database, backup, credential, or user-generated file changed. The working tree remained clean.
+- **Remaining risk:** Windows installer packaging is **inconclusive** and remains a release blocker. Investigate Electron Builder dependency processing with a disposable packaging harness before retrying; do not use the release-copy script until existing artifact ownership and overwrite behavior are explicitly approved.
