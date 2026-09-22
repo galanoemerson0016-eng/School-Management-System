@@ -235,3 +235,10 @@ The safe desktop-compatible design is a random AES-GCM DEK for records, wrapped 
 - **Validation:** Syntax check passed. A newly assembled unpacked Windows package launched successfully with the hook set to a fresh temporary directory. Its visible process title was `FormEase Pro`; its `backups`, `logs`, `session-data`, and lockfile were created under the synthetic directory, not the real profile. The synthetic process was then stopped.
 - **Data impact:** No real database, backup, license, credential, user-generated file, historical installer, or release metadata was opened or changed.
 - **Remaining risk:** This proves isolated packaged startup, not an end-to-end click-through restore prompt in Electron. The existing isolated IndexedDB recovery journey remains green; a scripted packaged recovery fixture and full NSIS installer still remain release gates.
+
+## Local v3.5.18 version preparation
+
+- **Files changed:** `app/package.json`, `app/package-lock.json`, `VERSION_HISTORY.md`, `app/src/pages/SettingsPage.tsx`, `app/src/components/settings/VersionHistoryTimeline.tsx`, and the recovery integration fixture.
+- **Fix:** Local package/version metadata and visible release notes now identify v3.5.18 and accurately describe the data-integrity protections. The recovery fixture uses the production backup type safely.
+- **Tests passed:** v3.5.18 tag consistency check passed; isolated recovery journey passed (**1 file / 1 test**); TypeScript project validation completed successfully.
+- **Release status:** Local preparation only. No GitHub tag/release, push, deployment, updater metadata upload, or public artifact was created.

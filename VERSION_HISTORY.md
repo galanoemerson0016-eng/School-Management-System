@@ -1,5 +1,18 @@
 # Version History
 
+## v3.5.18 (2026-09-22)
+
+### 🛡️ Data Integrity Recovery
+
+- Removed unsafe production filtering and startup deletion paths that could hide or remove legitimate `999*`, `TEMP-*`, and Einstein-labelled school records.
+- Pre-update backup recovery now detects only checksum-verified v3.5.17 safety backups and requires explicit teacher confirmation before replacing local records.
+- Comprehensive backups retain temporary grade records; restored records survive normal application startup.
+
+### 🔒 Safer Release Validation
+
+- Test fixtures use an explicit `is_test_data` marker rather than learner identifiers, section names, or generic values.
+- Added isolated recovery, full regression, production build, and temporary Windows packaging validation.
+
 ## v3.5.17 (2026-09-21)
 
 ### 📋 SF9 Multi-Level Report Card Refinements

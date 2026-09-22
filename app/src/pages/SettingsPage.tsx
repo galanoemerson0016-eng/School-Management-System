@@ -3741,7 +3741,7 @@ export function SettingsPage() {
                                             <h2 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">
                                                 FormEase Pro
                                             </h2>
-                                            <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.17</span>
+                                            <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.18</span>
                                             <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5">
                                                 Latest Production
                                             </span>
@@ -3799,15 +3799,12 @@ export function SettingsPage() {
                                 <div className="pt-4 space-y-4">
                                     <div className="p-4 rounded-xl bg-slate-50/60 dark:bg-white/2 border border-slate-150 dark:border-white/5 space-y-2">
                                         <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">
-                                            What&apos;s New in Version 3.5.17
+                                            What&apos;s New in Version 3.5.18
                                         </h4>
                                         <ul className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 font-medium list-disc list-inside leading-relaxed">
-                                            <li>📋 <strong>SF9 Elem &amp; JHS Clean Layout</strong>: Streamlined learner profile header by removing the unused &quot;Track (if SHS only): Strand:&quot; row for Grades 1–10.</li>
-                                            <li>🏛️ <strong>Institute Dashboard Modernization</strong>: Single-screen zero-scroll administrative overview with live drawing specimen signatures and official seal studio.</li>
-                                            <li>🛡️ <strong>Production Client Protection</strong>: Isolated test section generator and sample student creation strictly to local development environments (<code>import.meta.env.DEV</code>).</li>
-                                            <li>⚡ <strong>Automated Startup Database Healing</strong>: Scans IndexedDB on app launch, recalculating legacy unnormalized weights and restoring genuine DepEd grades.</li>
-                                            <li>🎯 <strong>Weight Normalization Engine</strong>: Standard fractions and percentages (40%/60%/20%) permanently eliminate inflated weighted scores and 4000% headers.</li>
-                                            <li>🔒 <strong>Zero Data Loss Guarantee</strong>: 100% backward-compatible update preserving all client records and profiles in IndexedDB.</li>
+                                            <li>🛡️ <strong>Data Integrity Protection</strong>: Startup never hides or deletes legitimate records merely because an LRN, section name, or temporary identifier resembles test data.</li>
+                                            <li>💾 <strong>Verified Recovery</strong>: A checksum-verified v3.5.17 pre-update backup is offered for explicit restore when it contains missing records.</li>
+                                            <li>📚 <strong>Temporary Grade Retention</strong>: Comprehensive backups preserve temporary and unmatched grade records for teacher review and repair.</li>
                                         </ul>
                                     </div>
                                 </div>

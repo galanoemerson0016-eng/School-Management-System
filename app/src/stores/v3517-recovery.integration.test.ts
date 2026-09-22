@@ -42,7 +42,8 @@ describe('v3.5.17 recovery journey', () => {
     await db.putRecordsBulk('students', [student]);
     await db.putRecordsBulk('classRecords', [grade, temporaryGrade]);
     await db.putRecordsBulk('gradingSheetRecords', [grade, temporaryGrade]);
-    const preUpdateBackup = await embedChecksum(await exportFullDatabaseBackup('Pre-Update Safety Backup - v3.5.17'));
+    const exportedBackup = await exportFullDatabaseBackup('Pre-Update Safety Backup - v3.5.17');
+    const preUpdateBackup = await embedChecksum(exportedBackup as unknown as Record<string, unknown>);
     const filename = 'SMS_Backup_Comprehensive_preupdate_3.5.17_2026-09-22T00-00-00-000Z.json';
 
     await db.importFromBackup({ payload: { students: [], sections: [], subjects: [], classRecords: [], gradingSheetRecords: [] } });
