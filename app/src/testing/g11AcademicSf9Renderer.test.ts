@@ -142,15 +142,13 @@ describe('Grade 11 SSHS Academic SF9 Renderer & Layout Specifications', () => {
       const { pdf } = await import('@react-pdf/renderer');
       const { PDFDocument } = await import('pdf-lib');
       const React = await import('react');
-      const fs = await import('fs');
-      const path = await import('path');
       const { SF9ExactDocument } = await import('../pages/SF9Page');
 
       const mockStudent: Student = {
-        lrn: '100898140003',
-        first_name: 'REGGIE',
-        middle_name: 'ALLADA',
-        last_name: 'ABAYA',
+        lrn: '999900000001',
+        first_name: 'TEST',
+        middle_name: 'SYNTHETIC',
+        last_name: 'LEARNER',
         gender: 'Male',
         grade_level: 'Grade 11',
         track: 'ACADEMIC',
@@ -214,7 +212,7 @@ describe('Grade 11 SSHS Academic SF9 Renderer & Layout Specifications', () => {
         region: 'Region III',
         division: 'Tarlac Province',
         district: 'Victoria East District',
-        adviser: 'Emerson M. Galano',
+        adviser: 'Test Adviser',
         principal: 'Juan A. Dela Cruz',
         principalTitle: 'School Head',
         grades: mockGrades,
@@ -248,11 +246,6 @@ describe('Grade 11 SSHS Academic SF9 Renderer & Layout Specifications', () => {
       const loadedPdf = await PDFDocument.load(arrayBuffer);
       expect(loadedPdf.getPageCount()).toBe(1);
 
-      const targetPdfDir = path.resolve('C:/Users/Emerson/.gemini/antigravity-ide/brain/d52a8bdf-7963-4da8-8d23-af35cfd550fa');
-      if (fs.existsSync(targetPdfDir)) {
-        fs.writeFileSync(path.join(targetPdfDir, 'scratch_final_g11_sf9.pdf'), Buffer.from(arrayBuffer));
-      }
     }, 90000);
   });
 });
-

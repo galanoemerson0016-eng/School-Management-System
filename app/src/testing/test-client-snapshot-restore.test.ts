@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
+import path from 'path';
 import { reconcileOrphanedGradesAndSubjects } from '../utils/grade-reconciliation';
 import {
     detectSchoolYearFromBackup,
@@ -9,9 +10,11 @@ import {
 } from '../utils/backup-import';
 import type { ComprehensiveBackup } from '../utils/backup-restore';
 
-const filePath = 'C:/Users/Emerson/Downloads/FormEase_Snapshot_2026-2027_Automated_Backup_-_9_21_2026_2026-09-20 (1).json';
-const fileName = 'FormEase_Snapshot_2026-2027_Automated_Backup_-_9_21_2026_2026-09-20 (1).json';
-const hasSnapshot = fs.existsSync(filePath);
+// This optional diagnostic is intentionally excluded from CI: it can inspect
+// only a developer-supplied local export and must never name a client backup.
+const filePath = process.env.FORMEASE_CLIENT_SNAPSHOT_PATH;
+const hasSnapshot = Boolean(filePath && fs.existsSync(filePath));
+const fileName = filePath ? path.basename(filePath) : '';
 
 describe.skipIf(!hasSnapshot)('Client Snapshot Restore & Reconciliation Verification', () => {
 
@@ -22,35 +25,30 @@ describe.skipIf(!hasSnapshot)('Client Snapshot Restore & Reconciliation Verifica
         const rawData = JSON.parse(rawText);
 
         expect(Array.isArray(rawData.students)).toBe(true);
-        expect(rawData.students.length).toBe(145);
+        expect(rawData.students.length).toBeGreaterThan(0);
         expect(Array.isArray(rawData.sections)).toBe(true);
-        expect(rawData.sections.length).toBe(4);
+        expect(rawData.sections.length).toBeGreaterThan(0);
         expect(Array.isArray(rawData.subjects)).toBe(true);
-        expect(rawData.subjects.length).toBe(231);
+        expect(rawData.subjects.length).toBeGreaterThan(0);
         expect(Array.isArray(rawData.classRecords)).toBe(true);
-        expect(rawData.classRecords.length).toBe(183);
+        expect(rawData.classRecords.length).toBeGreaterThan(0);
         expect(Array.isArray(rawData.gradingSheetRecords)).toBe(true);
-        expect(rawData.gradingSheetRecords.length).toBe(183);
+        expect(rawData.gradingSheetRecords.length).toBeGreaterThan(0);
         expect(Array.isArray(rawData.schoolProfile)).toBe(true);
-        expect(rawData.schoolProfile.length).toBe(2);
+        expect(rawData.schoolProfile.length).toBeGreaterThan(0);
     });
 
     it('should correctly detect active school year from filename and records', () => {
         const rawText = fs.readFileSync(filePath, 'utf8');
         const rawData = JSON.parse(rawText);
 
-        // 1. With filename
+        // 1. With filename when it carries a school-year hint.
         const detectedWithFile = detectSchoolYearFromBackup(rawData, fileName);
-        expect(detectedWithFile).toBe('2026-2027');
+        expect(detectedWithFile).toMatch(/^\d{4}-\d{4}$|^Unknown$/);
 
-        // 2. Without filename (pure data inspection of classRecords/gradingSheetRecords)
+        // 2. Without filename (pure data inspection of classRecords/gradingSheetRecords).
         const detectedWithoutFile = detectSchoolYearFromBackup(rawData);
-        expect(detectedWithoutFile).toBe('2026-2027');
-
-        // 3. When activeSchoolYear is explicitly 'Unknown', it must ignore it and detect 2026-2027
-        const corruptedData = { ...rawData, activeSchoolYear: 'Unknown' };
-        const detectedFromCorrupted = detectSchoolYearFromBackup(corruptedData);
-        expect(detectedFromCorrupted).toBe('2026-2027');
+        expect(detectedWithoutFile).toMatch(/^\d{4}-\d{4}$|^Unknown$/);
     });
 
     it('should accurately resolve the populated school profile over the blank dummy profile', () => {
@@ -59,11 +57,8 @@ describe.skipIf(!hasSnapshot)('Client Snapshot Restore & Reconciliation Verifica
 
         const best = resolveBestSchoolProfile(rawData.schoolProfile);
         expect(best).not.toBeNull();
-        expect(best?.name).toBe('BELMONTE INTEGRATED SCHOOL');
-        expect(best?.school_id).toBe('501368');
-        expect(best?.section).toBe('Duterte');
-        expect(best?.adviser_name).toBe('CHERRYLYN L. GUBATON');
-        expect(best?.division).toBe('DAVAO DE ORO');
+        expect(best?.name.trim()).toBeTruthy();
+        expect(best?.school_id.trim()).toBeTruthy();
     });
 
     it('should validate the constructed backup and report zero blocking issues', () => {
@@ -133,14 +128,14 @@ describe.skipIf(!hasSnapshot)('Client Snapshot Restore & Reconciliation Verifica
         expect(validation.issues).toHaveLength(0);
 
         const prepared = prepareDataForRestore(backup);
-        expect(prepared.students).toHaveLength(145);
-        expect(prepared.sections).toHaveLength(4);
-        expect(prepared.subjects).toHaveLength(231);
-        expect(prepared.classRecords).toHaveLength(183);
-        expect(prepared.gradingSheetRecords).toHaveLength(183);
+        expect(prepared.students).toHaveLength(rawData.students.length);
+        expect(prepared.sections).toHaveLength(rawData.sections.length);
+        expect(prepared.subjects).toHaveLength(rawData.subjects.length);
+        expect(prepared.classRecords).toHaveLength(rawData.classRecords.length);
+        expect(prepared.gradingSheetRecords).toHaveLength(rawData.gradingSheetRecords.length);
     });
 
-    it('should reconcile orphaned grades and subjects preserving all 183 client grades', () => {
+    it('reconciles grades and subjects without dropping records from the supplied snapshot', () => {
         const rawText = fs.readFileSync(filePath, 'utf8');
         const rawData = JSON.parse(rawText);
 
@@ -154,10 +149,9 @@ describe.skipIf(!hasSnapshot)('Client Snapshot Restore & Reconciliation Verifica
         };
 
         const result = reconcileOrphanedGradesAndSubjects(input);
-        expect(result.classRecords.length).toBe(183);
-        expect(result.gradingSheetRecords.length).toBe(183);
+        expect(result.classRecords.length).toBe(rawData.classRecords.length);
+        expect(result.gradingSheetRecords.length).toBe(rawData.gradingSheetRecords.length);
         expect(result.deletedClassRecordIds || []).toHaveLength(0);
         expect(result.deletedGradingSheetRecordIds || []).toHaveLength(0);
     });
 });
-

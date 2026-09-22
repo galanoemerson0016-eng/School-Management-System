@@ -17,11 +17,7 @@ const clientSecret = process.env.GDRIVE_CLIENT_SECRET;
 const refreshToken = process.env.GDRIVE_REFRESH_TOKEN;
 const rootFolderId = process.env.GDRIVE_FOLDER_ID || '1HKQyBkXcVjZ3dKvQPb5Ulv2KqgymyLze';
 
-let serviceAccountEnv = process.env.GDRIVE_SERVICE_ACCOUNT_JSON;
-const fallbackKeyPath = 'C:\\Users\\Emerson\\Downloads\\velvety-gearbox-491004-b7-b1262fa1ddee.json';
-if (!serviceAccountEnv && fs.existsSync(fallbackKeyPath)) {
-  serviceAccountEnv = fs.readFileSync(fallbackKeyPath, 'utf8');
-}
+const serviceAccountEnv = process.env.GDRIVE_SERVICE_ACCOUNT_JSON;
 
 if (!clientId && !serviceAccountEnv) {
   console.log(`⚠️ Skipping Google Drive sync: GDRIVE_CLIENT_ID or GDRIVE_SERVICE_ACCOUNT_JSON environment variables are not set.`);
