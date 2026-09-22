@@ -176,8 +176,9 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: echo "VERSION=${RELEASE_TAG#v}" >> $GITHUB_OUTPUT
 
-      # Stage both release records privately before any production endpoint
-      # advertises the new updater metadata. Draft releases are not public.
+      # The app's generic updater URL redirects to the public GitHub Release
+      # "latest" assets. Keep that live pointer unchanged while this job stages
+      # metadata under immutable version paths and creates non-public drafts.
       - name: Stage Private GitHub Release Draft
         uses: softprops/action-gh-release@v2
         with:
@@ -212,8 +213,8 @@ jobs:
             app/release/*.yml
             app/release/*.blockmap
 
-      # Required update and licensing infrastructure must succeed before the
-      # staged releases are made visible.
+      # These deployments publish only versioned staging metadata. They do not
+      # replace updates/latest*.yml or otherwise advance the live updater pointer.
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
@@ -275,6 +276,18 @@ jobs:
               release_id: release.data.id,
               draft: false,
             });
+            const published = await github.rest.repos.getReleaseByTag({
+              owner: 'galanoemerson0016-eng',
+              repo: 'FormEase-Releases',
+              tag: '${{ inputs.release_tag || github.ref_name }}',
+            });
+            if (published.data.draft || !published.data.assets.some((asset) => asset.name === 'latest.yml') || !published.data.assets.some((asset) => asset.name === 'latest-mac.yml')) {
+              throw new Error('The public release or its required updater metadata is not available.');
+            }
+            const response = await fetch(published.data.html_url);
+            if (!response.ok) {
+              throw new Error(`Published public release is not reachable: ${response.status}.`);
+            }
 
       # 2.5 Auto-Purge Old Releases & Upload New Assets to Google Drive
       - name: Auto-Sync Release to Google Drive

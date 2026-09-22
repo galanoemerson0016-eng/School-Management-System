@@ -3,9 +3,9 @@ const path = require('path');
 const crypto = require('crypto');
 
 // Determine paths relative to this script
-const rootDir = path.resolve(__dirname, '../..');
-const appDir = path.resolve(__dirname, '..');
-const releaseDir = path.resolve(appDir, 'release');
+const rootDir = path.resolve(process.env.FORMEASE_CI_ROOT_DIR || path.resolve(__dirname, '../..'));
+const appDir = path.resolve(process.env.FORMEASE_CI_APP_DIR || path.join(rootDir, 'app'));
+const releaseDir = path.resolve(process.env.FORMEASE_CI_RELEASE_DIR || path.join(appDir, 'release'));
 
 const packageJson = require(path.join(appDir, 'package.json'));
 const version = packageJson.version;
@@ -67,12 +67,17 @@ releaseFiles.forEach(f => {
   }
 });
 
-// 2. Define updates destinations
+// 2. Stage metadata under an immutable version path. The live updater pointer
+// remains the public GitHub Release "latest" redirect until that release is
+// published, so a failed draft publication cannot advertise unavailable assets.
 const updateServerUpdatesDir = path.join(rootDir, 'update-server', 'updates');
 const licensePortalUpdatesDir = path.join(rootDir, 'license-portal', 'public', 'updates');
+const stagedReleasePath = path.join('staged', `v${version}`);
+const stagedUpdateServerDir = path.join(updateServerUpdatesDir, stagedReleasePath);
+const stagedLicensePortalDir = path.join(licensePortalUpdatesDir, stagedReleasePath);
 
-fs.mkdirSync(updateServerUpdatesDir, { recursive: true });
-fs.mkdirSync(licensePortalUpdatesDir, { recursive: true });
+fs.mkdirSync(stagedUpdateServerDir, { recursive: true });
+fs.mkdirSync(stagedLicensePortalDir, { recursive: true });
 
 // Helper to patch yml content
 function patchYmlFile(filename) {
@@ -145,10 +150,11 @@ function patchYmlFile(filename) {
   // Write back to sourcePath (in app/release) so GitHub release action uploads the patched yml!
   fs.writeFileSync(sourcePath, patchedContent, 'utf8');
   
-  // Write to both update-server and license-portal
-  fs.writeFileSync(path.join(updateServerUpdatesDir, filename), patchedContent, 'utf8');
-  fs.writeFileSync(path.join(licensePortalUpdatesDir, filename), patchedContent, 'utf8');
-  console.log(`✅ Patched, hashed, and saved ${filename} to release & hosting folders.`);
+  // Stage the immutable metadata for both hosting projects. Do not overwrite
+  // updates/latest*.yml: those files are the live pointer for existing users.
+  fs.writeFileSync(path.join(stagedUpdateServerDir, filename), patchedContent, 'utf8');
+  fs.writeFileSync(path.join(stagedLicensePortalDir, filename), patchedContent, 'utf8');
+  console.log(`✅ Patched, hashed, and staged ${filename} at ${stagedReleasePath}.`);
 }
 
 // Patch latest.yml and latest-mac.yml
@@ -161,9 +167,9 @@ filesInRelease.forEach(file => {
   const ext = path.extname(file).toLowerCase();
   if (ext === '.blockmap') {
     const srcPath = path.join(releaseDir, file);
-    fs.copyFileSync(srcPath, path.join(updateServerUpdatesDir, file));
-    fs.copyFileSync(srcPath, path.join(licensePortalUpdatesDir, file));
-    console.log(`📁 Copied blockmap: ${file}`);
+    fs.copyFileSync(srcPath, path.join(stagedUpdateServerDir, file));
+    fs.copyFileSync(srcPath, path.join(stagedLicensePortalDir, file));
+    console.log(`📁 Staged blockmap: ${file}`);
   }
 });
 
