@@ -211,9 +211,10 @@ The safe desktop-compatible design is a random AES-GCM DEK for records, wrapped 
 - **Migration implications:** Backup schema is unchanged. New backups retain records that older releases incorrectly omitted; existing backups remain import-compatible. No user database or backup was read or changed during validation.
 - **Remaining risk:** This is an isolated browser-compatible IndexedDB fixture, not an installed Electron update. Full-suite completion, TypeScript/build completion, packaging, and real updater validation remain mandatory release gates.
 
-## Post-recovery release-gate attempt
+## Post-recovery release-gate verification
 
-- **Commands attempted:** `npm test` and `npm run build` from `app/` after the recovery checkpoint.
-- **Result:** Both commands began in the local runner, but neither returned the tool's final Vitest/Vite completion summary or a definitive exit record. They are therefore **inconclusive and not recorded as passing**. The standalone TypeScript project check remains successful.
+- **Commands verified:** `npx tsc -b --pretty false`, `npx vite build`, and the complete `npm test` suite from `app/`.
+- **Result:** TypeScript completed successfully. Vite completed successfully in **52.38 seconds** after transforming 3,799 modules. The full Vitest suite completed successfully in **167.29 seconds: 97 files / 844 tests passed; 1 opt-in diagnostic file / 5 tests skipped**.
+- **Warnings:** The full suite emitted repeated jsdom “navigation not implemented” messages from browser-link behavior. Vitest returned exit code zero and no test failed, but suppressing or explicitly mocking that behavior is a non-release-blocking test-hygiene follow-up.
 - **Data impact:** The generated `app/dist/` directory is ignored; no tracked file, local database, backup, credential, or user-generated file was changed by these checks.
-- **Release status:** **v3.5.18 remains NOT RELEASE READY.** Deterministic full-suite and production-build completion, then packaging and real updater validation, are still mandatory.
+- **Release status:** **v3.5.18 remains NOT RELEASE READY.** Local Windows packaging and a real isolated updater/recovery validation remain mandatory; package version preparation and publication remain prohibited until those gates pass.
