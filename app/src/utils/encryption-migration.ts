@@ -40,6 +40,10 @@ export interface MigrationDatabase {
 export interface MigrationHooks {
   /** Test-only fault injection hook. It is never provided by production code. */
   afterStage?: (stage: EncryptionMigrationState | EncryptionPreparationStage) => Promise<void> | void;
+  /** Runs only after a complete IndexedDB bulk-write transaction for a store. */
+  afterStore?: (storeName: string) => Promise<void> | void;
+  /** Runs after a store is verified with the DEK and no legacy fallback. */
+  afterVerificationStore?: (storeName: string) => Promise<void> | void;
 }
 
 /**
@@ -158,6 +162,7 @@ export async function migrateLegacyEncryptedDatabase(args: {
       // A bulk put is intentionally a no-op for an empty store. This preserves
       // a valid empty store without deleting or fabricating records.
       await database.putRecordsBulk(storeName, records);
+      await hooks?.afterStore?.(storeName);
     }
 
     metadata = { ...metadata, state: 'migration_verifying' };
@@ -175,6 +180,7 @@ export async function migrateLegacyEncryptedDatabase(args: {
       if (actual.count !== before.count || actual.identifiers.join('\u0000') !== before.identifiers.join('\u0000')) {
         throw new Error(`Migration integrity check failed for ${storeName}.`);
       }
+      await hooks?.afterVerificationStore?.(storeName);
     }
 
     await hooks?.afterStage?.('migrated');
