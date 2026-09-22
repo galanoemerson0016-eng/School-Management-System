@@ -6,6 +6,17 @@ const licenseManager = require('./license.cjs');
 
 const isDev = process.env.NODE_ENV === 'development';
 
+// Opt-in isolated profile for packaged-app verification. This must be set
+// before Electron initializes logging, sessions, or any user-data path.
+// It is intentionally unavailable unless a test harness supplies the path.
+const isolatedTestUserDataDir = process.env.FORMEASE_TEST_USER_DATA_DIR;
+if (isolatedTestUserDataDir) {
+  const resolvedTestUserDataDir = path.resolve(isolatedTestUserDataDir);
+  fs.mkdirSync(resolvedTestUserDataDir, { recursive: true });
+  app.setPath('userData', resolvedTestUserDataDir);
+  app.setPath('sessionData', path.join(resolvedTestUserDataDir, 'session-data'));
+}
+
 // --- Persistent logging (userData/logs/main.log) ---
 // The renderer console is stripped in production builds, so this file is the
 // only place failures from the field can be diagnosed.

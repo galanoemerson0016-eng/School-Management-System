@@ -226,3 +226,12 @@ The safe desktop-compatible design is a random AES-GCM DEK for records, wrapped 
 - **Data impact:** No tracked file, existing installer, release metadata, local database, backup, credential, or user-generated file changed. The working tree remained clean.
 - **Follow-up diagnosis:** The same packaging command with `--dir` and `--publish never` was allowed to complete in a second new temporary directory. Electron Builder returned exit code zero and produced a 223,834,112-byte unpacked `FormEase Pro.exe`. The long phase was its CPU-bound `npm list --include prod --include optional --omit dev --json --long` dependency-graph collection, not a hang.
 - **Remaining risk:** Unpacked Windows application assembly now passes. A full NSIS installer, isolated packaged-app recovery journey, and the separate release-artifact workflow remain mandatory. Do not use the release-copy script until existing artifact ownership and overwrite behavior are explicitly approved.
+
+## Isolated packaged-app launch gate
+
+- **Problem:** A packaged-app test cannot be considered safe merely because it was built in a temporary folder; Electron normally resolves `userData` to the real per-user application profile.
+- **Files changed:** `app/electron/main.cjs` and its generated `app/dist-electron/` runtime files.
+- **Fix:** Added an opt-in `FORMEASE_TEST_USER_DATA_DIR` startup hook before Electron initializes logging, sessions, or user-data paths. It redirects only that process's `userData` and `sessionData` locations; normal installations remain unchanged unless the environment variable is explicitly supplied.
+- **Validation:** Syntax check passed. A newly assembled unpacked Windows package launched successfully with the hook set to a fresh temporary directory. Its visible process title was `FormEase Pro`; its `backups`, `logs`, `session-data`, and lockfile were created under the synthetic directory, not the real profile. The synthetic process was then stopped.
+- **Data impact:** No real database, backup, license, credential, user-generated file, historical installer, or release metadata was opened or changed.
+- **Remaining risk:** This proves isolated packaged startup, not an end-to-end click-through restore prompt in Electron. The existing isolated IndexedDB recovery journey remains green; a scripted packaged recovery fixture and full NSIS installer still remain release gates.
