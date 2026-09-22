@@ -12,7 +12,7 @@ export interface GradingSlice {
   gradingSheetRecords: ClassRecord[];
   setGradingSheetRecords: (records: ClassRecord[]) => void;
   updateGradingSheetRecord: (record: ClassRecord, options?: { overwriteManualOverride?: boolean }) => Promise<void>;
-  bulkUpdateGradingSheetRecords: (records: ClassRecord[]) => Promise<void>;
+  bulkUpdateGradingSheetRecords: (records: ClassRecord[]) => Promise<{ updated: number; skippedManualOverrides: number }>;
   deleteGradingSheetRecord: (id: string) => Promise<void>;
   clearGradingSheet: (sectionId?: string, quarter?: number | string, schoolYear?: string, studentLrns?: string[]) => Promise<void>;
 
@@ -142,14 +142,26 @@ export function createGradingSlice(set: (state: any) => void, get: () => any): G
       }
     },
     bulkUpdateGradingSheetRecords: async (records) => {
-      if (!records || records.length === 0) return;
+      if (!records || records.length === 0) return { updated: 0, skippedManualOverrides: 0 };
       const previousRecords = get().gradingSheetRecords as ClassRecord[];
       try {
         const state = get();
         const currentRecords = state.gradingSheetRecords as ClassRecord[];
 
+        const matchesRecord = (existing: ClassRecord, incoming: ClassRecord) => {
+          const sameStudent = existing.student_lrn === incoming.student_lrn || String(existing.student_lrn).trim() === String(incoming.student_lrn).trim();
+          const sameSubject = isSameSubject(existing.subject_id, existing.subject_name, incoming.subject_id, incoming.subject_name);
+          const sameQuarter = Number(existing.quarter) === Number(incoming.quarter) || String(existing.quarter).toLowerCase() === String(incoming.quarter).toLowerCase();
+          const sameSy = !existing.school_year || !incoming.school_year || existing.school_year === incoming.school_year;
+          const sameSection = !existing.section_id || !incoming.section_id || existing.section_id === incoming.section_id;
+          return sameStudent && sameSubject && sameQuarter && sameSy && sameSection;
+        };
+        const protectedRecords = records.filter(incoming => incoming.grade_source === 'eclass_sync' && currentRecords.some(existing => existing.grade_source === 'manual_override' && matchesRecord(existing, incoming)));
+        const acceptedRecords = records.filter(incoming => !protectedRecords.includes(incoming));
+        if (acceptedRecords.length === 0) return { updated: 0, skippedManualOverrides: protectedRecords.length };
+
         const newRecordMap = new Map<string, ClassRecord>();
-        for (const r of records) {
+        for (const r of acceptedRecords) {
           const key = `${String(r.student_lrn).trim()}_${r.subject_id}_${r.quarter}_${r.school_year || ''}_${r.section_id || ''}`;
           newRecordMap.set(key, r);
         }
@@ -157,14 +169,7 @@ export function createGradingSlice(set: (state: any) => void, get: () => any): G
         const isOverwritten = (r: ClassRecord) => {
           const key = `${String(r.student_lrn).trim()}_${r.subject_id}_${r.quarter}_${r.school_year || ''}_${r.section_id || ''}`;
           if (newRecordMap.has(key)) return true;
-          return records.some((newRec) => {
-            const sameStudent = r.student_lrn === newRec.student_lrn || String(r.student_lrn).trim() === String(newRec.student_lrn).trim();
-            const sameSubject = isSameSubject(r.subject_id, r.subject_name, newRec.subject_id, newRec.subject_name);
-            const sameQuarter = Number(r.quarter) === Number(newRec.quarter) || String(r.quarter).toLowerCase() === String(newRec.quarter).toLowerCase();
-            const sameSy = !r.school_year || !newRec.school_year || r.school_year === newRec.school_year;
-            const sameSection = !r.section_id || !newRec.section_id || r.section_id === newRec.section_id;
-            return sameStudent && sameSubject && sameQuarter && sameSy && sameSection;
-          });
+          return acceptedRecords.some((newRec) => matchesRecord(r, newRec));
         };
 
         const matchingOldRecords = currentRecords.filter(isOverwritten);
@@ -176,8 +181,9 @@ export function createGradingSlice(set: (state: any) => void, get: () => any): G
           }
         }
 
-        set({ gradingSheetRecords: [...remainingRecords, ...records] });
-        await db.putRecordsBulk('gradingSheetRecords', records);
+        set({ gradingSheetRecords: [...remainingRecords, ...acceptedRecords] });
+        await db.putRecordsBulk('gradingSheetRecords', acceptedRecords);
+        return { updated: acceptedRecords.length, skippedManualOverrides: protectedRecords.length };
       } catch (error) {
         console.error('Error bulk updating grading sheet records:', error);
         set({ gradingSheetRecords: previousRecords });

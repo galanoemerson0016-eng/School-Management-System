@@ -1103,17 +1103,20 @@ export function ConsolidatedGradesPage() {
             }
 
             // 2. Add / update active records from E-Class Record
-            if (recordsToSync.length > 0) {
-                await bulkUpdateGradingSheetRecords(recordsToSync);
-            }
+            const syncResult = recordsToSync.length > 0
+                ? await bulkUpdateGradingSheetRecords(recordsToSync)
+                : { updated: 0, skippedManualOverrides: 0 };
 
             const otherSubjectsCount = sectionSubjects.length - teachingLoadSubjects.length;
             const otherSubjectsMsg = otherSubjectsCount > 0 ? ` (${otherSubjectsCount} subject(s) assigned to other teachers were preserved)` : '';
 
-            if (recordsToSync.length > 0 && uniqueDeleteIds.length > 0) {
-                showNotification(`Synced ${recordsToSync.length} grades for your teaching load subjects and cleared ${uniqueDeleteIds.length} empty record(s).${otherSubjectsMsg}`, 'success');
-            } else if (recordsToSync.length > 0) {
-                showNotification(`Successfully synced ${recordsToSync.length} grades for your teaching load subjects!${otherSubjectsMsg}`, 'success');
+            const overridesMsg = syncResult.skippedManualOverrides > 0 ? ` ${syncResult.skippedManualOverrides} manual override(s) were preserved.` : '';
+            if (syncResult.updated > 0 && uniqueDeleteIds.length > 0) {
+                showNotification(`Synced ${syncResult.updated} grades for your teaching load subjects and cleared ${uniqueDeleteIds.length} empty record(s).${overridesMsg}${otherSubjectsMsg}`, 'success');
+            } else if (syncResult.updated > 0) {
+                showNotification(`Successfully synced ${syncResult.updated} grades for your teaching load subjects!${overridesMsg}${otherSubjectsMsg}`, 'success');
+            } else if (syncResult.skippedManualOverrides > 0) {
+                showNotification(`No grades were overwritten.${overridesMsg}${otherSubjectsMsg}`, 'info');
             } else if (uniqueDeleteIds.length > 0) {
                 showNotification(`Synchronized with E-Class Records: cleared ${uniqueDeleteIds.length} empty grade(s).${otherSubjectsMsg}`, 'info');
             } else {
@@ -2961,17 +2964,20 @@ const groupedSections = useMemo(() => {
                 }
             }
 
-            if (recordsToSync.length > 0) {
-                await bulkUpdateGradingSheetRecords(recordsToSync);
-            }
+            const syncResult = recordsToSync.length > 0
+                ? await bulkUpdateGradingSheetRecords(recordsToSync)
+                : { updated: 0, skippedManualOverrides: 0 };
             if (recordsToDelete.length > 0) {
                 for (const dId of recordsToDelete) {
                     await deleteGradingSheetRecord(dId);
                 }
             }
 
-            if (recordsToSync.length > 0) {
-                showNotification(`Successfully synced ${targetSubject.subject_name} from E-Class Record (${recordsToSync.length} grades updated)!`, 'success');
+            if (syncResult.updated > 0) {
+                const overridesMsg = syncResult.skippedManualOverrides > 0 ? ` ${syncResult.skippedManualOverrides} manual override(s) were preserved.` : '';
+                showNotification(`Successfully synced ${targetSubject.subject_name} from E-Class Record (${syncResult.updated} grades updated)!${overridesMsg}`, 'success');
+            } else if (syncResult.skippedManualOverrides > 0) {
+                showNotification(`No grades were overwritten for ${targetSubject.subject_name}. ${syncResult.skippedManualOverrides} manual override(s) were preserved.`, 'info');
             } else {
                 showNotification(`No new grades found in E-Class Record for ${targetSubject.subject_name}.`, 'info');
             }

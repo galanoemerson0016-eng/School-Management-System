@@ -265,5 +265,26 @@ describe('GradingSlice - manual overrides', () => {
 
     expect(state.gradingSheetRecords[0]).toMatchObject({ final_grade: 90, grade_source: 'manual_override' });
   });
+
+  it('reports and preserves manual overrides during a batch E-Class sync', async () => {
+    let state: MockStoreState = {
+      sections: [], students: [], classRecords: [], showNotification: vi.fn(),
+      gradingSheetRecords: [{
+        id: 'manual-grade', student_lrn: 'TEST000000001', subject_id: 'math', section_id: 'section_100001',
+        quarter: 1, school_year: '2026-2027', final_grade: 90,
+        written_works: [20], performance_tasks: [40], quarterly_exam: 20, grade_source: 'manual_override',
+      }],
+    };
+    const set = (updater: any) => { state = { ...state, ...(typeof updater === 'function' ? updater(state) : updater) }; };
+    const slice = createGradingSlice(set, () => state);
+    const result = await slice.bulkUpdateGradingSheetRecords([{
+      id: 'sync-grade', student_lrn: 'TEST000000001', subject_id: 'math', section_id: 'section_100001',
+      quarter: 1, school_year: '2026-2027', final_grade: 88,
+      written_works: [], performance_tasks: [], quarterly_exam: 0, grade_source: 'eclass_sync',
+    }]);
+    expect(result).toEqual({ updated: 0, skippedManualOverrides: 1 });
+    expect(state.gradingSheetRecords).toHaveLength(1);
+    expect(state.gradingSheetRecords[0]).toMatchObject({ final_grade: 90, grade_source: 'manual_override' });
+  });
 });
 

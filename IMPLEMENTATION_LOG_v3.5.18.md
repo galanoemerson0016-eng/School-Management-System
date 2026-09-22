@@ -116,3 +116,13 @@ The safe desktop-compatible design is a random AES-GCM DEK for records, wrapped 
 - **Remaining risk:** This validates browser-compatible IndexedDB persistence, not Electron's live OS `safeStorage` implementation. The production bridge remains syntax-reviewed and its renderer surface is narrow/validated, but a signed Electron-process integration test requires a separately isolated Electron harness. Firebase offline warnings remain expected in local auth tests.
 - **Verification on 2026-09-22:** The encryption/persistence gate passed **49 tests across 8 files**, combining the 9 persistent IndexedDB cases with all previous 40 focused auth, crypto, migration, backup, SF2/attendance, and grading assertions. `npx tsc -b --pretty false` and `node --check electron/main.cjs` passed. The test command emits expected wrong-key decryption and Firebase-offline warnings, but no test failed.
 - **Checkpoint:** `a8d15dc` (`test(auth): validate DEK migration against persistent IndexedDB`) is local only. It has not been pushed, tagged, deployed, or released.
+
+## Grade sync manual-override reporting
+
+- **Problem:** Batch E-Class synchronization could bypass the existing single-record manual-override guard, and users received no count of protected manual grades.
+- **Root cause:** `bulkUpdateGradingSheetRecords` replaced matching records without applying grade provenance checks.
+- **Files changed:** `app/src/stores/slices/grading-slice.ts`, `app/src/pages/ConsolidatedGradesPage.tsx`, and `app/src/stores/slices/grading-slice.test.ts`.
+- **Fix:** Batch E-Class updates now leave matching `manual_override` records untouched and return an `{ updated, skippedManualOverrides }` result. Both teaching-load and single-subject sync notifications explicitly report preserved overrides.
+- **Tests:** Grading-slice focused suite: 8 passed. TypeScript validation passed.
+- **Migration implications:** None; existing manual overrides are preserved rather than replaced.
+- **Remaining risk:** The UI notification paths are covered through their returned result contract, not an end-to-end rendered-page test.
