@@ -5,7 +5,6 @@ import { db } from '../../services/database';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { PhotoUploadCrop } from '../id-card/PhotoUploadCrop';
 import { SSHS_ACADEMIC_CLUSTERS_LIST, SSHS_TECHPRO_CLUSTERS_LIST } from '../../lib/curriculum';
-import { isGhostEinsteinStudent } from '../../utils/ghost-data-purge';
 
 interface StudentFormProps {
     student: Student | null;
@@ -427,12 +426,6 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
             const existing = await db.getRecord<Student>('students', lrn);
             if (!existing) return;
 
-            // If existing record is from ghost section 'Einstein', purge it and do NOT prompt!
-            if (isGhostEinsteinStudent(existing, sections)) {
-                void db.deleteRecord('students', lrn).catch(() => {});
-                return;
-            }
-
             setPendingProfile(existing);
         } catch (error) {
             console.error('Failed to load existing student profile', error);
@@ -488,14 +481,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
         let isExistingStudentToUpdate = false;
 
         if (duplicate && (!student || student.lrn !== finalLrn)) {
-            if (isGhostEinsteinStudent(duplicate, sections)) {
-                // Silently purge the ghost duplicate and proceed with adding the real learner
-                void db.deleteRecord('students', finalLrn).catch(() => {});
-                useAppStore.setState((state) => ({
-                    students: state.students.filter((s) => s.lrn !== finalLrn),
-                    studentProfiles: state.studentProfiles.filter((s) => s.lrn !== finalLrn),
-                }));
-            } else if (hydratedLrn === finalLrn) {
+            if (hydratedLrn === finalLrn) {
                 // User explicitly approved hydrating/transferring this student to this section
                 isExistingStudentToUpdate = true;
             } else {

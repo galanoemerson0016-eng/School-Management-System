@@ -997,6 +997,7 @@ export function buildTestStudentsForSection(
 
         const student: Student = {
             id: studentId,
+            is_test_data: true,
             lrn,
             first_name: firstName,
             last_name: lastName,
@@ -1123,6 +1124,7 @@ export function buildTestSectionRecords(
 
         const sectionRecord: Section = {
             id: sectionId,
+            is_test_data: true,
             section_name: spec.sectionName,
             section_grade_level: spec.gradeLevel,
             adviser_id: `test-adv-${spec.idSuffix}`,
@@ -1166,6 +1168,7 @@ export function buildTestSectionRecords(
 
             const subjectRecord: Subject = {
                 id: subjectId,
+                is_test_data: true,
                 subject_name: subName,
                 grade_level: spec.gradeLevel,
                 section_id: sectionId,
@@ -1282,6 +1285,7 @@ export function buildTestHpsRecords(
             const hpsId = `test-hps-${subject.id}-q${q}`;
             const hpsRecord: HPSRecord & { summative_tests?: (number | string)[] } = {
                 id: hpsId,
+                is_test_data: true,
                 subject_id: subject.id,
                 subject_name: subject.subject_name,
                 section_id: subject.section_id,
@@ -1370,6 +1374,7 @@ export function buildTestClassRecords(
 
                 const cRecord: ClassRecord & { summative_tests?: (number | string)[] } = {
                     id: crId,
+                    is_test_data: true,
                     student_lrn: student.lrn,
                     section_id: secId,
                     subject_id: subject.id,
@@ -1707,25 +1712,7 @@ export {
 export function isTestHpsRecord(record: HPSRecord | Record<string, unknown>): boolean {
     if (!record) return false;
     const r = record as Record<string, unknown>;
-    const id = typeof r.id === 'string' ? r.id : '';
-    const sectionId = typeof r.section_id === 'string' ? r.section_id : '';
-    const subjectId = typeof r.subject_id === 'string' ? r.subject_id : '';
-
-    return Boolean(
-        (id && (
-            id.startsWith('test-hps-') ||
-            id.startsWith('test-') ||
-            id.includes('[TEST]')
-        )) ||
-        (sectionId && (
-            sectionId.startsWith('test-sec-') ||
-            sectionId.includes('[TEST]')
-        )) ||
-        (subjectId && (
-            subjectId.startsWith('test-subj-') ||
-            subjectId.startsWith('test-')
-        ))
-    );
+    return r.is_test_data === true;
 }
 
 /**
@@ -1768,4 +1755,3 @@ export function getTestSectionStats(
         totalTestClassRecords: testCr.length
     };
 }
-

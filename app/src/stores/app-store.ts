@@ -14,8 +14,6 @@ import { STANDARD_SUBJECTS, getDefaultTermForSubject, isGrade11CoreSubject } fro
 import { normalizeGrade12PESubjectName } from '../utils/grading-helpers';
 import { getCurriculumPreset } from '../lib/curriculumPresets';
 import { reconcileOrphanedGradesAndSubjects, generateDeterministicSubjectId } from '../utils/grade-reconciliation';
-import { purgeGhostEinsteinData } from '../utils/ghost-data-purge';
-import { isTestSection, isTestStudent } from '../utils/testSectionGuards';
 import {
   buildAttendanceRecordsFromSf2Sheet,
   buildAutoFilledDateLabels,
@@ -1908,32 +1906,14 @@ export async function initializeAppStore() {
 
 
 
-    // Comprehensive Purge: Unconditionally purge ghost "Einstein" section, mock students, and orphan records
+    // Startup is intentionally non-destructive. Recovery and test-data cleanup are
+    // explicit user actions, never a side effect of loading the local database.
     let finalStudents = students;
-    const ghostPurge = await purgeGhostEinsteinData(db, {
-      sections: finalSections,
-      students: finalStudents,
-      classRecords,
-      gradingSheetRecords,
-      attendanceRecords: repaired.attendanceRecords,
-      sf2Sheets: repaired.sf2Sheets,
-      enrollments,
-    });
-
-    finalSections = ghostPurge.sections;
-    finalStudents = ghostPurge.students;
-
-    // Production client protection: Ensure test sections and mock test students are never visible or loaded by clients
-    if (!import.meta.env.DEV) {
-      finalSections = finalSections.filter(s => !isTestSection(s));
-      finalStudents = finalStudents.filter(s => !isTestStudent(s));
-    }
-
-    const finalClassRecords = ghostPurge.classRecords;
-    const finalGradingSheetRecords = ghostPurge.gradingSheetRecords;
-    const finalAttendanceRecords = ghostPurge.attendanceRecords;
-    const finalSf2Sheets = ghostPurge.sf2Sheets;
-    const finalEnrollments = ghostPurge.enrollments;
+    const finalClassRecords = classRecords;
+    const finalGradingSheetRecords = gradingSheetRecords;
+    const finalAttendanceRecords = repaired.attendanceRecords;
+    const finalSf2Sheets = repaired.sf2Sheets;
+    const finalEnrollments = enrollments;
 
     // Ensure schoolProfile does not cling to ghost Einstein section
     let finalSchoolProfile = schoolProfile;
@@ -1977,21 +1957,6 @@ export async function initializeAppStore() {
     if (reconciliation.subjectsModified) {
       console.log(`[FormEase Pro] Self-healing restored visibility for ${reconciliation.subjects.length} subjects with recorded grades.`);
       await db.putRecordsBulk('subjects', reconciliation.subjects);
-    }
-
-    if (reconciliation.deletedSubjectIds && reconciliation.deletedSubjectIds.length > 0) {
-      console.log(`[FormEase Pro] Self-healing purged ${reconciliation.deletedSubjectIds.length} duplicate subject record(s) and re-linked their grades.`);
-      await db.deleteRecordsBulk('subjects', reconciliation.deletedSubjectIds);
-    }
-
-    if (reconciliation.deletedClassRecordIds && reconciliation.deletedClassRecordIds.length > 0) {
-      console.log(`[FormEase Pro] Self-healing purged ${reconciliation.deletedClassRecordIds.length} orphaned temporary grade record(s).`);
-      await db.deleteRecordsBulk('classRecords', reconciliation.deletedClassRecordIds);
-    }
-
-    if (reconciliation.deletedGradingSheetRecordIds && reconciliation.deletedGradingSheetRecordIds.length > 0) {
-      console.log(`[FormEase Pro] Self-healing purged ${reconciliation.deletedGradingSheetRecordIds.length} orphaned temporary grading sheet record(s).`);
-      await db.deleteRecordsBulk('gradingSheetRecords', reconciliation.deletedGradingSheetRecordIds);
     }
 
     if (reconciliation.sectionsModified && reconciliation.sections) {

@@ -305,18 +305,18 @@ describe('testSectionGenerator', () => {
     });
 
     it('correctly identifies test class records and HPS records', () => {
-        expect(isTestClassRecord({ id: 'test-cr-sec-1', student_lrn: '999000000001', section_id: 'test-sec-g1', subject_id: 'test-subj-1', school_year: '2026-2027', quarter: 1, written_works: [], performance_tasks: [], quarterly_exam: 50 })).toBe(true);
+        expect(isTestClassRecord({ id: 'test-cr-sec-1', student_lrn: '999000000001', section_id: 'test-sec-g1', subject_id: 'test-subj-1', school_year: '2026-2027', quarter: 1, written_works: [], performance_tasks: [], quarterly_exam: 50, is_test_data: true })).toBe(true);
         expect(isTestClassRecord({ id: 'cr-real-1', student_lrn: '123456789012', section_id: 'sec-real-1', subject_id: 'subj-real-1', school_year: '2026-2027', quarter: 1, written_works: [], performance_tasks: [], quarterly_exam: 50 })).toBe(false);
 
-        expect(isTestHpsRecord({ id: 'test-hps-subj-1-q1', subject_id: 'test-subj-1', section_id: 'test-sec-g1', school_year: '2026-2027', quarter: 1, written_works: [], performance_tasks: [], quarterly_exam: 50 })).toBe(true);
+        expect(isTestHpsRecord({ id: 'test-hps-subj-1-q1', subject_id: 'test-subj-1', section_id: 'test-sec-g1', school_year: '2026-2027', quarter: 1, written_works: [], performance_tasks: [], quarterly_exam: 50, is_test_data: true })).toBe(true);
         expect(isTestHpsRecord({ id: 'hps-real-1', subject_id: 'subj-real-1', section_id: 'sec-real-1', school_year: '2026-2027', quarter: 1, written_works: [], performance_tasks: [], quarterly_exam: 50 })).toBe(false);
     });
 
-    it('correctly identifies test sections with grade or custom prefixes', () => {
-        expect(isTestSection({ id: 'sec-1', section_name: '11 - [TEST] Grade SSHS TechPro (Aesthetic & Human Care)', section_grade_level: 'Grade 11' } as unknown as Section)).toBe(true);
+    it('requires explicit test markers even when names and LRNs look like generated data', () => {
+        expect(isTestSection({ id: 'sec-1', section_name: '11 - [TEST] Grade SSHS TechPro (Aesthetic & Human Care)', section_grade_level: 'Grade 11' } as unknown as Section)).toBe(false);
         expect(isTestSection({ id: 'sec-2', section_name: 'Grade 10 - Rizal', section_grade_level: 'Grade 10' } as unknown as Section)).toBe(false);
-        expect(isTestStudent({ id: 's-1', lrn: '123456789012', student_section: '11 - [TEST] Grade SSHS' } as unknown as Student)).toBe(true);
-        expect(isTestStudent({ id: 's-2', lrn: '999123456789', student_section: 'Regular Section' } as unknown as Student)).toBe(true);
+        expect(isTestStudent({ id: 's-1', lrn: '123456789012', student_section: '11 - [TEST] Grade SSHS' } as unknown as Student)).toBe(false);
+        expect(isTestStudent({ id: 's-2', lrn: '999123456789', student_section: 'Regular Section' } as unknown as Student)).toBe(false);
         expect(isTestStudent({ id: 's-3', lrn: '123456789012', student_section: 'Regular Section' } as unknown as Student)).toBe(false);
     });
 
@@ -329,4 +329,3 @@ describe('testSectionGenerator', () => {
         expect(gradingSheetRecords.length).toBe(classRecords.length);
     });
 });
-

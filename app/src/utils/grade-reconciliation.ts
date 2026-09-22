@@ -592,28 +592,10 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
         return gs;
     });
 
-    // 4.5 Purge orphaned temporary grade records (TEMP-*) with no matching student
-    const validStudentLrns = new Set(students.map(s => s.lrn));
-    const deletedClassRecordIds: string[] = [];
-    const deletedGradingSheetRecordIds: string[] = [];
-
-    const finalClassRecords = healedClassRecords.filter(cr => {
-        if (cr.student_lrn && cr.student_lrn.startsWith('TEMP-') && !validStudentLrns.has(cr.student_lrn)) {
-            deletedClassRecordIds.push(cr.id);
-            modified = true;
-            return false;
-        }
-        return true;
-    });
-
-    const finalGradingSheetRecords = healedGradingSheetRecords.filter(gs => {
-        if (gs.student_lrn && gs.student_lrn.startsWith('TEMP-') && !validStudentLrns.has(gs.student_lrn)) {
-            deletedGradingSheetRecordIds.push(gs.id);
-            modified = true;
-            return false;
-        }
-        return true;
-    });
+    // Never delete teacher-entered grade records during startup. Missing learner
+    // relationships are recoverable data-quality issues, not evidence of test data.
+    const finalClassRecords = healedClassRecords;
+    const finalGradingSheetRecords = healedGradingSheetRecords;
 
     // 5. Reconcile Sections (Ensure Elementary sections use official GMRC, JHS use Values Education, and sanitize/deduplicate taught/teaching subjects)
     let sectionsModified = false;
@@ -735,7 +717,7 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
         repairedCount,
         sections: workingSections,
         sectionsModified,
-        deletedClassRecordIds,
-        deletedGradingSheetRecordIds
+        deletedClassRecordIds: [],
+        deletedGradingSheetRecordIds: []
     };
 }

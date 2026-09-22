@@ -3,6 +3,39 @@ import { reconcileOrphanedGradesAndSubjects, generateDeterministicSubjectId, ded
 import type { Subject, Section, Student, ClassRecord, HPSRecord } from '../types';
 
 describe('grade-reconciliation', () => {
+    it('retains temporary-LRN grade records when their learner relationship is missing', () => {
+        const classRecord: ClassRecord = {
+            id: 'class-temp-1',
+            student_lrn: 'TEMP-123',
+            section_id: 'section-1',
+            subject_id: 'subject-1',
+            school_year: '2026-2027',
+            quarter: 1,
+            written_works: [20],
+            performance_tasks: [40],
+            quarterly_exam: 30,
+        };
+        const gradingSheetRecord: ClassRecord = { ...classRecord, id: 'grading-temp-1' };
+
+        const result = reconcileOrphanedGradesAndSubjects({
+            subjects: [],
+            sections: [],
+            students: [],
+            classRecords: [classRecord],
+            hpsRecords: [],
+            gradingSheetRecords: [gradingSheetRecord],
+        });
+
+        expect(result.classRecords).toEqual([expect.objectContaining({
+            student_lrn: 'TEMP-123', section_id: 'section-1', subject_id: 'subject-1', quarterly_exam: 30,
+        })]);
+        expect(result.gradingSheetRecords).toEqual([expect.objectContaining({
+            student_lrn: 'TEMP-123', section_id: 'section-1', subject_id: 'subject-1', quarterly_exam: 30,
+        })]);
+        expect(result.deletedClassRecordIds).toEqual([]);
+        expect(result.deletedGradingSheetRecordIds).toEqual([]);
+    });
+
     it('generates consistent deterministic subject IDs', () => {
         const id1 = generateDeterministicSubjectId('Grade 7', 'Science');
         const id2 = generateDeterministicSubjectId('Grade 7', 'Science');
@@ -593,5 +626,3 @@ describe('grade-reconciliation', () => {
         expect(gs.final_grade).toBe(89);
     });
 });
-
-

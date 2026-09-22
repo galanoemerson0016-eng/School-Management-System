@@ -3,6 +3,7 @@ import { db } from '../services/database';
 import { generatePreUpdateSafetyVault } from '../services/pre-update-safety';
 import { exportFullDatabaseBackup } from '../utils/backup-restore';
 import { embedChecksum } from '../utils/backup-integrity';
+import { validateEmbeddedChecksum } from '../utils/backup-integrity';
 import { initializeAppStore } from './app-store';
 import type { Student } from '../types';
 
@@ -21,12 +22,49 @@ export interface ReconciliationReport {
   timestamp: number;
   backupFilename?: string;
   status: 'success' | 'mismatch';
+  recoveryAvailable?: boolean;
   details: Array<{
     table: string;
     before: number;
     after: number;
     match: boolean;
   }>;
+}
+
+type RecoveryBackupApi = Pick<NonNullable<Window['electronAPI']>, 'listFsBackups' | 'readFsBackupContent'>;
+
+export async function findVerifiedV3517RecoveryBackup(api: RecoveryBackupApi): Promise<{
+  filename: string;
+  counts: Record<string, number>;
+} | null> {
+  const backups = await api.listFsBackups();
+  if (!Array.isArray(backups)) return null;
+
+  for (const backup of backups) {
+    const filename = typeof backup?.filename === 'string' ? backup.filename : '';
+    if (!/^SMS_Backup_Comprehensive_preupdate_3\.5\.17_/i.test(filename)) continue;
+
+    const content = await api.readFsBackupContent(filename) as Record<string, unknown>;
+    if (!content || typeof content !== 'object' || typeof content._checksum !== 'string') continue;
+    const integrity = await validateEmbeddedChecksum(content);
+    if (!integrity.valid) continue;
+
+    const payload = (content.payload || content.data || content) as Record<string, unknown>;
+    const count = (key: string) => Array.isArray(payload[key]) ? payload[key].length : 0;
+    return {
+      filename,
+      counts: {
+        students: count('students'),
+        sections: count('sections'),
+        subjects: count('subjects'),
+        classRecords: count('classRecords'),
+        enrollments: count('enrollments'),
+        attendanceRecords: count('attendanceRecords'),
+        gradingSheetRecords: count('gradingSheetRecords'),
+      },
+    };
+  }
+  return null;
 }
 
 interface UpdateState {
@@ -278,7 +316,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
           backupFilename = `SMS_Backup_Comprehensive_preupdate_${targetVer}_${timestamp}.json`;
           
           // 1. Electron JSON local copy
-          await api.saveAutoBackup(backupData, backupFilename);
+          const savedBackup = await api.saveAutoBackup(backupData, backupFilename);
+          if (!savedBackup?.success) {
+            throw new Error(savedBackup?.error || 'The local pre-update backup could not be verified.');
+          }
 
           // 2. Comprehensive Multi-Format Safety Vault (Master Excel, ECRs, Consolidated Grades, JSON)
           const vaultResult = await generatePreUpdateSafetyVault(targetVer, (statusText) => {
@@ -342,7 +383,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
           counts
         };
 
-        await api.writePreUpdateState(stateData);
+        const wrotePreUpdateState = await api.writePreUpdateState(stateData);
+        if (!wrotePreUpdateState?.success) {
+          throw new Error(wrotePreUpdateState?.error || 'The pre-update recovery state could not be verified.');
+        }
 
         // Success!
         return true;
@@ -414,6 +458,36 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
 
           set({ reconciliationReport: report });
           if (api?.clearPreUpdateState) await api.clearPreUpdateState();
+        } else if (api?.listFsBackups && api?.readFsBackupContent) {
+          const recoveryBackup = await findVerifiedV3517RecoveryBackup(api);
+          if (recoveryBackup) {
+            const currentCounts = {
+              students: await db.getStoreCount('students'),
+              sections: await db.getStoreCount('sections'),
+              subjects: await db.getStoreCount('subjects'),
+              classRecords: await db.getStoreCount('classRecords'),
+              enrollments: await db.getStoreCount('enrollments'),
+              attendanceRecords: await db.getStoreCount('attendanceRecords'),
+              gradingSheetRecords: await db.getStoreCount('gradingSheetRecords'),
+            };
+            set({
+              reconciliationReport: {
+                fromVersion: '3.5.17',
+                toVersion: CURRENT_VERSION,
+                timestamp: Date.now(),
+                backupFilename: recoveryBackup.filename,
+                recoveryAvailable: true,
+                status: 'mismatch',
+                notes: ['A verified pre-update v3.5.17 backup is available. Review the counts below and restore only if they contain the missing records.'],
+                details: Object.entries(recoveryBackup.counts).map(([table, before]) => ({
+                  table,
+                  before,
+                  after: currentCounts[table as keyof typeof currentCounts] ?? 0,
+                  match: before === currentCounts[table as keyof typeof currentCounts],
+                })),
+              },
+            });
+          }
         } else if (lastVersion && lastVersion !== CURRENT_VERSION) {
           // Manual installer update detected (e.g. downloaded DMG or Setup directly)
           const studentCount = await db.getStoreCount('students');

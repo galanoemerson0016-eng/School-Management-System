@@ -114,6 +114,8 @@ export interface SchoolYear {
 
 export interface Student {
     id?: string;
+    /** Internal marker set only by the developer test-data generator. */
+    is_test_data?: boolean;
     lrn: string;
     first_name: string;
     last_name: string;
@@ -301,6 +303,8 @@ export type SubjectTermSelection = 1 | 2 | 3 | 'all' | 'none' | '1,2' | '1,3' | 
 
 export interface Section {
     id: string;
+    /** Internal marker set only by the developer test-data generator. */
+    is_test_data?: boolean;
     section_name: string;
     section_grade_level: string;
     adviser_id?: string;
@@ -329,6 +333,8 @@ export interface Section {
 
 export interface Subject {
     id: string;
+    /** Internal marker set only by the developer test-data generator. */
+    is_test_data?: boolean;
     subject_name: string;
     subject_code?: string;
     grade_level: string;
@@ -355,6 +361,8 @@ export interface Subject {
 
 export interface ClassRecord {
     id: string;
+    /** Internal marker set only by the developer test-data generator. */
+    is_test_data?: boolean;
     student_lrn: string;
     section_id: string;
     subject_id: string;
@@ -454,6 +462,8 @@ export interface ObservedValues {
 
 export interface HPSRecord {
     id: string;
+    /** Internal marker set only by the developer test-data generator. */
+    is_test_data?: boolean;
     subject_id: string; // Unique per section in this system
     subject_name?: string; // Human-readable subject name for resilient recovery & cross-section matching
     school_year: string;

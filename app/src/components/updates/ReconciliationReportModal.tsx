@@ -18,8 +18,8 @@ export function ReconciliationReportModal() {
           ) : (
             <ShieldAlert className="w-12 h-12 mx-auto mb-2 text-white/95 drop-shadow-md animate-bounce" />
           )}
-          <h2 className="text-lg font-black uppercase tracking-wider">Data Reconciliation Report</h2>
-          <p className="text-xs text-white/80 font-medium mt-0.5">Post-Update Validation & Reconciliation Check</p>
+          <h2 className="text-lg font-black uppercase tracking-wider">{reconciliationReport.recoveryAvailable ? 'Recovery Backup Available' : 'Data Reconciliation Report'}</h2>
+          <p className="text-xs text-white/80 font-medium mt-0.5">{reconciliationReport.recoveryAvailable ? 'Verified v3.5.17 pre-update backup detected' : 'Post-Update Validation & Reconciliation Check'}</p>
         </div>
 
         {/* Content */}
@@ -101,9 +101,11 @@ export function ReconciliationReportModal() {
             </div>
           ) : (
             <div className="bg-red-50 dark:bg-red-950/15 border border-red-100 dark:border-red-900/30 rounded-2xl p-4 text-center space-y-1.5 animate-pulse">
-              <h4 className="text-xs font-extrabold text-red-800 dark:text-red-400 uppercase tracking-wider">⚠️ Data Discrepancy Alert</h4>
+              <h4 className="text-xs font-extrabold text-red-800 dark:text-red-400 uppercase tracking-wider">⚠️ {reconciliationReport.recoveryAvailable ? 'Records Recovery Available' : 'Data Discrepancy Alert'}</h4>
               <p className="text-xs text-red-700 dark:text-red-300 font-bold leading-relaxed">
-                One or more record counts do not reconcile. This could indicate a migration failure. Please perform an emergency rollback to restore the pre-update backup.
+                {reconciliationReport.recoveryAvailable
+                  ? 'This backup passed its integrity check. Restore it only if its counts contain your missing records; restoring replaces current local records.'
+                  : 'One or more record counts do not reconcile. This could indicate a migration failure. Please perform an emergency rollback to restore the pre-update backup.'}
               </p>
             </div>
           )}
@@ -116,7 +118,7 @@ export function ReconciliationReportModal() {
                 className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-[13px] uppercase tracking-wider rounded-2xl shadow-lg shadow-rose-600/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Undo2 className="w-4 h-4" />
-                Rollback & Restore Pre-Update Backup
+                {reconciliationReport.recoveryAvailable ? 'Review & Restore Verified Backup' : 'Rollback & Restore Pre-Update Backup'}
               </button>
             )}
 
