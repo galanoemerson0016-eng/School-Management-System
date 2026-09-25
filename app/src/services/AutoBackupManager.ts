@@ -188,9 +188,10 @@ export const AutoBackupManager = {
         const manifestFilename = `FormEase_Automated_${fileTimestamp}_Manifest.json`;
         const workbook = await getMasterExcelBackupBuffer(data);
         const base64Workbook = bytesToBase64(workbook);
-        const hashInput = new Uint8Array(workbook.byteLength);
-        hashInput.set(workbook);
-        const workbookHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', hashInput.buffer)))
+        const hashInput: BufferSource = typeof Buffer !== 'undefined'
+          ? Buffer.from(workbook)
+          : (workbook.buffer.slice(workbook.byteOffset, workbook.byteOffset + workbook.byteLength) as ArrayBuffer);
+        const workbookHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', hashInput)))
           .map(byte => byte.toString(16).padStart(2, '0')).join('');
         const workbookSaved = await window.electronAPI.saveAutoBackupWorkbook(base64Workbook, workbookFilename);
         if (!workbookSaved.success) throw new Error(workbookSaved.error || 'Excel backup could not be saved.');
