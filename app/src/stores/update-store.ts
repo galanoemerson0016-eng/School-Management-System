@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import { db } from '../services/database';
 import { generatePreUpdateSafetyVault } from '../services/pre-update-safety';
-import { exportFullDatabaseBackup } from '../utils/backup-restore';
+import { exportFullDatabaseBackup, savePreRestoreSafetySnapshot } from '../utils/backup-restore';
 import { embedChecksum } from '../utils/backup-integrity';
-import { validateEmbeddedChecksum } from '../utils/backup-integrity';
+import { hasValidPayloadHash, validateEmbeddedChecksum } from '../utils/backup-integrity';
 import { initializeAppStore } from './app-store';
 import type { Student } from '../types';
 
@@ -44,12 +44,19 @@ export async function findVerifiedV3517RecoveryBackup(api: RecoveryBackupApi): P
     const filename = typeof backup?.filename === 'string' ? backup.filename : '';
     if (!/^SMS_Backup_Comprehensive_preupdate_3\.5\.17_/i.test(filename)) continue;
 
-    const content = await api.readFsBackupContent(filename) as Record<string, unknown>;
-    if (!content || typeof content !== 'object' || typeof content._checksum !== 'string') continue;
-    const integrity = await validateEmbeddedChecksum(content);
-    if (!integrity.valid) continue;
+    let content: Record<string, unknown>;
+    try {
+      content = await api.readFsBackupContent(filename) as Record<string, unknown>;
+      if (!content || typeof content !== 'object' || typeof content._checksum !== 'string') continue;
+      const integrity = await validateEmbeddedChecksum(content);
+      if (!integrity.valid || (integrity.strength === 'legacy' && !await hasValidPayloadHash(content))) continue;
+    } catch {
+      // An unreadable candidate must not conceal an older intact backup.
+      continue;
+    }
 
     const payload = (content.payload || content.data || content) as Record<string, unknown>;
+    if (!payload || typeof payload !== 'object' || !['students', 'sections', 'subjects', 'classRecords', 'gradingSheetRecords'].every(key => Array.isArray(payload[key]))) continue;
     const count = (key: string) => Array.isArray(payload[key]) ? payload[key].length : 0;
     return {
       filename,
@@ -91,7 +98,7 @@ interface UpdateState {
   checkForUpdates: () => void;
   runPreUpdatePipeline: () => Promise<boolean>;
   startDownload: () => Promise<void>;
-  applyUpdate: () => void;
+  applyUpdate: () => Promise<void>;
   checkForPostUpdateReconciliation: () => Promise<void>;
   rollbackToPreUpdateBackup: (filename: string) => Promise<void>;
   clearReconciliationReport: () => void;
@@ -122,6 +129,7 @@ interface UpdateMessage {
 }
 
 let updateTimeout: ReturnType<typeof setTimeout> | null = null;
+let installInProgress = false;
 
 export const useUpdateStore = create<UpdateState>((set, get) => {
   // Listen for Electron update IPC notifications
@@ -320,6 +328,11 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
           if (!savedBackup?.success) {
             throw new Error(savedBackup?.error || 'The local pre-update backup could not be verified.');
           }
+          const rereadBackup = await api.readFsBackupContent(backupFilename) as Record<string, unknown>;
+          const readbackCheck = await validateEmbeddedChecksum(rereadBackup);
+          if (!readbackCheck.valid || readbackCheck.strength !== 'strong' || !await hasValidPayloadHash(rereadBackup)) {
+            throw new Error('The pre-update backup failed readback verification.');
+          }
 
           // 2. Comprehensive Multi-Format Safety Vault (Master Excel, ECRs, Consolidated Grades, JSON)
           const vaultResult = await generatePreUpdateSafetyVault(targetVer, (statusText) => {
@@ -404,14 +417,37 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
       }
     },
 
-    applyUpdate: () => {
-      if (window.electronAPI?.quitAndInstall) {
-        window.electronAPI.quitAndInstall();
+    applyUpdate: async () => {
+      if (installInProgress || get().updateStep !== 'ready-to-install' || !window.electronAPI?.quitAndInstall) return;
+      installInProgress = true;
+      set({ safetyStatusText: 'Verifying a fresh safety copy before installation…', errorMessage: null });
+      let barrierHeld = false;
+      let installAccepted = false;
+      try {
+        const generationBeforeSnapshot = db.getWriteGeneration();
+        const safetyCopy = await savePreRestoreSafetySnapshot();
+        if (!safetyCopy.filename) throw new Error('The desktop safety backup was not created.');
+        // The snapshot itself starts and completes one IndexedDB write.
+        if (!db.acquireInstallWriteBarrier(generationBeforeSnapshot + 2)) {
+          throw new Error('School records changed while the safety copy was being made. Please try again.');
+        }
+        barrierHeld = true;
+        const result = await window.electronAPI.quitAndInstall(safetyCopy.filename);
+        if (!result.success) throw new Error(result.error || 'The update could not be started.');
+        installAccepted = true;
+      } catch (error) {
+        set({
+          updateStep: 'failed',
+          errorMessage: `Installation cancelled: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      } finally {
+        if (barrierHeld && !installAccepted) db.releaseInstallWriteBarrier();
+        installInProgress = false;
       }
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.17';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.19';
       const api = window.electronAPI;
 
       try {
@@ -470,21 +506,24 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
               attendanceRecords: await db.getStoreCount('attendanceRecords'),
               gradingSheetRecords: await db.getStoreCount('gradingSheetRecords'),
             };
-            set({
+            const details = Object.entries(recoveryBackup.counts).map(([table, before]) => ({
+              table,
+              before,
+              after: currentCounts[table as keyof typeof currentCounts] ?? 0,
+              match: before === currentCounts[table as keyof typeof currentCounts],
+            }));
+            const dismissalKey = `formease-recovery-dismissed-${recoveryBackup.filename}`;
+            const comparison = JSON.stringify(details.map(({ table, after }) => [table, after]));
+            if (localStorage.getItem(dismissalKey) !== comparison) set({
               reconciliationReport: {
                 fromVersion: '3.5.17',
                 toVersion: CURRENT_VERSION,
                 timestamp: Date.now(),
                 backupFilename: recoveryBackup.filename,
                 recoveryAvailable: true,
-                status: 'mismatch',
+                status: details.every(row => row.match) ? 'success' : 'mismatch',
                 notes: ['A verified pre-update v3.5.17 backup is available. Review the counts below and restore only if they contain the missing records.'],
-                details: Object.entries(recoveryBackup.counts).map(([table, before]) => ({
-                  table,
-                  before,
-                  after: currentCounts[table as keyof typeof currentCounts] ?? 0,
-                  match: before === currentCounts[table as keyof typeof currentCounts],
-                })),
+                details,
               },
             });
           }
@@ -535,9 +574,15 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
         set({ updateStep: 'checking', errorMessage: null });
         const backupData = await api.readFsBackupContent(filename);
         if (!backupData) throw new Error('Could not read backup file content.');
+        const content = (backupData.data || backupData) as Record<string, unknown>;
+        const integrity = await validateEmbeddedChecksum(content);
+        if (!integrity.valid || (integrity.strength === 'legacy' && !await hasValidPayloadHash(content))) {
+          throw new Error('The pre-update backup failed integrity verification. Existing records were not changed.');
+        }
+        await savePreRestoreSafetySnapshot();
 
         // Restore data using database importFromBackup
-        await db.importFromBackup(backupData.data || backupData);
+        await db.importFromBackup(content);
         // Immediately rehydrate in-memory Zustand store so data appears instantly in UI
         await initializeAppStore();
         set({ updateStep: 'idle', reconciliationReport: null });
@@ -550,6 +595,11 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     clearReconciliationReport: () => {
+      const report = get().reconciliationReport;
+      if (report?.recoveryAvailable && report.backupFilename) {
+        const comparison = JSON.stringify(report.details.map(({ table, after }) => [table, after]));
+        localStorage.setItem(`formease-recovery-dismissed-${report.backupFilename}`, comparison);
+      }
       set({ reconciliationReport: null });
     }
   };

@@ -3,6 +3,21 @@ import { embedChecksum } from '../utils/backup-integrity';
 import { findVerifiedV3517RecoveryBackup } from './update-store';
 
 describe('v3.5.17 recovery backup discovery', () => {
+  async function legacyBackup() {
+    const payload = {
+      students: [{ lrn: 'SYNTHETIC-1', first_name: 'Before' }],
+      sections: [], subjects: [], classRecords: [], gradingSheetRecords: [],
+      enrollments: [], attendanceRecords: [],
+    };
+    const hash = async (data: string) => {
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(data));
+      return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+    };
+    const metadata = { payloadHash: await hash(JSON.stringify(payload)) };
+    const old = { metadata, payload };
+    return { ...old, _checksum: await hash(JSON.stringify(old, Object.keys(old).sort())) };
+  }
+
   it('offers only a checksum-verified v3.5.17 pre-update backup with its actual record counts', async () => {
     const backup = await embedChecksum({
       payload: {
@@ -45,5 +60,36 @@ describe('v3.5.17 recovery backup discovery', () => {
     };
 
     await expect(findVerifiedV3517RecoveryBackup(api)).resolves.toBeNull();
+  });
+
+  it('accepts a legacy checksum only when its full payload hash still matches', async () => {
+    const original = await legacyBackup();
+    const filename = 'SMS_Backup_Comprehensive_preupdate_3.5.17_synthetic.json';
+    const api = {
+      listFsBackups: vi.fn().mockResolvedValue([{ filename }]),
+      readFsBackupContent: vi.fn().mockResolvedValue(original),
+    };
+    await expect(findVerifiedV3517RecoveryBackup(api)).resolves.toMatchObject({ filename });
+
+    const tampered = structuredClone(original);
+    tampered.payload.students[0].first_name = 'After';
+    api.readFsBackupContent.mockResolvedValue(tampered);
+    await expect(findVerifiedV3517RecoveryBackup(api)).resolves.toBeNull();
+  });
+
+  it('continues to an older candidate after a corrupt candidate cannot be read', async () => {
+    const backup = await embedChecksum({ payload: {
+      students: [], sections: [], subjects: [], classRecords: [], gradingSheetRecords: [],
+      enrollments: [], attendanceRecords: [],
+    } });
+    const filenames = [
+      'SMS_Backup_Comprehensive_preupdate_3.5.17_newer.json',
+      'SMS_Backup_Comprehensive_preupdate_3.5.17_older.json',
+    ];
+    const api = {
+      listFsBackups: vi.fn().mockResolvedValue(filenames.map(filename => ({ filename }))),
+      readFsBackupContent: vi.fn().mockRejectedValueOnce(new Error('Unreadable')).mockResolvedValue(backup),
+    };
+    await expect(findVerifiedV3517RecoveryBackup(api)).resolves.toMatchObject({ filename: filenames[1] });
   });
 });

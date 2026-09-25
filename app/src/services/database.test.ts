@@ -76,7 +76,7 @@ describe('Database Encryption/Decryption Utility', () => {
         expect(decrypted).toEqual(plainRecord); // It decrypts directly to the original plain record!
     });
 
-    it('should return the record as-is if decryption fails (e.g. wrong key) to prevent double-encryption', async () => {
+    it('rejects an encrypted record with the wrong key rather than silently writing it', async () => {
         const plainRecord = {
             id: 'test-3',
             student_lrn: '123456789012',
@@ -99,10 +99,7 @@ describe('Database Encryption/Decryption Utility', () => {
         );
         db.setDatabaseEncryptionKey(anotherKey);
 
-        // Encrypt again. Decryption will fail because the key is different.
-        // It should return the first encrypted envelope as-is instead of double-encrypting it.
-        const secondEncrypted = await db._encryptRecord('classRecords', firstEncrypted);
-        
-        expect(secondEncrypted).toEqual(firstEncrypted);
+        await expect(db._encryptRecord('classRecords', firstEncrypted)).rejects.toThrow();
+        expect(firstEncrypted).toHaveProperty('is_encrypted', true);
     });
 });

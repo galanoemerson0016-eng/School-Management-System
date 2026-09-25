@@ -10,6 +10,7 @@ import type { Student, SchoolProfile } from '../types';
 import { formatLearnerName } from '../utils/student-name';
 import { formatGradeForDisplay } from '../lib/grading';
 import { getShsSubjectUnitInfo } from '../lib/curriculum';
+import { calculateQuarterlyFinalGrade, calculateWeightedGradeAverage } from './grade-calculation';
 import type { PaceRatingDescriptor } from '../types/pace';
 import { isGrade1, fetchGrade1TemplateBuffer, populateGrade1TemplateBuffer, type SF9Grade1Remarks } from './sf9-g1-excel-export';
 import { isGrade2, fetchGrade2TemplateBuffer, populateGrade2TemplateBuffer } from './sf9-g2-excel-export';
@@ -91,10 +92,8 @@ const FONT_REMARKS_VAL: Partial<ExcelJS.Font> = { name: 'Bookman Old Style', siz
 
 function getSubjectAverage(grades: number[]): number | null {
   if (!grades || grades.length === 0) return null;
-  const valid = grades.filter(g => typeof g === 'number' && !isNaN(g) && g > 0);
-  if (valid.length === 0) return null;
-  const sum = valid.reduce((acc, val) => acc + val, 0);
-  return Math.round(sum / valid.length);
+  const result = calculateQuarterlyFinalGrade(grades, grades.map((_, index) => index + 1));
+  return result.status === 'missing' ? null : result.value;
 }
 
 function getFinalRemarks(average: number | null): string {
@@ -301,9 +300,7 @@ async function populateTemplate(buffer: ArrayBuffer, opts: SF9ExcelExportOptions
     }
   }
   
-  let totalAverageSum = 0;
-  let totalUnits = 0;
-  let validSubjectCount = 0;
+  const generalAverageEntries: Array<{ grade: number; weight: number }> = [];
 
   const HEADER_FILL: ExcelJS.Fill = {
     type: 'pattern',
@@ -403,11 +400,9 @@ async function populateTemplate(buffer: ArrayBuffer, opts: SF9ExcelExportOptions
               if (isSHS) {
                 const unitInfo = getShsSubjectUnitInfo(subject.name, gradeLevel);
                 const yearUnits = unitInfo.yearUnits;
-                totalAverageSum += avg * yearUnits;
-                totalUnits += yearUnits;
+                generalAverageEntries.push({ grade: avg, weight: yearUnits });
               } else {
-                totalAverageSum += avg;
-                validSubjectCount++;
+                generalAverageEntries.push({ grade: avg, weight: 1 });
               }
             }
         }
@@ -417,9 +412,9 @@ async function populateTemplate(buffer: ArrayBuffer, opts: SF9ExcelExportOptions
   });
 
   // General Average
-  const hasValidAverage = (isSHS && totalUnits > 0) || (!isSHS && validSubjectCount > 0);
-  if (hasValidAverage) {
-      const generalAvg = isSHS ? Math.round(totalAverageSum / totalUnits) : Math.round(totalAverageSum / validSubjectCount);
+  const average = calculateWeightedGradeAverage(generalAverageEntries);
+  if (average !== null) {
+      const generalAvg = Math.round(average);
       
       let genAvgRemarks = generalAvg >= 75 ? 'Promoted' : 'Retained';
       if (generalAvg >= 90) {

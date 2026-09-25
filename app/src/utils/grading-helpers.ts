@@ -970,6 +970,13 @@ export function resolveStudentQuarterGrade(
         return null;
     };
 
+    // Explicit official sources, including a valid perfect grade or an
+    // intentional blank, must not be replaced by legacy healing/fallbacks.
+    if (gRecord?.grade_source === 'manual_override' || gRecord?.grade_source === 'subject_teacher' || gRecord?.grade_source === 'eclass_sync') {
+        const value = Number(gRecord.final_grade);
+        return Number.isFinite(value) && value > 0 && value <= 100 ? value : 0;
+    }
+
     const healedC = checkCorruptedInitial(cRecord);
     if (healedC !== null && healedC > 0) return healedC;
 

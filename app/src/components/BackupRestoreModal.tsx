@@ -24,7 +24,7 @@ import {
 } from '../utils/backup-import';
 import { RestoreStrategyPanel } from './RestoreStrategyPanel';
 import type { RestoreStrategy } from '../utils/restore-options';
-import type { ComprehensiveBackup } from '../utils/backup-restore';
+import { savePreRestoreSafetySnapshot, type ComprehensiveBackup } from '../utils/backup-restore';
 import type { SchoolProfile } from '../types';
 import { useAppStore, initializeAppStore } from '../stores/app-store';
 import { decryptBackup } from '../utils/backup-encryption';
@@ -213,6 +213,43 @@ export function BackupRestoreModal({
 
             let backup: ComprehensiveBackup;
 
+            if (
+                rawData &&
+                typeof rawData === 'object' &&
+                rawData.metadata &&
+                typeof rawData.metadata === 'object' &&
+                rawData.payload &&
+                typeof rawData.payload === 'object'
+            ) {
+                // Already a complete ComprehensiveBackup (preserve original payload to protect payloadHash and checksum integrity)
+                backup = rawData as ComprehensiveBackup;
+                if (!backup.summary) {
+                    const dbData = backup.payload as Record<string, unknown>;
+                    const detectedSy = detectSchoolYearFromBackup(dbData, file.name);
+                    backup.summary = {
+                        activeSchoolYear: detectedSy,
+                        students: Array.isArray(dbData.students) ? dbData.students.length : 0,
+                        studentProfiles: Array.isArray(dbData.studentProfiles) ? dbData.studentProfiles.length : 0,
+                        sections: Array.isArray(dbData.sections) ? dbData.sections.length : 0,
+                        subjects: Array.isArray(dbData.subjects) ? dbData.subjects.length : 0,
+                        grades: Array.isArray(dbData.classRecords) ? dbData.classRecords.length : 0,
+                        gradingSheetRecords: Array.isArray(dbData.gradingSheetRecords) ? dbData.gradingSheetRecords.length : 0,
+                        observedValues: Array.isArray(dbData.observedValues) ? dbData.observedValues.length : 0,
+                        hpsRecords: Array.isArray(dbData.hpsRecords) ? dbData.hpsRecords.length : 0,
+                        sf2Sheets: Array.isArray(dbData.sf2Sheets) ? dbData.sf2Sheets.length : 0,
+                        announcements: Array.isArray(dbData.announcements) ? dbData.announcements.length : 0,
+                        schoolYears: Array.isArray(dbData.schoolYears) ? dbData.schoolYears.length : 0,
+                        enrollments: Array.isArray(dbData.enrollments) ? dbData.enrollments.length : 0,
+                        users: Array.isArray(dbData.users) ? dbData.users.length : 0,
+                        systemSettings: 0,
+                        adviserAssignments: 0,
+                        gradingConfiguration: 0,
+                        attendanceRecords: Array.isArray(dbData.attendanceRecords) ? dbData.attendanceRecords.length : 0,
+                        sf10Records: (dbData.localStorageData as Record<string, string> | undefined)?.['sf10-storage'] ? 1 : 0,
+                    };
+                }
+            } else
+
             if (rawData && (rawData.payload || rawData.students || rawData.data || rawData.schoolProfile)) {
                 const dbData = rawData.payload || rawData.data || rawData;
                 const detectedSy = detectSchoolYearFromBackup(dbData, file.name);
@@ -378,6 +415,7 @@ export function BackupRestoreModal({
 
         try {
             const prepared = prepareDataForRestore(state.backup);
+            await savePreRestoreSafetySnapshot();
             const result = await restoreBackupToFirestore(state.backup, {
                 strategy: state.restoreStrategy,
                 selectedItems: state.selectedItems,

@@ -11,15 +11,8 @@ import { db } from '../services/database';
 import { backup } from '../services/backup';
 import { normalizeSubjectName } from '../lib/subjectConfig';
 import { STANDARD_SUBJECTS, getDefaultTermForSubject, isGrade11CoreSubject } from '../lib/curriculum';
-import { normalizeGrade12PESubjectName } from '../utils/grading-helpers';
 import { getCurriculumPreset } from '../lib/curriculumPresets';
-import { reconcileOrphanedGradesAndSubjects, generateDeterministicSubjectId } from '../utils/grade-reconciliation';
-import {
-  buildAttendanceRecordsFromSf2Sheet,
-  buildAutoFilledDateLabels,
-  buildSf2SheetAttendanceFromRecords,
-  getSf2MonthContext,
-} from '../utils/sf2-sync';
+import { generateDeterministicSubjectId } from '../utils/grade-reconciliation';
 import { createGradingSlice, type GradingSlice } from './slices/grading-slice';
 import { createAttendanceSlice, type AttendanceSlice } from './slices/attendance-slice';
 import { createAnnouncementsSlice, type AnnouncementsSlice } from './slices/announcements-slice';
@@ -41,7 +34,6 @@ export interface ProfileMergeConflict {
 
 const CURRENT_VIEW_STORAGE_KEY = 'formease-current-view';
 const SELECTED_SECTION_STORAGE_KEY = 'formease-selected-section';
-const SF2_ATTENDANCE_REPAIR_KEY = 'formease-sf2-attendance-repair-v1';
 
 function getLocalStorageValue(key: string): string | null {
   try {
@@ -65,103 +57,6 @@ function removeLocalStorageValue(key: string): void {
   } catch {
     // Ignore storage failures (private mode or blocked storage).
   }
-}
-
-function getSf2DatesForSheet(sheet: SF2Sheet): string[] {
-  const monthIndexByName: Record<string, number> = {
-    JANUARY: 0, FEBRUARY: 1, MARCH: 2, APRIL: 3, MAY: 4, JUNE: 5,
-    JULY: 6, AUGUST: 7, SEPTEMBER: 8, OCTOBER: 9, NOVEMBER: 10, DECEMBER: 11,
-  };
-  const monthIndex = monthIndexByName[sheet.month];
-  if (monthIndex === undefined) return [];
-
-  const [startYear, endYear] = sheet.school_year.split('-').map(Number);
-  const year = monthIndex >= 5 ? startYear : endYear;
-  return Object.values(sheet.date_labels || {})
-    .map((label) => String(label || '').trim())
-    .filter((label) => /^\d{1,2}$/.test(label))
-    .map((dayLabel) => `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(Number(dayLabel)).padStart(2, '0')}`);
-}
-
-function reconcileAttendanceAndSf2Data(
-  attendanceRecords: AttendanceRecord[],
-  sf2Sheets: SF2Sheet[],
-  activeSchoolYear: string,
-): { attendanceRecords: AttendanceRecord[]; sf2Sheets: SF2Sheet[] } {
-  const attendanceById = new Map(attendanceRecords.map((record) => [record.id, record]));
-
-  for (const sheet of sf2Sheets) {
-    const sheetDates = new Set(getSf2DatesForSheet(sheet));
-    for (const record of [...attendanceById.values()]) {
-      if (record.section_id === sheet.section_id && sheetDates.has(record.date)) {
-        attendanceById.delete(record.id);
-      }
-    }
-    for (const record of buildAttendanceRecordsFromSf2Sheet(sheet)) {
-      attendanceById.set(record.id, record);
-    }
-  }
-
-  const mergedAttendanceRecords = [...attendanceById.values()].sort((a, b) => {
-    const dateCmp = a.date.localeCompare(b.date);
-    if (dateCmp !== 0) return dateCmp;
-    const sectionCmp = (a.section_id || '').localeCompare(b.section_id || '');
-    if (sectionCmp !== 0) return sectionCmp;
-    return a.student_lrn.localeCompare(b.student_lrn);
-  });
-
-  const sheetMap = new Map<string, SF2Sheet>();
-  for (const sheet of sf2Sheets) {
-    sheetMap.set(sheet.id, sheet);
-  }
-
-  const groupedRecords = new Map<string, {
-    sectionId: string;
-    schoolYear: string;
-    month: string;
-    records: AttendanceRecord[];
-  }>();
-  for (const record of mergedAttendanceRecords) {
-    if (!record.section_id) continue;
-    const context = getSf2MonthContext(record.date, activeSchoolYear);
-    if (!context) continue;
-    const sheetId = `${record.section_id}_${activeSchoolYear}_${context.month}`;
-    const group = groupedRecords.get(sheetId) || {
-      sectionId: record.section_id,
-      schoolYear: activeSchoolYear,
-      month: context.month,
-      records: [],
-    };
-    group.records.push(record);
-    groupedRecords.set(sheetId, group);
-  }
-
-  // Start from persisted sheets so an intentionally blank month is not lost
-  // during startup reconciliation.
-  const repairedSheets = new Map(sheetMap);
-  for (const [sheetId, group] of groupedRecords.entries()) {
-    const existing = sheetMap.get(sheetId);
-    if (!existing) {
-      const baseSheet: SF2Sheet = {
-        id: sheetId,
-        section_id: group.sectionId,
-        school_year: group.schoolYear,
-        month: group.month,
-        date_labels: buildAutoFilledDateLabels(group.month, group.schoolYear, localStorage.getItem('formease_sf2_include_saturdays') === 'true'),
-        attendance: {},
-        remarks: {},
-        updated_at: new Date().toISOString(),
-      };
-      repairedSheets.set(sheetId, buildSf2SheetAttendanceFromRecords(baseSheet, group.records));
-      continue;
-    }
-    repairedSheets.set(sheetId, buildSf2SheetAttendanceFromRecords(existing, group.records));
-  }
-
-  return {
-    attendanceRecords: mergedAttendanceRecords,
-    sf2Sheets: [...repairedSheets.values()],
-  };
 }
 
 interface AppState extends GradingSlice, AttendanceSlice, AnnouncementsSlice {
@@ -1588,17 +1483,24 @@ export const useAppStore = create<AppState>((set, get) => ({
 /**
  * Initialize app store by loading all data from local database
  */
+export async function initializePublicAppProfile(): Promise<void> {
+  if (typeof indexedDB !== 'undefined') await db.resumePendingRestoreSettings();
+  const profiles = await db.getAllRecords<SchoolProfile>('schoolProfile');
+  const schoolProfile =
+    profiles.find(p => p && p.school_id && p.school_id !== defaultSchoolProfile.school_id && p.name && p.name.trim() && p.name.trim() !== 'School Name') ??
+    profiles.find(p => p && p.name && p.name.trim() && p.name.trim() !== 'School Name') ??
+    profiles.find(p => p && p.school_id && p.school_id !== defaultSchoolProfile.school_id) ??
+    profiles[0] ?? defaultSchoolProfile;
+  useAppStore.setState({ schoolProfile, isSyncReady: true });
+}
+
 export async function initializeAppStore() {
-  const loadStore = async <T>(name: string, fallback: T[] = []): Promise<T[]> => {
-    try {
-      return await db.getAllRecords<T>(name);
-    } catch (e) {
-      console.error(`Failed to load ${name}:`, e);
-      return fallback;
-    }
-  };
+  const loadStore = async <T>(name: string): Promise<T[]> => db.getAllRecords<T>(name);
 
   try {
+    // A previous restore may have committed its database transaction just
+    // before the process stopped. Complete its idempotent settings step first.
+    if (typeof indexedDB !== 'undefined') await db.resumePendingRestoreSettings();
     // Phase 1: load data needed before making decisions, all in parallel
     const [students, sections, rawSubjects, allProfiles] = await Promise.all([
       loadStore<Student>('students'),
@@ -1607,27 +1509,8 @@ export async function initializeAppStore() {
       db.getAllRecords<SchoolProfile>('schoolProfile'),
     ]);
 
-    // Purge any rogue standalone 'Specialization' subject from the database
-    const specializationSubjects = rawSubjects.filter(s => {
-      const norm = (s.subject_name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-      return norm === 'specialization';
-    });
-    if (specializationSubjects.length > 0) {
-      for (const s of specializationSubjects) {
-        try {
-          await db.deleteRecord('subjects', s.id);
-        } catch (e) {
-          console.error('Failed to delete rogue Specialization subject record:', e);
-        }
-      }
-    }
-
-    const filteredRawSubjects = rawSubjects.filter(s => {
-      const norm = (s.subject_name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-      return norm !== 'specialization';
-    });
-
-    const subjects: Subject[] = filteredRawSubjects.map(s => ({
+    // Subject names are teacher-owned data, including "Specialization".
+    const subjects: Subject[] = rawSubjects.map(s => ({
       ...s,
       term: s.term !== undefined && s.term !== null ? s.term : getDefaultTermForSubject(s.subject_name, s.grade_level)
     }));
@@ -1739,18 +1622,8 @@ export async function initializeAppStore() {
     setLocalStorageValue('activeSchoolYear', resolvedSchoolYear);
     setLocalStorageValue('formease_active_school_year', resolvedSchoolYear);
 
-    const shouldRepairSf2Attendance = getLocalStorageValue(SF2_ATTENDANCE_REPAIR_KEY) !== 'true';
-    const repaired = shouldRepairSf2Attendance
-      ? reconcileAttendanceAndSf2Data(attendanceRecords, sf2Sheets, resolvedSchoolYear)
-      : { attendanceRecords, sf2Sheets };
-
-    if (shouldRepairSf2Attendance) {
-      await Promise.all([
-        db.putRecordsBulk('attendanceRecords', repaired.attendanceRecords),
-        db.putRecordsBulk('sf2Sheets', repaired.sf2Sheets),
-      ]);
-      setLocalStorageValue(SF2_ATTENDANCE_REPAIR_KEY, 'true');
-    }
+    // Attendance/SF2 repair requires an explicit, previewable migration. Loading
+    // a teacher's records must not silently rewrite either store.
 
 
     const advisorySection = sections.find(s => s.is_advisory || (s as Section & { is_advisory_class?: boolean }).is_advisory_class);
@@ -1759,163 +1632,24 @@ export async function initializeAppStore() {
       s => s.id === persistedSelectedSection || s.section_name === persistedSelectedSection
     );
     
-    // Transparent Migration: 
-    // 1. Ensure Grade 12 Old K-12 PE subjects and sections use the official title
-    // 2. Remove non-curriculum 'Specialization' subject from section rosters (taught_subjects & teaching_subjects)
-    let sectionsChanged = false;
-    let finalSections = sections.map(sec => {
-      let secChanged = false;
-
-      const cleanedTaught = (sec.taught_subjects || []).filter(s => {
-        const norm = (s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (norm === 'specialization') {
-          secChanged = true;
-          return false;
-        }
-        return true;
-      });
-      const cleanedTeaching = (sec.teaching_subjects || []).filter(s => {
-        const norm = (s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (norm === 'specialization') {
-          secChanged = true;
-          return false;
-        }
-        return true;
-      });
-
-      const gNum = parseInt((sec.section_grade_level || '').replace(/\D/g, '')) || 0;
-      const isSSHS = (sec.track || '').toLowerCase().includes('sshs') || (sec.track || '').toLowerCase().includes('cluster');
-      let newTaught = cleanedTaught;
-      let newTeaching = cleanedTeaching;
-
-      if (sec.is_advisory && (!sec.program || sec.program === 'Regular') && cleanedTaught.length === 0) {
-        const preset = getCurriculumPreset(sec.section_grade_level, sec.track, sec.cluster || sec.strand, 'Regular');
-        if (preset && preset.subjects.length > 0) {
-          newTaught = gNum === 11
-            ? preset.subjects.filter(s => isGrade11CoreSubject(s.name)).map(s => s.name)
-            : preset.subjects.map(s => s.name);
-          secChanged = true;
-        }
-      }
-
-      if (gNum === 12 && !isSSHS) {
-        newTaught = cleanedTaught.map(s => {
-          const norm = normalizeGrade12PESubjectName(s, false);
-          if (norm !== s) secChanged = true;
-          return norm;
-        });
-        newTeaching = cleanedTeaching.map(s => {
-          const norm = normalizeGrade12PESubjectName(s, false);
-          if (norm !== s) secChanged = true;
-          return norm;
-        });
-      }
-
-      if (secChanged) {
-        sectionsChanged = true;
-        return {
-          ...sec,
-          taught_subjects: newTaught,
-          teaching_subjects: newTeaching
-        };
-      }
-      return sec;
-    });
-
-    if (sectionsChanged) {
-      void db.putRecordsBulk('sections', finalSections).catch(e => console.error('Failed to persist migrated sections:', e));
-    }
-
-    let subjectsChanged = false;
-    const finalSubjectsWithMigration = finalSubjects.map(sub => {
-      const gNum = parseInt((sub.grade_level || '').replace(/\D/g, '')) || 0;
-      if (gNum === 12) {
-        const norm = normalizeGrade12PESubjectName(sub.subject_name, false);
-        if (norm !== sub.subject_name) {
-          subjectsChanged = true;
-          return { ...sub, subject_name: norm };
-        }
-      }
-      return sub;
-    });
-
-    if (subjectsChanged) {
-      void db.putRecordsBulk('subjects', finalSubjectsWithMigration).catch(e => console.error('Failed to persist migrated subjects:', e));
-    }
-
-    // Exact DepEd test-fixture mock adviser names that should never be shown in real deployments
-    const FIXTURE_MOCK_ADVISER_NAMES = new Set([
-      'Manuel T. Torres',
-      'Nelson P. Pascual',
-      'Kevin O. Ocampo',
-      'Laura M. Mendoza',
-      'Joy V. Villanueva',
-      'Maria L. Santos',
-      'Bella C. Cruz',
-      'Carlos D. Dizon',
-      'Diana M. Lopez',
-      'Eduardo G. Gomez',
-      'Fatima R. Reyes',
-      'Gabriel S. Santos',
-      'Hannah P. Perez',
-      'Ian B. Bautista'
-    ]);
-
-    // Transparent Self-Healing: Sync sections with test-fixture mock adviser names to actual schoolProfile adviser
-    const activeProfileAdviser = (schoolProfile?.adviser_name || '').trim();
-    if (activeProfileAdviser && activeProfileAdviser.toLowerCase() !== 'admin') {
-      let anyAdviserMigrated = false;
-      finalSections = finalSections.map(sec => {
-        const cName = (sec.adviser_name || '').trim();
-        const isFixtureMock = FIXTURE_MOCK_ADVISER_NAMES.has(cName) ||
-                              (sec.adviser_id && sec.adviser_id.startsWith('adv-')) ||
-                              cName.toLowerCase() === 'tba';
-        if (isFixtureMock && cName !== activeProfileAdviser) {
-          anyAdviserMigrated = true;
-          return { ...sec, adviser_name: activeProfileAdviser };
-        }
-        return sec;
-      });
-      if (anyAdviserMigrated) {
-        void db.putRecordsBulk('sections', finalSections).catch(e => console.error('Failed to persist adviser-migrated sections:', e));
-      }
-    }
-
-    // Transparent Self-Healing: Ensure sections assigned to active adviser or named 'Archimedes' have is_advisory: true
-    let anyAdvisoryHealed = false;
-    finalSections = finalSections.map(sec => {
-      const secNameNorm = (sec.section_name || '').trim().toLowerCase();
-      const isArchimedes = secNameNorm === 'archimedes';
-      const isEmersonAssigned = sec.adviser_id === 'user-emerson' ||
-        (activeProfileAdviser && sec.adviser_name && sec.adviser_name.trim().toLowerCase() === activeProfileAdviser.toLowerCase());
-      const isProfileSection = !!(schoolProfile?.section && secNameNorm === schoolProfile.section.trim().toLowerCase());
-
-      if ((isArchimedes || isEmersonAssigned || isProfileSection) && !sec.is_advisory) {
-        anyAdvisoryHealed = true;
-        return {
-          ...sec,
-          is_advisory: true,
-          adviser_name: sec.adviser_name || activeProfileAdviser || sec.adviser_name
-        };
-      }
-      return sec;
-    });
-    if (anyAdvisoryHealed) {
-      void db.putRecordsBulk('sections', finalSections).catch(e => console.error('Failed to persist advisory-healed sections:', e));
-    }
+    // Loading records must never rewrite teacher-owned names, rosters, subjects,
+    // or advisory assignments based on fixture-like text or inferred curriculum.
+    // Any future migration needs explicit provenance, a preview and consent.
+    const finalSections = sections;
+    const finalSubjectsWithMigration = finalSubjects;
 
 
 
     // Startup is intentionally non-destructive. Recovery and test-data cleanup are
     // explicit user actions, never a side effect of loading the local database.
-    let finalStudents = students;
+    const finalStudents = students;
     const finalClassRecords = classRecords;
     const finalGradingSheetRecords = gradingSheetRecords;
-    const finalAttendanceRecords = repaired.attendanceRecords;
-    const finalSf2Sheets = repaired.sf2Sheets;
+    const finalAttendanceRecords = attendanceRecords;
+    const finalSf2Sheets = sf2Sheets;
     const finalEnrollments = enrollments;
 
-    let finalSchoolProfile = schoolProfile;
+    const finalSchoolProfile = schoolProfile;
 
     // Re-resolve selectedSection ensuring configured section or advisory class has priority
     const configuredSectionName = (finalSchoolProfile?.section || '').trim();
@@ -1929,46 +1663,15 @@ export async function initializeAppStore() {
       setLocalStorageValue(SELECTED_SECTION_STORAGE_KEY, resolvedActiveSection);
     }
 
-    // Transparent Self-Healing: Reconnect any orphaned class records, HPS, and grading sheet records
-    // caused by deleted, edited, or re-templated subjects, and resurrect missing/unhidden subjects
-    const reconciliation = reconcileOrphanedGradesAndSubjects({
-      subjects: finalSubjectsWithMigration,
-      sections: finalSections,
-      students: finalStudents,
-      classRecords: finalClassRecords,
-      hpsRecords,
-      gradingSheetRecords: finalGradingSheetRecords
-    });
-
-    if (reconciliation.modified) {
-      console.log(`[FormEase Pro] Self-healing reconnected ${reconciliation.repairedCount} orphaned grade/HPS record(s) to active subjects.`);
-      await Promise.all([
-        db.putRecordsBulk('classRecords', reconciliation.classRecords),
-        db.putRecordsBulk('hpsRecords', reconciliation.hpsRecords),
-        db.putRecordsBulk('gradingSheetRecords', reconciliation.gradingSheetRecords),
-      ]);
-    }
-
-    if (reconciliation.subjectsModified) {
-      console.log(`[FormEase Pro] Self-healing restored visibility for ${reconciliation.subjects.length} subjects with recorded grades.`);
-      await db.putRecordsBulk('subjects', reconciliation.subjects);
-    }
-
-    if (reconciliation.sectionsModified && reconciliation.sections) {
-      console.log(`[FormEase Pro] Self-healing updated ${reconciliation.sections.length} section(s) with synchronized subjects.`);
-      await db.putRecordsBulk('sections', reconciliation.sections);
-      finalSections = reconciliation.sections;
-    }
-
     useAppStore.setState({
       activeSchoolYear: resolvedSchoolYear,
       students: finalStudents,
       studentProfiles: finalStudents,
       sections: finalSections,
-      subjects: reconciliation.subjects,
-      classRecords: reconciliation.classRecords,
-      gradingSheetRecords: reconciliation.gradingSheetRecords,
-      hpsRecords: reconciliation.hpsRecords,
+      subjects: finalSubjectsWithMigration,
+      classRecords: finalClassRecords,
+      gradingSheetRecords: finalGradingSheetRecords,
+      hpsRecords,
       enrollments: finalEnrollments,
       announcements,
       attendanceRecords: finalAttendanceRecords,
@@ -1999,6 +1702,7 @@ export async function initializeAppStore() {
 
   } catch (error) {
     console.error('❌ Critical error during app initialization:', error);
-    useAppStore.setState({ isSyncReady: true });
+    useAppStore.setState({ isSyncReady: false });
+    throw error;
   }
 }

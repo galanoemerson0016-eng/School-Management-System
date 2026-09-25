@@ -10,6 +10,7 @@ vi.mock('../../services/database', () => ({
     clearStore: vi.fn().mockResolvedValue(undefined),
     putRecord: vi.fn().mockResolvedValue(undefined),
     putRecordsBulk: vi.fn().mockResolvedValue(undefined),
+    commitRecordChanges: vi.fn().mockResolvedValue(undefined),
   },
   onDatabaseWriteChange: vi.fn(),
 }));

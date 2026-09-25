@@ -27,6 +27,7 @@
 
 import JSZip from 'jszip';
 import type { SchoolProfile, Student, Subject } from '../types';
+import { calculateWeightedGradeAverage } from './grade-calculation';
 
 export interface StudentWithGrades extends Omit<Partial<Student>, 'gender' | 'age'> {
   id?: string;
@@ -390,14 +391,12 @@ export function extractGrade12TechProCrossGrades(
     { grade: wi, units: 12 },
   ];
 
-  let sumPoints = 0;
-  let sumUnits = 0;
+  const averageEntries: Array<{ grade: number; weight: number }> = [];
   let allCompleted = true;
 
   for (const item of items) {
     if (typeof item.grade === 'number' && !isNaN(item.grade)) {
-      sumPoints += item.grade * item.units;
-      sumUnits += item.units;
+      averageEntries.push({ grade: item.grade, weight: item.units });
     } else {
       allCompleted = false;
     }
@@ -407,8 +406,9 @@ export function extractGrade12TechProCrossGrades(
   let generalAverageRemarks = '';
   let honors = '';
 
-  if (sumUnits > 0) {
-    generalAverage = Math.round(sumPoints / sumUnits);
+  const weightedAverage = calculateWeightedGradeAverage(averageEntries);
+  if (weightedAverage !== null) {
+    generalAverage = Math.round(weightedAverage);
     generalAverageRemarks = generalAverage >= 75 ? 'Passed' : 'Failed';
   }
 

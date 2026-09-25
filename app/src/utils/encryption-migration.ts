@@ -131,12 +131,15 @@ export async function migrateLegacyEncryptedDatabase(args: {
   database: MigrationDatabase;
   stores: readonly string[];
   legacyKey: CryptoKey;
+  /** Additional known legacy keys used by older modes on this same profile. */
+  legacyFallbackKeys?: CryptoKey[];
   dek: CryptoKey;
   metadata: WrappedDekMetadata;
   saveMetadata: (metadata: WrappedDekMetadata) => void;
   hooks?: MigrationHooks;
 }): Promise<WrappedDekMetadata> {
   const { database, stores, legacyKey, dek, saveMetadata, hooks } = args;
+  const legacyKeys = [legacyKey, ...(args.legacyFallbackKeys ?? []).filter(key => key !== legacyKey)];
   let metadata = args.metadata;
 
   if (metadata.state === 'migrated') {
@@ -145,7 +148,7 @@ export async function migrateLegacyEncryptedDatabase(args: {
   }
 
   // This is the recoverable checkpoint: either key can still open records.
-  database.setDatabaseEncryptionKey(dek, [legacyKey], false);
+  database.setDatabaseEncryptionKey(dek, legacyKeys, false);
   metadata = { ...metadata, state: 'migration_prepared' };
   saveMetadata(metadata);
   await hooks?.afterStage?.('migration_prepared');
@@ -190,7 +193,7 @@ export async function migrateLegacyEncryptedDatabase(args: {
   } catch (error) {
     // A failed verification remains explicitly recoverable on the next normal
     // login; it never falls through to a blank or replacement database.
-    database.setDatabaseEncryptionKey(dek, [legacyKey], false);
+    database.setDatabaseEncryptionKey(dek, legacyKeys, false);
     saveMetadata({ ...metadata, state: 'migration_failed_recoverable' });
     throw error;
   }

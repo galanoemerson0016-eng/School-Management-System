@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('update-message', (_event, message) => callback(message));
   },
   saveAutoBackup: (data, filename, retentionLimit) => ipcRenderer.invoke('save-auto-backup', { data, filename, retentionLimit }),
+  saveAutoBackupWorkbook: (data, filename) => ipcRenderer.invoke('save-auto-backup-workbook', { data, filename }),
+  rotateAutoBackupPairs: (retentionLimit) => ipcRenderer.invoke('rotate-auto-backup-pairs', retentionLimit),
   logError: (payload) => ipcRenderer.send('log-renderer-error', payload),
   licenseStatus: () => ipcRenderer.invoke('license:status'),
   licenseActivate: (payload) => ipcRenderer.invoke('license:activate', payload),
@@ -43,7 +45,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readFsBackupContent: (filename) => ipcRenderer.invoke('read-fs-backup-content', filename),
   deleteFsBackup: (filename) => ipcRenderer.invoke('delete-fs-backup', filename),
   downloadUpdate: () => ipcRenderer.invoke('download-update'),
-  quitAndInstall: () => ipcRenderer.send('quit-and-install'),
+  quitAndInstall: (safetyBackupFilename) => ipcRenderer.invoke('quit-and-install', safetyBackupFilename),
   gdriveAuthStart: (payload) => ipcRenderer.invoke('gdrive:auth-start', payload),
   gdriveStatus: () => ipcRenderer.invoke('gdrive:status'),
   gdriveDisconnect: () => ipcRenderer.invoke('gdrive:disconnect'),

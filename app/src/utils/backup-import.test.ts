@@ -1,16 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../services/database', () => ({
+    isEncryptedDatabaseEnvelope: (r: unknown) => Boolean(r && typeof r === 'object' && 'is_encrypted' in r && 'iv' in r && 'ciphertext' in r),
     db: {
         getAllRecords: vi.fn(),
         putRecord: vi.fn().mockResolvedValue('id'),
         putRecordsBulk: vi.fn().mockResolvedValue(undefined),
         clearStore: vi.fn().mockResolvedValue(undefined),
+        applyRestoreBatch: vi.fn().mockResolvedValue(undefined),
+        resumePendingRestoreSettings: vi.fn().mockResolvedValue(false),
+        _decryptRecord: vi.fn().mockImplementation((_store, r) => Promise.resolve(r)),
     },
 }));
 
 import { db } from '../services/database';
-import { restoreBackupToFirestore, getInvalidGradeReferences, resolveBestSchoolProfile } from './backup-import';
+import { restoreBackupToFirestore, getInvalidGradeReferences, resolveBestSchoolProfile, prepareDataForRestore } from './backup-import';
 import type { ComprehensiveBackup } from './backup-restore';
 import type { Student, ClassRecord } from '../types';
 
@@ -89,20 +93,25 @@ describe('restoreBackupToFirestore', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         localStorage.clear();
+        vi.mocked(db.resumePendingRestoreSettings).mockImplementation(async () => {
+            const settings = vi.mocked(db.applyRestoreBatch).mock.lastCall?.[1] as Record<string, string> | undefined;
+            for (const [key, value] of Object.entries(settings || {})) localStorage.setItem(key, value);
+            return !!settings;
+        });
     });
 
-    it('executes bulk replace strategy by clearing stores and calling putRecordsBulk', async () => {
+    it('stages selected replace collections for one database transaction', async () => {
         const backup = createMockBackup();
         const result = await restoreBackupToFirestore(backup, {
             strategy: 'replace',
             selectedItems: new Set(['schoolProfile', 'students', 'sections']),
         });
 
-        expect(db.clearStore).toHaveBeenCalledWith('schoolProfile');
-        expect(db.clearStore).toHaveBeenCalledWith('students');
-        expect(db.clearStore).toHaveBeenCalledWith('sections');
-        expect(db.putRecordsBulk).toHaveBeenCalledWith('students', expect.any(Array));
-        expect(db.putRecordsBulk).toHaveBeenCalledWith('sections', expect.any(Array));
+        expect(db.applyRestoreBatch).toHaveBeenCalledWith(expect.arrayContaining([
+            expect.objectContaining({ store: 'schoolProfile', replace: true }),
+            expect.objectContaining({ store: 'students', replace: true, records: expect.any(Array) }),
+            expect.objectContaining({ store: 'sections', replace: true, records: expect.any(Array) }),
+        ]), expect.any(Object));
         expect(result.created).toBe(3); // 2 students + 1 section
         expect(result.updated).toBe(1); // 1 profile updated
         expect(result.issues).toHaveLength(0);
@@ -117,8 +126,10 @@ describe('restoreBackupToFirestore', () => {
         });
 
         expect(db.clearStore).not.toHaveBeenCalled();
-        expect(db.putRecordsBulk).toHaveBeenCalledWith('students', expect.any(Array));
-        expect(db.putRecordsBulk).toHaveBeenCalledWith('sections', expect.any(Array));
+        expect(db.applyRestoreBatch).toHaveBeenCalledWith(expect.arrayContaining([
+            expect.objectContaining({ store: 'students', replace: false }),
+            expect.objectContaining({ store: 'sections', replace: false }),
+        ]), expect.any(Object));
         expect(result.updated).toBe(3); // 2 students + 1 section
         expect(result.issues).toHaveLength(0);
     });
@@ -140,9 +151,9 @@ describe('restoreBackupToFirestore', () => {
 
         expect(db.clearStore).not.toHaveBeenCalled();
         // Only 1 student should be inserted
-        expect(db.putRecordsBulk).toHaveBeenCalledWith('students', [
-            expect.objectContaining({ lrn: '120120170002' }),
-        ]);
+        expect(db.applyRestoreBatch).toHaveBeenCalledWith([
+            expect.objectContaining({ store: 'students', replace: false, records: [expect.objectContaining({ lrn: '120120170002' })] }),
+        ], expect.any(Object));
         expect(result.created).toBe(1);
         expect(result.skipped).toBe(1);
     });
@@ -172,7 +183,9 @@ describe('restoreBackupToFirestore', () => {
             'students', 'sections', 'subjects', 'enrollments', 'classRecords',
             'gradingSheetRecords', 'attendanceRecords', 'sf2Sheets', 'hpsRecords', 'observedValues',
         ]) {
-            expect(db.clearStore).toHaveBeenCalledWith(storeName);
+            expect(db.applyRestoreBatch).toHaveBeenCalledWith(expect.arrayContaining([
+                expect.objectContaining({ store: storeName, replace: true, records: [] }),
+            ]), expect.any(Object));
         }
     });
 
@@ -192,19 +205,18 @@ describe('restoreBackupToFirestore', () => {
         const backup = createMockBackup();
         backup.payload.schoolProfile = {} as never;
 
-        await restoreBackupToFirestore(backup, {
+        await expect(restoreBackupToFirestore(backup, {
             strategy: 'replace',
             selectedItems: new Set(['schoolProfile']),
-        });
+        })).rejects.toThrow('no restorable data');
 
         expect(db.clearStore).not.toHaveBeenCalledWith('schoolProfile');
         expect(db.putRecord).not.toHaveBeenCalledWith('schoolProfile', expect.anything());
     });
 
-    it('automatically ignores orphaned TEMP-* records but detects real missing student/subject references', () => {
+    it('preserves and reports orphaned TEMP-* grades alongside other missing references', () => {
         const backup = createMockBackup();
-        // Add an orphaned temporary LRN (should be ignored/purged)
-        // and a real missing 12-digit LRN (should trigger invalid reference)
+        // Temporary identifiers can still belong to genuine teacher grades.
         backup.payload.classRecords = [
             ...backup.payload.classRecords,
             {
@@ -224,9 +236,9 @@ describe('restoreBackupToFirestore', () => {
         ];
 
         const invalid = getInvalidGradeReferences(backup);
-        expect(invalid).toHaveLength(1);
-        expect(invalid[0].studentLrn).toBe('999999999999');
-        expect(invalid[0].missingStudent).toBe(true);
-        expect(invalid[0].missingSubject).toBe(false);
+        expect(invalid).toHaveLength(2);
+        expect(invalid.map(ref => ref.studentLrn)).toEqual(['TEMP-1782282357421-316-12', '999999999999']);
+        expect(invalid.every(ref => ref.missingStudent && !ref.missingSubject)).toBe(true);
+        expect(prepareDataForRestore(backup).classRecords.map(record => record.id)).toContain('grade_temp');
     });
 });

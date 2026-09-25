@@ -1,7 +1,8 @@
 import { db } from './database';
-import { exportFullDatabaseBackup, type ComprehensiveBackup } from '../utils/backup-restore';
+import { exportFullDatabaseBackup, savePreRestoreSafetySnapshot, type ComprehensiveBackup } from '../utils/backup-restore';
 import { embedChecksum } from '../utils/backup-integrity';
 import { CloudSyncService } from './cloud-sync';
+import { getMasterExcelBackupBuffer } from './master-excel-backup';
 
 export interface AutomatedBackupEntry {
   id: string;
@@ -24,10 +25,22 @@ export interface AutomatedBackupEntry {
     activityLog?: number;
   };
   data: ComprehensiveBackup | Awaited<ReturnType<typeof db.exportAllData>>;
+  snapshotId?: string;
+  pairedFileStatus?: 'verified' | 'full-only' | 'local-only';
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  const chunks: string[] = [];
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    chunks.push(String.fromCharCode(...bytes.subarray(offset, offset + chunkSize)));
+  }
+  return btoa(chunks.join(''));
 }
 
 export const AutoBackupManager = {
   _hourlyIntervalId: null as ReturnType<typeof setInterval> | null,
+  _backupInFlight: null as Promise<string> | null,
 
   /**
    * Initializes the scheduler by checking if a backup is due and runs it.
@@ -142,22 +155,83 @@ export const AutoBackupManager = {
    * Manually triggers a new automated backup snapshot.
    */
   async triggerBackup(): Promise<string> {
+    if (this._backupInFlight) return this._backupInFlight;
+    const pending = this.performBackup();
+    this._backupInFlight = pending;
+    try {
+      return await pending;
+    } finally {
+      if (this._backupInFlight === pending) this._backupInFlight = null;
+    }
+  },
+
+  async performBackup(): Promise<string> {
     if (db.isPreviewMode()) {
       console.log('👁️ Snapshot preview mode active: skipping automated backup trigger.');
       return '';
     }
     try {
-      const comprehensive = await exportFullDatabaseBackup('Automated Daily Backup Snapshot');
-      const data = (await embedChecksum(comprehensive as unknown as Record<string, unknown>)) as unknown as ComprehensiveBackup;
       const backupId = `auto_backup_${Date.now()}`;
       const timestamp = Date.now();
+      const snapshotId = `auto-${timestamp}-${crypto.randomUUID()}`;
+      const comprehensive = await exportFullDatabaseBackup('Automated Daily Backup Snapshot');
+      comprehensive.metadata.snapshotId = snapshotId;
+      const data = (await embedChecksum(comprehensive as unknown as Record<string, unknown>)) as unknown as ComprehensiveBackup;
       const dateStr = new Date(timestamp).toLocaleDateString();
       const label = `Automated Backup - ${dateStr}`;
+
+      let pairedFileStatus: AutomatedBackupEntry['pairedFileStatus'] = 'local-only';
+      if (window.electronAPI?.saveAutoBackupWorkbook) {
+        const fileTimestamp = `${new Date(timestamp).toISOString().replace(/[:.]/g, '-')}-${snapshotId.split('-').pop()?.slice(0, 8)}`;
+        const jsonFilename = `SMS_Backup_Automated_${fileTimestamp}.json`;
+        const workbookFilename = `FormEase_Automated_${fileTimestamp}.xlsx`;
+        const manifestFilename = `FormEase_Automated_${fileTimestamp}_Manifest.json`;
+        const workbook = await getMasterExcelBackupBuffer(data);
+        const base64Workbook = bytesToBase64(workbook);
+        const hashInput = new Uint8Array(workbook.byteLength);
+        hashInput.set(workbook);
+        const workbookHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', hashInput.buffer)))
+          .map(byte => byte.toString(16).padStart(2, '0')).join('');
+        const workbookSaved = await window.electronAPI.saveAutoBackupWorkbook(base64Workbook, workbookFilename);
+        if (!workbookSaved.success) throw new Error(workbookSaved.error || 'Excel backup could not be saved.');
+        // Keep prior complete pairs until a group-aware rotation step can prove
+        // that every retained JSON/workbook/manifest sibling exists.
+        const jsonSaved = await window.electronAPI.saveAutoBackup(data, jsonFilename, 0);
+        if (!jsonSaved.success) throw new Error(jsonSaved.error || 'Full recovery backup could not be saved.');
+        const manifest = {
+          schemaVersion: 1,
+          status: 'verified-pair',
+          snapshotId,
+          createdAt: new Date(timestamp).toISOString(),
+          applicationVersion: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : data.metadata.version,
+          files: [
+            { name: jsonFilename, format: 'FormEase full recovery JSON', sha256: data._checksum },
+            { name: workbookFilename, format: 'Readable Excel workbook', sha256: workbookHash },
+          ],
+          counts: data.summary,
+        };
+        const manifestSaved = await window.electronAPI.saveAutoBackup(manifest, manifestFilename);
+        if (!manifestSaved.success) throw new Error(manifestSaved.error || 'Backup pair manifest could not be saved.');
+        pairedFileStatus = 'verified';
+        if (window.electronAPI.rotateAutoBackupPairs) {
+          const preference = localStorage.getItem('formease_snapshot_retention_limit') || 'unlimited';
+          const limit = preference === 'unlimited' ? 0 : parseInt(preference, 10) || 0;
+          const rotation = await window.electronAPI.rotateAutoBackupPairs(limit);
+          if (!rotation.success) console.warn('Verified backup pair was saved, but retention cleanup failed:', rotation.error);
+        }
+      } else if (window.electronAPI?.saveAutoBackup) {
+        const fileTimestamp = `${new Date(timestamp).toISOString().replace(/[:.]/g, '-')}-${snapshotId.split('-').pop()?.slice(0, 8)}`;
+        const saved = await window.electronAPI.saveAutoBackup(data, `SMS_Backup_Automated_${fileTimestamp}.json`, 0);
+        if (!saved.success) throw new Error(saved.error || 'Full recovery backup could not be saved.');
+        pairedFileStatus = 'full-only';
+      }
 
       const backupEntry: AutomatedBackupEntry = {
         id: backupId,
         timestamp,
         label,
+        snapshotId,
+        pairedFileStatus,
         fileSize: JSON.stringify(data).length,
         recordCounts: {
           students: data.summary.students,
@@ -179,19 +253,6 @@ export const AutoBackupManager = {
 
       // Save to IndexedDB store
       await db.putRecord('automated_backups', backupEntry);
-      
-      // Also save to local filesystem backups if running in Electron
-      if (window.electronAPI?.saveAutoBackup) {
-        try {
-          const timestampStr = new Date(timestamp).toISOString().replace(/[:.]/g, '-');
-          const fsFilename = `SMS_Backup_Comprehensive_${timestampStr}.json`;
-          const pref = localStorage.getItem('formease_snapshot_retention_limit') || 'unlimited';
-          const retentionLimit = pref === 'unlimited' ? 0 : parseInt(pref, 10) || 0;
-          await window.electronAPI.saveAutoBackup(data, fsFilename, retentionLimit);
-        } catch (fsErr) {
-          console.error('Failed to write backup snapshot to local drive:', fsErr);
-        }
-      }
       
       // Update localStorage timestamp
       localStorage.setItem('formease_last_autobackup_time', timestamp.toString());
@@ -228,7 +289,12 @@ export const AutoBackupManager = {
       }
 
       // Restore data using existing importFromBackup
+      await savePreRestoreSafetySnapshot();
       await db.importFromBackup(targetBackup.data as Parameters<typeof db.importFromBackup>[0]);
+      if (typeof window !== 'undefined') {
+        const { initializeAppStore } = await import('../stores/app-store');
+        await initializeAppStore();
+      }
       console.log('✅ Successfully restored database from automated backup:', backupId);
     } catch (error) {
       console.error('Failed to restore from automated backup:', error);
@@ -257,7 +323,7 @@ export const AutoBackupManager = {
       if (isNaN(limit) || limit <= 0) {
         return;
       }
-      const backups = await this.getAutomatedBackups();
+      const backups = (await this.getAutomatedBackups()).filter(backup => backup.id.startsWith('auto_backup_'));
       if (backups.length > limit) {
         const oldBackups = backups.slice(limit);
         for (const ob of oldBackups) {

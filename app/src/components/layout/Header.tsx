@@ -167,8 +167,10 @@ export function Header() {
                 return;
             }
 
+            const { embedChecksum } = await import('../../utils/backup-integrity');
+            const backupWithChecksum = await embedChecksum(backup as unknown as Record<string, unknown>);
             const timestamp = new Date().toISOString().split('T')[0];
-            const backupBlob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+            const backupBlob = new Blob([JSON.stringify(backupWithChecksum, null, 2)], { type: 'application/json' });
             const backupUrl = URL.createObjectURL(backupBlob);
             const backupLink = document.createElement('a');
             backupLink.href = backupUrl;

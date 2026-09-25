@@ -1,12 +1,15 @@
+import { useState } from 'react';
 import { useUpdateStore } from '../../stores/update-store';
 import { ShieldCheck, ShieldAlert, ArrowLeftRight, Check, X, Undo2, Sparkles } from 'lucide-react';
 
 export function ReconciliationReportModal() {
   const { reconciliationReport, clearReconciliationReport, rollbackToPreUpdateBackup } = useUpdateStore();
+  const [confirming, setConfirming] = useState(false);
+  const [restoring, setRestoring] = useState(false);
 
   if (!reconciliationReport) return null;
 
-  const isSuccess = reconciliationReport.status === 'success';
+  const isSuccess = reconciliationReport.status === 'success' && !reconciliationReport.recoveryAvailable;
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-100 p-4 animate-in fade-in duration-300">
@@ -96,7 +99,7 @@ export function ReconciliationReportModal() {
             <div className="bg-emerald-50 dark:bg-emerald-950/15 border border-emerald-100 dark:border-emerald-900/30 rounded-2xl p-4 text-center space-y-1.5">
               <h4 className="text-xs font-extrabold text-emerald-800 dark:text-emerald-400 uppercase tracking-wider">Preservation Successful</h4>
               <p className="text-xs text-emerald-700 dark:text-emerald-300 font-medium leading-relaxed">
-                100% of your records match the pre-update state. All student profiles, class records, enrollments, and academic configurations have been successfully preserved.
+                The compared record counts match the pre-update counts. Counts alone cannot confirm every record or grade is unchanged.
               </p>
             </div>
           ) : (
@@ -104,7 +107,7 @@ export function ReconciliationReportModal() {
               <h4 className="text-xs font-extrabold text-red-800 dark:text-red-400 uppercase tracking-wider">⚠️ {reconciliationReport.recoveryAvailable ? 'Records Recovery Available' : 'Data Discrepancy Alert'}</h4>
               <p className="text-xs text-red-700 dark:text-red-300 font-bold leading-relaxed">
                 {reconciliationReport.recoveryAvailable
-                  ? 'This backup passed its integrity check. Restore it only if its counts contain your missing records; restoring replaces current local records.'
+                  ? 'A pre-update backup passed content verification. Compare the counts and restore only if it contains the records you need. Restoring replaces current local records, including later edits.'
                   : 'One or more record counts do not reconcile. This could indicate a migration failure. Please perform an emergency rollback to restore the pre-update backup.'}
               </p>
             </div>
@@ -112,14 +115,32 @@ export function ReconciliationReportModal() {
 
           {/* Action buttons */}
           <div className="space-y-2 pt-2">
-            {!isSuccess && reconciliationReport.backupFilename && (
+            {!isSuccess && reconciliationReport.backupFilename && !confirming && (
               <button
-                onClick={() => rollbackToPreUpdateBackup(reconciliationReport.backupFilename!)}
+                onClick={() => setConfirming(true)}
                 className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-[13px] uppercase tracking-wider rounded-2xl shadow-lg shadow-rose-600/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Undo2 className="w-4 h-4" />
-                {reconciliationReport.recoveryAvailable ? 'Review & Restore Verified Backup' : 'Rollback & Restore Pre-Update Backup'}
+                Review restore consequences
               </button>
+            )}
+
+            {confirming && reconciliationReport.backupFilename && (
+              <div className="space-y-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-left dark:border-amber-800 dark:bg-amber-950/20">
+                <p className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                  This will replace the selected local school records with the pre-update backup. Edits made after that backup may disappear from the active view. A new safety copy of your current records must be saved and checked first.
+                </p>
+                <div className="flex gap-2">
+                  <button type="button" disabled={restoring} onClick={() => setConfirming(false)} className="flex-1 rounded-xl bg-white p-2 text-xs font-bold text-slate-700 disabled:opacity-50">Cancel</button>
+                  <button type="button" disabled={restoring} onClick={async () => {
+                    setRestoring(true);
+                    try { await rollbackToPreUpdateBackup(reconciliationReport.backupFilename!); }
+                    finally { setRestoring(false); }
+                  }} className="flex-1 rounded-xl bg-rose-700 p-2 text-xs font-bold text-white disabled:opacity-50">
+                    {restoring ? 'Saving safety copy…' : 'Save safety copy & restore'}
+                  </button>
+                </div>
+              </div>
             )}
 
             <button

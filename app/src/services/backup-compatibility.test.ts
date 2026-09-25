@@ -55,6 +55,17 @@ function setupMockIndexedDB() {
         queueMicrotask(() => req.onsuccess?.({ target: req }));
         return req;
       },
+      get: (key: string) => {
+        const req: MockRequest<unknown> = { onsuccess: null, onerror: null, result: tbl.get(key) };
+        queueMicrotask(() => req.onsuccess?.({ target: req }));
+        return req;
+      },
+      delete: (key: string) => {
+        tbl.delete(key);
+        const req: MockRequest<undefined> = { onsuccess: null, onerror: null };
+        queueMicrotask(() => req.onsuccess?.({ target: req }));
+        return req;
+      },
       createIndex: () => {},
     };
   }

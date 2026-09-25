@@ -47,7 +47,7 @@ try {
 
 import { useAppStore } from '../stores/app-store';
 import { useAuthStore } from '../stores/auth-store';
-import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2Sheet, SchoolProfile, CalendarEvent, SF9SignatureSettings, AttendanceRecord } from '../types';
+import type { Student, User, Section, Subject, ClassRecord, HPSRecord, ObservedValues, SF2Sheet, SchoolProfile, CalendarEvent, SF9SignatureSettings, AttendanceRecord } from '../types';
 import type { PaceRatingDescriptor } from '../types/pace';
 import { db } from '../services/database';
 import { resolveStudentQuarterGrade, isMatchingSubject, isStudentEligibleForSectionSubject, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
@@ -64,6 +64,14 @@ import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
 import { formatLearnerName } from '../utils/student-name';
 import { getShsSubjectUnitInfo, getCurriculumTemplatesForSection, getDefaultTermForSubject, resolveSubjectOfferedTerms } from '../lib/curriculum';
+import {
+    calculateSf9FinalGrade,
+    calculateSf9GeneralAverage,
+    areSf9TermsComplete,
+    calculateSf9TotalUnits,
+} from '../services/grade-calculation';
+import type { SF9SubjectItem } from '../services/grade-calculation';
+export type { SF9SubjectItem } from '../services/grade-calculation';
 import { MasterExcelImportModal } from '../components/MasterExcelImportModal';
 import type { CurrentGrade1Data, ApplyImportResult } from '../services/sf9-g1-excel-import';
 import {
@@ -584,16 +592,6 @@ const CORE_VALUES = [
 
 
 
-export interface SF9SubjectItem {
-    name: string;
-    id?: string;
-    term?: Subject['term'];
-    units?: number;
-    isHeader?: boolean;
-    isComponent?: boolean;
-    isReserved?: boolean;
-}
-
 function computeStudentGrades(
     student: Student, 
     sectionObj: Section, 
@@ -601,8 +599,11 @@ function computeStudentGrades(
     gradingSheetRecords: ClassRecord[], 
     schoolYear: string, 
     schoolProfile?: SchoolProfile,
-    subjectSelections?: Record<number, string>
+    subjectSelections?: Record<number, string>,
+    gradeInputs?: { classRecords: ClassRecord[]; hpsRecords: HPSRecord[] }
 ) {
+    if (!gradeInputs) throw new Error('SF9 grade calculations require explicit class and HPS records.');
+    const { classRecords, hpsRecords } = gradeInputs;
     const grades: Record<string, number[]> = {};
     const gradeLevelNum = parseInt(sectionObj.section_grade_level.replace(/\D/g, '')) || 0;
     const isSHS = gradeLevelNum === 11 || gradeLevelNum === 12;
@@ -1101,8 +1102,6 @@ function computeStudentGrades(
         if (matchingSubjects.length > 0) {
             const getQuarterAverage = (q: 1 | 2 | 3) => {
                 const results: number[] = [];
-                const classRecords = useAppStore.getState().classRecords;
-                const hpsRecords = useAppStore.getState().hpsRecords;
 
                 matchingSubjects.forEach(subject => {
                     let gradeVal = resolveStudentQuarterGrade({
@@ -1146,8 +1145,6 @@ function computeStudentGrades(
 
         // Direct subject name fallback if not in sectionDbSubjects
         const getDirectQuarterGrade = (q: 1 | 2 | 3) => {
-            const classRecords = useAppStore.getState().classRecords;
-            const hpsRecords = useAppStore.getState().hpsRecords;
             return resolveStudentQuarterGrade({
                 studentLrn: student.lrn,
                 subjectIdOrName: subjectName,
@@ -1201,73 +1198,8 @@ function computeStudentGrades(
     return { subjects: currentSubjects, grades };
 }
 
-function calculateGeneralAverage(grades: Record<string, number[]>, currentSubjectsList: SF9SubjectItem[] = [], gradeLevel?: string) {
-    let total = 0;
-    let count = 0;
-    let totalWeighted = 0;
-    let totalUnits = 0;
-    const dbSubjects = useAppStore.getState().subjects;
-    const isSHS = (gradeLevel || '').includes('11') || (gradeLevel || '').includes('12');
-
-    Object.keys(grades).forEach(key => {
-        const norm = normalizeSubjectName(key);
-        const subjItem = currentSubjectsList.find(s => s.name === key);
-        
-        // Exclude components from the average count (they are part of MAPEH or parent subjects)
-        const isComponent = norm.includes('musicandarts') || norm.includes('musicarts') || 
-                           norm.includes('physicaleducationandhealth') || norm.includes('peandhealth') || norm.includes('pehealth') ||
-                           subjItem?.isComponent;
-                           
-        const isExcluded = key.startsWith('*') || 
-                          key.toLowerCase().includes('arabic language') || 
-                          key.toLowerCase().includes('islamic values');
-
-        // Exclude category headers from the average
-        if (
-            subjItem?.name === 'Core Subjects' || 
-            subjItem?.name === 'Electives' || 
-            subjItem?.name === 'Elective Subjects' || 
-            subjItem?.name === 'Applied Subjects' || 
-            subjItem?.name === 'Specialized Subjects'
-        ) return;
-
-        // Exclude reserved rows, components, and specific excluded subjects
-        if (!key.startsWith('reserved_extra') && !isComponent && !isExcluded) {
-            const gradeRow = grades[key] || [0, 0, 0];
-            
-            // Find subject term
-            const dbSubj = subjItem?.id 
-                ? dbSubjects.find(s => s.id === subjItem.id) 
-                : dbSubjects.find(s => s.subject_name.toLowerCase().trim() === key.toLowerCase().trim());
-            const term = subjItem?.term ?? dbSubj?.term ?? getDefaultTermForSubject(key, gradeLevel || 'Grade 11');
-            if (term === 'none') return;
-            if (dbSubj?.counts_in_general_average === false || dbSubj?.is_component) return;
-
-            const finalGrade = calculateFinalGrade(gradeRow, term, key);
-            if (finalGrade > 0) {
-                if (isSHS) {
-                    const unitInfo = getShsSubjectUnitInfo(key, gradeLevel || 'Grade 11');
-                    const explicitUnits = Number(subjItem?.units ?? dbSubj?.units);
-                    const termUnits = Number.isFinite(explicitUnits) && explicitUnits > 0 ? explicitUnits : unitInfo.unitsPerTerm;
-                    const offeredTermCount = resolveSubjectOfferedTerms(
-                        { subject_name: key, term },
-                        { section_grade_level: gradeLevel || 'Grade 11' }
-                    ).length;
-                    const yearUnits = termUnits * Math.max(1, offeredTermCount);
-                    totalWeighted += finalGrade * yearUnits;
-                    totalUnits += yearUnits;
-                } else {
-                    total += finalGrade;
-                    count++;
-                }
-            }
-        }
-    });
-
-    if (isSHS) {
-        return totalUnits > 0 ? Math.round(totalWeighted / totalUnits) : 0;
-    }
-    return count > 0 ? Math.round(total / count) : 0;
+function calculateGeneralAverage(grades: Record<string, number[]>, currentSubjectsList: SF9SubjectItem[] = [], gradeLevel?: string, databaseSubjects: Subject[] = []) {
+    return calculateSf9GeneralAverage(grades, currentSubjectsList, gradeLevel || '', databaseSubjects);
 }
 
 function computeStudentValues(student: Student, observedValues: ObservedValues[], schoolYear: string) {
@@ -1285,100 +1217,15 @@ function computeStudentValues(student: Student, observedValues: ObservedValues[]
 }
 
 function calculateFinalGrade(quarterGrades: number[], term?: 1 | 2 | 3 | 'all' | 'none', subjectName?: string): number {
-    if (term === 'none') return 0;
-    
-    // Handle special Grade 11 electives final grade
-    if (subjectName) {
-        const normName = normalizeSubjectName(subjectName);
-        if (normName === 'academicelective1') {
-            const g1 = quarterGrades[0] || 0;
-            const g3 = quarterGrades[2] || 0;
-            if (g1 > 0 && g3 > 0) return Math.round((g1 + g3) / 2);
-            return g1 || g3 || 0;
-        }
-        if (normName === 'academicelective2') {
-            const g2 = quarterGrades[1] || 0;
-            const g3 = quarterGrades[2] || 0;
-            if (g2 > 0 && g3 > 0) return Math.round((g2 + g3) / 2);
-            return g2 || g3 || 0;
-        }
-        if (normName === 'academicelective3') {
-            return quarterGrades[2] || 0;
-        }
-        if (normName === 'techproelective1') {
-            const g1 = quarterGrades[0] || 0;
-            const g2 = quarterGrades[1] || 0;
-            const g3 = quarterGrades[2] || 0;
-            let sum = 0;
-            let count = 0;
-            if (g1 > 0) { sum += g1; count++; }
-            if (g2 > 0) { sum += g2; count++; }
-            if (g3 > 0) { sum += g3; count++; }
-            return count > 0 ? Math.round(sum / count) : 0;
-        }
-    }
-
-    if (term === 1 || Number(term) === 1) return quarterGrades[0] || 0;
-    if (term === 2 || Number(term) === 2) return quarterGrades[1] || 0;
-    if (term === 3 || Number(term) === 3) return quarterGrades[2] || 0;
-
-    if (quarterGrades.length !== 3 || !quarterGrades.every(g => g > 0)) return 0;
-    return Math.round(quarterGrades.reduce((a, b) => a + b, 0) / 3);
+    return calculateSf9FinalGrade(quarterGrades, term, subjectName);
 }
 
-function areAllSf9TermsComplete(
-    grades: Record<string, number[]>,
-    currentSubjectsList: SF9SubjectItem[],
-    gradeLevel: string
-): boolean {
-    const dbSubjects = useAppStore.getState().subjects;
-    const requiredSubjects = currentSubjectsList.filter(subject => {
-        if (subject.isReserved || subject.isComponent) return false;
-        if (subject.isHeader && ['Core Subjects', 'Electives', 'Elective Subjects', 'Applied Subjects', 'Specialized Subjects'].includes(subject.name)) return false;
-        if (subject.name.startsWith('*') || subject.name.toLowerCase().includes('arabic language') || subject.name.toLowerCase().includes('islamic values')) return false;
-        return true;
-    });
-
-    if (requiredSubjects.length === 0) return false;
-
-    return requiredSubjects.every(subject => {
-        const dbSubject = subject.id
-            ? dbSubjects.find(candidate => candidate.id === subject.id)
-            : dbSubjects.find(candidate => normalizeSubjectName(candidate.subject_name) === normalizeSubjectName(subject.name));
-        const term = subject.term ?? dbSubject?.term ?? getDefaultTermForSubject(subject.name, gradeLevel);
-        const offeredTerms = resolveSubjectOfferedTerms(
-            { subject_name: subject.name, term },
-            { section_grade_level: gradeLevel }
-        );
-        const gradeRow = grades[subject.name] || [0, 0, 0];
-        return offeredTerms.length > 0 && offeredTerms.every(termNumber => Number(gradeRow[termNumber - 1]) > 0);
-    });
+function areAllSf9TermsComplete(grades: Record<string, number[]>, currentSubjectsList: SF9SubjectItem[], gradeLevel: string, databaseSubjects: Subject[] = []): boolean {
+    return areSf9TermsComplete(grades, currentSubjectsList, gradeLevel, databaseSubjects);
 }
 
-function calculateTotalSf9Units(currentSubjectsList: SF9SubjectItem[], gradeLevel: string): number {
-    const dbSubjects = useAppStore.getState().subjects;
-
-    return currentSubjectsList.reduce((totalUnits, subject) => {
-        if (subject.isReserved || subject.isComponent) return totalUnits;
-        if (subject.isHeader && ['Core Subjects', 'Electives', 'Elective Subjects', 'Applied Subjects', 'Specialized Subjects'].includes(subject.name)) return totalUnits;
-        if (subject.name.startsWith('*') || subject.name.toLowerCase().includes('arabic language') || subject.name.toLowerCase().includes('islamic values')) return totalUnits;
-
-        const dbSubject = subject.id
-            ? dbSubjects.find(candidate => candidate.id === subject.id)
-            : dbSubjects.find(candidate => normalizeSubjectName(candidate.subject_name) === normalizeSubjectName(subject.name));
-        if (dbSubject?.counts_in_general_average === false || dbSubject?.is_component) return totalUnits;
-
-        const unitInfo = getShsSubjectUnitInfo(subject.name, gradeLevel);
-        const explicitUnits = Number(subject.units ?? dbSubject?.units);
-        const unitsPerTerm = Number.isFinite(explicitUnits) && explicitUnits > 0 ? explicitUnits : unitInfo.unitsPerTerm;
-        const term = subject.term ?? dbSubject?.term ?? getDefaultTermForSubject(subject.name, gradeLevel);
-        const offeredTermCount = resolveSubjectOfferedTerms(
-            { subject_name: subject.name, term },
-            { section_grade_level: gradeLevel }
-        ).length;
-
-        return totalUnits + (unitsPerTerm * Math.max(1, offeredTermCount));
-    }, 0);
+function calculateTotalSf9Units(currentSubjectsList: SF9SubjectItem[], gradeLevel: string, databaseSubjects: Subject[] = []): number {
+    return calculateSf9TotalUnits(currentSubjectsList, gradeLevel, databaseSubjects);
 }
 
 function getRemarks(grade: number): string {
@@ -1515,6 +1362,7 @@ export interface SF9ExactDocumentProps {
     principalTitle: string;
     grades: Record<string, number[]>;
     subjects: SF9SubjectItem[];
+    databaseSubjects?: Subject[];
     observedValues: Record<string, string[]>;
     comments?: string[];
     g1Remarks?: {
@@ -1561,7 +1409,7 @@ const isGrade1Level = (gLevel?: string): boolean => {
 function SF9Pages({
     student, schoolName, schoolYear, section, region, division, district,
     adviser, principal, principalTitle,
-    grades, subjects: currentSubjects, comments = ['', '', ''], g1Remarks, attendance, pageSize, logoUrl, printMode = 'full', schoolProfile,
+    grades, subjects: currentSubjects, databaseSubjects = [], comments = ['', '', ''], g1Remarks, attendance, pageSize, logoUrl, printMode = 'full', schoolProfile,
     showAdviserSig = true,
     showHeadSig = true,
     adviserSigWidth = 60,
@@ -1634,7 +1482,7 @@ function SF9Pages({
         return true;
     };
 
-    const allRequiredTermsComplete = areAllSf9TermsComplete(grades, currentSubjects, student.grade_level);
+    const allRequiredTermsComplete = areAllSf9TermsComplete(grades, currentSubjects, student.grade_level, databaseSubjects);
 
     // A full/default preview must not leak a premature Final Grade. Final
     // grades, final average, and final remarks are released only after every
@@ -1661,9 +1509,9 @@ function SF9Pages({
     };
 
     const generalAverage = allRequiredTermsComplete
-        ? calculateGeneralAverage(grades, currentSubjects, student.grade_level)
+        ? calculateGeneralAverage(grades, currentSubjects, student.grade_level, databaseSubjects)
         : 0;
-    const totalSf9Units = isG11Academic ? calculateTotalSf9Units(currentSubjects, student.grade_level) : 0;
+    const totalSf9Units = isG11Academic ? calculateTotalSf9Units(currentSubjects, student.grade_level, databaseSubjects) : 0;
 
     const cleanDivision = (division || '')
         .replace(/schools division office of/i, '')
@@ -2590,6 +2438,8 @@ interface SF9BatchDocumentProps {
     sectionObj: Section;
     subjects: Subject[];
     gradingSheetRecords: ClassRecord[];
+    classRecords: ClassRecord[];
+    hpsRecords: HPSRecord[];
     schoolProfile: SchoolProfile;
     activeSchoolYear: string;
     observedValues: ObservedValues[];
@@ -2604,7 +2454,7 @@ interface SF9BatchDocumentProps {
 const SF9PagesMemo = React.memo(SF9Pages);
 
 export function SF9BatchDocument({
-    students, sections, sectionObj, subjects, gradingSheetRecords, schoolProfile, activeSchoolYear, observedValues, sf2Sheets, attendanceRecords = [], adviser, pageSize, printMode = 'full', subjectSelections
+    students, sections, sectionObj, subjects, gradingSheetRecords, classRecords, hpsRecords, schoolProfile, activeSchoolYear, observedValues, sf2Sheets, attendanceRecords = [], adviser, pageSize, printMode = 'full', subjectSelections
 }: SF9BatchDocumentProps) {
     const sigSettings = sectionObj.section_metadata?.sf9SignatureSettings || {};
 
@@ -2616,7 +2466,7 @@ export function SF9BatchDocument({
                 const comment = observedValues.find(v => v.student_lrn === student.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
                 return comment.trim() !== '';
             }).map((student) => {
-                const { subjects: computedSubjects, grades } = computeStudentGrades(student, sectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, subjectSelections);
+                const { subjects: computedSubjects, grades } = computeStudentGrades(student, sectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, subjectSelections, { classRecords, hpsRecords });
                 const values = computeStudentValues(student, observedValues, activeSchoolYear);
                 const attendance = computeStudentAttendance(student, sf2Sheets, activeSchoolYear, sectionObj, attendanceRecords);
                 
@@ -2642,6 +2492,7 @@ export function SF9BatchDocument({
                         principalTitle={schoolProfile.head_position || 'School Head'}
                         grades={grades}
                         subjects={computedSubjects}
+                        databaseSubjects={subjects}
                         observedValues={values}
                         comments={studentComments}
                         attendance={attendance}
@@ -2676,6 +2527,8 @@ export function SF9Page() {
     const schoolProfile = useAppStore(state => state.schoolProfile);
     const activeSchoolYear = useAppStore(state => state.activeSchoolYear);
     const gradingSheetRecords = useAppStore(state => state.gradingSheetRecords);
+    const classRecords = useAppStore(state => state.classRecords);
+    const hpsRecords = useAppStore(state => state.hpsRecords);
     const subjects = useAppStore(state => state.subjects);
     const observedValues = useAppStore(state => state.observedValues);
     const storeSf2Sheets = useAppStore(state => state.sf2Sheets);
@@ -3134,8 +2987,8 @@ export function SF9Page() {
     const studentGrades = useMemo(() => {
         void syncVersion;
         if (!selectedStudent || !selectedSectionObj) return { subjects: [], grades: {} };
-        return computeStudentGrades(selectedStudent, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
-    }, [selectedStudent, selectedSectionObj, gradingSheetRecords, activeSchoolYear, subjects, schoolProfile, currentSubjectSelections, syncVersion]);
+        return computeStudentGrades(selectedStudent, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections, { classRecords, hpsRecords });
+    }, [selectedStudent, selectedSectionObj, gradingSheetRecords, classRecords, hpsRecords, activeSchoolYear, subjects, schoolProfile, currentSubjectSelections, syncVersion]);
 
     // Automatically resolve default suggestion tone from student grades when modal state changes
     useEffect(() => {
@@ -3189,7 +3042,7 @@ export function SF9Page() {
                 const attendanceB = computeStudentAttendance(selectedStudentB, sf2Sheets, activeSchoolYear, selectedSectionObj, attendanceRecords);
                 const getQCommentB = (q: number) => observedValues.find(v => v.student_lrn === selectedStudentB.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
                 const studentCommentsB = [getQCommentB(1), getQCommentB(2), getQCommentB(3)];
-                const studentGradesB = computeStudentGrades(selectedStudentB, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
+                const studentGradesB = computeStudentGrades(selectedStudentB, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections, { classRecords, hpsRecords });
 
                 learnerB = {
                     student: selectedStudentB,
@@ -3231,6 +3084,7 @@ export function SF9Page() {
                 principalTitle={schoolProfile.head_position || 'School Head'} 
                 grades={studentGrades.grades || {}} 
                 subjects={studentGrades.subjects || []}
+                databaseSubjects={subjects}
                 observedValues={studentValues} 
                 comments={studentComments}
                 g1Remarks={g1RemarksState}
@@ -3254,7 +3108,7 @@ export function SF9Page() {
                 hideHeadName={hideHeadName}
             />
         );
-    }, [selectedStudent, selectedStudentB, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, g1RemarksState, observedValues, sf2Sheets, attendanceRecords, pageSize, sections, printMode, showAdviserSig, showHeadSig, adviserSigWidth, adviserSigHeight, adviserSigOffset, headSigWidth, headSigHeight, headSigOffset, hideLearnerInfo, hideAttendance, hideGrades, hideAdviserName, hideHeadName, effectiveTemplate, subjects, currentSubjectSelections, gradingSheetRecords]);
+    }, [selectedStudent, selectedStudentB, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, g1RemarksState, observedValues, sf2Sheets, attendanceRecords, pageSize, sections, printMode, showAdviserSig, showHeadSig, adviserSigWidth, adviserSigHeight, adviserSigOffset, headSigWidth, headSigHeight, headSigOffset, hideLearnerInfo, hideAttendance, hideGrades, hideAdviserName, hideHeadName, effectiveTemplate, subjects, currentSubjectSelections, gradingSheetRecords, classRecords, hpsRecords]);
 
     const handleCloseLayoutModal = () => {
         if (selectedSectionObj) {
@@ -3498,7 +3352,7 @@ export function SF9Page() {
 
             if (effectiveTemplate === 'template2') {
                 const learnersData: SF9Template2LearnerData[] = sortedStudents.map((st) => {
-                    const { subjects: compSubjects, grades: stGrades } = computeStudentGrades(st, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
+                    const { subjects: compSubjects, grades: stGrades } = computeStudentGrades(st, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections, { classRecords, hpsRecords });
                     const stAttendance = computeStudentAttendance(st, sf2Sheets, activeSchoolYear, selectedSectionObj, attendanceRecords);
                     const getQComment = (q: number) => observedValues.find(v => v.student_lrn === st.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
                     return {
@@ -3541,7 +3395,7 @@ export function SF9Page() {
                 const student = sortedStudents[idx];
                 
                 // Map student data
-                const { subjects: compSubjects, grades } = computeStudentGrades(student, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
+                const { subjects: compSubjects, grades } = computeStudentGrades(student, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections, { classRecords, hpsRecords });
                 const values = computeStudentValues(student, observedValues, activeSchoolYear);
                 const attendance = computeStudentAttendance(student, sf2Sheets, activeSchoolYear, selectedSectionObj, attendanceRecords);
                 const resolvedSection = sections.find(s => s.id === student.student_section || s.section_name === student.student_section);
@@ -3565,6 +3419,7 @@ export function SF9Page() {
                             principalTitle={schoolProfile.head_position || 'School Head'}
                             grades={grades}
                             subjects={compSubjects}
+                            databaseSubjects={subjects}
                             observedValues={values}
                             comments={studentComments}
                             attendance={attendance}
@@ -3727,7 +3582,7 @@ export function SF9Page() {
             const sortedStudents = [...males, ...females].map(st => {
                 const { grades: stGrades } = (st.lrn === selectedStudent.lrn)
                     ? { grades: studentGrades.grades || {} }
-                    : computeStudentGrades(st, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
+                    : computeStudentGrades(st, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections, { classRecords, hpsRecords });
                 const stAttendance = (st.lrn === selectedStudent.lrn)
                     ? attendance
                     : computeStudentAttendance(st, sf2Sheets, activeSchoolYear, selectedSectionObj, attendanceRecords);
@@ -3838,7 +3693,7 @@ export function SF9Page() {
             console.error('Excel export failed:', error);
             useAppStore.getState().showNotification('Failed to export SF9 to Excel: ' + (error as Error).message, 'error');
         }
-    }, [selectedStudent, selectedSectionObj, sf2Sheets, activeSchoolYear, attendanceRecords, sections, observedValues, schoolProfile, adviserName, studentGrades, studentValues, g1RemarksState, males, females, buildSubjectTermResolver, pageSize, currentSubjectSelections, gradingSheetRecords, subjects]);
+    }, [selectedStudent, selectedSectionObj, sf2Sheets, activeSchoolYear, attendanceRecords, sections, observedValues, schoolProfile, adviserName, studentGrades, studentValues, g1RemarksState, males, females, buildSubjectTermResolver, pageSize, currentSubjectSelections, gradingSheetRecords, subjects, classRecords, hpsRecords]);
 
     /** Export batch SF9 (all students in section) to Excel */
     const handleBatchExcelExport = useCallback(async () => {
@@ -3924,13 +3779,13 @@ export function SF9Page() {
             };
 
             const allEnrichedStudents = sortedStudents.map(st => {
-                const { grades: stGrades } = computeStudentGrades(st, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
+                const { grades: stGrades } = computeStudentGrades(st, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections, { classRecords, hpsRecords });
                 const stAttendance = computeStudentAttendance(st, sf2Sheets, activeSchoolYear, selectedSectionObj, attendanceRecords);
                 return { ...st, grades: stGrades || {}, attendance: stAttendance };
             });
 
             const batchOptions: SF9ExcelExportOptions[] = allEnrichedStudents.map(student => {
-                const { subjects: compSubjects, grades } = computeStudentGrades(student, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
+                const { subjects: compSubjects, grades } = computeStudentGrades(student, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections, { classRecords, hpsRecords });
                 const values = computeStudentValues(student, observedValues, activeSchoolYear);
                 const attendance = computeStudentAttendance(student, sf2Sheets, activeSchoolYear, selectedSectionObj, attendanceRecords);
                 const resolvedSection = sections.find(s => s.id === student.student_section || s.section_name === student.student_section);
@@ -3972,7 +3827,7 @@ export function SF9Page() {
             console.error('Batch Excel export failed:', error);
             useAppStore.getState().showNotification('Failed to export batch SF9 to Excel: ' + (error as Error).message, 'error');
         }
-    }, [selectedSectionObj, males, females, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections, observedValues, sf2Sheets, attendanceRecords, sections, adviserName, buildSubjectTermResolver, pageSize]);
+    }, [selectedSectionObj, males, females, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections, observedValues, sf2Sheets, attendanceRecords, sections, adviserName, buildSubjectTermResolver, pageSize, classRecords, hpsRecords]);
 
     const handleCommitValues = async () => {
         if (!selectedStudent || Object.keys(pendingChanges).length === 0) {
@@ -4063,7 +3918,7 @@ export function SF9Page() {
         });
 
         // 4. General Average + Remarks
-        const genAvg = calculateGeneralAverage(studentGrades.grades);
+        const genAvg = calculateGeneralAverage(studentGrades.grades, studentGrades.subjects, selectedStudent.grade_level, subjects);
         if (genAvg > 0) {
             const remarksLines = getGeneralAverageRemarks(genAvg, studentGrades.grades, studentGrades.subjects, selectedStudent.lrn, activeSchoolYear);
             const remarksText = remarksLines.filter(l => l).join(', ');

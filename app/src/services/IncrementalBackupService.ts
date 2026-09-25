@@ -1,6 +1,5 @@
 import { db } from './database';
-import { exportFullDatabaseBackup } from '../utils/backup-restore';
-import { embedChecksum } from '../utils/backup-integrity';
+import { AutoBackupManager } from './AutoBackupManager';
 
 let isDirty = false;
 let timerId: ReturnType<typeof setInterval> | null = null;
@@ -33,30 +32,9 @@ export const IncrementalBackupService = {
       return;
     }
     try {
-      console.log('📦 Background scheduler: modifications detected. Generating incremental backup...');
-      const comprehensive = await exportFullDatabaseBackup('Incremental Snapshot');
-      const backupData = await embedChecksum(comprehensive as unknown as Record<string, unknown>);
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `SMS_Backup_Comprehensive_incremental_${timestamp}.json`;
-
-      if (window.electronAPI?.saveAutoBackup) {
-        // Incremental backups are written using standard auto-backup filesystem logic
-        const result = await window.electronAPI.saveAutoBackup(backupData, filename);
-        if (result.success) {
-          isDirty = false;
-          console.log(`✅ Background incremental snapshot saved: ${filename}`);
-          
-          // Auto-cleanup: remove files older than 24 hours
-          await this.cleanupOldIncrementals();
-        } else {
-          console.warn('⚠️ Background incremental backup failed to write to disk:', result.error);
-        }
-      } else {
-        // Fallback for browser environment
-        localStorage.setItem(`formease_incremental_${timestamp}`, JSON.stringify(backupData));
-        isDirty = false;
-        console.log(`✅ Sandbox incremental backup saved to localStorage: ${filename}`);
-      }
+      console.log('📦 Background scheduler: changes detected. Creating a paired recovery snapshot...');
+      await AutoBackupManager.triggerBackup();
+      isDirty = false;
     } catch (error) {
       console.error('❌ Background incremental backup failed:', error);
     }

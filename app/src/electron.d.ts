@@ -14,6 +14,8 @@ declare global {
       checkForUpdates: () => void;
       onUpdateMessage: (callback: (message: SafeAny) => void) => void;
       saveAutoBackup: (data: unknown, filename: string, retentionLimit?: number) => Promise<{ success: boolean; path?: string; error?: string }>;
+      saveAutoBackupWorkbook?: (data: string, filename: string) => Promise<{ success: boolean; path?: string; error?: string }>;
+      rotateAutoBackupPairs?: (retentionLimit: number) => Promise<{ success: boolean; removedPairs?: number; error?: string }>;
       logError: (payload: { kind: string; message: string; stack?: string }) => void;
       licenseStatus: () => Promise<{
         activated: boolean;
@@ -57,7 +59,7 @@ declare global {
       readFsBackupContent: (filename: string) => Promise<SafeAny>;
       deleteFsBackup: (filename: string) => Promise<{ success: boolean; error?: string }>;
       downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
-      quitAndInstall: () => void;
+      quitAndInstall: (safetyBackupFilename: string) => Promise<{ success: boolean; error?: string }>;
       gdriveAuthStart: (payload: { clientId: string; clientSecret: string }) => Promise<{ success: boolean; email?: string }>;
       gdriveStatus: () => Promise<{ connected: boolean; email: string | null }>;
       gdriveDisconnect: () => Promise<{ success: boolean }>;

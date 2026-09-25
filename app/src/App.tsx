@@ -1,6 +1,6 @@
 import { useEffect, useState, lazy, Suspense } from 'react';
 import { useAuthStore, initializeAuthStore } from './stores/auth-store';
-import { useAppStore, initializeAppStore } from './stores/app-store';
+import { useAppStore, initializeAppStore, initializePublicAppProfile } from './stores/app-store';
 import { getMachineId } from './utils/machine-id';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { Sidebar, Header } from './components/layout';
@@ -366,22 +366,9 @@ function App() {
     const init = async () => {
       try {
         await SnapshotPreviewService.checkAndCleanOrphanPreviewSession();
-        await initializeAppStore();
+        await initializePublicAppProfile();
         await initializeAuthStore();
-        const isMobile = typeof window !== 'undefined' && 
-          (window.location.hash.includes('mobile-attendance') || window.location.search.includes('mobile-attendance'));
-        if (!isMobile) {
-          void AutoBackupService.init();
-          IncrementalBackupService.init();
-        }
-        
-        // Check for post-update data reconciliation
-        if (window.electronAPI) {
-          const updateStore = useUpdateStore.getState();
-          void updateStore.checkForPostUpdateReconciliation();
-        }
-        
-        console.log('✅ Application initialization complete');
+        console.log('✅ Public profile and authentication state initialized');
 
         const state = useAppStore.getState();
         const profile = state.schoolProfile;
@@ -468,6 +455,7 @@ function App() {
         }
       } catch (error) {
         console.error('❌ Application initialization failed:', error);
+        window.alert('FormEase Pro could not read the local school records. No repair or deletion was attempted. Keep the app closed and preserve your backups before retrying.');
       }
     };
     void init();
@@ -475,7 +463,18 @@ function App() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      void initializeAppStore();
+      void initializeAppStore().then(() => {
+        if (!isMobileAttendance) {
+          void AutoBackupService.init();
+          IncrementalBackupService.init();
+        }
+        if (window.electronAPI) {
+          void useUpdateStore.getState().checkForPostUpdateReconciliation();
+        }
+      }).catch(error => {
+        console.error('❌ Local records could not be reloaded:', error);
+        window.alert('FormEase Pro could not read the local school records. No repair or deletion was attempted. Keep the app closed and preserve your backups before retrying.');
+      });
     } else {
       void revokeAttendancePairing();
       // Reset app-store state on logout to prevent data leaks between sessions
@@ -496,7 +495,7 @@ function App() {
         selectedSection: null,
       });
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isMobileAttendance]);
 
   // Standalone Mobile Phone Attendance Portal (accessed via scanning QR code on phone)
   if (isMobileAttendance) {
@@ -548,7 +547,6 @@ function App() {
     return (
       <Suspense fallback={<LoadingSplash />}>
         <BroadcastBannerModal />
-        <AutoBackupManager />
         <LoginPage />
       </Suspense>
     );

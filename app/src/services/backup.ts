@@ -6,6 +6,7 @@
 import { db, type BackupMetadata } from './database';
 import {
   exportFullDatabaseBackup,
+  savePreRestoreSafetySnapshot,
   type ComprehensiveBackup
 } from '../utils/backup-restore';
 import { embedChecksum } from '../utils/backup-integrity';
@@ -127,6 +128,7 @@ export async function restoreFromBackupFile(file: File): Promise<string> {
         const raw = JSON.parse(event.target?.result as string) as Record<string, unknown>;
 
         // Restore data using db.importFromBackup (which supports comprehensive payload, legacy data, and raw objects)
+        await savePreRestoreSafetySnapshot();
         await db.importFromBackup(raw);
 
         const metadataObj = raw.metadata as { note?: string } | undefined;

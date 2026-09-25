@@ -1,3 +1,4 @@
+import { gradeRecordId, sameGradeScope } from '../services/grade-record-service';
 import { useState, useMemo, useEffect, useCallback, memo, useRef } from 'react';
 import { useAppStore } from '../stores/app-store';
 import { useAuthStore } from '../stores/auth-store';
@@ -734,10 +735,9 @@ export function EClassRecord() {
     const schoolProfile = useAppStore(state => state.schoolProfile);
     const activeSchoolYear = useAppStore(state => state.activeSchoolYear);
     const classRecords = useAppStore(state => state.classRecords);
-    const updateClassRecord = useAppStore(state => state.updateClassRecord);
-    const deleteClassRecord = useAppStore(state => state.deleteClassRecord);
+    const officialRecords = useAppStore(state => state.gradingSheetRecords);
+    const saveEClassChanges = useAppStore(state => state.saveEClassChanges);
     const hpsRecords = useAppStore(state => state.hpsRecords);
-    const updateHPSRecord = useAppStore(state => state.updateHPSRecord);
     const setGlobalSection = useAppStore(state => state.setSelectedSection);
     const setGlobalSubject = useAppStore(state => state.setSelectedSubject);
     const showNotification = useAppStore(state => state.showNotification);
@@ -1785,7 +1785,7 @@ export function EClassRecord() {
             newRecord.performance_tasks = newPT;
         }
 
-        updateHPSRecord(newRecord);
+        const recalculatedRecords: ClassRecord[] = [];
 
         // Recalculate and update final_grade for all section students with scores to prevent stale calculations
         const stateClassRecords = useAppStore.getState().classRecords;
@@ -1796,6 +1796,7 @@ export function EClassRecord() {
         sectionStudents.forEach(st => {
             const cr = stateClassRecords.find(r =>
                 r.student_lrn === st.lrn &&
+                (!r.section_id || r.section_id === secId) &&
                 (r.subject_id === effectiveSubjectId || isSameSubject(r.subject_id, r.subject_name, effectiveSubjectId, subjectName)) &&
                 Number(r.quarter) === Number(quarter) &&
                 (!activeSchoolYear || !r.school_year || r.school_year === activeSchoolYear || r.school_year.includes(activeSchoolYear))
@@ -1882,28 +1883,16 @@ export function EClassRecord() {
 
             const updatedCr: ClassRecord = {
                 ...cr,
+                section_id: secId,
+                school_year: activeSchoolYear,
                 subject_id: effectiveSubjectId,
                 subject_name: subjectName || cr.subject_name,
                 final_grade: newFinalGrade
             };
-            updateClassRecord(updatedCr);
-
-            const { updateGradingSheetRecord } = useAppStore.getState();
-            updateGradingSheetRecord({
-                id: `${cr.student_lrn}_${effectiveSubjectId}_${cr.quarter}_${cr.school_year}`,
-                student_lrn: cr.student_lrn,
-                subject_id: effectiveSubjectId,
-                subject_name: cr.subject_name || subjectName || '',
-                section_id: cr.section_id,
-                quarter: cr.quarter as 1|2|3,
-                school_year: cr.school_year,
-                final_grade: newFinalGrade,
-                written_works: [],
-                performance_tasks: [],
-                quarterly_exam: 0
-            });
+            recalculatedRecords.push(updatedCr);
         });
-    }, [effectiveSubjectId, subjectName, selectedSubjectObj?.subject_name, activeSchoolYear, quarter, selectedSection, selectedSectionObj, sections, sectionStudents, currentWeights, currentCluster, updateHPSRecord, updateClassRecord, isGMRCSubject]);
+        void saveEClassChanges({ records: recalculatedRecords, hpsRecords: [newRecord] }).catch(() => undefined);
+    }, [effectiveSubjectId, subjectName, selectedSubjectObj?.subject_name, activeSchoolYear, quarter, selectedSection, selectedSectionObj, sections, sectionStudents, currentWeights, currentCluster, saveEClassChanges, isGMRCSubject]);
 
     const updateGrade = useCallback((lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => {
         if (!selectedSection || !effectiveSubjectId) return;
@@ -1917,6 +1906,7 @@ export function EClassRecord() {
         const stateClassRecords = useAppStore.getState().classRecords;
         const existingRecord = stateClassRecords.find(r =>
             r.student_lrn === lrn &&
+            (!r.section_id || r.section_id === (selectedSectionObj?.id || selectedSection)) &&
             (r.subject_id === effectiveSubjectId || isSameSubject(r.subject_id, r.subject_name, effectiveSubjectId, subjectName)) &&
             Number(r.quarter) === (quarter as number) &&
             (!activeSchoolYear || !r.school_year || r.school_year === activeSchoolYear || r.school_year.includes(activeSchoolYear))
@@ -1927,7 +1917,7 @@ export function EClassRecord() {
             subject_id: effectiveSubjectId,
             subject_name: subjectName || existingRecord.subject_name
         } : {
-            id: `grade_${lrn}_${effectiveSubjectId}_Q${quarter}`,
+            id: gradeRecordId({ student_lrn: lrn, subject_id: effectiveSubjectId, section_id: selectedSectionObj?.id || selectedSection, school_year: activeSchoolYear, quarter: quarter as 1 | 2 | 3 | 4 }),
             student_lrn: lrn,
             section_id: selectedSectionObj?.id || sections.find(s => s.id === selectedSection || s.section_name === selectedSection)?.id || '',
             subject_id: effectiveSubjectId,
@@ -1941,6 +1931,8 @@ export function EClassRecord() {
             is_teaching_load: true
         };
 
+        record.section_id = selectedSectionObj?.id || selectedSection;
+        record.school_year = activeSchoolYear;
         const recordWithSummative = record as ClassRecord & { summative_tests?: (number | string)[] };
         const qaScores = normalizeScores(recordWithSummative.summative_tests, ST_COUNT);
         if (!qaScores[2] && recordWithSummative.quarterly_exam !== '') qaScores[2] = recordWithSummative.quarterly_exam;
@@ -2052,43 +2044,14 @@ export function EClassRecord() {
             qaScores.some(isValidScore);
 
         if (!hasScores) {
-            deleteClassRecord(record.id);
-            if (existingRecord && existingRecord.id !== record.id) {
-                deleteClassRecord(existingRecord.id);
-            }
-            
-            // Clear Sync from Grading Sheet
-            const { deleteGradingSheetRecord } = useAppStore.getState();
-            deleteGradingSheetRecord(`${record.student_lrn}_${record.subject_id}_${record.quarter}_${record.school_year}`);
-            if (existingRecord && existingRecord.subject_id !== record.subject_id) {
-                deleteGradingSheetRecord(`${existingRecord.student_lrn}_${existingRecord.subject_id}_${existingRecord.quarter}_${existingRecord.school_year}`);
-            }
+            void saveEClassChanges({ records: [], removedRecords: [record] }).catch(() => undefined);
         } else {
             record.final_grade = transmuteGrade(initialGrade, record.school_year);
             record.subject_id = effectiveSubjectId;
             record.subject_name = subjectName;
-            if (existingRecord && existingRecord.id !== record.id) {
-                deleteClassRecord(existingRecord.id);
-            }
-            updateClassRecord(record);
-            
-            // Live Sync to Grading Sheet (Official Records)
-            const { updateGradingSheetRecord } = useAppStore.getState();
-            updateGradingSheetRecord({
-                id: `${record.student_lrn}_${record.subject_id}_${record.quarter}_${record.school_year}`,
-                student_lrn: record.student_lrn,
-                subject_id: record.subject_id,
-                subject_name: record.subject_name || subjectName || '',
-                section_id: record.section_id,
-                quarter: record.quarter as 1|2|3,
-                school_year: record.school_year,
-                final_grade: record.final_grade,
-                written_works: [],
-                performance_tasks: [],
-                quarterly_exam: 0
-            });
+            void saveEClassChanges({ records: [record] }).catch(() => undefined);
         }
-    }, [selectedSection, effectiveSubjectId, subjectName, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, updateClassRecord, deleteClassRecord, showNotification, sections, isGMRCSubject]);
+    }, [selectedSection, effectiveSubjectId, subjectName, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, saveEClassChanges, showNotification, sections, isGMRCSubject]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
@@ -2369,8 +2332,22 @@ export function EClassRecord() {
 
     const proficiencyData = proficiencyDataCalc;
     
+    const retainedOfficialCount = officialRecords.filter(official =>
+        official.section_id === (selectedSectionObj?.id || selectedSection)
+        && official.school_year === activeSchoolYear
+        && official.grade_source !== 'eclass_sync'
+        && (official.subject_id === effectiveSubjectId || isSameSubject(official.subject_id, official.subject_name, effectiveSubjectId, subjectName))
+        && (typeof quarter !== 'number' || Number(official.quarter) === quarter)
+        && classRecords.some(raw => sameGradeScope(raw, official) && String(raw.final_grade ?? '') !== String(official.final_grade ?? ''))
+    ).length;
+
     return (
         <div className="h-full min-h-0 flex flex-col gap-3">
+            {retainedOfficialCount > 0 && (
+                <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+                    {retainedOfficialCount} official grade(s) retain a manual, imported, or older value. These values are kept until reviewed. Review Grade Management or the Grade Sync Inspector to choose which grade to use.
+                </div>
+            )}
             <style>{`
                 @media print {
                     @page {
@@ -2746,7 +2723,8 @@ export function EClassRecord() {
                                 if (!window.confirm(confirmMsg)) return;
 
                                 try {
-                                    const { updateGradingSheetRecord: storeUpdateGrading, updateClassRecord: storeUpdateClass } = useAppStore.getState();
+                                    const publishedRecords: ClassRecord[] = [];
+            const publishedRawRecords: ClassRecord[] = [];
                                     let count = 0;
 
                                     const maSubj = mapehComponents.find(s => isMusicArtsSubject(s.subject_name)) || mapehComponents.find(s => {
@@ -2764,7 +2742,7 @@ export function EClassRecord() {
                                     const syncGradeRecord = async (studentLrn: string, subjId: string, subjName: string, qNum: 1|2|3, gradeVal: number) => {
                                         if (gradeVal <= 0) return;
                                         const recordId = `${studentLrn}_${subjId}_${qNum}_${activeSchoolYear}`;
-                                        await storeUpdateGrading({
+                                        publishedRecords.push({
                                             id: recordId,
                                             student_lrn: studentLrn,
                                             subject_id: subjId,
@@ -2773,6 +2751,7 @@ export function EClassRecord() {
                                             quarter: qNum,
                                             school_year: activeSchoolYear,
                                             final_grade: gradeVal,
+                                            grade_source: 'eclass_sync',
                                             written_works: [],
                                             performance_tasks: [],
                                             quarterly_exam: 0
@@ -2783,10 +2762,10 @@ export function EClassRecord() {
                                             cr => cr.student_lrn === studentLrn &&
                                                   (cr.subject_id === subjId || isMatchingSubject(subjName, cr.subject_id, cr.subject_name)) &&
                                                   Number(cr.quarter) === qNum &&
-                                                  cr.school_year === activeSchoolYear
+                                                  cr.school_year === activeSchoolYear && cr.section_id === (selectedSectionObj?.id || selectedSection)
                                         );
                                         if (existingCR && existingCR.final_grade !== gradeVal) {
-                                            await storeUpdateClass({
+                                            publishedRawRecords.push({
                                                 ...existingCR,
                                                 final_grade: gradeVal
                                             });
@@ -2870,7 +2849,8 @@ export function EClassRecord() {
                                         }
                                     }
 
-                                    showNotification(`Successfully published ${count} grades to official records!`, 'success');
+                                    await saveEClassChanges({ records: publishedRawRecords, officialRecords: publishedRecords });
+            showNotification(`Processed ${count} calculated grades. Existing manual, imported, and unreviewed grades are retained.`, 'success');
                                 } catch {
                                     showNotification("Failed to publish grades.", "error");
                                 }

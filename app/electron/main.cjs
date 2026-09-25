@@ -3,6 +3,7 @@ const path = require('path');
 const { machineIdSync } = require('node-machine-id');
 const fs = require('fs');
 const licenseManager = require('./license.cjs');
+const { backupPath, readBackupFile, deleteBackupFile, saveBackupFile, saveBinaryBackupFile, rotateVerifiedBackupPairs, verifyStrongComprehensiveBackup, isInstallBackupReady } = require('./backup-files.cjs');
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -33,15 +34,49 @@ try {
 
 let autoUpdater;
 let isQuitting = false;
+let downloadedUpdateReady = false;
+let downloadedAt = 0;
+let readyInstallBackupFilename = null;
+let readyInstallBackupSavedAt = 0;
+
+// electron-updater reads its production configuration from this packaged file.
+// Local unpacked verification builds intentionally omit it, so an update check
+// must be unavailable rather than becoming an unhandled startup rejection.
+function hasPackagedUpdaterConfiguration() {
+  if (!autoUpdater || !process.resourcesPath) return false;
+
+  try {
+    return fs.statSync(path.join(process.resourcesPath, 'app-update.yml')).isFile();
+  } catch (_) {
+    return false;
+  }
+}
+
+function reportUpdaterCheckFailure(error, context = 'Update check failed') {
+  const message = error?.message || String(error);
+  console.error(`[AutoUpdater] ${context}:`, error);
+  sendStatusToWindow({ type: 'update-error', message });
+}
+
+function checkForUpdatesSafely() {
+  if (!hasPackagedUpdaterConfiguration()) {
+    const message = 'Updates are unavailable because this package has no updater configuration.';
+    console.info(`[AutoUpdater] ${message}`);
+    sendStatusToWindow({ type: 'update-error', message });
+    return Promise.resolve(null);
+  }
+
+  return Promise.resolve(autoUpdater.checkForUpdatesAndNotify()).catch((error) => {
+    reportUpdaterCheckFailure(error);
+    return null;
+  });
+}
+
 if (!isDev) {
   try {
     const { autoUpdater: au } = require('electron-updater');
     autoUpdater = au;
     
-    // Ensure silent background update on download completion
-    autoUpdater.on('update-downloaded', () => {
-      autoUpdater.quitAndInstall(true, true);
-    });
   } catch (e) {
     console.log('electron-updater not available');
   }
@@ -170,9 +205,9 @@ app.commandLine.appendSwitch('ignore-gpu-blocklist');
     }
 
     // Check for updates after the app is ready (only in production)
-    if (!isDev) {
+    if (!isDev && autoUpdater) {
       setTimeout(() => {
-        autoUpdater.checkForUpdatesAndNotify();
+        void checkForUpdatesSafely();
       }, 3000);
     }
 
@@ -314,34 +349,16 @@ ipcMain.handle('get-all-local-ips', () => {
 
 ipcMain.handle('save-auto-backup', async (event, { data, filename, retentionLimit }) => {
   try {
-    const userDataPath = app.getPath('userData');
-    const backupDir = path.join(userDataPath, 'backups');
-    
-    if (!fs.existsSync(backupDir)) {
-      fs.mkdirSync(backupDir, { recursive: true });
-    }
-
-    const filePath = path.join(backupDir, filename);
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-    
-    const limit = typeof retentionLimit === 'number' ? retentionLimit : 0;
-    if (limit > 0) {
-      const files = fs.readdirSync(backupDir)
-        .filter(f => f.endsWith('.json'))
-        .map(f => ({ name: f, time: fs.statSync(path.join(backupDir, f)).mtime.getTime() }))
-        .sort((a, b) => b.time - a.time);
-
-      if (files.length > limit) {
-        files.slice(limit).forEach(f => {
-          try {
-            fs.unlinkSync(path.join(backupDir, f.name));
-          } catch (e) {
-            console.error('Failed to delete old backup:', e);
-          }
-        });
+    const backupDir = path.join(app.getPath('userData'), 'backups');
+    const filePath = saveBackupFile(backupDir, filename, data, retentionLimit);
+    if (downloadedUpdateReady && Date.now() >= downloadedAt &&
+        typeof filename === 'string' && /^SMS_Backup_Comprehensive_prerestore_[A-Za-z0-9._-]+\.json$/.test(filename)) {
+      if (!verifyStrongComprehensiveBackup(readBackupFile(backupDir, filename))) {
+        throw new Error('The pre-install safety backup failed integrity verification.');
       }
+      readyInstallBackupFilename = filename;
+      readyInstallBackupSavedAt = Date.now();
     }
-
     return { success: true, path: filePath };
   } catch (error) {
     console.error('Auto-backup failed:', error);
@@ -388,6 +405,27 @@ ipcMain.handle('db:store-salt', async (event, saltHex) => {
   }
 });
 
+ipcMain.handle('save-auto-backup-workbook', async (_event, { data, filename }) => {
+  try {
+    const backupDir = path.join(app.getPath('userData'), 'backups');
+    const filePath = saveBinaryBackupFile(backupDir, filename, data);
+    return { success: true, path: filePath };
+  } catch (error) {
+    console.error('Automatic workbook backup failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('rotate-auto-backup-pairs', async (_event, retentionLimit) => {
+  try {
+    const backupDir = path.join(app.getPath('userData'), 'backups');
+    return { success: true, removedPairs: rotateVerifiedBackupPairs(backupDir, retentionLimit) };
+  } catch (error) {
+    console.error('Paired backup retention failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // The renderer can only protect/recover a 32-byte DEK.  It cannot invoke
 // arbitrary safeStorage encryption/decryption or choose filesystem paths.
 ipcMain.handle('db:recovery-protector-available', () => {
@@ -431,11 +469,12 @@ function sendStatusToWindow(text, status = 'info') {
 
 if (autoUpdater) {
   autoUpdater.autoDownload = false;
-  // Install a downloaded update when the user quits, so the "Later" path
-  // actually applies the update on next launch as the dialog promises.
-  autoUpdater.autoInstallOnAppQuit = true;
-
+  // A download alone never authorizes installation or an app shutdown.
+  autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.on('checking-for-update', () => {
+    downloadedUpdateReady = false;
+    readyInstallBackupFilename = null;
+    readyInstallBackupSavedAt = 0;
     sendStatusToWindow({ type: 'checking-for-update' });
   });
 
@@ -448,6 +487,9 @@ if (autoUpdater) {
   });
 
   autoUpdater.on('error', (err) => {
+    downloadedUpdateReady = false;
+    readyInstallBackupFilename = null;
+    readyInstallBackupSavedAt = 0;
     console.error('Auto-updater error:', err);
     sendStatusToWindow({ type: 'update-error', message: err.message || String(err) });
   });
@@ -469,11 +511,15 @@ if (autoUpdater) {
   });
 
   autoUpdater.on('update-downloaded', (info) => {
+    downloadedUpdateReady = true;
+    downloadedAt = Date.now();
+    readyInstallBackupFilename = null;
+    readyInstallBackupSavedAt = 0;
     sendStatusToWindow({ type: 'update-downloaded', info });
   });
 
   ipcMain.on('check-for-updates', () => {
-    autoUpdater.checkForUpdatesAndNotify();
+    void checkForUpdatesSafely();
   });
 
   ipcMain.handle('download-update', async () => {
@@ -496,8 +542,26 @@ if (autoUpdater) {
     return { success: false, error: 'Auto-updater not available' };
   });
 
-  ipcMain.on('quit-and-install', () => {
+  ipcMain.handle('quit-and-install', async (_event, safetyBackupFilename) => {
+    if (!downloadedUpdateReady) {
+      return { success: false, error: 'No downloaded update is ready to install.' };
+    }
+    if (!isInstallBackupReady(downloadedUpdateReady, safetyBackupFilename, readyInstallBackupFilename,
+      downloadedAt, readyInstallBackupSavedAt)) {
+      return { success: false, error: 'A fresh verified pre-install backup is required.' };
+    }
+    try {
+      const backupDir = path.join(app.getPath('userData'), 'backups');
+      if (!verifyStrongComprehensiveBackup(readBackupFile(backupDir, safetyBackupFilename))) {
+        return { success: false, error: 'The pre-install backup failed integrity verification.' };
+      }
+    } catch (error) {
+      return { success: false, error: `The pre-install backup cannot be opened: ${error.message}` };
+    }
     if (autoUpdater) {
+      downloadedUpdateReady = false;
+      readyInstallBackupFilename = null;
+      readyInstallBackupSavedAt = 0;
       isQuitting = true;
       try {
         const srv = global.expressServer || expressServer;
@@ -531,7 +595,9 @@ if (autoUpdater) {
           app.quit();
         }
       });
+      return { success: true };
     }
+    return { success: false, error: 'Auto-updater is not available.' };
   });
 }
 
@@ -688,9 +754,17 @@ ipcMain.handle('list-fs-backups', async () => {
     if (!fs.existsSync(backupDir)) return [];
     
     const files = fs.readdirSync(backupDir)
-      .filter(f => f.endsWith('.json'))
+      .filter(f => {
+        try {
+          const filePath = backupPath(backupDir, f);
+          const stats = fs.lstatSync(filePath);
+          return stats.isFile() && !stats.isSymbolicLink();
+        } catch {
+          return false;
+        }
+      })
       .map(f => {
-        const filePath = path.join(backupDir, f);
+        const filePath = backupPath(backupDir, f);
         const stats = fs.statSync(filePath);
         try {
           const content = fs.readFileSync(filePath, 'utf-8');
@@ -730,11 +804,8 @@ ipcMain.handle('list-fs-backups', async () => {
 
 ipcMain.handle('read-fs-backup-content', async (event, filename) => {
   try {
-    const userDataPath = app.getPath('userData');
-    const filePath = path.join(userDataPath, 'backups', filename);
-    if (!fs.existsSync(filePath)) throw new Error('Backup file not found');
-    const content = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(content);
+    const backupDir = path.join(app.getPath('userData'), 'backups');
+    return readBackupFile(backupDir, filename);
   } catch (error) {
     console.error('Failed to read backup content:', error);
     throw error;
@@ -743,11 +814,8 @@ ipcMain.handle('read-fs-backup-content', async (event, filename) => {
 
 ipcMain.handle('delete-fs-backup', async (event, filename) => {
   try {
-    const userDataPath = app.getPath('userData');
-    const filePath = path.join(userDataPath, 'backups', filename);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
+    const backupDir = path.join(app.getPath('userData'), 'backups');
+    deleteBackupFile(backupDir, filename);
     return { success: true };
   } catch (error) {
     console.error('Failed to delete backup:', error);

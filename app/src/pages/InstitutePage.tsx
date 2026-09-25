@@ -894,7 +894,7 @@ export function InstitutePage() {
                                     className="inline-flex items-center gap-1 bg-white/10 hover:bg-white/20 px-2 py-0.5 rounded-full border border-white/15 transition-all cursor-pointer font-mono font-bold text-white text-[9.5px]"
                                     title="Click to copy School ID"
                                 >
-                                    <span>ID: {displaySchoolId || '307014'}</span>
+                                    <span>ID: {displaySchoolId || 'Not Set'}</span>
                                     {copiedSchoolId ? (
                                         <Check className="w-3 h-3 text-emerald-400" />
                                     ) : (
@@ -905,19 +905,19 @@ export function InstitutePage() {
 
                             {/* School Title */}
                             <h1 className="text-lg sm:text-xl lg:text-2xl font-black text-white tracking-tight uppercase leading-tight drop-shadow-xs truncate">
-                                {displaySchoolName || 'Calibungan High School'}
+                                {displaySchoolName || 'School Name Not Set'}
                             </h1>
 
                             {/* Location Hierarchy */}
                             <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-xs font-semibold text-slate-300">
                                 <div className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded-md border border-white/10 text-[10.5px]">
                                     <Globe className="w-3 h-3 text-indigo-400" />
-                                    <span>{displayRegion || 'Region III'}</span>
+                                    <span>{displayRegion || 'Region Not Set'}</span>
                                 </div>
 
                                 <div className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded-md border border-white/10 text-[10.5px]">
                                     <Building2 className="w-3 h-3 text-blue-400" />
-                                    <span>{displayDivision || 'Schools Division Office'}</span>
+                                    <span>{displayDivision || 'Division Not Set'}</span>
                                 </div>
 
                                 {displayDistrict && (
@@ -991,9 +991,9 @@ export function InstitutePage() {
                         <div className="min-w-0">
                             <span className="text-[9.5px] font-semibold text-slate-400 uppercase tracking-wider block leading-tight">School Head</span>
                             <span className="text-xs sm:text-sm font-black text-white truncate block leading-tight" title={displayHeadName || 'Not Set'}>
-                                {displayHeadName || 'Agapito S. Gonzaga'}
+                                {displayHeadName || 'School Head Not Set'}
                             </span>
-                            <span className="text-[9.5px] text-slate-400 block truncate leading-tight">{displayHeadPosition || 'Principal I'}</span>
+                            <span className="text-[9.5px] text-slate-400 block truncate leading-tight">{displayHeadPosition || 'Position Not Set'}</span>
                         </div>
                     </div>
 

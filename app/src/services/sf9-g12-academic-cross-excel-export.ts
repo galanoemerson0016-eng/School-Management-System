@@ -10,6 +10,7 @@
 import JSZip from 'jszip';
 import type { Student, SchoolProfile, Subject } from '../types';
 import { formatLearnerName } from '../utils/student-name';
+import { calculateWeightedGradeAverage } from './grade-calculation';
 
 export interface SF9Grade12AcademicCrossExportOptions {
   student: Student;
@@ -357,8 +358,7 @@ export function extractGrade12AcademicCrossGrades(
     { grade: tp1, units: 12 }
   ];
 
-  let totalWeighted = 0;
-  let totalUnitsWithGrades = 0;
+  const averageEntries: Array<{ grade: number; weight: number }> = [];
   let hasAnyGrade = false;
   let allPassed = true;
   let minGrade = 100;
@@ -366,8 +366,7 @@ export function extractGrade12AcademicCrossGrades(
   for (const it of items) {
     if (typeof it.grade === 'number' && it.grade > 0) {
       hasAnyGrade = true;
-      totalWeighted += it.grade * it.units;
-      totalUnitsWithGrades += it.units;
+      averageEntries.push({ grade: it.grade, weight: it.units });
       if (it.grade < 75) allPassed = false;
       if (it.grade < minGrade) minGrade = it.grade;
     }
@@ -377,9 +376,9 @@ export function extractGrade12AcademicCrossGrades(
   let remarks = '';
   let honors = '';
 
-  if (hasAnyGrade && totalUnitsWithGrades > 0) {
-    // If all 36 units have grades, compute total / 36
-    generalAverage = Math.round(totalWeighted / (totalUnitsWithGrades === 36 ? 36 : totalUnitsWithGrades));
+  const weightedAverage = calculateWeightedGradeAverage(averageEntries);
+  if (hasAnyGrade && weightedAverage !== null) {
+    generalAverage = Math.round(weightedAverage);
     remarks = generalAverage >= 75 && allPassed ? 'Passed' : (generalAverage < 75 ? 'Failed' : 'Passed');
 
     // DO 15, s. 2026 Academic Excellence criteria

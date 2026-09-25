@@ -117,7 +117,8 @@ describe('DEK migration using production IndexedDB persistence', () => {
     await verifySyntheticRecords();
 
     db.setDatabaseEncryptionKey(await deriveDbKey('wrong password', await getDbSalt()), [], false);
-    expect(isEncryptedDatabaseEnvelope((await db.getAllRecords('students'))[0])).toBe(true);
+    await expect(db.getAllRecords('students')).rejects.toThrow('could not be decrypted');
+    expect(isEncryptedDatabaseEnvelope((await readRaw('students'))[0])).toBe(true);
     db.setDatabaseEncryptionKey(legacyKey, [], false);
 
     localStorage.setItem('formease-credentials-v2', JSON.stringify({
@@ -152,6 +153,99 @@ describe('DEK migration using production IndexedDB persistence', () => {
     await verifySyntheticRecords();
   });
 
+  it('migrates trial-key encrypted automated backups together with password-key legacy records', async () => {
+    const browserMachineId = 'BROWSER-SYNTHETIC-TRIAL-KEY';
+    localStorage.setItem('formease-browser-id', browserMachineId);
+    const salt = await getDbSalt();
+    const passwordKey = await deriveDbKey(PASSWORD, salt);
+    const trialKey = await deriveDbKey(browserMachineId, salt);
+
+    db.setDatabaseEncryptionKey(passwordKey, [], false);
+    for (const [storeName, records] of Object.entries(synthetic)) {
+      if (storeName === 'automated_backups') continue;
+      await db.putRecordsBulk(storeName, [...records]);
+    }
+
+    // Trial mode used the browser's persistent machine ID as its legacy key.
+    db.setDatabaseEncryptionKey(trialKey, [], false);
+    await db.putRecordsBulk('automated_backups', [...synthetic.automated_backups]);
+    expect(isEncryptedDatabaseEnvelope((await readRaw('automated_backups'))[0])).toBe(true);
+
+    localStorage.setItem('formease-credentials-v2', JSON.stringify({
+      version: 2, username: 'migration.admin', passwordHash: await hashSecret(PASSWORD), role: 'admin',
+    }));
+
+    expect(await useAuthStore.getState().login('migration.admin', PASSWORD)).toBe(true);
+    expect(metadata().state).toBe('migrated');
+    await verifySyntheticRecords();
+    expect(isEncryptedDatabaseEnvelope((await readRaw('automated_backups'))[0])).toBe(true);
+  });
+  it('migrates automated backups encrypted with default "formease" key alongside password-key legacy records', async () => {
+    const salt = await getDbSalt();
+    const passwordKey = await deriveDbKey(PASSWORD, salt);
+    const defaultKey = await deriveDbKey('formease', salt);
+
+    db.setDatabaseEncryptionKey(passwordKey, [], false);
+    for (const [storeName, records] of Object.entries(synthetic)) {
+      if (storeName === 'automated_backups') continue;
+      await db.putRecordsBulk(storeName, [...records]);
+    }
+
+    // Automated backup created while profile still used default master password.
+    db.setDatabaseEncryptionKey(defaultKey, [], false);
+    await db.putRecordsBulk('automated_backups', [...synthetic.automated_backups]);
+    expect(isEncryptedDatabaseEnvelope((await readRaw('automated_backups'))[0])).toBe(true);
+
+    localStorage.setItem('formease-credentials-v2', JSON.stringify({
+      version: 2, username: 'migration.admin', passwordHash: await hashSecret(PASSWORD), role: 'admin',
+    }));
+
+    expect(await useAuthStore.getState().login('migration.admin', PASSWORD)).toBe(true);
+    expect(metadata().state).toBe('migrated');
+    await verifySyntheticRecords();
+    expect(isEncryptedDatabaseEnvelope((await readRaw('automated_backups'))[0])).toBe(true);
+  });
+
+  it('allows login and preserves all school records when automated_backups contains an unreadable/stale legacy snapshot', async () => {
+    const salt = await getDbSalt();
+    const passwordKey = await deriveDbKey(PASSWORD, salt);
+    const unreadableKey = await deriveDbKey('unknown-ancient-password-key', salt);
+
+    db.setDatabaseEncryptionKey(passwordKey, [], false);
+    for (const [storeName, records] of Object.entries(synthetic)) {
+      if (storeName === 'automated_backups') continue;
+      await db.putRecordsBulk(storeName, [...records]);
+    }
+
+    // Put a valid automated backup under passwordKey
+    await db.putRecordsBulk('automated_backups', [...synthetic.automated_backups]);
+
+    // Put an additional stale/unreadable backup under an unknown key
+    db.setDatabaseEncryptionKey(unreadableKey, [], false);
+    await db.putRecord('automated_backups', {
+      id: 'auto-stale-unreadable-snapshot',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      summary: 'unreadable legacy snapshot'
+    });
+
+    localStorage.setItem('formease-credentials-v2', JSON.stringify({
+      version: 2, username: 'migration.admin', passwordHash: await hashSecret(PASSWORD), role: 'admin',
+    }));
+
+    // Must NOT fail with "Encrypted automated_backups record could not be decrypted"
+    expect(await useAuthStore.getState().login('migration.admin', PASSWORD)).toBe(true);
+    expect(metadata().state).toBe('migrated');
+
+    // All school data must be intact and readable
+    expect(await db.getAllRecords('students')).toHaveLength(synthetic.students.length);
+    expect(await db.getAllRecords('classRecords')).toHaveLength(synthetic.classRecords.length);
+    expect(await db.getAllRecords('attendanceRecords')).toHaveLength(synthetic.attendanceRecords.length);
+
+    // The valid automated backup is preserved and readable under the new DEK
+    const validBackups = await db.getAllRecords<{ id: string }>('automated_backups');
+    expect(validBackups.some(b => b.id === 'auto-synthetic-1')).toBe(true);
+  });
+
   it.each([
     'migration_in_progress',
     'after_first_store',
@@ -183,7 +277,8 @@ describe('DEK migration using production IndexedDB persistence', () => {
     if (point === 'after_first_store') {
       db.setDatabaseEncryptionKey(prepared.dek, [], false);
       expect(isEncryptedDatabaseEnvelope((await db.getAllRecords('students'))[0])).toBe(false);
-      expect(isEncryptedDatabaseEnvelope((await db.getAllRecords('classRecords'))[0])).toBe(true);
+      await expect(db.getAllRecords('classRecords')).rejects.toThrow('could not be decrypted');
+      expect(isEncryptedDatabaseEnvelope((await readRaw('classRecords'))[0])).toBe(true);
     }
 
     // A process restart removes both active and fallback keys. Resumption uses

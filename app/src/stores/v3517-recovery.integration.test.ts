@@ -3,7 +3,7 @@ import { IDBFactory, IDBKeyRange } from 'fake-indexeddb';
 import { db } from '../services/database';
 import { exportFullDatabaseBackup } from '../utils/backup-restore';
 import { embedChecksum } from '../utils/backup-integrity';
-import { initializeAppStore, useAppStore } from './app-store';
+import { initializeAppStore, initializePublicAppProfile, useAppStore } from './app-store';
 import { findVerifiedV3517RecoveryBackup } from './update-store';
 
 const profile = {
@@ -69,5 +69,52 @@ describe('v3.5.17 recovery journey', () => {
       expect.objectContaining({ student_lrn: student.lrn }),
       expect.objectContaining({ student_lrn: 'TEMP-RECOVERY-1' }),
     ]));
+  });
+
+  it('does not rewrite a real Archimedes section or its adviser on startup', async () => {
+    const teacherSection = {
+      id: 'section-real-archimedes', section_name: 'Archimedes', section_grade_level: 'Grade 7',
+      adviser_name: 'Maria L. Santos', adviser_id: 'adv-real-1', is_advisory: false,
+      taught_subjects: ['Specialization'], teaching_subjects: ['Specialization'],
+    };
+    await db.putRecordsBulk('schoolProfile', [{ ...profile, section: 'Archimedes', adviser_name: 'Another Teacher' }]);
+    await db.putRecordsBulk('sections', [teacherSection]);
+    const teacherSubject = { id: 'subject-real-specialization', subject_name: 'Specialization', grade_level: 'Grade 7' };
+    await db.putRecordsBulk('subjects', [subject, teacherSubject]);
+    const writes = vi.spyOn(db, 'putRecordsBulk');
+
+    await initializeAppStore();
+
+    expect(await db.getAllRecords('sections')).toEqual([teacherSection]);
+    expect(useAppStore.getState().sections).toEqual([teacherSection]);
+    expect(writes.mock.calls.filter(([store]) => store === 'sections')).toHaveLength(0);
+    expect(await db.getAllRecords('subjects')).toEqual(expect.arrayContaining([teacherSubject]));
+    expect(useAppStore.getState().subjects).toEqual(expect.arrayContaining([expect.objectContaining(teacherSubject)]));
+    writes.mockRestore();
+  });
+
+  it('signals a failed database read instead of displaying empty records', async () => {
+    useAppStore.setState({ isSyncReady: true });
+    const read = vi.spyOn(db, 'getAllRecords').mockRejectedValueOnce(new Error('synthetic unreadable store'));
+    await expect(initializeAppStore()).rejects.toThrow('synthetic unreadable store');
+    expect(useAppStore.getState().isSyncReady).toBe(false);
+    read.mockRestore();
+  });
+
+  it('opens the public profile before login and protected records only after key unlock', async () => {
+    const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+    db.setDatabaseEncryptionKey(key, [], false);
+    await db.putRecord('schoolProfile', profile);
+    await db.putRecord('students', student);
+    db.setDatabaseEncryptionKey(null);
+    await db.resetConnection();
+
+    await expect(initializePublicAppProfile()).resolves.toBeUndefined();
+    expect(useAppStore.getState().schoolProfile.name).toBe('RECOVERY TEST SCHOOL');
+    await expect(initializeAppStore()).rejects.toThrow('database key');
+
+    db.setDatabaseEncryptionKey(key, [], false);
+    await expect(initializeAppStore()).resolves.toBeUndefined();
+    expect(useAppStore.getState().students).toEqual(expect.arrayContaining([expect.objectContaining({ lrn: student.lrn })]));
   });
 });

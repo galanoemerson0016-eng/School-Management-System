@@ -1,12 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { db, type BackupMetadata } from './database';
 import { createBackup, checkAndCreateDailyBackup, downloadBackupFile, restoreFromBackupFile } from './backup';
+import { savePreRestoreSafetySnapshot } from '../utils/backup-restore';
+
+vi.mock('../utils/backup-restore', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../utils/backup-restore')>();
+  return { ...original, savePreRestoreSafetySnapshot: vi.fn().mockResolvedValue({ id: 'synthetic-safety-copy' }) };
+});
 
 vi.mock('./database', () => {
   const mockBackups: BackupMetadata[] = [];
   return {
     db: {
       getAllRecords: vi.fn().mockResolvedValue([]),
+      getWriteGeneration: vi.fn().mockReturnValue(0),
+      readBackupSnapshot: vi.fn().mockResolvedValue({
+        schoolProfile: [], students: [], sections: [], subjects: [], classRecords: [], enrollments: [],
+        announcements: [], attendanceRecords: [], sf2Sheets: [], hpsRecords: [], gradingSheetRecords: [],
+        observedValues: [], users: [], activityLog: [], localStorageData: {},
+      }),
       getBackups: vi.fn().mockImplementation(async () => mockBackups),
       saveBackupMetadata: vi.fn().mockImplementation(async (meta: BackupMetadata) => {
         mockBackups.push(meta);
@@ -32,6 +44,7 @@ vi.mock('./database', () => {
 describe('Backup Service (Comprehensive Full Database Export)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(savePreRestoreSafetySnapshot).mockResolvedValue({ id: 'synthetic-safety-copy' });
   });
 
   it('createBackup generates a ComprehensiveBackup and triggers SMS_Backup_Comprehensive download', async () => {
@@ -103,7 +116,15 @@ describe('Backup Service (Comprehensive Full Database Export)', () => {
     const result = await restoreFromBackupFile(file);
     expect(result).toContain('Restored from: Comprehensive Test Backup');
     expect(db.importFromBackup).toHaveBeenCalledWith(comprehensiveBackup);
+    expect(savePreRestoreSafetySnapshot).toHaveBeenCalledTimes(1);
     expect(db.saveBackupMetadata).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not import if the pre-restore safety copy fails', async () => {
+    vi.mocked(savePreRestoreSafetySnapshot).mockRejectedValueOnce(new Error('disk unavailable'));
+    const file = new File([JSON.stringify({ students: [] })], 'synthetic.json', { type: 'application/json' });
+    await expect(restoreFromBackupFile(file)).rejects.toThrow('disk unavailable');
+    expect(db.importFromBackup).not.toHaveBeenCalled();
   });
 
   it('downloadBackupFile triggers download with SMS_Backup_Comprehensive filename', async () => {

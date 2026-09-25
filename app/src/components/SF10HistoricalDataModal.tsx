@@ -6,6 +6,7 @@ import type { SF10Version } from '../stores/sf10-store';
 import type { Student, SchoolProfile } from '../types';
 import { getSF10RowsForGrade, getSubjectsForGrade } from '../lib/subjectConfig';
 import { isThreeTermSchoolYear } from '../lib/terms';
+import { calculateQuarterlyFinalGrade, calculateWeightedGradeAverage } from '../services/grade-calculation';
 
 interface SF10HistoricalDataModalProps {
     student: Student;
@@ -236,14 +237,10 @@ export function SF10HistoricalDataModal({
     const availableBlocks = curriculumType === 'ES' ? [1, 2, 3, 4, 5, 6] : [7, 8, 9, 10];
     const [selectedBlockGrade, setSelectedBlockGrade] = useState(availableBlocks[0]);
 
-    const [isUnlocked, setIsUnlocked] = useState(false);
-    
-    // Reset unlock state when changing blocks
-    useEffect(() => {
-        setIsUnlocked(false);
-    }, [selectedBlockGrade]);
+    const [unlockedBlockGrade, setUnlockedBlockGrade] = useState<number | null>(null);
 
     const isCurrentGrade = selectedBlockGrade === gradeNum;
+    const isUnlocked = unlockedBlockGrade === selectedBlockGrade;
     const isLocked = isCurrentGrade && !isUnlocked;
     
     // Map block grade to index and page
@@ -266,31 +263,17 @@ export function SF10HistoricalDataModal({
 
     const getVal = useCallback((path: string) => currentOverrides[path] || '', [currentOverrides]);
 
-    // Form state for block metadata
-    const [metadata, setMetadata] = useState({
-        schoolName: '',
-        schoolId: '',
-        district: '',
-        division: '',
-        region: '',
-        section: '',
-        schoolYear: '',
-        adviserTeacher: '',
-    });
-
-    // Load metadata from overrides
-    useEffect(() => {
-        setMetadata({
-            schoolName: getVal(`scholasticRecords[${blockIdx}].schoolName`),
-            schoolId: getVal(`scholasticRecords[${blockIdx}].schoolId`),
-            district: getVal(`scholasticRecords[${blockIdx}].district`),
-            division: getVal(`scholasticRecords[${blockIdx}].division`),
-            region: getVal(`scholasticRecords[${blockIdx}].region`),
-            section: getVal(`scholasticRecords[${blockIdx}].section`),
-            schoolYear: getVal(`scholasticRecords[${blockIdx}].schoolYear`),
-            adviserTeacher: getVal(`scholasticRecords[${blockIdx}].adviserTeacher`),
-        });
-    }, [selectedBlockGrade, overrides, blockIdx, getVal]);
+    // Form state for block metadata derived directly from overrides
+    const metadata = useMemo(() => ({
+        schoolName: getVal(`scholasticRecords[${blockIdx}].schoolName`),
+        schoolId: getVal(`scholasticRecords[${blockIdx}].schoolId`),
+        district: getVal(`scholasticRecords[${blockIdx}].district`),
+        division: getVal(`scholasticRecords[${blockIdx}].division`),
+        region: getVal(`scholasticRecords[${blockIdx}].region`),
+        section: getVal(`scholasticRecords[${blockIdx}].section`),
+        schoolYear: getVal(`scholasticRecords[${blockIdx}].schoolYear`),
+        adviserTeacher: getVal(`scholasticRecords[${blockIdx}].adviserTeacher`),
+    }), [blockIdx, getVal]);
 
     // Subjects in school database
     const dbSubjects = useAppStore(state => state.subjects);
@@ -401,10 +384,8 @@ export function SF10HistoricalDataModal({
         return false;
     }, [rows]);
 
-    const [grades, setGrades] = useState<Record<string, GradeVal | string>>({});
-
     // Load grades from overrides
-    useEffect(() => {
+    const grades = useMemo(() => {
         const newGrades: Record<string, GradeVal | string> = {};
         rows.forEach(row => {
             const base = `scholasticRecords[${blockIdx}].subjects.${row.key}`;
@@ -428,12 +409,11 @@ export function SF10HistoricalDataModal({
         });
         // General Average
         newGrades['generalAverage'] = getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`);
-        setGrades(newGrades);
-    }, [selectedBlockGrade, student.lrn, blockIdx, getVal, rows, currentOverrides]);
+        return newGrades;
+    }, [blockIdx, currentOverrides, getVal, rows]);
 
     const recalcGeneralAverage = useCallback((currentGrades: Record<string, GradeVal | string>) => {
-        let total = 0;
-        let count = 0;
+        const averageEntries: Array<{ grade: number; weight: number }> = [];
         
         Object.keys(currentGrades).forEach(key => {
             if (key === 'generalAverage') return;
@@ -445,16 +425,16 @@ export function SF10HistoricalDataModal({
                 const final = parseFloat(gradeObj.finalRating || '') || 0;
                 
                 if (final > 0 && !isComponentRow && hasValidLabel) {
-                    total += final;
-                    count++;
+                    averageEntries.push({ grade: final, weight: 1 });
                 }
             }
         });
 
-        if (count > 0) {
-            const genAvg = Math.round(total / count);
-            currentGrades['generalAverage'] = genAvg.toString();
-            setOverride(student.lrn, `page_${pageNum}`, `scholasticRecords[${blockIdx}].subjects.generalAverage`, genAvg.toString());
+        const genAvg = calculateWeightedGradeAverage(averageEntries);
+        if (genAvg !== null) {
+            const roundedAverage = Math.round(genAvg);
+            currentGrades['generalAverage'] = roundedAverage.toString();
+            setOverride(student.lrn, `page_${pageNum}`, `scholasticRecords[${blockIdx}].subjects.generalAverage`, roundedAverage.toString());
         } else {
             currentGrades['generalAverage'] = '';
             setOverride(student.lrn, `page_${pageNum}`, `scholasticRecords[${blockIdx}].subjects.generalAverage`, '');
@@ -462,7 +442,6 @@ export function SF10HistoricalDataModal({
     }, [blockIdx, isComponentSubject, pageNum, setOverride, student.lrn]);
 
     const handleMetadataChange = (field: string, value: string) => {
-        setMetadata(prev => ({ ...prev, [field]: value }));
         setOverride(student.lrn, `page_${pageNum}`, `scholasticRecords[${blockIdx}].${field}`, value);
         
         // Auto-ensure grade level info is present
@@ -477,63 +456,64 @@ export function SF10HistoricalDataModal({
         setOverride(student.lrn, `page_${pageNum}`, `scholasticRecords[${blockIdx}].subjects.${subjectKey}.label`, finalLabel);
         setOverride(student.lrn, `page_${pageNum}`, `scholasticRecords[${blockIdx}].subjects.${subjectKey}_label`, finalLabel);
 
-        setGrades(prev => {
-            const prevRow = (prev[subjectKey] as GradeVal) || {};
-            const isComponentRow = isComponentSubject(subjectKey, finalLabel);
+        const prevRow = (grades[subjectKey] as GradeVal) || {};
+        const isComponentRow = isComponentSubject(subjectKey, finalLabel);
 
-            const updatedRow: GradeVal = {
-                ...prevRow,
-                label: finalLabel
-            };
+        const updatedRow: GradeVal = {
+            ...prevRow,
+            label: finalLabel
+        };
 
-            const base = `scholasticRecords[${blockIdx}].subjects.${subjectKey}`;
+        const base = `scholasticRecords[${blockIdx}].subjects.${subjectKey}`;
 
-            if (isBlank) {
-                updatedRow.q1 = '';
-                updatedRow.q2 = '';
-                updatedRow.q3 = '';
-                updatedRow.q4 = '';
-                updatedRow.finalRating = '';
-                updatedRow.remarks = '';
-                setOverride(student.lrn, `page_${pageNum}`, `${base}.q1`, '');
-                setOverride(student.lrn, `page_${pageNum}`, `${base}.q2`, '');
-                setOverride(student.lrn, `page_${pageNum}`, `${base}.q3`, '');
-                setOverride(student.lrn, `page_${pageNum}`, `${base}.q4`, '');
-                setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, '');
-                setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, '');
-            } else if (isComponentRow) {
-                updatedRow.finalRating = '';
-                updatedRow.remarks = '';
-                setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, '');
-                setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, '');
+        if (isBlank) {
+            updatedRow.q1 = '';
+            updatedRow.q2 = '';
+            updatedRow.q3 = '';
+            updatedRow.q4 = '';
+            updatedRow.finalRating = '';
+            updatedRow.remarks = '';
+            setOverride(student.lrn, `page_${pageNum}`, `${base}.q1`, '');
+            setOverride(student.lrn, `page_${pageNum}`, `${base}.q2`, '');
+            setOverride(student.lrn, `page_${pageNum}`, `${base}.q3`, '');
+            setOverride(student.lrn, `page_${pageNum}`, `${base}.q4`, '');
+            setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, '');
+            setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, '');
+        } else if (isComponentRow) {
+            updatedRow.finalRating = '';
+            updatedRow.remarks = '';
+            setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, '');
+            setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, '');
+        } else {
+            const q1 = parseFloat(updatedRow.q1 || '') || 0;
+            const q2 = parseFloat(updatedRow.q2 || '') || 0;
+            const q3 = parseFloat(updatedRow.q3 || '') || 0;
+            const q4 = parseFloat(updatedRow.q4 || '') || 0;
+            const requiredTerms = is3Term ? [1, 2, 3] : [1, 2, 3, 4];
+            const finalResult = calculateQuarterlyFinalGrade([q1, q2, q3, q4], requiredTerms);
+            if (finalResult.status !== 'missing') {
+                const avg = finalResult.value;
+                updatedRow.finalRating = avg.toString();
+                updatedRow.remarks = avg >= 75 ? 'PASSED' : 'FAILED';
+                setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, avg.toString());
+                setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, updatedRow.remarks);
             } else {
-                const q1 = parseFloat(updatedRow.q1 || '') || 0;
-                const q2 = parseFloat(updatedRow.q2 || '') || 0;
-                const q3 = parseFloat(updatedRow.q3 || '') || 0;
-                const q4 = parseFloat(updatedRow.q4 || '') || 0;
-                const filled = is3Term ? [q1, q2, q3].filter(v => v > 0) : [q1, q2, q3, q4].filter(v => v > 0);
-                if (filled.length > 0) {
-                    const avg = Math.round(filled.reduce((a, b) => a + b, 0) / filled.length);
-                    updatedRow.finalRating = avg.toString();
-                    updatedRow.remarks = avg >= 75 ? 'PASSED' : 'FAILED';
-                    setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, avg.toString());
-                    setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, updatedRow.remarks);
-                }
+                updatedRow.finalRating = '';
+                updatedRow.remarks = '';
+                setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, '');
+                setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, '');
             }
+        }
 
-            const nextGrades = { ...prev, [subjectKey]: updatedRow };
-            recalcGeneralAverage(nextGrades);
-            return nextGrades;
-        });
-    }, [blockIdx, is3Term, isComponentSubject, pageNum, recalcGeneralAverage, setOverride, student.lrn]);
+        const nextGrades = { ...grades, [subjectKey]: updatedRow };
+        recalcGeneralAverage(nextGrades);
+    }, [blockIdx, grades, is3Term, isComponentSubject, pageNum, recalcGeneralAverage, setOverride, student.lrn]);
 
     const handleGradeChange = (subjectKey: string, quarter: string, value: string) => {
-        const updatedGrades = { ...grades };
-        const currentGradeVal = typeof updatedGrades[subjectKey] === 'object' 
-            ? (updatedGrades[subjectKey] as GradeVal) 
+        const currentGradeVal = typeof grades[subjectKey] === 'object' 
+            ? (grades[subjectKey] as GradeVal) 
             : {};
         const subjectGrade: GradeVal = { ...currentGradeVal, [quarter]: value };
-        updatedGrades[subjectKey] = subjectGrade;
 
         // Auto-calculate Final Rating
         const q1 = parseFloat(subjectGrade.q1 || '') || 0;
@@ -541,36 +521,33 @@ export function SF10HistoricalDataModal({
         const q3 = parseFloat(subjectGrade.q3 || '') || 0;
         const q4 = parseFloat(subjectGrade.q4 || '') || 0;
 
-        const filledQuarters = is3Term 
-            ? [q1, q2, q3].filter(v => v > 0)
-            : [q1, q2, q3, q4].filter(v => v > 0);
+        const requiredTerms = is3Term ? [1, 2, 3] : [1, 2, 3, 4];
+        const finalResult = calculateQuarterlyFinalGrade([q1, q2, q3, q4], requiredTerms);
             
         const targetRow = rows.find(r => r.key === subjectKey);
         const label = subjectGrade.label !== undefined ? subjectGrade.label : (targetRow?.key.startsWith('extra_') ? '' : targetRow?.label || '');
         const hasLabel = (label?.trim() || '') !== '';
         const isComponent = isComponentSubject(subjectKey, label);
 
+        const base = `scholasticRecords[${blockIdx}].subjects.${subjectKey}`;
         if (isComponent) {
             // MAPEH components should not have final rating or remarks in SF10
             subjectGrade.finalRating = '';
             subjectGrade.remarks = '';
-            const base = `scholasticRecords[${blockIdx}].subjects.${subjectKey}`;
             setOverride(student.lrn, `page_${pageNum}`, `${base}.${quarter}`, value);
             setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, '');
             setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, '');
-        } else if (filledQuarters.length > 0 && hasLabel) {
-            const avg = Math.round(filledQuarters.reduce((a, b) => a + b, 0) / filledQuarters.length);
+        } else if (finalResult.status !== 'missing' && hasLabel) {
+            const avg = finalResult.value;
             subjectGrade.finalRating = avg.toString();
             subjectGrade.remarks = avg >= 75 ? 'PASSED' : 'FAILED';
             
             // Save to overrides
-            const base = `scholasticRecords[${blockIdx}].subjects.${subjectKey}`;
             setOverride(student.lrn, `page_${pageNum}`, `${base}.${quarter}`, value);
             setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, avg.toString());
             setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, subjectGrade.remarks);
         } else {
             // Clear everything if no grades are left or no label is present
-            const base = `scholasticRecords[${blockIdx}].subjects.${subjectKey}`;
             subjectGrade.finalRating = '';
             subjectGrade.remarks = '';
             setOverride(student.lrn, `page_${pageNum}`, `${base}.${quarter}`, value);
@@ -578,8 +555,8 @@ export function SF10HistoricalDataModal({
             setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, '');
         }
 
+        const updatedGrades = { ...grades, [subjectKey]: subjectGrade };
         recalcGeneralAverage(updatedGrades);
-        setGrades(updatedGrades);
     };
 
     // Batch Presets
@@ -734,7 +711,7 @@ export function SF10HistoricalDataModal({
                                         </p>
                                     </div>
                                     <button 
-                                        onClick={() => setIsUnlocked(true)}
+                                        onClick={() => setUnlockedBlockGrade(selectedBlockGrade)}
                                         className="w-full py-4 rounded-2xl bg-slate-900 text-white font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg"
                                     >
                                         Unlock Manual Editing

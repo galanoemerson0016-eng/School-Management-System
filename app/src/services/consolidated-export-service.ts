@@ -9,6 +9,7 @@ import ExcelJS from 'exceljs';
 import { jsPDF } from 'jspdf';
 import type { Student, Section, Subject, ClassRecord, SchoolProfile } from '../types';
 import { formatLearnerName } from '../utils/student-name';
+import { calculateWeightedGradeAverage } from './grade-calculation';
 
 export interface ConsolidatedExportParams {
   section: Section;
@@ -143,8 +144,7 @@ export function computeSectionConsolidatedData(
   const processList = (list: Student[]): StudentGradeSummary[] => {
     return list.map((student: FlexibleStudent) => {
       const grades: Record<string, number | null> = {};
-      let sum = 0;
-      let count = 0;
+      const averageEntries: Array<{ grade: number; weight: number }> = [];
 
       safeSubjects.forEach((sub: FlexibleSubject) => {
         const grade = 
@@ -155,15 +155,15 @@ export function computeSectionConsolidatedData(
           if (sub.id) grades[sub.id] = grade;
           // Only average subjects that count in general average
           if (sub.counts_in_general_average !== false) {
-            sum += grade;
-            count++;
+            averageEntries.push({ grade, weight: 1 });
           }
         } else {
           if (sub.id) grades[sub.id] = null;
         }
       });
 
-      const generalAverage = count > 0 ? Math.round((sum / count) * 100) / 100 : null;
+      const average = calculateWeightedGradeAverage(averageEntries);
+      const generalAverage = average === null ? null : Math.round(average * 100) / 100;
       let actionTaken = '—';
       if (generalAverage !== null) {
         actionTaken = generalAverage >= 75 ? 'PROMOTED' : 'RETAINED';
@@ -549,4 +549,3 @@ export async function generateGradingTemplateBuffer(
   const buffer = await wb.xlsx.writeBuffer();
   return new Uint8Array(buffer as ArrayBuffer);
 }
-

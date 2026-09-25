@@ -286,18 +286,26 @@ async function setupDatabaseEncryption(password: string) {
     if (await getDataEncryptionKeyFingerprint(dek) !== metadata.dekFingerprint) {
       throw new Error('Database encryption metadata does not match this account. Your local records were not changed.');
     }
+    // Trial sessions and older setups can use stable per-device keys or the
+    // default emergency master password ('formease'). Keep all known same-profile
+    // legacy keys as migration fallbacks until every store verifies under the new DEK;
+    // never use them as the active record key.
+    const fallbackKeys = await getMigrationFallbackKeys(salt);
+    const sessionFallbackKeys = [passwordKek, ...fallbackKeys];
     if (metadata.state === 'migrated') {
-      db.setDatabaseEncryptionKey(dek);
+      db.setDatabaseEncryptionKey(dek, sessionFallbackKeys, false);
       return;
     }
     await migrateLegacyEncryptedDatabase({
       database: db,
       stores: ENCRYPTED_STORE_NAMES,
       legacyKey: passwordKek,
+      legacyFallbackKeys: fallbackKeys,
       dek,
       metadata,
       saveMetadata: saveWrappedDekMetadata,
     });
+    db.setDatabaseEncryptionKey(dek, sessionFallbackKeys, false);
     return;
   }
 
@@ -316,15 +324,46 @@ async function setupDatabaseEncryption(password: string) {
   } catch {
     throw new Error('Secure recovery protection could not be initialized. Your legacy local records were not changed.');
   }
+  const fallbackKeys = await getMigrationFallbackKeys(salt);
   saveWrappedDekMetadata(prepared);
   await migrateLegacyEncryptedDatabase({
     database: db,
     stores: ENCRYPTED_STORE_NAMES,
     legacyKey: passwordKek,
+    legacyFallbackKeys: fallbackKeys,
     dek,
     metadata: prepared,
     saveMetadata: saveWrappedDekMetadata,
   });
+  db.setDatabaseEncryptionKey(dek, [passwordKek, ...fallbackKeys], false);
+}
+
+async function getMigrationFallbackKeys(salt: Uint8Array): Promise<CryptoKey[]> {
+  const secrets = new Set<string>();
+
+  // 1. Device machine ID (trial session key)
+  try {
+    const machineId = await getMachineId();
+    if (machineId) secrets.add(machineId);
+  } catch (e) {
+    console.warn('Failed to retrieve machine ID for migration fallback:', e);
+  }
+
+  // 2. Browser ID fallback if different
+  try {
+    const browserId = localStorage.getItem('formease-browser-id');
+    if (browserId) secrets.add(browserId);
+  } catch {
+    // Ignore environments where localStorage is restricted
+  }
+
+  // 3. Default / Emergency master passwords
+  secrets.add('formease');
+  secrets.add('Formease');
+
+  return Promise.all(
+    Array.from(secrets).map(secret => deriveDbKey(secret, salt))
+  );
 }
 
 async function setupNewDatabaseEncryption(password: string): Promise<void> {
@@ -348,14 +387,16 @@ async function setupNewDatabaseEncryption(password: string): Promise<void> {
     dekFingerprint: await getDataEncryptionKeyFingerprint(dek),
     recoveryProtector: recoveryAvailable ? 'electron-safe-storage-v1' : 'unavailable',
   });
-  db.setDatabaseEncryptionKey(dek);
+  const fallbackKeys = await getMigrationFallbackKeys(salt);
+  db.setDatabaseEncryptionKey(dek, [passwordKek, ...fallbackKeys], false);
 }
 
 async function setupTrialDatabaseEncryption() {
   const machineId = await getMachineId();
   const salt = await getDbSalt();
   const key = await deriveDbKey(machineId, salt);
-  db.setDatabaseEncryptionKey(key);
+  const emergencyKey = await deriveDbKey('formease', salt);
+  db.setDatabaseEncryptionKey(key, [emergencyKey], false);
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -391,6 +432,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await setupDatabaseEncryption(password);
       await attachCloudIdentity(user);
 
+      (await import('./app-store')).useAppStore.setState({ isSyncReady: false });
       set({ user, isAuthenticated: true, isLoading: false, needsAccountSetup: false, error: null });
       persistSession(user, stored.username);
       return true;
@@ -441,6 +483,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.removeItem(LEGACY_CREDS_KEY);
       await attachCloudIdentity(user);
 
+      (await import('./app-store')).useAppStore.setState({ isSyncReady: false });
       set({ user, isAuthenticated: true, isLoading: false, needsAccountSetup: false, error: null });
       persistSession(user, creds.username);
       return true;
@@ -497,7 +540,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         await unwrapDataEncryptionKey(passwordWrappedDek, newKek);
         const nextMetadata = { ...metadata, passwordWrappedDek };
         commitCredentialsAndWrapper(stored, updated, metadata, nextMetadata);
-        db.setDatabaseEncryptionKey(dek);
+        const fallbackKeys = await getMigrationFallbackKeys(salt);
+        db.setDatabaseEncryptionKey(dek, [newKek, ...fallbackKeys], false);
       } catch (err) {
         console.error('Failed to update database encryption wrapper:', err);
         throw new Error('Password was not changed because encrypted local data could not be verified.');
@@ -592,7 +636,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       metadata,
       { ...metadata, passwordWrappedDek },
     );
-    db.setDatabaseEncryptionKey(dek);
+    const fallbackKeys = await getMigrationFallbackKeys(salt);
+    db.setDatabaseEncryptionKey(dek, [newKek, ...fallbackKeys], false);
     setRecoveryAttempts({ count: 0 });
     return { username: stored.username };
   },
@@ -616,6 +661,7 @@ export async function initializeAuthStore() {
         roles: ['admin'],
       };
       await attachCloudIdentity(user);
+      useAppStore.setState({ isSyncReady: false });
       useAuthStore.setState({ user, isAuthenticated: true, isLoading: false });
       return;
     }

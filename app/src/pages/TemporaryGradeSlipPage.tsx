@@ -4,7 +4,7 @@ import { ArrowLeft, Printer, Layout, Plus, Minus, Bug, RefreshCcw } from 'lucide
 import { sortSubjects, normalizeSubjectName, getCanonicalSubjectKey, getSubjectsForGrade } from '../lib/subjectConfig';
 import { getShsSubjectUnitInfo, getDefaultTermForSubject, isGrade11CoreSubject } from '../lib/curriculum';
 import { getCurriculumPreset } from '../lib/curriculumPresets';
-import type { Section, Student, Subject, ClassRecord, SchoolProfile } from '../types';
+import type { Section, Student, Subject, ClassRecord, SchoolProfile, HPSRecord } from '../types';
 import { resolveStudentQuarterGrade, isMatchingSubject, normalizeGrade12PESubjectName, isStudentInSection, isMaleStudent } from '../utils/grading-helpers';
 import { db } from '../services/database';
 import { reconcileOrphanedGradesAndSubjects } from '../utils/grade-reconciliation';
@@ -19,6 +19,8 @@ export function TemporaryGradeSlipPage() {
         schoolProfile, 
         setCurrentView, 
         gradingSheetRecords, 
+        classRecords,
+        hpsRecords,
         activeSchoolYear,
         selectedSection: globalSelectedSection,
         setSelectedSection: setGlobalSelectedSection
@@ -680,6 +682,8 @@ export function TemporaryGradeSlipPage() {
                                                      section={selectedSectionObj}
                                                      subjects={sectionSubjects}
                                                      records={gradingSheetRecords}
+                                                      classRecords={classRecords}
+                                                      hpsRecords={hpsRecords}
                                                      activeSchoolYear={activeSchoolYear}
                                                  />
                                              );
@@ -692,6 +696,8 @@ export function TemporaryGradeSlipPage() {
                                                  section={selectedSectionObj}
                                                  subjects={sectionSubjects}
                                                  records={gradingSheetRecords}
+                                                  classRecords={classRecords}
+                                                  hpsRecords={hpsRecords}
                                                  activeSchoolYear={activeSchoolYear}
                                              />
                                          );
@@ -722,10 +728,12 @@ interface GradeSlipCardProps {
     section: Section | undefined;
     subjects: Subject[];
     records: ClassRecord[];
+    classRecords: ClassRecord[];
+    hpsRecords: HPSRecord[];
     activeSchoolYear: string;
 }
 
-function GradeSlipCard({ student, schoolProfile, section, subjects, records, activeSchoolYear }: GradeSlipCardProps) {
+function GradeSlipCard({ student, schoolProfile, section, subjects, records, classRecords, hpsRecords, activeSchoolYear }: GradeSlipCardProps) {
     const baseUrl = import.meta.env.BASE_URL;
     const logoUrl = schoolProfile.logo_url || 'school-logo.png';
     const depedLogo = `${baseUrl}deped_logo_left.png`;
@@ -780,10 +788,6 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
         // Per-term totals for general average per term
         const termTotals = { t1: 0, t2: 0, t3: 0 };
         const termCounts = { t1: 0, t2: 0, t3: 0 };
-
-        const classRecords = useAppStore.getState().classRecords || [];
-        const hpsRecords = useAppStore.getState().hpsRecords || [];
-
         const hasParentMapeh = dedupedSubjects.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
 
         // First pass: compute grades for individual non-MAPEH subjects
@@ -969,7 +973,7 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
         const genT3 = isT3Complete && termCounts.t3 > 0 ? Math.round(termTotals.t3 / termCounts.t3).toString() : '';
 
         return { subjectGrades, genAvg, genRemarks, genT1, genT2, genT3 };
-    }, [dedupedSubjects, records, student.lrn, activeSchoolYear, section?.section_grade_level, section?.track]);
+    }, [dedupedSubjects, records, classRecords, hpsRecords, student.lrn, activeSchoolYear, section?.section_grade_level, section?.track]);
 
     const studentFullName = `${student.last_name}, ${student.first_name} ${student.middle_name ? student.middle_name[0] + '.' : ''}`.trim();
     
@@ -1169,6 +1173,8 @@ interface ShsGradeSlipCardProps {
     section: Section | undefined;
     subjects: Subject[];
     records: ClassRecord[];
+    classRecords: ClassRecord[];
+    hpsRecords: HPSRecord[];
     activeSchoolYear: string;
 }
 
@@ -1179,7 +1185,7 @@ function isOffTerm(term: Subject['term'] | undefined, q: number) {
     return termNum !== q;
 }
 
-function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, activeSchoolYear }: ShsGradeSlipCardProps) {
+function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, classRecords, hpsRecords, activeSchoolYear }: ShsGradeSlipCardProps) {
     const baseUrl = import.meta.env.BASE_URL;
     const logoUrl = schoolProfile.logo_url || 'school-logo.png';
     const depedLogo = `${baseUrl}deped_logo_left.png`;
@@ -1229,9 +1235,6 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
 
     const studentGrades = useMemo(() => {
         const rawGrades: Record<string, { q1: number; q2: number; q3: number; final: number; term?: Subject['term'] }> = {};
-        const classRecords = useAppStore.getState().classRecords || [];
-        const hpsRecords = useAppStore.getState().hpsRecords || [];
-        
         dedupedSubjects.forEach((subj) => {
             let q1 = 0, q2 = 0, q3 = 0;
             for (let q = 1; q <= 3; q++) {
@@ -1469,7 +1472,7 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
         const genRemarks = areAll3TermsCompleteShs && genAvg ? (Number(genAvg) >= 75 ? 'Passed' : 'Failed') : '';
 
         return { subjectGrades: gradesLookup, genAvg, genRemarks, genT1, genT2, genT3 };
-    }, [dedupedSubjects, records, student.lrn, activeSchoolYear, section?.section_grade_level, section?.track, resolveShsTerm]);
+    }, [dedupedSubjects, records, classRecords, hpsRecords, student.lrn, activeSchoolYear, section?.section_grade_level, section?.track, resolveShsTerm]);
 
     const studentFullName = `${student.last_name}, ${student.first_name} ${student.middle_name ? student.middle_name[0] + '.' : ''}`.trim();
     

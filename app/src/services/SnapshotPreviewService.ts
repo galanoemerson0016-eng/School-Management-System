@@ -14,8 +14,7 @@
  */
 
 import { db, type BackupImportPayload } from './database';
-import { exportFullDatabaseBackup } from '../utils/backup-restore';
-import { AutoBackupManager } from './AutoBackupManager';
+import { exportFullDatabaseBackup, savePreRestoreSafetySnapshot } from '../utils/backup-restore';
 import { useAppStore } from '../stores/app-store';
 
 export interface SnapshotPreviewMetadata {
@@ -215,11 +214,7 @@ export const SnapshotPreviewService = {
     await db.resetConnection();
 
     // 4. We are now targeting FormEaseDB: Take a safety snapshot of production before overwriting
-    try {
-      await AutoBackupManager.triggerBackup();
-    } catch (_e) {
-      // ignore
-    }
+    await savePreRestoreSafetySnapshot();
 
     // 5. Import the verified backup into FormEaseDB
     await db.importFromBackup(verifiedBackup as unknown as BackupImportPayload);

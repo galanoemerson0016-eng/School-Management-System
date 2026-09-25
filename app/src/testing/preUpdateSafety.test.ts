@@ -151,6 +151,7 @@ describe('Pre-Update Safety Vault & Master Excel Backup System', () => {
       'Sections & Programs',
       'Subjects Directory',
       'Subject Class Records',
+      'Raw Assessment Scores',
       'SF10 Overrides & Remarks',
       'Attendance Summary',
       'Observed Values',
@@ -163,6 +164,8 @@ describe('Pre-Update Safety Vault & Master Excel Backup System', () => {
 
     const overviewSheet = workbook.getWorksheet('Overview & Summary');
     expect(overviewSheet?.rowCount).toBeGreaterThan(5);
+    const assessmentSheet = workbook.getWorksheet('Raw Assessment Scores');
+    expect(assessmentSheet?.getRow(1).values).toContain('Assessment Group');
 
     const buffer = await getMasterExcelBackupBuffer(mockBackup);
     expect(buffer).toBeDefined();

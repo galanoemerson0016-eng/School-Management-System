@@ -12,7 +12,7 @@ import { SnapshotPreviewService } from '../services/SnapshotPreviewService';
 import { CloudSyncService } from '../services/cloud-sync';
 import { DiagnosticEngine, type DiagnosticIssue } from '../services/diagnostic-engine';
 import { canPurgeMaintenance } from '../lib/rbac';
-import { createComprehensiveBackup, generateBackupReport, validateBackup, type ComprehensiveBackup } from '../utils/backup-restore';
+import { createComprehensiveBackup, generateBackupReport, savePreRestoreSafetySnapshot, validateBackup, type ComprehensiveBackup } from '../utils/backup-restore';
 import { BackupRestoreModal } from '../components/BackupRestoreModal';
 import { ExportOptionsModal, type ExportOptions } from '../components/ExportOptionsModal';
 import { PreActionBackupModal } from '../components/ui/PreActionBackupModal';
@@ -322,6 +322,7 @@ export function SettingsPage() {
                     const backupData = JSON.parse(fileContentStr);
                     
                     const raw = backupData.data || backupData;
+                    await savePreRestoreSafetySnapshot();
                     await db.importFromBackup(raw);
 
                     const payload = (raw as Record<string, unknown>).payload as Record<string, unknown> | undefined;
@@ -497,6 +498,7 @@ export function SettingsPage() {
                         if (!backupData) throw new Error('Could not read backup file content.');
                         
                         const raw = backupData.data || backupData;
+                        await savePreRestoreSafetySnapshot();
                         await db.importFromBackup(raw);
 
                         const payload = (raw as Record<string, unknown>).payload as Record<string, unknown> | undefined;
@@ -1497,18 +1499,20 @@ export function SettingsPage() {
                 user?.email || 'unknown',
             );
             
+            const { embedChecksum } = await import('../utils/backup-integrity');
+            const backupWithChecksum = await embedChecksum(backup as unknown as Record<string, unknown>);
             const api = window.electronAPI as unknown as {
                 saveBackupToPath?: (path: string, filename: string, backup: unknown) => Promise<void>;
             };
             if (api && api.saveBackupToPath) {
                 const timestamp = new Date().toISOString().split('T')[0];
                 const filename = `SMS_Backup_USB_${timestamp}.json`;
-                await api.saveBackupToPath(usbDetectedPath, filename, backup);
+                await api.saveBackupToPath(usbDetectedPath, filename, backupWithChecksum);
                 alert(`✅ Backup successfully saved to USB at ${usbDetectedPath}/${filename}`);
-                addBackupHistoryEntry('USB Backup', JSON.stringify(backup).length, 'Success');
+                addBackupHistoryEntry('USB Backup', JSON.stringify(backupWithChecksum).length, 'Success');
             } else {
                 alert(`✅ Sandbox Simulation: Backup successfully saved to simulated USB drive at "${usbDetectedPath}"`);
-                addBackupHistoryEntry('USB Backup (Simulated)', JSON.stringify(backup).length, 'Success');
+                addBackupHistoryEntry('USB Backup (Simulated)', JSON.stringify(backupWithChecksum).length, 'Success');
             }
         } catch (e) {
             alert('Failed to save to USB: ' + e);
@@ -2958,6 +2962,18 @@ export function SettingsPage() {
                                                                 <span className="block text-[10px] text-slate-400 font-medium mt-0.5">
                                                                     {new Date(b.timestamp).toLocaleString()} • <strong className="text-slate-500 dark:text-slate-400">{formatRelativeTime(b.timestamp)}</strong>
                                                                 </span>
+                                                                <span
+                                                                    title={`Snapshot ${b.snapshotId || 'from an earlier backup format'}`}
+                                                                    className={`inline-flex mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                                                        b.pairedFileStatus === 'verified'
+                                                                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                                                            : b.pairedFileStatus === 'full-only'
+                                                                                ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
+                                                                                : 'bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-400'
+                                                                    }`}
+                                                                >
+                                                                    {b.pairedFileStatus === 'verified' ? 'Full + Excel verified' : b.pairedFileStatus === 'full-only' ? 'Full backup saved' : 'Local snapshot'}
+                                                                </span>
                                                             </td>
                                                             <td className="py-3 px-3 align-top">
                                                                 <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
@@ -3741,7 +3757,7 @@ export function SettingsPage() {
                                             <h2 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">
                                                 FormEase Pro
                                             </h2>
-                                            <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.18</span>
+                                            <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.19</span>
                                             <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5">
                                                 Latest Production
                                             </span>
@@ -3799,7 +3815,7 @@ export function SettingsPage() {
                                 <div className="pt-4 space-y-4">
                                     <div className="p-4 rounded-xl bg-slate-50/60 dark:bg-white/2 border border-slate-150 dark:border-white/5 space-y-2">
                                         <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">
-                                            What&apos;s New in Version 3.5.18
+                                            What&apos;s New in Version 3.5.19
                                         </h4>
                                         <ul className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 font-medium list-disc list-inside leading-relaxed">
                                             <li>🛡️ <strong>Data Integrity Protection</strong>: Startup never hides or deletes legitimate records merely because an LRN, section name, or temporary identifier resembles test data.</li>

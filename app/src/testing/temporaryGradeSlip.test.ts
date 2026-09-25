@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { Subject } from '../types';
+import type { Subject, ClassRecord } from '../types';
+import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
 
 describe('Temporary Grade Slip grading and general average rules', () => {
     describe('Elementary and JHS', () => {
@@ -399,6 +400,39 @@ describe('Temporary Grade Slip grading and general average rules', () => {
             expect(genAverageRowUnderTerms.t1).toBe('87');
             expect(genAverageRowUnderTerms.t2).toBe('89');
             expect(genAverageRowUnderTerms.t3).toBe('90');
+        });
+    });
+
+    describe('Reactive Live Sync without Manual Publish', () => {
+        it('resolves grades directly from raw classRecords when gradingSheetRecords is empty', () => {
+            const studentLrn = '123456789012';
+            const subjectId = 'subj-sci';
+            const classRecords: Partial<ClassRecord>[] = [
+                {
+                    id: 'cr-sci-q1',
+                    student_lrn: studentLrn,
+                    subject_id: subjectId,
+                    subject_name: 'Science',
+                    quarter: 1,
+                    school_year: '2025-2026',
+                    final_grade: 92,
+                    written_works: [20],
+                    performance_tasks: [40],
+                    quarterly_exam: 25
+                }
+            ];
+            const emptyGradingSheetRecords: ClassRecord[] = [];
+            const resolved = resolveStudentQuarterGrade(
+                studentLrn,
+                subjectId,
+                1,
+                '2025-2026',
+                classRecords as ClassRecord[],
+                emptyGradingSheetRecords,
+                [],
+                'Grade 7'
+            );
+            expect(resolved).toBe(92);
         });
     });
 });

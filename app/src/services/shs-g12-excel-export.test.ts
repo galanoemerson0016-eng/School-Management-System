@@ -631,53 +631,33 @@ describe('SHS Grade 12 E-Class Record Export Service', () => {
     expect(helperXml).not.toContain('t="e"');
   });
 
-  it('correctly exports the Archimedes Physical Science real backup data with matching grades', async () => {
+  it('keeps synthetic Grade 12 final grades consistent with term grades', async () => {
     const updatedTemplatePath = path.join(templatesDir, TEMPLATE_SHS_G12_UPDATED);
-    if (!fs.existsSync(updatedTemplatePath)) return;
-
-    const backupsDir = path.join(process.env.APPDATA || '', 'form-ease-pro', 'backups');
-    if (!fs.existsSync(backupsDir)) return;
-    const files = fs.readdirSync(backupsDir).filter(f => f.endsWith('.json')).sort();
-    if (files.length === 0) return;
-    const latestBackup = path.join(backupsDir, files[files.length - 1]);
-    const backupData = JSON.parse(fs.readFileSync(latestBackup, 'utf8'));
-    const payload = backupData.payload || backupData;
-
-    const section = (payload.sections || []).find((s: any) => s.id === 'section_1789451336249');
-    const subject = (payload.subjects || []).find((s: any) => s.id === 'subject-grade12-physicalscience-section1789451336249');
-    const students = (payload.students || []).filter((s: any) => s.student_section === 'Archimedes');
-    const classRecords = payload.classRecords || [];
-    const hpsRecords = payload.hpsRecords || [];
-
-    if (!section || !subject || students.length === 0) return;
+    expect(fs.existsSync(updatedTemplatePath)).toBe(true);
 
     const templateBuffer = fs.readFileSync(updatedTemplatePath);
     const populatedZip = await populateSHSG12WorkbookZip(templateBuffer, {
-      schoolProfile: payload.schoolProfile || mockSchoolProfile,
+      schoolProfile: mockSchoolProfile,
       schoolYear: '2026-2027',
-      section,
-      subject,
-      students,
-      classRecords,
-      hpsRecords,
+      section: mockSection,
+      subject: mockSubject,
+      students: mockStudents,
+      classRecords: mockClassRecords,
+      hpsRecords: mockHpsRecords,
       teacherName: 'Teacher Galileo'
     });
-
-    const exportBuf = await populatedZip.generateAsync({ type: 'nodebuffer' });
-    const outPath = path.resolve(__dirname, '../../../scratch/exported_archimedes_verified.xlsx');
-    fs.writeFileSync(outPath, exportBuf);
 
     // Verify Term 1 sheet XML
     const t1Xml = await populatedZip.file('xl/worksheets/sheet3.xml')!.async('string');
     // HPS row 14
     expect(t1Xml).toMatch(/<c r="AD14"[^>]*><v>30<\/v><\/c>/);
-    expect(t1Xml).toMatch(/<c r="AE14"[^>]*><v>30<\/v><\/c>/);
-    expect(t1Xml).toMatch(/<c r="AF14"[^>]*><v>60<\/v><\/c>/);
+    expect(t1Xml).toMatch(/<c r="AE14"[^>]*><v>35<\/v><\/c>/);
+    expect(t1Xml).toMatch(/<c r="AF14"[^>]*><v>50<\/v><\/c>/);
 
     // Final Grades sheet XML
     const fgXml = await populatedZip.file('xl/worksheets/sheet6.xml')!.async('string');
     // Subject name in G9
-    expect(fgXml).toMatch(/<c r="G9"[^>]*><f[^>]*>.*?<\/f><v>PHYSICAL SCIENCE<\/v><\/c>/);
+    expect(fgXml).toMatch(/<c r="G9"[^>]*><f[^>]*>.*?<\/f><v>PRACTICAL RESEARCH 2<\/v><\/c>/);
 
     // Extract student 1 (row 17) Term 1 grade
     const t1Row17Match = t1Xml.match(/<c r="AM17"[^>]*><f[^>]*>.*?<\/f><v>(\d+)<\/v><\/c>/);

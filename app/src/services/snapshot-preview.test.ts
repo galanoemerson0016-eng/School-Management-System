@@ -4,9 +4,13 @@ import { SnapshotPreviewService, type SnapshotPreviewMetadata } from './Snapshot
 import { AutoBackupManager } from './AutoBackupManager';
 import { IncrementalBackupService } from './IncrementalBackupService';
 import { CloudSyncService } from './cloud-sync';
+import { IDBFactory, IDBKeyRange } from 'fake-indexeddb';
 
 describe('Snapshot Live Preview Mode', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await db.resetConnection();
+    (globalThis as unknown as { indexedDB: IDBFactory }).indexedDB = new IDBFactory();
+    (globalThis as unknown as { IDBKeyRange: typeof IDBKeyRange }).IDBKeyRange = IDBKeyRange;
     sessionStorage.clear();
     localStorage.clear();
     vi.restoreAllMocks();

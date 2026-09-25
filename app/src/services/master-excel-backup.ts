@@ -233,7 +233,8 @@ export async function generateMasterExcelWorkbook(input: MasterBackupDataInput):
     { metric: 'School Head Position/Designation', val: profile.head_title || profile.headTitle || 'Principal', note: 'Signatory Title' },
     { metric: 'Active School Year', val: payload.activeSchoolYear || 'Unknown', note: 'Current Academic Term' },
     { metric: 'Export Timestamp', val: new Date().toLocaleString(), note: 'System Snapshot Time' },
-    { metric: 'Application Version', val: 'FormEase Pro v3.4.1', note: 'Engine Release' },
+    { metric: 'Application Version', val: `FormEase Pro v${typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'unknown'}`, note: 'Engine Release' },
+    { metric: 'Snapshot ID', val: (input && typeof input === 'object' && 'metadata' in input ? (input as ComprehensiveBackup).metadata.snapshotId : '') || '', note: 'Match this ID to the paired recovery file' },
     { metric: 'Total Enrolled Learners', val: (payload.students || []).length, note: 'Database Record Count' },
     { metric: 'Total Class Sections', val: (payload.sections || []).length, note: 'Database Record Count' },
     { metric: 'Total Curriculum Subjects', val: (payload.subjects || []).length, note: 'Database Record Count' },
@@ -388,6 +389,48 @@ export async function generateMasterExcelWorkbook(input: MasterBackupDataInput):
     });
   });
   applyWorksheetStyling(wsClassRecords);
+
+  // Preserve each raw assessment value and its matching HPS in a reviewable table.
+  const wsAssessments = wb.addWorksheet('Raw Assessment Scores', { properties: { tabColor: { argb: '7C3AED' } } });
+  wsAssessments.columns = [
+    { header: 'Record ID', key: 'record_id', width: 22 },
+    { header: 'Student LRN', key: 'student_lrn', width: 16 },
+    { header: 'Section ID', key: 'section_id', width: 18 },
+    { header: 'School Year', key: 'school_year', width: 14 },
+    { header: 'Term', key: 'term', width: 10 },
+    { header: 'Subject ID', key: 'subject_id', width: 18 },
+    { header: 'Assessment Group', key: 'group', width: 22 },
+    { header: 'Assessment Number', key: 'assessment_number', width: 18 },
+    { header: 'Score', key: 'score', width: 14 },
+    { header: 'Highest Possible Score', key: 'hps', width: 24 },
+  ];
+  const hpsRecords = (payload.hpsRecords || []) as Array<{
+    subject_id?: string; section_id?: string; school_year?: string; quarter?: number | string;
+    written_works?: Array<number | string>; performance_tasks?: Array<number | string>; quarterly_exam?: number | string;
+  }>;
+  const matchHps = (record: FlexibleClassRecordItem, group: string, index: number): number | string => {
+    const hps = hpsRecords.find(item => item.subject_id === (record.subject_id || record.subjectId) &&
+      item.school_year === (record.school_year || record.schoolYear) && String(item.quarter) === String(record.quarter) &&
+      (!item.section_id || item.section_id === (record.section_id || record.sectionId)));
+    if (!hps) return '';
+    if (group === 'Written Work') return hps.written_works?.[index] ?? '';
+    if (group === 'Performance Task') return hps.performance_tasks?.[index] ?? '';
+    return hps.quarterly_exam ?? '';
+  };
+  ((payload.classRecords || []) as Array<FlexibleClassRecordItem & {
+    id?: string; written_works?: Array<number | string>; performance_tasks?: Array<number | string>; quarterly_exam?: number | string;
+  }>).forEach(record => {
+    const base = {
+      record_id: record.id || '', student_lrn: record.student_lrn || record.studentLrn || '',
+      section_id: record.section_id || record.sectionId || '', school_year: record.school_year || record.schoolYear || '',
+      term: record.quarter || '', subject_id: record.subject_id || record.subjectId || '',
+    };
+    for (const [group, scores] of [['Written Work', record.written_works || []], ['Performance Task', record.performance_tasks || []]] as const) {
+      scores.forEach((score, index) => wsAssessments.addRow({ ...base, group, assessment_number: index + 1, score, hps: matchHps(record, group, index) }));
+    }
+    wsAssessments.addRow({ ...base, group: 'Quarterly Exam', assessment_number: 1, score: record.quarterly_exam ?? '', hps: matchHps(record, 'Quarterly Exam', 0) });
+  });
+  applyWorksheetStyling(wsAssessments);
 
   // -------------------------------------------------------------
   // 6. CONSOLIDATED MASTER GRADING RECORDS TAB

@@ -1,0 +1,23 @@
+<Configuration>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>C:\Users\Emerson\AppData\Local\Temp\formease-v3518-isolated-package-4e5023f94cc34912a07310fa0bc97851\release</HostFolder>
+      <SandboxFolder>C:\FormEase-Test-Package</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>C:\Users\Emerson\AppData\Local\Temp\formease-v3518-isolated-package-4e5023f94cc34912a07310fa0bc97851\sandbox-runner</HostFolder>
+      <SandboxFolder>C:\FormEase-Test-Runner</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>C:\Users\Emerson\AppData\Local\Temp\formease-v3518-isolated-package-4e5023f94cc34912a07310fa0bc97851\sandbox-results</HostFolder>
+      <SandboxFolder>C:\Sandbox-Results</SandboxFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+  <VGpu>Disable</VGpu>
+  <LogonCommand>
+    <Command>cmd.exe /c C:\FormEase-Test-Runner\sandbox-run-v3518.cmd</Command>
+  </LogonCommand>
+</Configuration>

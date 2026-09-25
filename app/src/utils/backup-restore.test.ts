@@ -5,6 +5,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../services/database', () => ({
     db: {
         getAllRecords: vi.fn().mockResolvedValue([]),
+        getWriteGeneration: vi.fn().mockReturnValue(0),
+        readBackupSnapshot: vi.fn().mockResolvedValue({
+            schoolProfile: [], students: [], sections: [], subjects: [], classRecords: [], enrollments: [],
+            announcements: [], attendanceRecords: [], sf2Sheets: [], hpsRecords: [], gradingSheetRecords: [],
+            observedValues: [], users: [], activityLog: [], localStorageData: {},
+        }),
+        getRecord: vi.fn(),
         putRecord: vi.fn().mockResolvedValue('id'),
         putRecordsBulk: vi.fn().mockResolvedValue(undefined),
         clearStore: vi.fn().mockResolvedValue(undefined),
@@ -18,10 +25,12 @@ import {
     createComprehensiveBackup,
     generateBackupReport,
     exportFullDatabaseBackup,
+    savePreRestoreSafetySnapshot,
     downloadComprehensiveBackup,
 } from './backup-restore';
-import type { ComprehensiveBackup } from './backup-restore';
-import type { SchoolProfile } from '../types';
+import type { ComprehensiveBackup, BackupUser } from './backup-restore';
+import type { SchoolProfile, Section } from '../types';
+import { db } from '../services/database';
 import { useSF10Store } from '../stores/sf10-store';
 
 // Minimal valid backup fixture — enough to pass all structural checks.
@@ -163,6 +172,7 @@ describe('collectBackupLocalStorage & restoreBackupLocalStorage', () => {
         // Excluded keys
         localStorage.setItem('formease-auth-token', 'secret');
         localStorage.setItem('formease-browser-id', 'browser-xyz');
+        localStorage.setItem('formease-db-salt-v1', 'SYNTHETIC-SECRET-SALT');
 
         const collected = collectBackupLocalStorage();
 
@@ -172,8 +182,16 @@ describe('collectBackupLocalStorage & restoreBackupLocalStorage', () => {
         expect(collected['formease_shs_subjects_migrated_v2']).toBe('true');
         expect(collected['formease_sf8_signatories_123']).toBe('{"adviser":"Teacher"}');
         expect(collected['g1_remarks_123_2026-2027']).toBe('{"q1":"Very good"}');
+        localStorage.setItem('formease-theme', 'dark');
+        localStorage.setItem('formease-sf9-template', 'template2');
+        localStorage.setItem('sms_broadcast_history', '[{"id":"1"}]');
+        const collectedWithPrefs = collectBackupLocalStorage();
+        expect(collectedWithPrefs['formease-theme']).toBe('dark');
+        expect(collectedWithPrefs['formease-sf9-template']).toBe('template2');
+        expect(collectedWithPrefs['sms_broadcast_history']).toBe('[{"id":"1"}]');
         expect(collected['formease-auth-token']).toBeUndefined();
         expect(collected['formease-browser-id']).toBeUndefined();
+        expect(collected['formease-db-salt-v1']).toBeUndefined();
     });
 
     it('restores localStorage items and calls sf10 rehydrate', () => {
@@ -258,6 +276,43 @@ describe('collectBackupLocalStorage & restoreBackupLocalStorage', () => {
         expect(validation.isValid).toBe(true);
     });
 
+    it('refuses to create a safety backup when an encrypted records table cannot be read', async () => {
+        vi.mocked(db.readBackupSnapshot).mockRejectedValueOnce(new Error('synthetic unreadable students'));
+
+        await expect(exportFullDatabaseBackup('synthetic pre-update')).rejects.toThrow('synthetic unreadable students');
+        vi.mocked(db.readBackupSnapshot).mockReset();
+        vi.mocked(db.readBackupSnapshot).mockResolvedValue({
+            schoolProfile: [], students: [], sections: [], subjects: [], classRecords: [], enrollments: [],
+            announcements: [], attendanceRecords: [], sf2Sheets: [], hpsRecords: [], gradingSheetRecords: [],
+            observedValues: [], users: [], activityLog: [], localStorageData: {},
+        });
+    });
+
+    it('blocks restore when the new pre-restore filesystem snapshot cannot be saved', async () => {
+        let stored: { data: ComprehensiveBackup } | undefined;
+        vi.mocked(db.putRecord).mockImplementationOnce(async (_store, entry) => {
+            stored = entry as { data: ComprehensiveBackup };
+            return 'synthetic-snapshot';
+        });
+        vi.mocked(db.getRecord).mockImplementationOnce(async () => stored);
+        const previousApi = window.electronAPI;
+        window.electronAPI = {
+            saveAutoBackup: vi.fn().mockResolvedValue({ success: false, error: 'synthetic disk failure' }),
+        } as unknown as Window['electronAPI'];
+        try {
+            await expect(savePreRestoreSafetySnapshot()).rejects.toThrow('synthetic disk failure');
+        } finally {
+            window.electronAPI = previousApi;
+        }
+    });
+
+    it('does not manufacture an empty safety copy after a required-table read fails', async () => {
+        const savesBefore = vi.mocked(db.putRecord).mock.calls.length;
+        vi.mocked(db.readBackupSnapshot).mockRejectedValueOnce(new Error('synthetic read failure'));
+        await expect(savePreRestoreSafetySnapshot()).rejects.toThrow('existing records could not be preserved');
+        expect(vi.mocked(db.putRecord).mock.calls.length).toBe(savesBefore);
+    });
+
     it('downloadComprehensiveBackup creates download element with SMS_Backup_Comprehensive filename', () => {
         const fakeBackup = makeBackup();
         const appendChildSpy = vi.spyOn(document.body, 'appendChild');
@@ -273,5 +328,64 @@ describe('collectBackupLocalStorage & restoreBackupLocalStorage', () => {
         appendChildSpy.mockRestore();
         removeChildSpy.mockRestore();
     });
-});
 
+    it('populates adviserAssignments, gradingConfiguration, and systemSettings in createComprehensiveBackup', async () => {
+        const mockSections: Section[] = [
+            { id: 'sec-1', section_name: 'Einstein', section_grade_level: 'Grade 7', adviser_id: 'u-1', adviser_name: 'Teacher One' } as Section,
+            { id: 'sec-2', section_name: 'Newton', section_grade_level: 'Grade 8', adviser_id: '' } as Section,
+        ];
+        vi.mocked(db.getAllRecords).mockImplementation(async (store) => {
+            if (store === 'users') return [{ uid: 'u-1', username: 'teacher1', displayName: 'Teacher One' }] as unknown as BackupUser[];
+            if (store === 'schoolProfile') return [{ school_id: '307014', name: 'Calibungan High School' }] as unknown as SchoolProfile[];
+            return [];
+        });
+        localStorage.setItem('formease-theme', 'dark');
+        localStorage.setItem('formease-sf9-template', 'template2');
+
+        const backup = await createComprehensiveBackup(
+            { school_id: '', name: 'School Name' } as unknown as SchoolProfile, // blank profile passed
+            [],
+            '2026-2027',
+            [],
+            [],
+            [],
+            mockSections,
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            'test-user'
+        );
+
+        // School profile safely resolved from database
+        expect(backup.payload.schoolProfile.school_id).toBe('307014');
+        expect(backup.payload.schoolProfile.name).toBe('Calibungan High School');
+
+        // Adviser assignments populated
+        expect(backup.summary.adviserAssignments).toBe(1);
+        expect(backup.payload.adviserAssignments).toHaveLength(1);
+        expect(backup.payload.adviserAssignments[0]).toEqual({
+            userId: 'u-1',
+            username: 'teacher1',
+            displayName: 'Teacher One',
+            sectionId: 'sec-1',
+            sectionName: 'Einstein',
+            gradeLevel: 'Grade 7',
+        });
+
+        // Grading configuration populated
+        expect(backup.summary.gradingConfiguration).toBe(1);
+        expect(backup.payload.gradingConfiguration).toHaveProperty('curriculumStandard');
+        expect(backup.payload.gradingConfiguration).toHaveProperty('clusters');
+
+        // System settings populated
+        expect(backup.payload.systemSettings).toMatchObject({
+            theme: 'dark',
+            sf9Template: 'template2',
+        });
+    });
+});

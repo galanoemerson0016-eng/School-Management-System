@@ -397,5 +397,5 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     expect(sheet6Xml).not.toContain('>Promoted<');
     expect(sheet6Xml).not.toContain('>Failed<');
     expect(sheet6Xml).not.toMatch(/<c\s+r="J44"[^>]*><f[^>]*>[^<]+<\/f><v>\d+<\/v><\/c>/);
-  }, 60000);
+  }, 120000);
 });

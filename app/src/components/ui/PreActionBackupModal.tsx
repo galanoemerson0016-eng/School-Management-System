@@ -48,11 +48,7 @@ export function PreActionBackupModal({
         setIsExecuting(true);
         try {
             // Automatically trigger a local pre-action snapshot checkpoint
-            try {
-                await AutoBackupManager.triggerBackup();
-            } catch (snapErr) {
-                console.warn('Pre-action auto-snapshot warning:', snapErr);
-            }
+            await AutoBackupManager.triggerBackup();
             await onConfirm();
             onCancel();
         } catch (error) {

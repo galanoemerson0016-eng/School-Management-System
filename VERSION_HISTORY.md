@@ -1,6 +1,6 @@
 # Version History
 
-## v3.5.18 (2026-09-22)
+## v3.5.19 (2026-09-25)
 
 ### 🛡️ Data Integrity Recovery
 

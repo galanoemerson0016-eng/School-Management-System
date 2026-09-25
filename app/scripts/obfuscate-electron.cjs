@@ -53,4 +53,8 @@ filesToObfuscate.forEach(({ src, dest }) => {
   }
 });
 
+// The backup file boundary is deliberately kept auditable and must accompany
+// the obfuscated main process in every packaged application.
+fs.copyFileSync(path.join(process.cwd(), 'electron', 'backup-files.cjs'), path.join(distElectronDir, 'backup-files.cjs'));
+
 console.log('🎉 Electron Core Shielding Complete!');
