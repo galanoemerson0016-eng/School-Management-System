@@ -226,7 +226,7 @@ jobs:
 
       - name: Install Licensing Portal dependencies
         working-directory: license-portal
-        run: npm ci
+        run: npm ci || npm install
 
       - name: Build Licensing Portal website
         working-directory: license-portal

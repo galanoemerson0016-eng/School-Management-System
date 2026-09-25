@@ -13,6 +13,8 @@
   "license": "ISC",
   "type": "module",
   "devDependencies": {
+    "@emnapi/core": "^1.11.3",
+    "@emnapi/runtime": "^1.11.3",
     "@tailwindcss/postcss": "^4.2.4",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
