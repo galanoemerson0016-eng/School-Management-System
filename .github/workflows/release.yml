@@ -242,44 +242,52 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const release = await github.rest.repos.getReleaseByTag({
+            const tag = '${{ inputs.release_tag || github.ref_name }}';
+            const releases = await github.paginate(github.rest.repos.listReleases, {
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag: '${{ inputs.release_tag || github.ref_name }}',
+              per_page: 50,
             });
-            if (!release.data.draft) {
-              throw new Error('The private release must still be a draft before publication.');
+            const release = releases.find((r) => r.tag_name === tag);
+            if (!release) {
+              throw new Error(`Release for tag ${tag} not found.`);
             }
-            await github.rest.repos.updateRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              release_id: release.data.id,
-              draft: false,
-            });
+            if (release.draft) {
+              await github.rest.repos.updateRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.id,
+                draft: false,
+              });
+            }
 
       - name: Publish Public GitHub Release
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.RELEASE_REPO_TOKEN }}
           script: |
-            const release = await github.rest.repos.getReleaseByTag({
+            const tag = '${{ inputs.release_tag || github.ref_name }}';
+            const releases = await github.paginate(github.rest.repos.listReleases, {
               owner: 'galanoemerson0016-eng',
               repo: 'FormEase-Releases',
-              tag: '${{ inputs.release_tag || github.ref_name }}',
+              per_page: 50,
             });
-            if (!release.data.draft) {
-              throw new Error('The public release must still be a draft before publication.');
+            const release = releases.find((r) => r.tag_name === tag);
+            if (!release) {
+              throw new Error(`Public release for tag ${tag} not found.`);
             }
-            await github.rest.repos.updateRelease({
-              owner: 'galanoemerson0016-eng',
-              repo: 'FormEase-Releases',
-              release_id: release.data.id,
-              draft: false,
-            });
+            if (release.draft) {
+              await github.rest.repos.updateRelease({
+                owner: 'galanoemerson0016-eng',
+                repo: 'FormEase-Releases',
+                release_id: release.id,
+                draft: false,
+              });
+            }
             const published = await github.rest.repos.getReleaseByTag({
               owner: 'galanoemerson0016-eng',
               repo: 'FormEase-Releases',
-              tag: '${{ inputs.release_tag || github.ref_name }}',
+              tag: tag,
             });
             if (published.data.draft || !published.data.assets.some((asset) => asset.name === 'latest.yml') || !published.data.assets.some((asset) => asset.name === 'latest-mac.yml')) {
               throw new Error('The public release or its required updater metadata is not available.');
