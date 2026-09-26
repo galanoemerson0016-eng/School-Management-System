@@ -354,6 +354,9 @@ function openWithUpgrade(
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(targetDbName, version);
     req.onerror = () => reject(req.error);
+    req.onblocked = () => {
+      console.warn('[database] Database upgrade blocked by another active connection.');
+    };
     req.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
       const transaction = (event.target as IDBOpenDBRequest).transaction;
@@ -476,14 +479,14 @@ async function getAllRecords<T>(storeName: string): Promise<T[]> {
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
   });
-  if (storeName === 'automated_backups') {
+  if (storeName === 'automated_backups' || storeName === 'gradingSheetRecords' || storeName === 'observedValues') {
     const results: T[] = [];
     for (const raw of rawList) {
       try {
         const decrypted = await decryptRecordIfNeeded<T>(storeName, raw);
         results.push(decrypted);
       } catch (err) {
-        console.warn('[FormEase Pro] Unreadable automated_backups entry could not be decrypted with available keys; skipping retention entry.', err);
+        console.warn(`[FormEase Pro] Unreadable ${storeName} entry could not be decrypted with available keys; skipping entry.`, err);
       }
     }
     return results;
@@ -507,7 +510,7 @@ async function getRecord<T>(storeName: string, key: string): Promise<T | undefin
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
   });
-  if (storeName === 'automated_backups') {
+  if (storeName === 'automated_backups' || storeName === 'gradingSheetRecords' || storeName === 'observedValues') {
     try {
       return await decryptRecordIfNeeded<T>(storeName, raw);
     } catch {

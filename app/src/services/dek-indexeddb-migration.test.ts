@@ -246,6 +246,46 @@ describe('DEK migration using production IndexedDB persistence', () => {
     expect(validBackups.some(b => b.id === 'auto-synthetic-1')).toBe(true);
   });
 
+  it('allows login and preserves all school records when gradingSheetRecords contains an unreadable/stale legacy record', async () => {
+    const salt = await getDbSalt();
+    const passwordKey = await deriveDbKey(PASSWORD, salt);
+    const unreadableKey = await deriveDbKey('unknown-ancient-password-key', salt);
+
+    db.setDatabaseEncryptionKey(passwordKey, [], false);
+    for (const [storeName, records] of Object.entries(synthetic)) {
+      if (storeName === 'gradingSheetRecords') continue;
+      await db.putRecordsBulk(storeName, [...records]);
+    }
+
+    // Put valid gradingSheetRecords under passwordKey
+    await db.putRecordsBulk('gradingSheetRecords', [...synthetic.gradingSheetRecords]);
+
+    // Put an additional stale/unreadable gradingSheetRecord under an unknown key
+    db.setDatabaseEncryptionKey(unreadableKey, [], false);
+    await db.putRecord('gradingSheetRecords', {
+      id: 'gs-stale-unreadable-record',
+      student_lrn: '999999999999',
+      final_grade: 85,
+    });
+
+    localStorage.setItem('formease-credentials-v2', JSON.stringify({
+      version: 2, username: 'jamesking482', passwordHash: await hashSecret(PASSWORD), role: 'admin',
+    }));
+
+    // Must NOT fail with "Encrypted gradingSheetRecords record could not be decrypted"
+    expect(await useAuthStore.getState().login('jamesking482', PASSWORD)).toBe(true);
+    expect(metadata().state).toBe('migrated');
+
+    // All school data must be intact and readable
+    expect(await db.getAllRecords('students')).toHaveLength(synthetic.students.length);
+    expect(await db.getAllRecords('classRecords')).toHaveLength(synthetic.classRecords.length);
+    expect(await db.getAllRecords('attendanceRecords')).toHaveLength(synthetic.attendanceRecords.length);
+
+    // The valid grading sheet records are preserved and readable under the new DEK
+    const validGradingSheets = await db.getAllRecords<{ id: string }>('gradingSheetRecords');
+    expect(validGradingSheets.some(g => g.id === synthetic.gradingSheetRecords[0].id)).toBe(true);
+  });
+
   it.each([
     'migration_in_progress',
     'after_first_store',

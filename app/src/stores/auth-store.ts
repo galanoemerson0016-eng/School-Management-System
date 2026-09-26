@@ -360,6 +360,27 @@ async function getMigrationFallbackKeys(salt: Uint8Array): Promise<CryptoKey[]> 
   // 3. Default / Emergency master passwords
   secrets.add('formease');
   secrets.add('Formease');
+  secrets.add('FORMEASE');
+
+  // 4. Remembered password / credentials if present
+  try {
+    const remembered = localStorage.getItem('formease-remember-password');
+    if (remembered) secrets.add(remembered);
+    const legacyCreds = localStorage.getItem('formease-credentials');
+    if (legacyCreds) {
+      const parsed = JSON.parse(legacyCreds);
+      if (parsed.password) secrets.add(parsed.password);
+    }
+    const rememberedId = localStorage.getItem('formease-remember-id');
+    if (rememberedId) secrets.add(rememberedId);
+  } catch {
+    // Ignore in non-browser environments
+  }
+
+  // 5. Common fallback admin passwords used in previous versions
+  secrets.add('admin');
+  secrets.add('Admin');
+  secrets.add('ADMIN');
 
   return Promise.all(
     Array.from(secrets).map(secret => deriveDbKey(secret, salt))

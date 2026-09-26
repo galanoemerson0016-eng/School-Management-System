@@ -277,10 +277,23 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
         try {
           await db.getStoreCount('students');
           activeChecklist.dbAccess = 'success';
-        } catch {
-          activeChecklist.dbAccess = 'failed';
-          set({ checklist: { ...activeChecklist }, updateStep: 'failed', errorMessage: 'Database not accessible or corrupted.' });
-          return false;
+        } catch (dbErr) {
+          console.warn('[Update Pipeline] Initial DB access check error, retrying...', dbErr);
+          try {
+            await new Promise((r) => setTimeout(r, 400));
+            await db.getStoreCount('students');
+            activeChecklist.dbAccess = 'success';
+          } catch (retryErr) {
+            console.error('[Update Pipeline] DB access check failed after retry:', retryErr);
+            activeChecklist.dbAccess = 'failed';
+            set({
+              checklist: { ...activeChecklist },
+              updateStep: 'failed',
+              errorMessage:
+                'Database is temporarily busy or locked by an active process. Click "Close & Continue" to proceed to your portal, or click "Retry Check".',
+            });
+            return false;
+          }
         }
         set({ checklist: { ...activeChecklist } });
 
@@ -447,7 +460,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.19';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.20';
       const api = window.electronAPI;
 
       try {

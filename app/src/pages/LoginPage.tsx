@@ -131,13 +131,13 @@ export const LoginPage = () => {
     const getLoginErrorMessage = (message: string | null) => {
         if (!message) return '';
         if (/invalid username or password/i.test(message)) {
-            return 'Invalid username or password. You can also use the fallback password "formease" to access your account.';
+            return 'Invalid username or password. Please verify your credentials.';
         }
         if (/invalid username/i.test(message)) {
-            return 'The username you entered was not found. Please try again or use "formease" as password.';
+            return 'The username you entered was not found. Please try again.';
         }
         if (/invalid password/i.test(message)) {
-            return 'The password you entered is incorrect. You can log in using "formease".';
+            return 'The password you entered is incorrect. If you forgot your password, please click "Forgot Password?" below.';
         }
         if (/username and password required/i.test(message)) {
             return 'Please enter both your username and password.';
@@ -537,18 +537,20 @@ export const LoginPage = () => {
                                             <p className="mt-0.5 leading-relaxed">
                                                 {getLoginErrorMessage(error)}
                                             </p>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setCredentials((prev) => ({
-                                                        id: prev.id.trim() || accountInfo?.username || 'admin',
-                                                        password: 'formease',
-                                                    }));
-                                                }}
-                                                className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold underline underline-offset-2 hover:opacity-80 transition-opacity cursor-pointer"
-                                            >
-                                                Click here to use "formease" as password
-                                            </button>
+                                            {!accountInfo?.username && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setCredentials((prev) => ({
+                                                            id: prev.id.trim() || 'admin',
+                                                            password: 'formease',
+                                                        }));
+                                                    }}
+                                                    className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold underline underline-offset-2 hover:opacity-80 transition-opacity cursor-pointer"
+                                                >
+                                                    Click here to use "formease" as password
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 </motion.div>
@@ -630,19 +632,21 @@ export const LoginPage = () => {
                                     </AnimatePresence>
                                 </button>
                             </div>
-                            <div className="flex items-center justify-between px-1 text-[11px]">
-                                <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>
-                                    Default / Emergency:
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() => setCredentials(prev => ({ ...prev, password: 'formease' }))}
-                                    className="font-bold text-deped-blue dark:text-blue-400 hover:underline font-mono cursor-pointer"
-                                    title="Click to fill master password"
-                                >
-                                    formease
-                                </button>
-                            </div>
+                            {!accountInfo?.username && (
+                                <div className="flex items-center justify-between px-1 text-[11px]">
+                                    <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>
+                                        Default / Initial Setup:
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCredentials(prev => ({ ...prev, password: 'formease' }))}
+                                        className="font-bold text-deped-blue dark:text-blue-400 hover:underline font-mono cursor-pointer"
+                                        title="Click to fill initial setup password"
+                                    >
+                                        formease
+                                    </button>
+                                </div>
+                            )}
 
                             {/* Password Strength Indicator */}
                             <AnimatePresence>
@@ -780,9 +784,9 @@ export const LoginPage = () => {
 
                                 {!getSecurityQuestion() ? (
                                     <div className="space-y-5">
-                                        <div className={`p-5 rounded-2xl border ${darkMode ? 'bg-white/5 border-white/10' : 'bg-blue-50 border-blue-100'}`}>
-                                            <p className={`text-xs leading-relaxed ${darkMode ? 'text-gray-300' : 'text-blue-900'}`}>
-                                                Having trouble logging in? You can simply enter <strong>formease</strong> as your password on the login screen to access your account immediately.
+                                        <div className={`p-5 rounded-2xl border ${darkMode ? 'bg-white/5 border-white/10' : 'bg-amber-50 border-amber-100'}`}>
+                                            <p className={`text-xs leading-relaxed ${darkMode ? 'text-gray-300' : 'text-amber-900'}`}>
+                                                A security question was not configured for this account. If you cannot remember your password, you can reset your local account credentials and set a new password.
                                             </p>
                                             {accountInfo?.username && (
                                                 <p className="mt-2 text-xs font-bold text-deped-blue dark:text-blue-400">
@@ -790,19 +794,6 @@ export const LoginPage = () => {
                                                 </p>
                                             )}
                                         </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setShowRecoveryModal(false);
-                                                setCredentials((prev) => ({
-                                                    id: prev.id.trim() || accountInfo?.username || 'admin',
-                                                    password: 'formease',
-                                                }));
-                                            }}
-                                            className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition-all shadow-md cursor-pointer"
-                                        >
-                                            USE "FORMEASE" PASSWORD & SIGN IN
-                                        </button>
                                         <button
                                             type="button"
                                             onClick={handleResetAdminCredentials}
@@ -825,11 +816,7 @@ export const LoginPage = () => {
                                             <p className={`text-sm font-bold ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>{getSecurityQuestion()}</p>
                                         </div>
 
-                                        <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-blue-500/10 border-blue-500/20 text-blue-200' : 'bg-blue-50 border-blue-100 text-blue-800'}`}>
-                                            <p className="text-xs font-bold leading-relaxed">
-                                                💡 Quick access: You can also log in directly using <strong>formease</strong> as your password on the sign-in screen without resetting your credentials or risking data loss.
-                                            </p>
-                                        </div>
+
 
                                         <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-amber-500/10 border-amber-500/20 text-amber-200' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>
                                             <p className="text-xs font-bold leading-relaxed">
