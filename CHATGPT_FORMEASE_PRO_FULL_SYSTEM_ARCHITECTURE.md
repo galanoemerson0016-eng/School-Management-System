@@ -2328,4 +2328,486 @@ Features 8 comprehensive tabs across 4,039 lines:
   - Combined Class General Average: Row `118`
 
 ---
-*End of Master Architecture, Regulatory Corpus, 3-Term Calendar, Grading Specification, UI Module Catalog & OpenXML Reference.*
+
+## 12. NEXT-GENERATION NATIVE ARCHITECTURE & RELATIONAL SCHEMA (NORTHSTAR PERSISTENCE)
+
+### 12.1 Native SQLite Engine (`node:sqlite` / `DatabaseSync`) vs. Browser IndexedDB
+To overcome the architectural limitations of browser-sandboxed IndexedDB (unhandled quota evictions, memory leaks during 20MB+ imports, single-threaded serialization bottlenecks, and lack of foreign key cascading), the next-generation architecture migrates the persistence engine to native **SQLite 3** operating inside the Electron main process via Node.js native `DatabaseSync` (`node:sqlite`):
+
+- **ACID Transaction Guarantee**: Fully atomic multi-table writes (`BEGIN IMMEDIATE ... COMMIT / ROLLBACK`) guaranteeing that student enrollments, grade batches, and audit records either commit completely or roll back without leaving orphaned rows.
+- **Write-Ahead Logging (WAL)**: `PRAGMA journal_mode = WAL` enables concurrent readers alongside background writer transactions, delivering sub-millisecond query responses across 10,000+ learner records.
+- **Strict Foreign Key Cascading**: `PRAGMA foreign_keys = ON` enforces relational integrity at the C-binary level; deleting a class section with enrolled learners or deleting an academic year with recorded grades is physically prohibited.
+- **Synchronous Full Durability**: `PRAGMA synchronous = FULL` paired with resilient Windows file-descriptor flushing (`fsyncSync` with `r+` read-write handles) eliminates data loss during abrupt power failures or laptop battery cutoffs.
+- **Zero-Process Overhead**: Uses Node's in-process native bindings with zero external native C++ build toolchain (`node-gyp` or Python) requirements on target machines.
+
+---
+
+### 12.2 Cryptographic Envelope Architecture & Hardware Binding
+Sensitive learner data (Personally Identifiable Information, health records, behavioral logs, academic grades) is encrypted at rest using an **Envelope Encryption Model**:
+
+```
++-------------------------------------------------------------------------------+
+|                      PHYSICAL HARDWARE / HOST OPERATING SYSTEM               |
+|  Motherboard BIOS UUID + CPU Processor ID + Machine Machine-ID                |
++-------------------------------------------------------------------------------+
+                                      |
+                                      v
++-------------------------------------------------------------------------------+
+|                        KEY ENCRYPTION KEY (KEK) DERIVATION                     |
+|  Master Passphrase + Argon2id / PBKDF2-SHA256 (100,000 iterations, 32-byte salt)|
+|  Protected via Electron safeStorage (Windows DPAPI / macOS Keychain)          |
++-------------------------------------------------------------------------------+
+                                      |
+                                      v (Decrypts)
++-------------------------------------------------------------------------------+
+|                        DATA ENCRYPTION KEY (DEK)                              |
+|  Random 256-bit Cryptographic Symmetric Key (Stored in encrypted header)      |
++-------------------------------------------------------------------------------+
+                                      |
+                                      v (Encrypts / Decrypts)
++-------------------------------------------------------------------------------+
+|                   ENCRYPTED SQLITE AT-REST STORAGE RECORD                    |
+|  Payload: AES-256-GCM (Ciphertext + 96-bit IV + 128-bit Auth Tag)             |
+|  Blind Index: HMAC-SHA256(LRN, Pepper) -> Deterministic Fast Lookup Key      |
++-------------------------------------------------------------------------------+
+```
+
+1. **Deterministic Blind Indexing for LRNs**:
+   - Because standard ciphertext generated with randomized IVs cannot be queried with `SELECT ... WHERE lrn = ?`, LRNs are hashed with a secret application pepper:
+     $$\text{BlindIndex} = \text{HMAC-SHA256}(\text{LRN}, \text{Pepper})$$
+   - Allows instant $O(1)$ indexed searching on `learners.lrn_hash` without decrypting the database or exposing raw LRNs in plaintext index B-trees.
+2. **Authenticated Ciphertext Envelopes**:
+   - Sensitive columns are packaged as JSON envelopes containing `{ iv, authTag, ciphertext }`, protecting against active tampering or bit-flipping attacks.
+
+---
+
+### 12.3 Complete Relational Database Schema (DDL)
+
+```sql
+-- 1. Master Academic Years Table
+CREATE TABLE IF NOT EXISTS academic_years (
+    id TEXT PRIMARY KEY,                       -- UUIDv4 identifier
+    label TEXT NOT NULL UNIQUE,                -- e.g. "2026-2027"
+    term_model TEXT NOT NULL CHECK(term_model IN ('3-term', '4-quarter')),
+    start_date TEXT NOT NULL,                  -- ISO YYYY-MM-DD
+    end_date TEXT NOT NULL,                    -- ISO YYYY-MM-DD
+    is_active INTEGER NOT NULL DEFAULT 0,      -- 1 = current active school year
+    created_at INTEGER NOT NULL,               -- Unix epoch timestamp (ms)
+    updated_at INTEGER NOT NULL
+);
+
+-- 2. Master School Profile & Institutional Metadata
+CREATE TABLE IF NOT EXISTS school_profile (
+    id TEXT PRIMARY KEY DEFAULT 'default',
+    school_id TEXT NOT NULL,                   -- Official 6-digit DepEd School ID
+    school_name TEXT NOT NULL,                 -- e.g. "Northstar Integrated School"
+    region TEXT NOT NULL,                      -- e.g. "Region I"
+    division TEXT NOT NULL,                    -- e.g. "Ilocos Norte"
+    district TEXT NOT NULL,                    -- e.g. "District II"
+    school_head TEXT NOT NULL,                 -- Principal / School Head name
+    adviser_name TEXT,                         -- Default system adviser fallback
+    division_representative TEXT,              -- Division Superintendent / Rep
+    logo_base64 TEXT,                          -- DepEd official seal
+    division_logo_base64 TEXT,                 -- Division office crest
+    updated_at INTEGER NOT NULL
+);
+
+-- 3. Classes & Sections Table
+CREATE TABLE IF NOT EXISTS classes (
+    id TEXT PRIMARY KEY,
+    year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT,
+    grade_level INTEGER NOT NULL CHECK(grade_level BETWEEN 0 AND 12),
+    name TEXT NOT NULL,                        -- e.g. "Rizal", "Diamond", "STEM A"
+    track TEXT,                                -- For SHS: "ACADEMIC", "TVL", "SPORTS"
+    strand TEXT,                               -- For SHS: "STEM", "ABM", "HUMSS", "ICT"
+    adviser_name TEXT NOT NULL,                -- Assigned faculty class adviser
+    room_number TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(year_id, grade_level, name)
+);
+
+-- 4. Learners Table (Demographics & Blind Encrypted Envelopes)
+CREATE TABLE IF NOT EXISTS learners (
+    id TEXT PRIMARY KEY,                       -- Internal UUIDv4
+    lrn_hash TEXT NOT NULL UNIQUE,             -- HMAC-SHA256 blind index for fast lookups
+    encrypted_payload TEXT NOT NULL,           -- AES-256-GCM: { lrn, lastName, firstName, middleName, ext, sex, birthDate }
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+-- 5. School Year Enrollments Table
+CREATE TABLE IF NOT EXISTS enrollments (
+    id TEXT PRIMARY KEY,
+    year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT,
+    class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT,
+    learner_id TEXT NOT NULL REFERENCES learners(id) ON DELETE CASCADE,
+    enrollment_status TEXT NOT NULL CHECK(enrollment_status IN ('enrolled', 'transferred_in', 'transferred_out', 'dropped', 'promoted', 'conditional', 'retained')),
+    is_cct_4ps INTEGER NOT NULL DEFAULT 0,     -- Pantawid Pamilya beneficiary flag
+    is_ip INTEGER NOT NULL DEFAULT 0,          -- Indigenous Peoples flag
+    ethnic_group TEXT,                         -- Specific IP community name
+    mother_tongue TEXT,                        -- Primary home language
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(year_id, learner_id)
+);
+
+-- 6. Subject Offerings & Curriculum Definitions
+CREATE TABLE IF NOT EXISTS subject_offerings (
+    id TEXT PRIMARY KEY,
+    year_id TEXT NOT NULL REFERENCES academic_years(id) ON DELETE RESTRICT,
+    class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,                        -- Canonical DepEd subject name
+    policy_cluster TEXT NOT NULL,              -- 13 Policy Clusters (e.g. 'elem-jhs-languages-ap-esp')
+    weight_ww INTEGER NOT NULL,                -- Percentage weight Written Works (e.g. 30, 40)
+    weight_pt INTEGER NOT NULL,                -- Percentage weight Performance Tasks (e.g. 50, 40)
+    weight_qa INTEGER NOT NULL,                -- Percentage weight Quarterly Assessment (e.g. 20)
+    unit_credits REAL NOT NULL DEFAULT 1.0,    -- Unit weighting (e.g. 1.0, 0.5 for SHS)
+    is_composite INTEGER NOT NULL DEFAULT 0,   -- 1 for MAPEH
+    parent_offering_id TEXT REFERENCES subject_offerings(id) ON DELETE CASCADE,
+    display_sequence INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+);
+
+-- 7. Assessment Tasks (HPS Benchmarks)
+CREATE TABLE IF NOT EXISTS assessment_tasks (
+    id TEXT PRIMARY KEY,
+    offering_id TEXT NOT NULL REFERENCES subject_offerings(id) ON DELETE CASCADE,
+    term_number INTEGER NOT NULL CHECK(term_number BETWEEN 1 AND 4),
+    component_type TEXT NOT NULL CHECK(component_type IN ('WW', 'PT', 'QA')),
+    task_number INTEGER NOT NULL CHECK(task_number BETWEEN 1 AND 10),
+    title TEXT NOT NULL,                       -- e.g. "Summative Test 1", "Performance Task 2"
+    highest_possible_score REAL NOT NULL CHECK(highest_possible_score > 0),
+    created_at INTEGER NOT NULL,
+    UNIQUE(offering_id, term_number, component_type, task_number)
+);
+
+-- 8. Raw Assessment Scores (Atomic Revision Ledger)
+CREATE TABLE IF NOT EXISTS assessment_scores (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL REFERENCES assessment_tasks(id) ON DELETE CASCADE,
+    enrollment_id TEXT NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+    score_raw REAL CHECK(score_raw >= 0),      -- NULL indicates excused / not yet taken
+    is_excused INTEGER NOT NULL DEFAULT 0,
+    revision_number INTEGER NOT NULL DEFAULT 1,
+    updated_by TEXT NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(task_id, enrollment_id)
+);
+
+-- 9. Consolidated Computed Grades (Deterministic Cache)
+CREATE TABLE IF NOT EXISTS consolidated_grades (
+    id TEXT PRIMARY KEY,
+    offering_id TEXT NOT NULL REFERENCES subject_offerings(id) ON DELETE CASCADE,
+    enrollment_id TEXT NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+    term_number INTEGER NOT NULL CHECK(term_number BETWEEN 1 AND 4),
+    initial_score REAL,                        -- Decimal 0.00 to 100.00
+    transmuted_grade INTEGER,                  -- DepEd integer 60 to 100
+    is_locked INTEGER NOT NULL DEFAULT 0,      -- Locked terms prevent accidental modification
+    computed_at INTEGER NOT NULL,
+    UNIQUE(offering_id, enrollment_id, term_number)
+);
+
+-- 10. Attendance Daily Sessions & Roll Call Marks
+CREATE TABLE IF NOT EXISTS attendance_sessions (
+    id TEXT PRIMARY KEY,
+    class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    session_date TEXT NOT NULL,                -- ISO YYYY-MM-DD
+    month_name TEXT NOT NULL,                  -- e.g. "June", "October"
+    is_school_day INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    UNIQUE(class_id, session_date)
+);
+
+CREATE TABLE IF NOT EXISTS attendance_records (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES attendance_sessions(id) ON DELETE CASCADE,
+    enrollment_id TEXT NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+    status TEXT NOT NULL CHECK(status IN ('present', 'late', 'absent', 'cutting', 'excused')),
+    remarks TEXT,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(session_id, enrollment_id)
+);
+
+-- 11. Immutable Audit Ledger with Cryptographic Signature Chaining
+CREATE TABLE IF NOT EXISTS audit_ledger (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,                  -- 'GRADE_UPDATE', 'ENROLLMENT', 'BACKUP_RESTORE'
+    entity_name TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    previous_state_hash TEXT,                  -- SHA-256 hash of old record
+    new_state_hash TEXT NOT NULL,              -- SHA-256 hash of committed record
+    actor_id TEXT NOT NULL,
+    client_timestamp INTEGER NOT NULL,
+    tamper_proof_chain_hash TEXT NOT NULL      -- HMAC-SHA256(prev_chain_hash + current_event)
+);
+```
+
+---
+
+## 13. FORMEASE PRO TO NORTHSTAR MIGRATION PROTOCOL & DATA RESCUE SPECIFICATION
+
+### 13.1 Legacy Backup Architecture & Format Analysis
+FormEase Pro (v3.5.x) exports database snapshots in two distinct archive formats:
+1. **JSON Snapshot Archive (`.json`)**: An uncompressed UTF-8 JSON object containing serialized table arrays for all 16 IndexedDB stores.
+2. **Encrypted Rescue Vault (`.formease-vault` / `.enc`)**: An AES-256-GCM binary blob prefixed with a 16-byte salt, 12-byte IV, and 16-byte authentication tag, encrypted via the user's master password.
+
+#### Structure of Legacy Backup JSON Payload:
+```json
+{
+  "version": 16,
+  "exportedAt": "2026-09-26T08:00:00.000Z",
+  "appVersion": "3.5.18",
+  "schoolProfile": { "school_id": "100123", "school_name": "...", "region": "..." },
+  "students": [
+    {
+      "id": "stu_01HX9B...",
+      "lrn": "109876543210",
+      "last_name": "Dela Cruz",
+      "first_name": "Juan",
+      "middle_name": "Mendoza",
+      "name_extension": "",
+      "gender": "Male",
+      "birthday": "2012-05-15",
+      "student_section": "Rizal"
+    }
+  ],
+  "sections": [ ... ],
+  "subjects": [ ... ],
+  "classRecords": [ ... ],
+  "gradingSheetRecords": [ ... ],
+  "attendanceRecords": [ ... ]
+}
+```
+
+---
+
+### 13.2 Normalization Pipelines
+During migration into Northstar's SQLite schema, imported data passes through five strict normalization transformers:
+
+1. **LRN Normalization & Validation**:
+   - Trims whitespace and strips formatting hyphens.
+   - Validates that string conforms strictly to 12 numeric digits (`/^\d{12}$/`) or an approved temporary tracking identifier (`/^TEMP-[A-Z0-9]{8}$/`).
+   - Rejects corrupted or truncated LRN strings to avoid primary key collisions.
+2. **Philippine Canonical Name Parsing**:
+   - Normalizes names into uppercase canonical format.
+   - Detects and separates Philippine generational name extensions (`JR`, `SR`, `II`, `III`, `IV`, `V`) embedded inside first or last name fields.
+3. **Date Serial & Format Normalization**:
+   - Converts Excel date serial numbers (`Math.floor(serial - 25569) * 86400`) and slash-separated strings (`MM/DD/YYYY`, `M/D/YYYY`) into strict ISO-8601 `YYYY-MM-DD`.
+4. **Gender String Normalization**:
+   - Maps `M`, `MALE`, `Boy` $\rightarrow$ `Male`.
+   - Maps `F`, `FEMALE`, `Girl` $\rightarrow$ `Female`.
+5. **Grade Rating Discretization & DepEd Rounding**:
+   - Converts legacy floating-point percentages into exact 32-digit Decimal values.
+   - Computes transmuted integers using official Table 1 thresholds without cumulative floating-point roundoff drift.
+
+---
+
+### 13.3 Conflict Resolution Matrix
+The migration adapter enforces deterministic conflict resolution when importing legacy records into SQLite:
+
+| Conflict Condition | Root Cause in Legacy Data | Automated Resolution Strategy in Northstar |
+|---|---|---|
+| **Duplicate LRN in Same Class** | Student imported twice from overlapping SF1 spreadsheets. | Retains the record with the higher completion of academic scores; merges biographical metadata; logs warning. |
+| **Missing Class Section** | Student has section name that does not exist in `sections` table. | Automatically provisions the missing section under the active academic year; assigns default grade level deduced from student age. |
+| **Orphaned Subject Scores** | Scores exist for a subject ID that was deleted or renamed in legacy settings. | Re-attaches scores to canonical subject definition using fuzzy title normalization (`normalizeSubjectName`); prevents ghost grade loss. |
+| **Partial / Incomplete Term Scores** | Student transferred mid-year; Terms 1–2 have grades, Term 3 is blank. | Activates Period Completion Guards; preserves in-progress status without evaluating premature zero average or false failing mark. |
+| **Mixed 3-Term and 4-Quarter Records** | Institution migrated mid-year between curriculum calendar models. | Partitions quarter grades into 3-Term trimester buckets according to DepEd Order No. 10, s. 2024 mapping matrix. |
+
+---
+
+### 13.4 Four-Stage Transactional Migration Engine
+
+```
+[ Stage 1: In-Memory Dry Run & Conflict Inspection ]
+  - Parse JSON / Decrypt Vault payload
+  - Validate schema signatures and record counts
+  - Generate Pre-Migration Conflict Report (duplicates, missing sections, orphaned subjects)
+                    |
+                    v
+[ Stage 2: Pre-Migration Safety Snapshot ]
+  - Execute native SQLite backup API -> creates `pre_migration_YYYYMMDD_HHMMSS.sqlite`
+  - Flush file descriptors to disk via fsyncSync
+  - Compute SHA-256 checksum manifest
+                    |
+                    v
+[ Stage 3: Atomic Batch Relational Import ]
+  - BEGIN IMMEDIATE TRANSACTION
+  - Insert academic_years, school_profile
+  - Insert classes and subject_offerings
+  - Encrypt and insert learners, enrollments
+  - Map assessment_tasks, scores, and consolidated_grades
+  - COMMIT TRANSACTION (Any error executes ROLLBACK and restores safety snapshot)
+                    |
+                    v
+[ Stage 4: Post-Migration Integrity Verification ]
+  - Execute PRAGMA quick_check
+  - Execute PRAGMA foreign_key_check
+  - Verify learner count matches imported payload exactly
+```
+
+---
+
+## 14. ZERO-INTERNET LOCAL COLLABORATION & FACULTY DATA SYNC PROTOCOL
+
+### 14.1 Peer-to-Peer Faculty Architecture Without Cloud Servers
+In Philippine public schools, high-speed fiber internet is rarely available across all classrooms, and school servers with static IP addresses do not exist. Northstar implements a **Zero-Cloud, Air-Gapped Peer-to-Peer Exchange Protocol** operating over local school Wi-Fi routers, offline wireless access points, or teacher smartphone mobile hotspots:
+
+```
++-----------------------------------------------------------------------------------+
+|                            OFFLINE LOCAL SCHOOL WI-FI                             |
+|                           (Zero Internet Connection)                              |
++-----------------------------------------------------------------------------------+
+           ^                                         ^                        ^
+           |                                         |                        |
+           v                                         v                        v
++-----------------------+                 +---------------------+   +---------------------+
+|   SUBJECT TEACHER A   |                 |  SUBJECT TEACHER B  |   |    CLASS ADVISER    |
+|   (Science 7 - Laptop)|                 |  (English 7 - Laptop)|  |  (Advisory - Laptop)|
+|                       |                 |                     |   |                     |
+|  Exports signed       |                 | Exports signed      |   | Ingests grade slips;|
+|  subject grade slip   |                 | subject grade slip  |   | verifies signatures;|
+|  bundle (.nsbundle)   |                 | bundle (.nsbundle)  |   | compiles SF9 & SF5  |
++-----------------------+                 +---------------------+   +---------------------+
+```
+
+---
+
+### 14.2 Discovery & Secure Pairing via mDNS / UDP Multicast
+1. **Zero-Configuration Network Discovery**:
+   - Devices broadcast presence on the local subnet using Multicast DNS (mDNS / DNS-SD via service type `_northstar._tcp.local.`).
+   - Packets advertise: `{ deviceName: "Rm204-Santos", role: "subject_teacher", section: "Grade 7 Diamond", schoolId: "100123" }`.
+2. **Ed25519 Cryptographic Handshake & Mutual Authentication**:
+   - Each teacher workstation generates an Ed25519 asymmetric keypair during setup.
+   - When pairing for the first time, teachers display a short 6-digit SAS (Short Authentication String) or QR code on their laptop screen.
+   - Verifying the SAS establishes an authenticated, encrypted TLS 1.3 channel over the local LAN without pre-shared internet certificates.
+
+---
+
+### 14.3 Signed Immutable Exchange Bundles (`.nsbundle`)
+When physical network connectivity is unavailable, teachers exchange records via standard USB thumb drives using cryptographically signed **Northstar Exchange Bundles (`.nsbundle`)**:
+
+```
++-------------------------------------------------------------------------------+
+|                       NORTHSTAR BUNDLE ARCHITECTURE (.nsbundle)               |
++-------------------------------------------------------------------------------+
+|  manifest.json    : Version, bundleType, schoolYear, timestamp, senderKeyId  |
+|  payload.json     : Compressed subject offerings, roster LRNs, term grades    |
+|  signature.sig    : Ed25519 digital signature over SHA-256(manifest + payload)|
++-------------------------------------------------------------------------------+
+```
+
+1. **Digital Signature Verification**:
+   - When Class Advisers receive a `.nsbundle` file from a subject teacher, Northstar verifies the Ed25519 signature against the known public key of that teacher.
+   - If a single score or student LRN inside the bundle has been altered or tampered with on the USB drive, signature verification fails and the import is blocked.
+2. **Advisory Reconciliation & 1-Click Ingestion**:
+   - The Class Adviser clicks **"Import Subject Grade Slip"** in the Documents workspace.
+   - Northstar verifies signatures, previews the incoming scores against current class records, highlights any grade updates, and atomically commits the imported scores into `consolidated_grades`.
+   - The Consolidated Grade Sheet, SF9 Report Cards, and SF5 Promotion Rosters instantly reflect the verified subject marks without manual re-typing.
+
+---
+
+## 15. DEVELOPER OPERATIONS, RUNBOOKS, SCRIPTS & ZERO-REGRESSION TEST PROTOCOLS
+
+### 15.1 One-Click Windows Native Launchers
+To ensure seamless execution across diverse educator and developer workstations running Windows 10/11, three robust, self-healing batch scripts are maintained in the root directory:
+
+#### 1. `START.bat` — Native Production Desktop Launcher
+```bat
+@echo off
+setlocal enabledelayedexpansion
+title Northstar School Management System
+
+echo ===================================================
+echo   Northstar School Management System (Production)
+echo ===================================================
+
+where node >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+    echo [ERROR] Node.js is not installed or not in PATH.
+    echo Please install Node.js 22 LTS or Node.js 24 LTS.
+    pause
+    exit /b 1
+)
+
+if not exist "node_modules\" (
+    echo [SETUP] Installing dependencies...
+    call npm install
+)
+
+if not exist "dist\index.html" (
+    echo [BUILD] Compiling production assets...
+    call npm run build
+)
+
+echo [LAUNCH] Starting Northstar desktop workstation...
+call npm start
+```
+
+#### 2. `START_DEV.bat` — Developer Live-Reload Workstation
+```bat
+@echo off
+title Northstar Developer Workstation (Port 5188)
+echo [DEV] Starting Vite dev server and Electron live reload...
+set VITE_PORT=5188
+call npm run dev
+```
+
+#### 3. `RUN_TESTS.bat` — Automated Continuous Verification Suite
+```bat
+@echo off
+title Northstar Automated Test Suite
+echo [TEST 1/3] Running Vitest deterministic grading engine tests...
+call npx vitest run
+if %ERRORLEVEL% neq 0 ( echo [FAIL] Grading tests failed. & pause & exit /b 1 )
+
+echo [TEST 2/3] Running SQLite, OpenXML template, and migration tests...
+call node --test tests/database.test.cjs tests/templates.test.cjs tests/migration.test.cjs
+if %ERRORLEVEL% neq 0 ( echo [FAIL] Node tests failed. & pause & exit /b 1 )
+
+echo [TEST 3/3] Running native Electron Playwright smoke tests...
+call node tests/desktop-smoke.cjs
+if %ERRORLEVEL% neq 0 ( echo [FAIL] Desktop smoke tests failed. & pause & exit /b 1 )
+
+echo ===================================================
+echo   ALL REGRESSION SUITES PASSED WITH ZERO ERRORS
+echo ===================================================
+pause
+```
+
+---
+
+### 15.2 Continuous Verification Test Gates
+
+Every modification to the Northstar codebase must pass four mandatory verification gates before code review or production packaging:
+
+```
++-------------------------------------------------------------------------------+
+|                       MANDATORY CONTINUOUS VERIFICATION GATES                 |
++-------------------------------------------------------------------------------+
+| Gate 1: Deterministic Grading Precision (`vitest run`)                        |
+|   - 21 unit tests covering all 13 policy clusters                             |
+|   - Verifies boundary conditions: 74.49 -> 74 (DNME), 74.50 -> 75 (Passed)   |
+|   - Verifies honors criteria & 85-grade floor disqualification                |
+|   - Verifies composite MAPEH mean calculation across Music, Arts, PE, Health  |
+|                                                                               |
+| Gate 2: OpenXML Template Relationship & Formula Integrity                     |
+|   - Verifies worksheet relationship resolution via _rels/workbook.xml.rels    |
+|   - Prohibits formula node overwrites; updates formula cache <v> nodes        |
+|   - Validates that unmapped helper and formula sheets remain 100% byte-equal  |
+|                                                                               |
+| Gate 3: Native SQLite Database & Migration Security                           |
+|   - Tests AES-256-GCM envelope encryption at rest and Argon2id KEK survival   |
+|   - Validates rollback of atomic multi-table transactions on duplicate LRNs   |
+|   - Validates foreign key constraints and Windows fsync descriptor durability |
+|                                                                               |
+| Gate 4: Native Desktop Electron Smoke Test                                    |
+|   - Headless Playwright runner boots Electron 41 native binary                |
+|   - Tests: Demo mode, enrollment, attendance, grading grid, undo, term lock   |
+|   - Verifies zero console warnings and zero DOMException errors               |
++-------------------------------------------------------------------------------+
+```
+
+---
+*End of Master Architecture, Regulatory Corpus, 3-Term Calendar, Grading Specification, UI Module Catalog, OpenXML Reference, SQLite Relational Schemas, Migration Protocols & Local Collaboration Framework.*

@@ -42,7 +42,6 @@ export function VersionHistoryTimeline({ onCheckForUpdates }: VersionHistoryTime
                                         <li>⚡ <strong>Decryption Fault-Tolerance</strong>: Unreadable legacy encrypted entries in grading sheet records and observed values are handled safely without interrupting startup or teacher login.</li>
                                         <li>🔑 <strong>Login & Recovery Hardening</strong>: Displays registered User ID directly on the login portal, simplifies default setup credentials, and supports master recovery with zero data loss.</li>
                                         <li>🛡️ <strong>Update Center Reliability</strong>: Eliminates false database lockouts during auto-updates with automatic retry delays and clear guidance.</li>
-                                        <li>📐 <strong>DepEd Blueprint Specification</strong>: Finalized comprehensive system architecture specification and DepEd policy formulas in master blueprint.</li>
                                     </ul>
                                 </div>
 

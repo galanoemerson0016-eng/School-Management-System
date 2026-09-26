@@ -7,7 +7,6 @@
 - **Decryption Fault-Tolerance & Backward Compatibility**: Hardened local IndexedDB access in `database.ts` so unreadable legacy or corrupted records in `gradingSheetRecords` and `observedValues` are handled gracefully without aborting startup or interrupting teacher login.
 - **Login Resilience & Account Recovery**: Display registered user ID directly on the sign-in portal, streamlined default credential guidance, and supported master recovery credentials with zero record loss.
 - **Pre-Update Pipeline Auto-Retry & Safety**: Eliminated false "Database corrupted" lockouts during updates by introducing automatic retry delays when IndexedDB is busy and providing clear, actionable user feedback.
-- **Comprehensive Blueprint Alignment**: Finalized exhaustive architectural master specification and DepEd policy formulas in `CHATGPT_FORMEASE_PRO_FULL_SYSTEM_ARCHITECTURE.md`.
 
 ### 🚀 Enhancements & Export Resilience
 
