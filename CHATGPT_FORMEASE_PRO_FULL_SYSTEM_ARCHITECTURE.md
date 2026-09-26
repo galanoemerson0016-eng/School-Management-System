@@ -2053,4 +2053,279 @@ Features 8 comprehensive tabs across 4,039 lines:
   - (j) Consecutive Absences ($\ge 5$ days): Row `67`
 
 ---
+
+### 11.9 School Form 1 (SF1) School Register (`SF1_Template.xlsx` / `SF1_SHS.xlsx`)
+- **Regulatory Foundation**: DepEd Order No. 4, s. 2014 (Standardized School Forms) & LIS (Learner Information System) Profiling Protocol.
+- **Workbook Structure**:
+  - Primary Worksheet: `SF1` or `School Form 1` (JHS/ES) / `SF1-SHS` (Senior High School).
+  - Print Configuration: Standard DepEd Folio / Legal landscape (`8.5" x 13"`) or A4 landscape.
+- **Header Coordinate Block**:
+  - School ID: `D4` | School Name: `H4` | District: `D5` | Division: `H5`
+  - Region: `D6` | Grade Level: `H6` | Section: `D7` | School Year: `H7`
+  - SHS Additional Coordinates: Track: `D8` | Strand / Specialization: `H8` | Semester: `D9`
+- **Dynamic Header Detection & Roster Scan**:
+  - Scans column `A`–`C` downwards until the header row matching string pattern `LRN` or `Learner Reference Number` is reached (default fallback: Row `11` or `12`).
+  - Male Learner Data Band: Commences immediately on row following header (typically Row `13`).
+  - Male Termination Sentinel: Cell matching `TOTAL MALE` in Column `C`.
+  - Female Learner Data Band: Commences 2 rows below `TOTAL MALE` header.
+  - Workbook Termination Sentinel: Cell matching `TOTAL FEMALE` in Column `C`.
+- **K-10 Data Column Schema (0-Indexed & OpenXML Cell References)**:
+  - `Col A` (`Index 0`): Learner Reference Number (LRN, 12 digits or `TEMP-` prefixed identifier).
+  - `Col B` (`Index 1`): Fallback LRN container for legacy DepEd templates.
+  - `Col C` (`Index 2`): Learner Full Name in strict Philippine canonical format: `LAST NAME, FIRST NAME MIDDLE NAME` or `LAST NAME EXTENSION, FIRST NAME MIDDLE NAME`.
+  - `Col D` (`Index 3`): Sex (`M` / `F` or `MALE` / `FEMALE`).
+  - `Col H` (`Index 7`): Birthdate (Normalized ISO `YYYY-MM-DD` converted from Excel date serial `Math.floor(serial - 25569) * 86400`).
+  - `Col J` (`Index 9`): Age as of 1st Friday of October (integer value).
+  - `Col L` (`Index 11`): Mother Tongue (e.g., `Tagalog`, `Cebuano`, `Ilokano`, `Hiligaynon`).
+  - `Col M` (`Index 12`): IP Community Indicator (`Yes`/`No` or `/`).
+  - `Col N` (`Index 13`): Specific Indigenous Cultural Community / Ethnic Group.
+  - `Col O` (`Index 14`): Religious Affiliation (e.g., `Roman Catholic`, `Islam`, `Iglesia ni Cristo`).
+  - `Col P` (`Index 15`): Street / Purok / House Number.
+  - `Col Q` (`Index 16`): Barangay.
+  - `Col R` (`Index 17`): Municipality / City.
+  - `Col S` (`Index 18`): Province.
+  - `Col T` (`Index 19`): Father's Name (Last, First, Middle).
+  - `Col U` (`Index 20`): Mother's Maiden Name (Last, First, Middle).
+  - `Col V` (`Index 21`): Legal Guardian's Name.
+  - `Col W` (`Index 22`): Guardian Relationship (`Grandparent`, `Aunt`, `Sibling`, etc.).
+  - `Col X` (`Index 23`): Parent / Guardian Contact Telephone / Mobile Number.
+  - `Col Y` (`Index 24`): Remarks / Status Indicator (`Transferred In`, `Transferred Out`, `CCT/4Ps`, `Balik-Aral`, `Repeater`).
+- **Senior High School (SF1-SHS) Specific Column Offsets**:
+  - Birthdate: `Col L` (`Index 11`) | Age: `Col O` (`Index 14`) | Religion: `Col Q` (`Index 16`)
+  - Address: Street `Col U` (`Index 20`), Barangay `Col Z` (`Index 25`), Municipality `Col AE` (`Index 30`), Province `Col AG` (`Index 32`).
+  - Parent/Guardian Info: Father `Col AK` (`Index 36`), Mother `Col AP` (`Index 41`), Guardian `Col AR` (`Index 43`), Relationship `Col AV` (`Index 47`), Contact `Col AX` (`Index 49`).
+
+---
+
+### 11.10 School Form 5 (SF5) Report on Promotion and Level of Proficiency (`SF5_K10.xlsx` / `SF5A_SHS.xlsx` / `SF5B_SHS.xlsx`)
+- **Regulatory Foundation**: DepEd Order No. 8, s. 2015 (Grading & Promotion), DO 4, s. 2014, and DepEd Memorandum No. 14, s. 2023.
+- **Header Coordinates**:
+  - School ID: `C4` | School Name: `G4` | District: `C5` | Division: `G5`
+  - Region: `C6` | Grade Level: `G6` | Section: `C7` | School Year: `G7`
+  - Curriculum Stream: `C8` (`Revised K-10`, `Strengthened Senior High School`, `K-12`)
+- **Learner Evaluation Roster (Rows 13 to 62 for Males; Rows 66 to 115 for Females)**:
+  - Column `A`: Sequential Index (`1` to `N`).
+  - Column `B`: Learner Reference Number (LRN).
+  - Column `C`: Learner Name (`LAST NAME, FIRST NAME MIDDLE NAME`).
+  - Column `D`: General Average ($\text{GA} = \text{round}\left(\frac{\sum \text{FinalGrades}}{N}\right)$ per DO 8 s. 2015; unit-weighted for SHS).
+  - Column `E`: Action Taken (Categorical Promotion State):
+    - `PROMOTED`: Zero failed learning areas ($\text{Final Grade} \ge 75$ for all subjects and $\text{GA} \ge 75$).
+    - `*Conditional`: Deficient in 1 or 2 learning areas ($\text{Final Grade} < 75$); requires documented remedial instruction.
+    - `RETAINED`: Deficient in $\ge 3$ learning areas or $\text{GA} < 75$.
+  - Column `F`: Did Not Meet Expectations (Deficient Subject Roster, comma-delimited strings e.g. `Mathematics, Science`).
+- **Summary Table 1: Status of Learners Grid**:
+  - Promoted: Male `C54`, Female `D54`, Total `E54` (`=SUM(C54:D54)`)
+  - *Conditional: Male `C55`, Female `D55`, Total `E55`
+  - Retained: Male `C56`, Female `D56`, Total `E56`
+  - Total Enrolled: Male `C57`, Female `D57`, Grand Total `E57`
+- **Summary Table 2: Level of Proficiency Distribution**:
+  - Advancing ($90.00$ to $100.00$): Male `I54`, Female `J54`, Total `K54`
+  - Benchmarking ($80.00$ to $89.99$): Male `I55`, Female `J55`, Total `K55`
+  - Connecting ($75.00$ to $79.99$): Male `I56`, Female `J56`, Total `K56`
+  - Developing ($65.00$ to $74.99$): Male `I57`, Female `J57`, Total `K57`
+  - Emerging ($< 65.00$): Male `I58`, Female `J58`, Total `K58`
+- **Signatory Endorsement**:
+  - Class Adviser: `C62` | School Head / Principal: `G62` | Division Representative: `J62`
+
+---
+
+### 11.11 School Form 6 (SF6) Summarized Report on Promotion and Level of Proficiency (`SF6_Master.xlsx`)
+- **Regulatory Foundation**: DepEd Order No. 4, s. 2014 & DepEd Order No. 58, s. 2017.
+- **Header Coordinates**:
+  - School ID: `C4` | School Name: `G4` | District: `C5` | Division: `G5` | Region: `C6` | School Year: `G6`
+- **Grade Cohort Bucket Aggregations (Rows 12 to 18)**:
+  - Bucket 1 (`Row 12`): Grade 1 / Grade 7
+  - Bucket 2 (`Row 13`): Grade 2 / Grade 8
+  - Bucket 3 (`Row 14`): Grade 3 / Grade 9
+  - Bucket 4 (`Row 15`): Grade 4 / Grade 10
+  - Bucket 5 (`Row 16`): Grade 5 / Grade 11
+  - Bucket 6 (`Row 17`): Grade 6 / Grade 12
+  - Institutional Total (`Row 18`): Formula `=SUM(C12:C17)` across all columns.
+- **Column Cluster Partitions**:
+  - **Promotion Status**:
+    - Promoted: Male `C`, Female `D`, Total `E` (`=C+D`)
+    - Conditional: Male `F`, Female `G`, Total `H` (`=F+G`)
+    - Retained: Male `I`, Female `J`, Total `K` (`=I+J`)
+  - **Proficiency Distribution**:
+    - Emerging ($< 65$): Male `L`, Female `M`, Total `N`
+    - Developing ($65–74$): Male `O`, Female `P`, Total `Q`
+    - Connecting ($75–79$): Male `R`, Female `S`, Total `T`
+    - Benchmarking ($80–89$): Male `U`, Female `V`, Total `W`
+    - Advancing ($90–100$): Male `X`, Female `Y`, Total `Z`
+- **Institutional Certification Block**:
+  - Prepared by School Head: `D24` | Certified by Division Superintendent: `I24` | Validation Date: `D26`
+
+---
+
+### 11.12 School Form 8 (SF8) Learner Basic Health and Nutritional Profile (`SF8_Template.xlsx`)
+- **Regulatory Foundation**: DepEd Order No. 8, s. 2015, DepEd Order No. 16, s. 2017, and WHO Child Growth Standards (5–19 years).
+- **Header Coordinates**:
+  - School ID: `D4` | School Name: `I4` | District: `D5` | Division: `I5`
+  - Region: `D6` | Grade & Section: `D7` | School Year: `I7`
+- **Learner Assessment Data Grid (Rows 12 to 61 for Males; Rows 65 to 114 for Females)**:
+  - Column `A`: Row Sequence (`1` to `N`).
+  - Column `B`: Learner Reference Number (LRN).
+  - Column `C`: Learner Name (`LAST NAME, FIRST NAME MIDDLE NAME`).
+  - Column `D`: Birthdate (`YYYY-MM-DD`).
+  - Column `E`: Age in Years and Months (Format `YY.MM`, e.g., 13 years and 8 months = `13.08`, calculated dynamically relative to assessment date).
+  - Column `F`: Weight in kilograms ($\text{kg}$, precision to 1 decimal place).
+  - Column `G`: Height in meters ($\text{m}$, precision to 2 decimal places).
+  - Column `H`: Height Squared ($m^2$, calculated as $\text{Height}^2$, precision to 4 decimal places).
+  - Column `I`: Body Mass Index ($\text{BMI} = \frac{\text{Weight (kg)}}{\text{Height (m)}^2}$, rounded to 2 decimal places).
+  - Column `J`: Nutritional Status (WHO BMI-for-Age Z-Score classification):
+    - `Severely Wasted` ($Z < -3$)
+    - `Wasted` ($-3 \le Z < -2$)
+    - `Normal` ($-2 \le Z \le +1$)
+    - `Overweight` ($+1 < Z \le +2$)
+    - `Obese` ($Z > +2$)
+  - Column `K`: Height-for-Age (HFA WHO Growth Classification):
+    - `Severely Stunted` ($Z < -3$)
+    - `Stunted` ($-3 \le Z < -2$)
+    - `Normal` ($-2 \le Z \le +2$)
+    - `Tall` ($Z > +2$)
+  - Column `L`: Remarks & Clinical Interventions:
+    - `For Immediate Intervention`: Severely Wasted or Severely Stunted.
+    - `For Monitoring`: Wasted or Stunted.
+    - `Monitor Nutrition`: Overweight or Obese.
+    - `Normal`: Within standard normative thresholds.
+- **Statistical Aggregation Footer**:
+  - Baseline Assessment (BoSY) Summary Table: Rows `118` to `124`.
+  - Endline Assessment (EoSY) Summary Table: Rows `126` to `132`.
+
+---
+
+### 11.13 School Form 10 (SF10) Learner's Permanent Academic Record (`SF10_ES.xlsx`, `SF10_JHS.xlsx`, `SF10_SHS.xlsx`)
+- **Regulatory Foundation**: DepEd Order No. 58, s. 2017 (Adoption of New School Forms) replacing historical Form 137.
+- **Form Architecture & Layout Variants**:
+  1. **SF10-ES (Elementary Grades 1–6)**:
+     - Front Face: Learner profile, Kindergarten completion certificate, Grades 1 to 3 Scholastic Assessment blocks.
+     - Back Face: Grades 4 to 6 Scholastic Assessment blocks, Remedial Record sub-tables, Eligibility for Secondary School admission.
+  2. **SF10-JHS (Junior High School Grades 7–10)**:
+     - Front Face: Primary school completion metadata, Grade 7 and Grade 8 academic blocks.
+     - Back Face: Grade 9 and Grade 10 academic blocks, certification of Junior High School completion, Senior High School eligibility slip.
+  3. **SF10-SHS (Senior High School Grades 11–12)**:
+     - Track, Strand, and Specialization headers.
+     - Structured semester blocks: Grade 11 Semester 1, Grade 11 Semester 2, Grade 12 Semester 1, Grade 12 Semester 2.
+     - Subject Classification columns: `Core`, `Applied`, `Specialized`, with corresponding institutional Unit Weights.
+- **Standard Academic Block Coordinate Schema (Per Grade Level / Semester Block)**:
+  - School Name: `C12` | School ID: `G12` | District: `C13` | Division: `G13` | Region: `C14`
+  - Grade Level: `C15` | Section: `E15` | School Year: `G15` | Adviser Name: `C16`
+  - Learning Area Rows (Rows `18` to `28`):
+    - Column `B`: Learning Area Title (Canonical DepEd subject identifier).
+    - Column `C`: 1st Term / Quarter Rating.
+    - Column `D`: 2nd Term / Quarter Rating.
+    - Column `E`: 3rd Term / Quarter Rating.
+    - Column `F`: 4th Term Rating (Key Stage 2–4).
+    - Column `G`: Final Rating ($\text{round}(\text{average}(Q1..Q4))$).
+    - Column `H`: Action Taken (`Passed` if $\text{Final} \ge 75$, `Failed` if $\text{Final} < 75$).
+  - General Average Row: Row `29`, Column `G29` | Action Taken: `H29`.
+- **Remedial Instruction Ledger Sub-Table (Per Block)**:
+  - Rows `31` to `33`: Learning Area, Semestral / Final Rating, Remedial Class Mark, Recomputed Final Grade, Remarks.
+
+---
+
+### 11.14 PACE Form - Primary Academic Continuum Evaluation (`PACE_K_G1.xlsx`)
+- **Regulatory Foundation**: MATATAG Curriculum Kindergarten to Grade 1 Transition Framework & DepEd Order No. 47, s. 2016 (Omnibus Kindergarten Policy).
+- **Worksheet Layout Catalog**:
+  - `PACE COVER`: Student biographical data, school profile, and parent acknowledgment.
+  - `PACE READING`: Reading and Literacy domain competencies.
+  - `PACE LANGUAGE`: Oral language and mother-tongue continuum.
+  - `PACE MATH`: Foundational numeracy, spatial concepts, and sorting.
+  - `PACE GMRC_MAKABANSA`: Values education, socio-emotional, and cultural awareness.
+  - `PACE SUMMARY`: Consolidated quarterly rating profile.
+- **Competency Rating Nomenclature**:
+  - `A` (**Advancing**): Learner consistently demonstrates mastery without teacher intervention.
+  - `B` (**Benchmarking**): Learner demonstrates competency with minimal guidance.
+  - `C` (**Connecting**): Learner displays emerging skill; requires periodic teacher scaffolding.
+  - `D` (**Developing**): Learner exhibits initial awareness; requires continuous instructional assistance.
+  - `E` (**Emerging**): Competency not yet observable.
+- **Grid Cell Coordinates (`PACE SUMMARY`)**:
+  - Header: School Name: `C4` | School ID: `G4` | Learner Name: `C6` | LRN: `G6` | Adviser: `C7`
+  - Domain 1 (Reading & Literacy, 12 indicators): Rows `11` to `22` (Term 1: `D`, Term 2: `E`, Term 3: `F`)
+  - Domain 2 (Language, 10 indicators): Rows `24` to `33` (Term 1: `D`, Term 2: `E`, Term 3: `F`)
+  - Domain 3 (Mathematics, 15 indicators): Rows `35` to `49` (Term 1: `D`, Term 2: `E`, Term 3: `F`)
+  - Domain 4 (Makabansa, 8 indicators): Rows `51` to `58` (Term 1: `D`, Term 2: `E`, Term 3: `F`)
+  - Domain 5 (GMRC, 8 indicators): Rows `60` to `67` (Term 1: `D`, Term 2: `E`, Term 3: `F`)
+  - Overall Developmental Progression Indicator: Row `69`, Column `F69`.
+
+---
+
+### 11.15 Temporary Grade Slip (TGS) Cross-School Transfer Protocol (`TGS_DO54_s2016.xlsx`)
+- **Regulatory Foundation**: DepEd Order No. 54, s. 2016 (Guidelines on the Request and Transfer of Learner's School Records).
+- **Physical Layout Specification**:
+  - 3-Slip Voucher Layout per Page (Standard Legal / Folio `8.5" x 13"` portrait).
+  - Slip 1: Rows `1` to `28` | Slip 2: Rows `30` to `57` | Slip 3: Rows `59` to `86`.
+  - Micro-perforated boundary markers between vouchers for individual detachment.
+- **Voucher Coordinate Schema (Slip 1 Instance)**:
+  - Header Block:
+    - DepEd Official Logo: `B2:C4` (Merged image container)
+    - School Name: `D2` | School ID: `H2` | Address: `D3` | District / Division: `H3`
+  - Learner Profile Strip:
+    - Learner Name: `C5` | LRN: `G5`
+    - Grade & Section: `C6` | Track & Strand: `G6`
+    - Class Adviser: `C7` | Date Issued: `G7`
+  - Scholastic Performance Matrix (Rows `9` to `18`):
+    - Column `B`: Learning Area Title.
+    - Column `E`: Quarter 1 Grade.
+    - Column `F`: Quarter 2 Grade.
+    - Column `G`: Quarter 3 Grade.
+    - Column `H`: Quarter 4 Grade (if applicable).
+    - Column `I`: Current Running Average.
+  - Attendance Summary Strip (Row `20`):
+    - Total School Days: `D20` | Days Present: `F20` | Days Absent: `H20`
+  - Statutory Legal Caveat (Row `22`):
+    - *"Issued for temporary evaluation and cross-school enrollment transfer under DO 54, s. 2016. Valid for 30 calendar days from date of issuance. Official SF10 must be requested via LIS."*
+  - Verification & Signatures:
+    - Class Adviser: `C25` | School Head / Registrar: `G25` | Official School Dry Seal: `I25`
+
+---
+
+### 11.16 Consolidated Grade Sheet (Cross-Subject Faculty Deliberation & Advisory Master Sheet)
+- **Functional Architecture**: High-density horizontal master matrix consolidating all subject teachers' quarterly records for an entire advisory section into a unified deliberation ledger.
+- **Header Coordinate Block**:
+  - School Name: `D4` | School ID: `K4` | District: `D5` | Division: `K5`
+  - Grade Level: `D6` | Section Name: `H6` | School Year: `K6` | Adviser: `D7`
+- **Horizontal Subject Cluster Architecture (Columns `E` to `BZ`)**:
+  - Each subject spans a dedicated 4-column or 5-column cluster:
+    - `SubCol 1`: Quarter 1 (Term 1) Grade
+    - `SubCol 2`: Quarter 2 (Term 2) Grade
+    - `SubCol 3`: Quarter 3 (Term 3) Grade
+    - `SubCol 4`: Quarter 4 Grade (for Key Stage 2–4 4-quarter models)
+    - `SubCol 5`: Final Rating ($\text{round}\left(\frac{\sum Q_i}{N}\right)$)
+  - Subject Ordering Sequence:
+    1. Mother Tongue (Grades 1–3) / Filipino
+    2. English
+    3. Mathematics
+    4. Science
+    5. Araling Panlipunan (AP)
+    6. Edukasyon sa Pagpapakatao (EsP) / Values Education / GMRC
+    7. Technology and Livelihood Education (TLE) / EPP
+    8. MAPEH Composite:
+       - Music component sub-column
+       - Arts component sub-column
+       - Physical Education component sub-column
+       - Health component sub-column
+       - MAPEH Composite Final: $\text{round}\left(\frac{\text{Music} + \text{Arts} + \text{PE} + \text{Health}}{4}\right)$
+- **Analytical & Deliberation Columns (Columns `CA` to `CH`)**:
+  - Column `CA` (**General Average**):
+    - Elementary / JHS: Unweighted arithmetic mean: $\text{round}\left(\frac{\sum \text{SubjectFinals}}{N}\right)$
+    - SHS: Unit-weighted general average: $\text{round}\left(\frac{\sum (\text{Final}_i \times \text{Units}_i)}{\sum \text{Units}_i}\right)$
+  - Column `CB` (**Academic Honors Evaluation - DO 36, s. 2016**):
+    - `With Highest Honors`: $\text{GA} \ge 98.00$ and all subject quarterly grades $\ge 85$.
+    - `With High Honors`: $95.00 \le \text{GA} < 98.00$ and all subject quarterly grades $\ge 85$.
+    - `With Honors`: $90.00 \le \text{GA} < 95.00$ and all subject quarterly grades $\ge 85$.
+    - `Qualified (Disqualified by Grade Floor)`: $\text{GA} \ge 90.00$ but one or more quarterly grades $< 85$.
+  - Column `CC` (**Academic Deficiencies Counter**): Formula tallying count of subjects with Final Grade $< 75$.
+  - Column `CD` (**Adviser Deliberation Decision**):
+    - `Eligible for Promotion` (0 deficiencies).
+    - `Recommended for Remedial / Summer Enhancement` (1–2 deficiencies).
+    - `Retained` ($\ge 3$ deficiencies or $\text{GA} < 75$).
+- **Student Roster Bands**:
+  - Male Learners: Rows `13` to `62` (Row 13 = Male 1, Row 62 = Male 50)
+  - Male Subtotal / Average: Row `63`
+  - Female Learners: Rows `66` to `115` (Row 66 = Female 1, Row 115 = Female 50)
+  - Female Subtotal / Average: Row `116`
+  - Combined Class General Average: Row `118`
+
+---
 *End of Master Architecture, Regulatory Corpus, 3-Term Calendar, Grading Specification, UI Module Catalog & OpenXML Reference.*
