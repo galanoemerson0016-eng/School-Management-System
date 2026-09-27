@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, ArrowRight, CheckCircle2, Loader2, AlertCircle, Zap, Monitor, Apple, Key } from 'lucide-react';
+import { ShieldCheck, ArrowRight, CheckCircle2, Loader2, AlertCircle, Zap, Monitor, Apple, Key, MessageCircle } from 'lucide-react';
 import { useAppStore } from '../stores/app-store';
 import { useAuthStore } from '../stores/auth-store';
 import { getMachineId } from '../utils/machine-id';
@@ -506,20 +506,20 @@ export function ActivationPage() {
                     />
                   </div>
 
-                  {/* Online Licensing Portal Link */}
+                  {/* Contact Emerson M. Galano on Facebook */}
                   <a
-                    href="https://formease-licensing.web.app"
+                    href="https://facebook.com/xshame14"
                     target="_blank"
                     rel="noreferrer"
-                    className="p-3.5 bg-blue-600/10 border border-blue-500/20 hover:border-blue-500/40 rounded-2xl flex items-center justify-between transition-all group cursor-pointer"
+                    className="p-3.5 bg-blue-600/10 border border-blue-500/20 hover:border-blue-500/40 hover:bg-blue-600/15 rounded-2xl flex items-center justify-between transition-all group cursor-pointer"
                   >
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-blue-600/20 rounded-xl text-blue-400 group-hover:scale-110 transition-transform">
-                        <Key className="w-4 h-4" />
+                        <MessageCircle className="w-4 h-4" />
                       </div>
                       <div className="text-left">
-                        <p className="text-xs font-black text-white">Need a License Key?</p>
-                        <p className="text-[10px] text-blue-300/70 font-medium">Get a 1-Year Commercial License online (GCash / Maya / Landbank)</p>
+                        <p className="text-xs font-black text-white">Need an Activation Key?</p>
+                        <p className="text-[10px] text-blue-300/80 font-medium">Contact Emerson M. Galano on Facebook to get your serial key</p>
                       </div>
                     </div>
                     <ArrowRight className="w-4 h-4 text-blue-400 group-hover:translate-x-1 transition-transform shrink-0" />
@@ -559,7 +559,14 @@ export function ActivationPage() {
             Reset All Data
           </button>
           <div className="flex items-center gap-3">
-             <a href="https://facebook.com/xshame14" target="_blank" rel="noreferrer" className="text-[9px] text-blue-400 font-black uppercase tracking-widest hover:underline">Message Developer</a>
+             <a 
+               href="https://facebook.com/xshame14" 
+               target="_blank" 
+               rel="noreferrer" 
+               className="text-[9px] text-blue-400 hover:text-blue-300 font-black uppercase tracking-widest hover:underline flex items-center gap-1.5 transition-colors"
+             >
+               <MessageCircle className="w-3.5 h-3.5" /> Contact Emerson M. Galano (Facebook)
+             </a>
              <div className="w-1 h-1 bg-slate-700 rounded-full" />
              <p className="text-slate-600 text-[9px] font-bold uppercase tracking-widest">ID: {machineId.slice(0, 8)}</p>
           </div>

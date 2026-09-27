@@ -247,6 +247,16 @@ export default function Storefront() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            <a
+              href="https://facebook.com/xshame14"
+              target="_blank"
+              rel="noreferrer"
+              className="px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-black text-blue-400 hover:text-white hover:bg-blue-600/20 border border-blue-500/20 transition-all flex items-center gap-1.5"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Contact Developer (Facebook)</span>
+              <span className="md:hidden">FB Support</span>
+            </a>
             <button
               onClick={() => setActiveTab('buy')}
               className={`px-4 sm:px-5 py-2.5 rounded-xl text-xs font-black transition-all ${
@@ -515,6 +525,17 @@ export default function Storefront() {
                       <p className="text-slate-400 text-xs font-medium mt-1">
                         Amount to transfer: <span className="text-emerald-400 font-black text-sm">₱{price}.00</span> for {selectedPlatform === 'mac' ? 'macOS' : 'Windows'} 1-Year License
                       </p>
+                      <div className="mt-3">
+                        <a
+                          href="https://facebook.com/xshame14"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-[11px] font-bold text-blue-300 hover:text-white hover:bg-blue-500/20 transition-all"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5 text-blue-400" />
+                          <span>Prefer direct chat? Message Emerson M. Galano on Facebook</span>
+                        </a>
+                      </div>
                     </div>
 
                     {/* Payment Channel Selector Tabs */}
