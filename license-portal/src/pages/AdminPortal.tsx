@@ -694,7 +694,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
       </div>
 
       {/* PRO SIDEBAR NAVIGATION */}
-      <aside className="w-72 shrink-0 bg-slate-950/80 border-r border-white/5 backdrop-blur-2xl flex flex-col justify-between relative z-40 hidden lg:flex h-screen sticky top-0">
+      <aside className="w-72 shrink-0 bg-slate-950/80 border-r border-white/5 backdrop-blur-2xl hidden lg:flex flex-col justify-between z-40 h-screen sticky top-0">
         <div>
           {/* Brand Header */}
           <div className="p-6 border-b border-white/5 space-y-4">
