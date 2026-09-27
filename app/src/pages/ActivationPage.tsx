@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, ArrowRight, CheckCircle2, Loader2, AlertCircle, Zap, Monitor, Apple } from 'lucide-react';
+import { ShieldCheck, ArrowRight, CheckCircle2, Loader2, AlertCircle, Zap, Monitor, Apple, Key } from 'lucide-react';
 import { useAppStore } from '../stores/app-store';
 import { useAuthStore } from '../stores/auth-store';
 import { getMachineId } from '../utils/machine-id';
@@ -89,6 +89,12 @@ export function ActivationPage() {
       }
     };
   }, []);
+
+  const handleKeyChange = (val: string) => {
+    const clean = val.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 16);
+    const parts = clean.match(/.{1,4}/g) || [];
+    setKey(parts.join('-'));
+  };
 
   const handleStartTrial = async () => {
     if (schoolProfile.is_trial) {
@@ -491,11 +497,33 @@ export function ActivationPage() {
                        <span className="text-[9px] font-black text-blue-500/50 uppercase tracking-widest">For {currentPlatform === 'windows' ? 'Windows' : 'macOS'}</span>
                     </div>
                     <input
-                      type="text" value={key} onChange={(e) => setKey(e.target.value.toUpperCase())}
+                      type="text"
+                      value={key}
+                      onChange={(e) => handleKeyChange(e.target.value)}
                       placeholder="XXXX-XXXX-XXXX-XXXX"
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm font-bold tracking-widest focus:ring-2 focus:ring-blue-500/20"
+                      maxLength={19}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm font-mono font-bold tracking-widest focus:ring-2 focus:ring-blue-500/20 outline-none"
                     />
                   </div>
+
+                  {/* Online Licensing Portal Link */}
+                  <a
+                    href="https://formease-licensing.web.app"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-3.5 bg-blue-600/10 border border-blue-500/20 hover:border-blue-500/40 rounded-2xl flex items-center justify-between transition-all group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-600/20 rounded-xl text-blue-400 group-hover:scale-110 transition-transform">
+                        <Key className="w-4 h-4" />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-xs font-black text-white">Need a License Key?</p>
+                        <p className="text-[10px] text-blue-300/70 font-medium">Get a 1-Year Commercial License online (GCash / Maya / Landbank)</p>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-blue-400 group-hover:translate-x-1 transition-transform shrink-0" />
+                  </a>
 
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Full Name</label>
