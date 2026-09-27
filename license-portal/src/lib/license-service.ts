@@ -9,7 +9,8 @@ import {
   orderBy,
   deleteDoc,
   writeBatch,
-  addDoc
+  addDoc,
+  runTransaction
 } from 'firebase/firestore';
 
 let activeProduct: 'formease-pro' | 'anecdotal-record' | 'id-generator' = 'formease-pro';
@@ -223,22 +224,24 @@ export const licenseService = {
 
   async approveRequest(requestId: string, serial: string, platform: string, registeredTo: string) {
     const requestRef = doc(db, REQUESTS_PATH, requestId);
-    
-    await setDoc(requestRef, {
-      status: 'approved',
-      license_key: serial,
-      approved_at: new Date().toISOString()
-    }, { merge: true });
-
-    await setDoc(doc(db, COLLECTION_PATH, serial), {
-      serial,
-      platform: platform,
-      status: 'pending',
-      machine_id: '',
-      activated_at: null,
-      expires_at: null,
-      registered_to: registeredTo,
-      created_at: new Date().toISOString()
+    const licenseRef = doc(db, COLLECTION_PATH, serial);
+    await runTransaction(db, async transaction => {
+      const request = await transaction.get(requestRef);
+      const existingLicense = await transaction.get(licenseRef);
+      if (!request.exists()) throw new Error('Purchase request no longer exists.');
+      if (request.data().status === 'approved') {
+        if (request.data().license_key === serial) return;
+        throw new Error('This request was already approved. Refresh before continuing.');
+      }
+      if (existingLicense.exists()) throw new Error('This license key already exists. Generate a new key.');
+      transaction.set(licenseRef, {
+        serial, platform, status: 'pending', machine_id: '', activated_at: null,
+        expires_at: null, registered_to: registeredTo, created_at: new Date().toISOString(),
+        duration_months: request.data().duration || 12,
+      });
+      transaction.update(requestRef, {
+        status: 'approved', license_key: serial, approved_at: new Date().toISOString(),
+      });
     });
   },
 

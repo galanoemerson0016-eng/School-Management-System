@@ -59,7 +59,7 @@ export function BulkStudentModal({ open, section, onClose }: BulkStudentModalPro
             }
 
             return {
-                lrn: `TEMP_${section.id}_${Date.now()}_${index}`,
+                lrn: `TEMP-${section.id}-${Date.now()}-${index}`,
                 last_name: last,
                 first_name: first,
                 middle_name: middle,

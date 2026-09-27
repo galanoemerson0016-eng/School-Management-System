@@ -1,6 +1,8 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
+const { timingSafeEqual } = require("node:crypto");
+const { validateCheckout, processInvoice, createOrderId } = require("./payment-service");
 const cors = require("cors")({ origin: true });
 
 admin.initializeApp();
@@ -9,13 +11,6 @@ const db = admin.firestore();
 // Declare secrets (values are injected securely at runtime from Firebase Secret Manager)
 const xenditSecretKey = defineSecret("XENDIT_SECRET_KEY");
 const xenditCallbackToken = defineSecret("XENDIT_CALLBACK_TOKEN");
-
-// Generate a randomized key matching FormEase console requirements: XXXX-XXXX-XXXX-XXXX
-function generateSerial() {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  const segment = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-  return `${segment()}-${segment()}-${segment()}-${segment()}`;
-}
 
 /**
  * Endpoint: createCheckoutSession
@@ -30,24 +25,19 @@ exports.createCheckoutSession = onRequest({ secrets: [xenditSecretKey, xenditCal
       return res.status(405).json({ error: "Method Not Allowed" });
     }
 
-    const { name, email, platform } = req.body;
-
-    if (!name || !email || !platform) {
-      return res.status(400).json({ error: "Missing required fields: name, email, platform" });
+    let checkout;
+    try {
+      checkout = validateCheckout(req.body);
+    } catch (error) {
+      return res.status(400).json({ error: error.message });
     }
-
-    const normalizedEmail = email.toLowerCase().trim();
-    const cleanPlatform = platform.toLowerCase().trim();
-    
-    if (cleanPlatform !== "windows" && cleanPlatform !== "mac") {
-      return res.status(400).json({ error: "Invalid platform. Must be 'windows' or 'mac'" });
-    }
+    const { name, email: normalizedEmail, platform: cleanPlatform } = checkout;
 
     // Set prices: 399 for windows, 499 for mac
     const amount = cleanPlatform === "mac" ? 499 : 399;
     
     // Generate a unique order/request ID
-    const orderId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const orderId = createOrderId();
 
     try {
       if (!XENDIT_SECRET_KEY) {
@@ -57,6 +47,7 @@ exports.createCheckoutSession = onRequest({ secrets: [xenditSecretKey, xenditCal
       // Call Xendit API to generate a checkout invoice
       const response = await fetch("https://api.xendit.co/v2/invoices", {
         method: "POST",
+        signal: AbortSignal.timeout(15000),
         headers: {
           "Authorization": "Basic " + Buffer.from(XENDIT_SECRET_KEY + ":").toString("base64"),
           "Content-Type": "application/json"
@@ -86,8 +77,7 @@ exports.createCheckoutSession = onRequest({ secrets: [xenditSecretKey, xenditCal
       });
 
       if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Xendit Response Error: ${errText}`);
+        throw new Error(`Payment provider returned HTTP ${response.status}`);
       }
 
       const invoice = await response.json();
@@ -115,7 +105,7 @@ exports.createCheckoutSession = onRequest({ secrets: [xenditSecretKey, xenditCal
 
     } catch (err) {
       console.error("Error creating checkout session:", err);
-      return res.status(500).json({ error: err.message || "Failed to create checkout session" });
+      return res.status(500).json({ error: "Unable to create checkout. Please try again." });
     }
   });
 });
@@ -132,80 +122,18 @@ exports.xenditWebhook = onRequest({ secrets: [xenditSecretKey, xenditCallbackTok
   }
 
   // 1. Verify Callback Token Header
-  const callbackToken = (req.headers["x-callback-token"] || "").trim();
-  const expectedToken = XENDIT_CALLBACK_TOKEN.trim();
-  if (!expectedToken || callbackToken !== expectedToken) {
+  const callbackToken = typeof req.headers["x-callback-token"] === "string" ? req.headers["x-callback-token"].trim() : "";
+  const expectedToken = (XENDIT_CALLBACK_TOKEN || "").trim();
+  const received = Buffer.from(callbackToken);
+  const expected = Buffer.from(expectedToken);
+  if (!expected.length || received.length !== expected.length || !timingSafeEqual(received, expected)) {
     console.warn("Unauthorized webhook callback attempt: x-callback-token header mismatch");
     return res.status(401).send("Unauthorized callback token verification failed");
   }
 
-  const payload = req.body;
-  const orderId = payload.external_id;
-  const paymentStatus = payload.status; // e.g., "PAID", "EXPIRED"
-
-  if (!orderId) {
-    return res.status(400).send("Bad Request: missing external_id");
-  }
-
   try {
-    const requestRef = db.collection("artifacts/g7-special/admin/data/purchase_requests").doc(orderId);
-    const requestDoc = await requestRef.get();
-
-    if (!requestDoc.exists) {
-      console.warn(`Webhook received for unknown order reference ID: ${orderId}`);
-      return res.status(404).send("Order request not found");
-    }
-
-    const requestData = requestDoc.data();
-
-    // If order has already been finalized/approved, return success to prevent double generation
-    if (requestData.status === "approved" || requestData.status === "declined" || requestData.status === "paid") {
-      return res.status(200).send("Order already processed");
-    }
-
-    if (paymentStatus === "PAID") {
-      // 2. Generate new serial key
-      const serialKey = generateSerial();
-      const platform = requestData.platform || "windows";
-      const name = requestData.name || "Customer";
-
-      // 3. Create key in /licenses database (matching current structure)
-      // Path: artifacts/g7-special/public/data/licenses
-      await db.collection("artifacts/g7-special/public/data/licenses").doc(serialKey).set({
-        serial: serialKey,
-        platform: platform,
-        status: "pending", // pending customer machine lock
-        machine_id: "",
-        activated_at: null,
-        expires_at: null,
-        registered_to: name,
-        created_at: new Date().toISOString(),
-        duration_months: 12
-      });
-
-      // 4. Update the purchase request document to approved and assign license key
-      await requestRef.update({
-        status: "approved",
-        license_key: serialKey,
-        approved_at: new Date().toISOString(),
-        paid_amount: payload.amount,
-        payment_method_channel: payload.payment_method || "",
-        xendit_payment_id: payload.id || ""
-      });
-
-      console.log(`Auto-generated and approved license key ${serialKey} for order ID ${orderId}`);
-      return res.status(200).send("Webhook successfully verified, key created.");
-    } else if (paymentStatus === "EXPIRED") {
-      // Mark as expired to stop polling/status checks
-      await requestRef.update({
-        status: "expired",
-        expired_at: new Date().toISOString()
-      });
-      console.log(`Order ID ${orderId} marked as expired.`);
-      return res.status(200).send("Order expired.");
-    } else {
-      return res.status(200).send(`Ignoring webhook status: ${paymentStatus}`);
-    }
+    const result = await processInvoice(db, req.body);
+    return res.status(result.status).send(result.message);
 
   } catch (err) {
     console.error("Error writing callback updates to Firestore:", err);
@@ -229,7 +157,7 @@ exports.checkOrderStatus = onRequest((req, res) => {
     }
 
     const { email, proofId } = req.body || {};
-    if (!email || !proofId) {
+    if (typeof email !== "string" || typeof proofId !== "string" || !email.trim() || !proofId.trim() || email.length > 254 || proofId.length > 160) {
       return res.status(400).json({ error: "Missing required fields: email, proofId" });
     }
 
@@ -240,6 +168,7 @@ exports.checkOrderStatus = onRequest((req, res) => {
       const snapshot = await db.collection("artifacts/g7-special/admin/data/purchase_requests")
         .where("email", "==", targetEmail)
         .where("proof_id", "==", targetProofId)
+        .limit(10)
         .get();
 
       const results = snapshot.docs.map((doc) => {

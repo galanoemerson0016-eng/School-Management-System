@@ -30,6 +30,7 @@ import {
 import type { Student, AttendanceRecord, ClassRecord, Section } from '../types';
 import { downloadMasterExcelBackup } from '../services/master-excel-backup';
 import { generatePreUpdateSafetyVault } from '../services/pre-update-safety';
+import { clearAllPaceStores } from '../services/pace-record-service';
 
 interface FsBackupEntry {
     filename: string;
@@ -214,6 +215,19 @@ export function SettingsPage() {
         } finally {
             setIsReloadingDb(false);
         }
+    };
+
+    const handleDownloadQuarantineArtifact = () => {
+        const artifactJson = db.exportQuarantineArtifact();
+        const blob = new Blob([artifactJson], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `FormEase_Quarantine_Artifact_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     };
 
     useEffect(() => {
@@ -2013,18 +2027,8 @@ export function SettingsPage() {
                 }
             }
 
-            // Clear PACE Form ratings & cache in localStorage
-            const paceKeys = [
-                'formease_pace_reading_ratings',
-                'formease_pace_language_ratings',
-                'formease_pace_math_ratings',
-                'formease_pace_makabansa_ratings',
-                'formease_pace_gmrc_ratings',
-                'formease_pace_active_assessment'
-            ];
-            for (const pk of paceKeys) {
-                localStorage.removeItem(pk);
-            }
+            // Clear PACE Form ratings & cache in localStorage (both v2 and legacy stores)
+            clearAllPaceStores();
 
             // Mark hard reset executed so self-healing doesn't resurrect data
             localStorage.setItem('formease-hard-reset-executed', 'true');
@@ -3633,38 +3637,78 @@ export function SettingsPage() {
 
                             {/* Live Counts */}
                             {liveDbCounts && (
-                                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 pt-1 text-center">
-                                    <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
-                                        <span className="block text-[9px] font-bold text-slate-400 uppercase">Students</span>
-                                        <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts.students}</span>
-                                    </div>
-                                    <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
-                                        <span className="block text-[9px] font-bold text-slate-400 uppercase">Sections</span>
-                                        <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts.sections}</span>
-                                    </div>
-                                    <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
-                                        <span className="block text-[9px] font-bold text-slate-400 uppercase">Subjects</span>
-                                        <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts.subjects}</span>
-                                    </div>
-                                    <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
-                                        <span className="block text-[9px] font-bold text-slate-400 uppercase">Grades</span>
-                                        <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts.classRecords}</span>
-                                    </div>
-                                    <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
-                                        <span className="block text-[9px] font-bold text-slate-400 uppercase">HPS Records</span>
-                                        <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts.hpsRecords}</span>
-                                    </div>
-                                    <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
-                                        <span className="block text-[9px] font-bold text-slate-400 uppercase">Attendance</span>
-                                        <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts.attendanceRecords}</span>
-                                    </div>
-                                    <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
-                                        <span className="block text-[9px] font-bold text-slate-400 uppercase">SF2</span>
-                                        <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts.sf2Sheets}</span>
-                                    </div>
-                                    <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
-                                        <span className="block text-[9px] font-bold text-slate-400 uppercase">Total Records</span>
-                                        <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">{liveDbCounts.totalRecords}</span>
+                                <div className="space-y-3 pt-1">
+                                    {liveDbCounts.hasUnreadableStores && (
+                                        <div className="p-3 rounded-xl border border-rose-300 dark:border-rose-900/50 bg-rose-50/70 dark:bg-rose-950/20 text-xs text-rose-800 dark:text-rose-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                            <span>⚠️ Warning: One or more local database tables could not be read or are unavailable. A backup taken in this state would be incomplete.</span>
+                                            <button
+                                                onClick={handleDownloadQuarantineArtifact}
+                                                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer shrink-0 self-start sm:self-auto"
+                                            >
+                                                Export Quarantine Artifact
+                                            </button>
+                                        </div>
+                                    )}
+                                    {Boolean(!liveDbCounts.hasUnreadableStores && (liveDbCounts.quarantinedCount ?? 0) > 0) && (
+                                        <div className="p-3 rounded-xl border border-amber-300 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-950/20 text-xs text-amber-800 dark:text-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                            <span>⚠️ Notice: {liveDbCounts.quarantinedCount} unreadable record(s) were quarantined to preserve raw evidence.</span>
+                                            <button
+                                                onClick={handleDownloadQuarantineArtifact}
+                                                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer shrink-0 self-start sm:self-auto"
+                                            >
+                                                Export Quarantine Artifact
+                                            </button>
+                                        </div>
+                                    )}
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-center">
+                                        <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
+                                            <span className="block text-[9px] font-bold text-slate-400 uppercase">Students</span>
+                                            <span className={`text-sm font-black ${liveDbCounts.storeStatuses?.students?.status === 'unreadable' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'}`}>
+                                                {liveDbCounts.storeStatuses?.students?.status === 'unreadable' ? 'Error' : liveDbCounts.students}
+                                            </span>
+                                        </div>
+                                        <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
+                                            <span className="block text-[9px] font-bold text-slate-400 uppercase">Sections</span>
+                                            <span className={`text-sm font-black ${liveDbCounts.storeStatuses?.sections?.status === 'unreadable' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'}`}>
+                                                {liveDbCounts.storeStatuses?.sections?.status === 'unreadable' ? 'Error' : liveDbCounts.sections}
+                                            </span>
+                                        </div>
+                                        <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
+                                            <span className="block text-[9px] font-bold text-slate-400 uppercase">Subjects</span>
+                                            <span className={`text-sm font-black ${liveDbCounts.storeStatuses?.subjects?.status === 'unreadable' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'}`}>
+                                                {liveDbCounts.storeStatuses?.subjects?.status === 'unreadable' ? 'Error' : liveDbCounts.subjects}
+                                            </span>
+                                        </div>
+                                        <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
+                                            <span className="block text-[9px] font-bold text-slate-400 uppercase">Grades</span>
+                                            <span className={`text-sm font-black ${liveDbCounts.storeStatuses?.classRecords?.status === 'unreadable' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'}`}>
+                                                {liveDbCounts.storeStatuses?.classRecords?.status === 'unreadable' ? 'Error' : liveDbCounts.classRecords}
+                                            </span>
+                                        </div>
+                                        <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
+                                            <span className="block text-[9px] font-bold text-slate-400 uppercase">HPS Records</span>
+                                            <span className={`text-sm font-black ${liveDbCounts.storeStatuses?.hpsRecords?.status === 'unreadable' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'}`}>
+                                                {liveDbCounts.storeStatuses?.hpsRecords?.status === 'unreadable' ? 'Error' : liveDbCounts.hpsRecords}
+                                            </span>
+                                        </div>
+                                        <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
+                                            <span className="block text-[9px] font-bold text-slate-400 uppercase">Attendance</span>
+                                            <span className={`text-sm font-black ${liveDbCounts.storeStatuses?.attendanceRecords?.status === 'unreadable' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'}`}>
+                                                {liveDbCounts.storeStatuses?.attendanceRecords?.status === 'unreadable' ? 'Error' : liveDbCounts.attendanceRecords}
+                                            </span>
+                                        </div>
+                                        <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
+                                            <span className="block text-[9px] font-bold text-slate-400 uppercase">SF2</span>
+                                            <span className={`text-sm font-black ${liveDbCounts.storeStatuses?.sf2Sheets?.status === 'unreadable' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'}`}>
+                                                {liveDbCounts.storeStatuses?.sf2Sheets?.status === 'unreadable' ? 'Error' : liveDbCounts.sf2Sheets}
+                                            </span>
+                                        </div>
+                                        <div className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-150 dark:border-white/5">
+                                            <span className="block text-[9px] font-bold text-slate-400 uppercase">Total Records</span>
+                                            <span className={`text-sm font-black ${liveDbCounts.hasUnreadableStores ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                                {liveDbCounts.totalRecords}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             )}

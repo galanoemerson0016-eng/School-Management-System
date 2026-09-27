@@ -7,6 +7,13 @@ import {
   getSf2MonthContext,
 } from '../../utils/sf2-sync';
 
+let attendanceWriteQueue: Promise<unknown> = Promise.resolve();
+function enqueueAttendanceWrite(operation: () => Promise<void>): Promise<void> {
+  const result = attendanceWriteQueue.then(operation);
+  attendanceWriteQueue = result.catch(() => undefined);
+  return result;
+}
+
 export interface AttendanceSlice {
   activeSF2Sheet: SF2Sheet | null;
   sf2Sheets: SF2Sheet[];
@@ -44,7 +51,8 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
   };
 
   const upsertAttendanceToSf2 = async (records: AttendanceRecord[]) => {
-    if (!records.length) return;
+    const planned: SF2Sheet[] = [];
+    if (!records.length) return planned;
     const activeSchoolYear = get().activeSchoolYear as string;
     const allSections = (get().sections || []) as Section[];
     const grouped = new Map<string, {
@@ -95,9 +103,9 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
         updated_at: new Date().toISOString(),
       };
       const nextSheet = buildSf2SheetAttendanceFromRecords(baseSheet, records);
-      await db.putRecord('sf2Sheets', nextSheet);
-      syncSheetState(nextSheet);
+      planned.push(nextSheet);
     }
+    return planned;
   };
 
   return {
@@ -119,11 +127,8 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
         console.error('Error fetching SF2 sheet:', error);
       }
     },
-    saveSF2Sheet: async (sheet) => {
+    saveSF2Sheet: (sheet) => enqueueAttendanceWrite(async () => {
       try {
-        await db.putRecord('sf2Sheets', sheet);
-        syncSheetState(sheet);
-
         const rebuilt = buildAttendanceRecordsFromSf2Sheet(sheet);
         // A saved SF2 is authoritative for its own section/month.  Reconcile
         // even if every mark was cleared so stale attendance cannot resurface.
@@ -154,10 +159,11 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
             .filter((record) => isRecordForSheetSection(record) && monthDates.has(record.date))
             .map((record) => record.id);
 
-          for (const id of staleIds) {
-            await db.deleteRecord('attendanceRecords', id);
-          }
-          await db.putRecordsBulk('attendanceRecords', rebuilt);
+          await db.commitRecordChanges([
+            { store: 'sf2Sheets', puts: [sheet] },
+            { store: 'attendanceRecords', deletes: staleIds, puts: rebuilt },
+          ]);
+          syncSheetState(sheet);
           set((state: { attendanceRecords: AttendanceRecord[] }) => ({
             attendanceRecords: [
               ...state.attendanceRecords.filter((record) => !staleIds.includes(record.id)),
@@ -169,33 +175,23 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
         console.error('Error saving SF2 sheet:', error);
         throw error;
       }
-    },
+    }),
     attendanceRecords: [],
     setAttendanceRecords: (records) => set({ attendanceRecords: records }),
-    upsertAttendanceRecords: async (records) => {
-      // 1. Always persist to IndexedDB and update in-memory state
-      await db.putRecordsBulk('attendanceRecords', records);
+    upsertAttendanceRecords: (records) => enqueueAttendanceWrite(async () => {
+      const sheets = await upsertAttendanceToSf2(records);
+      await db.commitRecordChanges([
+        { store: 'attendanceRecords', puts: records },
+        { store: 'sf2Sheets', puts: sheets },
+      ]);
       syncAttendanceState(records);
-
-      // 2. SF2 sync is desktop-only; never let it break attendance marking
-      try {
-        await upsertAttendanceToSf2(records);
-      } catch (sf2Err) {
-        // Silently skip SF2 sync on phone (no activeSchoolYear)
-        console.debug('[Attendance] SF2 sync skipped:', sf2Err);
-      }
-    },
-    deleteAttendanceRecords: async (ids) => {
+      sheets.forEach(syncSheetState);
+    }),
+    deleteAttendanceRecords: (ids) => enqueueAttendanceWrite(async () => {
       try {
         const allAttendance = await db.getAllRecords<AttendanceRecord>('attendanceRecords');
         const removedRecords = allAttendance.filter((record) => ids.includes(record.id));
-        for (const id of ids) {
-          await db.deleteRecord('attendanceRecords', id);
-        }
-        set((state: { attendanceRecords: AttendanceRecord[] }) => ({
-          attendanceRecords: state.attendanceRecords.filter((record) => !ids.includes(record.id)),
-        }));
-
+        const planned: SF2Sheet[] = [];
         const activeSchoolYear = get().activeSchoolYear as string;
         const grouped = new Map<string, AttendanceRecord[]>();
         for (const record of removedRecords) {
@@ -219,13 +215,20 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
             attendance[record.student_lrn] = row;
           }
           const nextSheet = { ...existing, attendance, updated_at: new Date().toISOString() };
-          await db.putRecord('sf2Sheets', nextSheet);
-          syncSheetState(nextSheet);
+          planned.push(nextSheet);
         }
+        await db.commitRecordChanges([
+          { store: 'attendanceRecords', deletes: ids },
+          { store: 'sf2Sheets', puts: planned },
+        ]);
+        set((state: { attendanceRecords: AttendanceRecord[] }) => ({
+          attendanceRecords: state.attendanceRecords.filter(record => !ids.includes(record.id)),
+        }));
+        planned.forEach(syncSheetState);
       } catch (error) {
         console.error('Error deleting attendance records:', error);
         throw error;
       }
-    },
+    }),
   };
 }

@@ -71,11 +71,12 @@ export function AccountSetupPage() {
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Username</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="setup-username">Username</label>
                         <div className="relative">
                             <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input
                                 type="text"
+                                id="setup-username"
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
                                 autoFocus
@@ -87,11 +88,12 @@ export function AccountSetupPage() {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="setup-password">Password</label>
                         <div className="relative">
                             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input
                                 type={showPassword ? 'text' : 'password'}
+                                id="setup-password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 autoComplete="new-password"
@@ -102,7 +104,6 @@ export function AccountSetupPage() {
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
                                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                                tabIndex={-1}
                                 aria-label={showPassword ? 'Hide password' : 'Show password'}
                             >
                                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -111,11 +112,12 @@ export function AccountSetupPage() {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Confirm password</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="setup-confirmPassword">Confirm password</label>
                         <div className="relative">
                             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input
                                 type={showPassword ? 'text' : 'password'}
+                                id="setup-confirmPassword"
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
                                 autoComplete="new-password"
@@ -126,12 +128,13 @@ export function AccountSetupPage() {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                        <label htmlFor="setup-email" className="block text-sm font-medium text-slate-700 mb-1.5">
                             Email <span className="text-slate-400 font-normal">(optional)</span>
                         </label>
                         <div className="relative">
                             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input
+                                id="setup-email"
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
@@ -150,6 +153,7 @@ export function AccountSetupPage() {
                         <div className="space-y-3">
                             <input
                                 type="text"
+                                aria-label="Security question"
                                 value={securityQuestion}
                                 onChange={(e) => setSecurityQuestion(e.target.value)}
                                 placeholder="Security question (e.g., name of your first pet)"
@@ -157,19 +161,20 @@ export function AccountSetupPage() {
                             />
                             <input
                                 type="text"
+                                aria-label="Security answer"
                                 value={securityAnswer}
                                 onChange={(e) => setSecurityAnswer(e.target.value)}
                                 placeholder="Answer"
                                 className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none transition focus:border-deped-blue focus:ring-2 focus:ring-deped-blue/15"
                             />
                             <p className="text-xs text-slate-400 leading-relaxed">
-                                If you skip this, a forgotten password can only be recovered by reactivating the application.
+                                Keep a verified backup. Password recovery also requires secure recovery support on this device; reactivating a license does not unlock encrypted records.
                             </p>
                         </div>
                     </div>
 
                     {displayError && (
-                        <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-lg">
+                        <div role="alert" className="flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-lg">
                             <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                             <p className="text-sm text-red-600">{displayError}</p>
                         </div>

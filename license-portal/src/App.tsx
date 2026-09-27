@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { onAuthStateChanged, User as FirebaseUser, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { onAuthStateChanged, User as FirebaseUser, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from './lib/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Mail, Lock, Activity, AlertCircle } from 'lucide-react';
@@ -13,13 +13,27 @@ import UpdatesPage from './pages/UpdatesPage';
 export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [accessError, setAccessError] = useState('');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setLoading(false);
+    let generation = 0;
+    let active = true;
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      const current = ++generation;
+      setUser(null);
+      setLoading(true);
+      try {
+        const allowed = u && (await u.getIdTokenResult()).claims.admin === true;
+        if (!active || current !== generation) return;
+        setUser(allowed ? u : null);
+        setAccessError(u && !allowed ? 'This account does not have administrator access.' : '');
+      } catch {
+        if (active && current === generation) setAccessError('Could not verify administrator access. Please sign in again.');
+      } finally {
+        if (active && current === generation) setLoading(false);
+      }
     });
-    return () => unsubscribe();
+    return () => { active = false; unsubscribe(); };
   }, []);
 
   if (loading) {
@@ -49,7 +63,7 @@ export default function App() {
         />
         <Route 
           path="/login" 
-          element={!user ? <LoginPage /> : <Navigate to="/admin" replace />} 
+          element={!user ? <LoginPage accessError={accessError} /> : <Navigate to="/admin" replace />}
         />
 
         {/* Fallback */}
@@ -59,7 +73,7 @@ export default function App() {
   );
 }
 
-function LoginPage() {
+function LoginPage({ accessError }: { accessError: string }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -101,8 +115,9 @@ function LoginPage() {
 
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Email Address</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2" htmlFor="admin-email">Email Address</label>
               <input
+                id="admin-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -113,8 +128,9 @@ function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Secure Password</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2" htmlFor="admin-password">Secure Password</label>
               <input
+                id="admin-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -125,14 +141,14 @@ function LoginPage() {
             </div>
 
             <AnimatePresence>
-              {error && (
+              {(error || accessError) && (
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   className="flex items-center gap-2 text-red-400 text-xs font-bold bg-red-500/10 p-3 rounded-xl border border-red-500/20"
                 >
                   <AlertCircle className="w-4 h-4" />
-                  Invalid credentials
+                  {accessError || 'Invalid credentials'}
                 </motion.div>
               )}
             </AnimatePresence>

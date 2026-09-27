@@ -78,6 +78,67 @@ export function isEncryptedDatabaseEnvelope(record: unknown): boolean {
   return Boolean(candidate?.is_encrypted && candidate.iv && candidate.ciphertext);
 }
 
+export interface QuarantinedRecord {
+  id: string;
+  storeName: string;
+  key?: string;
+  timestamp: number;
+  error: string;
+  rawEnvelope: unknown;
+}
+
+const quarantinedRecords: QuarantinedRecord[] = [];
+
+export function getQuarantinedRecords(): QuarantinedRecord[] {
+  return [...quarantinedRecords];
+}
+
+export function clearQuarantinedRecords(): void {
+  quarantinedRecords.length = 0;
+}
+
+export function getQuarantineStats(): { total: number; byStore: Record<string, number> } {
+  const byStore: Record<string, number> = {};
+  for (const q of quarantinedRecords) {
+    byStore[q.storeName] = (byStore[q.storeName] || 0) + 1;
+  }
+  return { total: quarantinedRecords.length, byStore };
+}
+
+export function exportQuarantineArtifact(): string {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    totalQuarantined: quarantinedRecords.length,
+    records: quarantinedRecords.map(q => ({
+      id: q.id,
+      storeName: q.storeName,
+      key: q.key,
+      timestamp: q.timestamp,
+      error: q.error,
+      rawEnvelope: q.rawEnvelope,
+    })),
+  };
+  return JSON.stringify(payload, null, 2);
+}
+
+function recordQuarantinedEntry(storeName: string, raw: unknown, error: unknown): void {
+  const id = `quarantine-${crypto.randomUUID()}`;
+  let key: string | undefined;
+  if (raw && typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>;
+    const k = obj.lrn ?? obj.id ?? obj.school_id;
+    if (k !== undefined) key = String(k);
+  }
+  quarantinedRecords.push({
+    id,
+    storeName,
+    key,
+    timestamp: Date.now(),
+    error: error instanceof Error ? error.message : String(error),
+    rawEnvelope: raw,
+  });
+}
+
 async function decryptWithAvailableKeys<T>(ciphertext: string, iv: string): Promise<T> {
   if (!dbKey) throw new Error('Database encryption key is unavailable.');
   let lastError: unknown;
@@ -291,10 +352,19 @@ export function applyDatabaseSchema(
           return;
         }
 
+        // The old store was keyed by id, so distinct learners may share an
+        // LRN. A put into the replacement store would silently overwrite one.
+        const lrns = legacyStudents.map(record => String(record.lrn).trim());
+        if (new Set(lrns).size !== lrns.length) {
+          console.error('Legacy learner records contain duplicate LRNs. Aborting migration to preserve every record.');
+          transaction?.abort();
+          return;
+        }
+
         db.deleteObjectStore('students');
         const correctedStore = db.createObjectStore('students', { keyPath: 'lrn' });
         for (const record of legacyStudents) {
-          correctedStore.put(record);
+          correctedStore.add(record);
         }
         console.info(`Migrated ${legacyStudents.length} learner record(s) to the corrected students store.`);
       };
@@ -466,7 +536,7 @@ function openDatabase(): Promise<IDBDatabase> {
 /**
  * Get all records from a store
  */
-async function getAllRecords<T>(storeName: string): Promise<T[]> {
+async function getAllRecords<T>(storeName: string, options: { strict?: boolean } = {}): Promise<T[]> {
   const db = await openDatabase();
   if (!db.objectStoreNames.contains(storeName)) {
     return [];
@@ -479,14 +549,15 @@ async function getAllRecords<T>(storeName: string): Promise<T[]> {
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
   });
-  if (storeName === 'automated_backups' || storeName === 'gradingSheetRecords' || storeName === 'observedValues') {
+  if (!options.strict && (storeName === 'automated_backups' || storeName === 'gradingSheetRecords' || storeName === 'observedValues')) {
     const results: T[] = [];
     for (const raw of rawList) {
       try {
         const decrypted = await decryptRecordIfNeeded<T>(storeName, raw);
         results.push(decrypted);
       } catch (err) {
-        console.warn(`[FormEase Pro] Unreadable ${storeName} entry could not be decrypted with available keys; skipping entry.`, err);
+        recordQuarantinedEntry(storeName, raw, err);
+        console.warn(`[FormEase Pro] Unreadable ${storeName} entry could not be decrypted with available keys; quarantined entry.`, err);
       }
     }
     return results;
@@ -530,10 +601,12 @@ export interface AtomicRecordChange {
 }
 
 /** Commit related edits together. Encryption must finish before the transaction starts. */
-async function commitRecordChanges(changes: AtomicRecordChange[]): Promise<void> {
+async function commitRecordChanges(changes: AtomicRecordChange[], settings: Record<string, string> = {}): Promise<void> {
+  const pendingSettings = selectRestorableBackupSettings(settings);
   const active = changes.filter(change => change.puts?.length || change.deletes?.length);
-  if (!active.length) return;
+  if (!active.length && !Object.keys(pendingSettings).length) return;
   assertWritesAllowed();
+  await resumePendingRestoreSettings();
   notifyWriteChange(1);
   try {
     const prepared = await Promise.all(active.map(async change => ({
@@ -542,6 +615,7 @@ async function commitRecordChanges(changes: AtomicRecordChange[]): Promise<void>
     })));
     const database = await openDatabase();
     const stores = [...new Set(prepared.map(change => change.store))];
+    if (Object.keys(pendingSettings).length && !stores.includes('backups')) stores.push('backups');
     for (const store of stores) {
       if (!database.objectStoreNames.contains(store)) throw new Error(`Database store "${store}" is unavailable; changes were not saved.`);
     }
@@ -556,6 +630,13 @@ async function commitRecordChanges(changes: AtomicRecordChange[]): Promise<void>
           for (const key of change.deletes || []) store.delete(key);
           for (const record of change.puts) store.put(record);
         }
+        if (Object.keys(pendingSettings).length) {
+          transaction.objectStore('backups').put({
+            id: RESTORE_SETTINGS_JOURNAL_ID,
+            kind: 'restore-settings-v1',
+            settings: pendingSettings,
+          } satisfies RestoreSettingsJournal);
+        }
       } catch (error) {
         transaction.abort();
         reject(error);
@@ -565,6 +646,7 @@ async function commitRecordChanges(changes: AtomicRecordChange[]): Promise<void>
   } finally {
     notifyWriteChange(-1);
   }
+  if (Object.keys(pendingSettings).length) await resumePendingRestoreSettings();
 }
 
 async function putRecord<T>(
@@ -623,8 +705,15 @@ async function putRecordsBulk<T>(
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error || new Error('Database bulk write was aborted.'));
 
-      for (const record of encryptedRecords) {
-        store.put(record);
+      try {
+        for (const record of encryptedRecords) {
+          store.put(record);
+        }
+      } catch (error) {
+        // A synchronous DataError/DataCloneError does not abort IndexedDB
+        // automatically. Roll back earlier queued writes before rejecting.
+        transaction.abort();
+        reject(error);
       }
     });
     notifyChange(storeName, 'put');
@@ -679,8 +768,13 @@ async function deleteRecordsBulk(storeName: string, keys: string[]): Promise<voi
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error || new Error('Database bulk delete was aborted.'));
 
-      for (const key of keys) {
-        store.delete(key);
+      try {
+        for (const key of keys) {
+          store.delete(key);
+        }
+      } catch (error) {
+        transaction.abort();
+        reject(error);
       }
     });
     notifyChange(storeName, 'delete');
@@ -977,17 +1071,22 @@ async function applyRestoreBatch(changes: RestoreStoreChange[], settings: Record
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error || new Error('Backup restore was aborted.'));
-      for (const change of executableChanges) {
-        const objectStore = transaction.objectStore(change.store);
-        if (change.replace) objectStore.clear();
-        for (const row of change.records) objectStore.put(row);
-      }
-      if (Object.keys(pendingSettings).length > 0) {
-        transaction.objectStore('backups').put({
-          id: RESTORE_SETTINGS_JOURNAL_ID,
-          kind: 'restore-settings-v1',
-          settings: pendingSettings,
-        } satisfies RestoreSettingsJournal);
+      try {
+        for (const change of executableChanges) {
+          const objectStore = transaction.objectStore(change.store);
+          if (change.replace) objectStore.clear();
+          for (const row of change.records) objectStore.put(row);
+        }
+        if (Object.keys(pendingSettings).length > 0) {
+          transaction.objectStore('backups').put({
+            id: RESTORE_SETTINGS_JOURNAL_ID,
+            kind: 'restore-settings-v1',
+            settings: pendingSettings,
+          } satisfies RestoreSettingsJournal);
+        }
+      } catch (error) {
+        transaction.abort();
+        reject(error);
       }
     });
   } finally {
@@ -1062,6 +1161,12 @@ export function extractBackupPayload(rawBackupData: unknown): Record<string, unk
 async function importFromBackup(rawBackupData: BackupImportPayload) {
   const payload = extractBackupPayload(rawBackupData);
   if (!payload) throw new Error('Backup does not contain readable school data.');
+
+  const { validateBackupPayloadStructure } = await import('../utils/backup-restore');
+  const structureCheck = validateBackupPayloadStructure(rawBackupData);
+  if (!structureCheck.isValid) {
+    throw new Error(structureCheck.issues.join(' '));
+  }
 
   const source = rawBackupData as Record<string, unknown>;
   const checkedSource = source._checksum ? source : source.data as Record<string, unknown> | undefined;
@@ -1574,7 +1679,13 @@ async function resetConnection(): Promise<void> {
   }
 }
 
-async function cleanupPreviewDatabase(): Promise<void> {
+export interface PreviewCleanupResult {
+  success: boolean;
+  blocked?: boolean;
+  error?: string;
+}
+
+async function cleanupPreviewDatabase(): Promise<PreviewCleanupResult> {
   if (dbInstance && dbInstance.name === PREVIEW_DB_NAME) {
     try {
       dbInstance.close();
@@ -1586,24 +1697,225 @@ async function cleanupPreviewDatabase(): Promise<void> {
   return new Promise((resolve) => {
     try {
       if (typeof indexedDB === 'undefined') {
-        resolve();
+        resolve({ success: true });
         return;
       }
       const req = indexedDB.deleteDatabase(PREVIEW_DB_NAME);
-      req.onsuccess = () => resolve();
-      req.onerror = () => resolve();
-      req.onblocked = () => resolve();
-    } catch (_err) {
-      resolve();
+      req.onsuccess = () => resolve({ success: true });
+      req.onerror = () => resolve({
+        success: false,
+        error: req.error ? req.error.message : 'Preview database deletion failed',
+      });
+      req.onblocked = () => resolve({
+        success: false,
+        blocked: true,
+        error: 'Preview database deletion was blocked by an open connection. Please close other tabs and try again.',
+      });
+    } catch (err) {
+      resolve({
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   });
 }
 
 async function preparePreviewDatabase(): Promise<void> {
-  await cleanupPreviewDatabase();
+  const result = await db.cleanupPreviewDatabase();
+  if (!result.success) {
+    throw new Error(
+      result.blocked
+        ? 'Cannot prepare preview database: deletion was blocked by another open connection. Please close other preview tabs.'
+        : `Cannot prepare preview database: ${result.error || 'Unknown deletion error'}`
+    );
+  }
+}
+
+export interface StoreHealthInfo {
+  storeName: string;
+  status: 'healthy' | 'partial' | 'unreadable' | 'unavailable';
+  rawCount: number | null;
+  readableCount: number | null;
+  quarantinedCount: number;
+  error?: string;
+}
+
+export interface DatabaseHealthReport {
+  isAvailable: boolean;
+  schemaVersion: number;
+  stores: Record<string, StoreHealthInfo>;
+  totalRawRecords: number | null;
+  totalReadableRecords: number | null;
+  totalQuarantinedRecords: number;
+  hasUnreadableStores: boolean;
+  hasQuarantinedRecords: boolean;
+  pendingJournal: boolean;
+  lastVerifiedBackup: { id: string; timestamp: number; label: string } | null;
+  storageEstimate?: { usage?: number; quota?: number; quotaExceeded?: boolean };
+}
+
+async function inspectDatabaseHealth(): Promise<DatabaseHealthReport> {
+  const coreStores = [
+    'schoolProfile', 'students', 'sections', 'subjects', 'classRecords', 'enrollments',
+    'announcements', 'attendanceRecords', 'sf2Sheets', 'hpsRecords', 'gradingSheetRecords',
+    'observedValues', 'users', 'backups', 'automated_backups'
+  ];
+  let currentDb: IDBDatabase;
+  try {
+    currentDb = await openDatabase();
+  } catch (_err) {
+    return {
+      isAvailable: false,
+      schemaVersion: 0,
+      stores: {},
+      totalRawRecords: null,
+      totalReadableRecords: null,
+      totalQuarantinedRecords: quarantinedRecords.length,
+      hasUnreadableStores: true,
+      hasQuarantinedRecords: quarantinedRecords.length > 0,
+      pendingJournal: false,
+      lastVerifiedBackup: null,
+    };
+  }
+
+  const storeReports: Record<string, StoreHealthInfo> = {};
+  let totalRaw = 0;
+  let totalReadable = 0;
+  let hasUnreadable = false;
+
+  for (const storeName of coreStores) {
+    if (!currentDb.objectStoreNames.contains(storeName)) {
+      storeReports[storeName] = {
+        storeName,
+        status: 'unavailable',
+        rawCount: null,
+        readableCount: null,
+        quarantinedCount: 0,
+        error: `Store "${storeName}" is not present in database schema.`,
+      };
+      hasUnreadable = true;
+      continue;
+    }
+
+    try {
+      const rawList = await new Promise<unknown[]>((resolve, reject) => {
+        const tx = currentDb.transaction(storeName, 'readonly');
+        const store = tx.objectStore(storeName);
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error || new Error(`Read failed for ${storeName}`));
+      });
+
+      const rawCount = rawList.length;
+      totalRaw += rawCount;
+
+      let readableCount = 0;
+      let quarantinedCount = 0;
+
+      for (const item of rawList) {
+        try {
+          await decryptRecordIfNeeded(storeName, item);
+          readableCount++;
+        } catch {
+          quarantinedCount++;
+        }
+      }
+
+      totalReadable += readableCount;
+
+      let status: StoreHealthInfo['status'] = 'healthy';
+      if (rawCount > 0 && readableCount === 0) {
+        status = 'unreadable';
+        hasUnreadable = true;
+      } else if (quarantinedCount > 0) {
+        status = 'partial';
+      }
+
+      storeReports[storeName] = {
+        storeName,
+        status,
+        rawCount,
+        readableCount,
+        quarantinedCount,
+      };
+    } catch (err) {
+      hasUnreadable = true;
+      storeReports[storeName] = {
+        storeName,
+        status: 'unreadable',
+        rawCount: null,
+        readableCount: null,
+        quarantinedCount: 0,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  // Check pending restore settings journal
+  let pendingJournal = false;
+  try {
+    if (currentDb.objectStoreNames.contains('backups')) {
+      const journal = await getRecord<RestoreSettingsJournal>('backups', RESTORE_SETTINGS_JOURNAL_ID);
+      pendingJournal = Boolean(journal);
+    }
+  } catch {
+    // Ignore journal lookup errors
+  }
+
+  // Check last verified backup
+  let lastVerifiedBackup: { id: string; timestamp: number; label: string } | null = null;
+  try {
+    if (currentDb.objectStoreNames.contains('automated_backups')) {
+      const backups = await getAllRecords<{ id: string; timestamp: number; label?: string }>('automated_backups');
+      if (backups.length > 0) {
+        const sorted = backups.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        lastVerifiedBackup = {
+          id: sorted[0].id,
+          timestamp: sorted[0].timestamp || 0,
+          label: sorted[0].label || 'Automated safety backup',
+        };
+      }
+    }
+  } catch {
+    // Ignore backup lookup errors
+  }
+
+  // Check storage estimate
+  let storageEstimate: DatabaseHealthReport['storageEstimate'] | undefined;
+  if (typeof navigator !== 'undefined' && navigator.storage && typeof navigator.storage.estimate === 'function') {
+    try {
+      const est = await navigator.storage.estimate();
+      storageEstimate = {
+        usage: est.usage,
+        quota: est.quota,
+        quotaExceeded: Boolean(est.usage && est.quota && est.usage >= est.quota),
+      };
+    } catch {
+      // Storage estimation not available in some environments
+    }
+  }
+
+  return {
+    isAvailable: true,
+    schemaVersion: currentDb.version,
+    stores: storeReports,
+    totalRawRecords: hasUnreadable ? null : totalRaw,
+    totalReadableRecords: totalReadable,
+    totalQuarantinedRecords: quarantinedRecords.length,
+    hasUnreadableStores: hasUnreadable,
+    hasQuarantinedRecords: quarantinedRecords.length > 0,
+    pendingJournal,
+    lastVerifiedBackup,
+    storageEstimate,
+  };
 }
 
 export const db = {
+  inspectDatabaseHealth,
+  getQuarantinedRecords,
+  clearQuarantinedRecords,
+  getQuarantineStats,
+  exportQuarantineArtifact,
   getStoreStats,
   setDatabaseEncryptionKey,
   onDatabaseChange,

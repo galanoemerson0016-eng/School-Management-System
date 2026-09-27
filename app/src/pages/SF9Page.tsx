@@ -74,6 +74,7 @@ import type { SF9SubjectItem } from '../services/grade-calculation';
 export type { SF9SubjectItem } from '../services/grade-calculation';
 import { MasterExcelImportModal } from '../components/MasterExcelImportModal';
 import type { CurrentGrade1Data, ApplyImportResult } from '../services/sf9-g1-excel-import';
+import { getPaceRecordsForSchoolYear } from '../services/pace-record-service';
 import {
     SF9Template2Document,
     SF9Template2BatchDocument,
@@ -3537,14 +3538,10 @@ export function SF9Page() {
             }
         }
 
-        const reading = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || localStorage.getItem('formease_pace_ratings') || '{}');
-        const language = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
-        const math = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
-        const gmrcMakabansa = {
-            ...JSON.parse(localStorage.getItem('formease_pace_gmrc_ratings') || '{}'),
-            ...JSON.parse(localStorage.getItem('formease_pace_makabansa_ratings') || '{}'),
-            ...JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}')
-        };
+        const reading = getPaceRecordsForSchoolYear('reading', activeSchoolYear);
+        const language = getPaceRecordsForSchoolYear('language', activeSchoolYear);
+        const math = getPaceRecordsForSchoolYear('math', activeSchoolYear);
+        const gmrcMakabansa = getPaceRecordsForSchoolYear('gmrc-makabansa', activeSchoolYear);
 
         return {
             schoolYear: activeSchoolYear,
@@ -3591,14 +3588,10 @@ export function SF9Page() {
 
             const getPaceRatingsForStudent = (sLrn?: string, studentId?: string) => {
                 try {
-                    const readingStore = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || localStorage.getItem('formease_pace_ratings') || '{}');
-                    const languageStore = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
-                    const mathStore = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
-                    const gmrcMakabansaStore = {
-                        ...JSON.parse(localStorage.getItem('formease_pace_gmrc_ratings') || '{}'),
-                        ...JSON.parse(localStorage.getItem('formease_pace_makabansa_ratings') || '{}'),
-                        ...JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}')
-                    };
+                    const readingStore = getPaceRecordsForSchoolYear('reading', activeSchoolYear);
+                    const languageStore = getPaceRecordsForSchoolYear('language', activeSchoolYear);
+                    const mathStore = getPaceRecordsForSchoolYear('math', activeSchoolYear);
+                    const gmrcMakabansaStore = getPaceRecordsForSchoolYear('gmrc-makabansa', activeSchoolYear);
 
                     const extractRatings = (store: Record<string, unknown>) => {
                         if (!store || typeof store !== 'object') return {};
@@ -3734,14 +3727,10 @@ export function SF9Page() {
 
             const getPaceRatingsForStudent = (sLrn?: string, studentId?: string) => {
                 try {
-                    const readingStore = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || localStorage.getItem('formease_pace_ratings') || '{}');
-                    const languageStore = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
-                    const mathStore = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
-                    const gmrcMakabansaStore = {
-                        ...JSON.parse(localStorage.getItem('formease_pace_gmrc_ratings') || '{}'),
-                        ...JSON.parse(localStorage.getItem('formease_pace_makabansa_ratings') || '{}'),
-                        ...JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}')
-                    };
+                    const readingStore = getPaceRecordsForSchoolYear('reading', activeSchoolYear);
+                    const languageStore = getPaceRecordsForSchoolYear('language', activeSchoolYear);
+                    const mathStore = getPaceRecordsForSchoolYear('math', activeSchoolYear);
+                    const gmrcMakabansaStore = getPaceRecordsForSchoolYear('gmrc-makabansa', activeSchoolYear);
 
                     const extractRatings = (store: Record<string, unknown>) => {
                         if (!store || typeof store !== 'object') return {};

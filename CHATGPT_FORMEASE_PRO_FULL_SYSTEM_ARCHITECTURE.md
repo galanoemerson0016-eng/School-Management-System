@@ -2810,4 +2810,114 @@ Every modification to the Northstar codebase must pass four mandatory verificati
 ```
 
 ---
-*End of Master Architecture, Regulatory Corpus, 3-Term Calendar, Grading Specification, UI Module Catalog, OpenXML Reference, SQLite Relational Schemas, Migration Protocols & Local Collaboration Framework.*
+
+## 16. THE NATIONAL ARAL PROGRAM, LEARNING INTERVENTIONS & PASTORAL CARE SPECIFICATION (REPUBLIC ACT NO. 12028 & DO 40, S. 2012)
+
+### 16.1 Statutory Foundation: Republic Act No. 12028 (Academic Recovery and Accessible Learning Program)
+Enacted to systematically address post-pandemic learning poverty and foundational skill deficiencies in Philippine basic education, **Republic Act No. 12028** (the ARAL Program Act) establishes a free, institutionalized national intervention and remediation framework.
+
+The architecture provides native tracking and compliance management for ARAL:
+1. **Core Subject Focus Areas**:
+   - **Key Stage 1 (Kindergarten to Grade 3)**: Foundational Literacy (Mother Tongue, Filipino, English reading fluency and comprehension) and Early Numeracy (number sense, basic operations, spatial reasoning).
+   - **Key Stage 2 & 3 (Grades 4 to 10)**: Reading Comprehension, Mathematics, and Science concepts with specific remediation pathways for non-readers and numeracy-delayed learners.
+2. **Identification & Entry Criteria**:
+   - Diagnostic assessment scores (e.g., Phil-IRI for reading; RMA for mathematics).
+   - Quarterly grades falling into the `Developing` ($65–74$) or `Emerging` ($< 65$) proficiency bands.
+   - Formal Class Adviser or Subject Teacher referral documented with specific competency deficiencies.
+3. **Flexible Delivery Modalities**:
+   - Face-to-face tutorials, small-group learning pods, blended remote modules, and summer learning enhancement camps.
+
+---
+
+### 16.2 Multi-Tiered System of Supports (MTSS) Framework
+The system implements a structured 3-tier MTSS tracking model:
+
+```
+                      / \
+                     /   \
+                    /  T3 \    TIER 3: Intensive Individualized Support
+                   /-------\   - 1-on-1 dedicated tutoring
+                  /   T2    \  - Daily or 4x/week specialized remediation
+                 /-----------\ - Individualized Learning Plan (ILP)
+                /     T1      \
+               /---------------\ TIER 2: Targeted Small-Group Intervention
+              /                 \ - 3 to 6 learners per cohort
+             /                   \ - 2 to 3 sessions/week (45–60 mins)
+            /   CORE UNIVERSAL    \ - Specific competency-targeted modules
+           /-----------------------\
+          /                          \ TIER 1: Universal Classroom Instruction
+         /                            \ - High-quality differentiated pedagogy
+        /                              \ - Universal screening & formative checks
+       +--------------------------------+
+```
+
+---
+
+### 16.3 Intervention Tracking Relational Schema
+
+```sql
+-- 1. ARAL Interventions Table
+CREATE TABLE IF NOT EXISTS aral_interventions (
+    id TEXT PRIMARY KEY,
+    enrollment_id TEXT NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+    subject_area TEXT NOT NULL CHECK(subject_area IN ('reading_literacy', 'mathematics_numeracy', 'science')),
+    tier_level INTEGER NOT NULL CHECK(tier_level IN (1, 2, 3)),
+    tutor_name TEXT NOT NULL,                  -- Assigned teacher, para-teacher, or tutor
+    referral_reason TEXT NOT NULL,
+    baseline_diagnostic_score REAL,            -- Initial test rating (e.g., Phil-IRI word reading %)
+    baseline_proficiency TEXT NOT NULL CHECK(baseline_proficiency IN ('frustration', 'instructional', 'independent', 'non_reader')),
+    target_competency_code TEXT NOT NULL,      -- e.g. "MT1PWR-Ib-i-1.1", "M3NS-Ia-9.1"
+    start_date TEXT NOT NULL,                  -- ISO YYYY-MM-DD
+    target_completion_date TEXT,
+    status TEXT NOT NULL CHECK(status IN ('active', 'completed', 'discontinued', 'referred_tier3')),
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+-- 2. ARAL Intervention Session Logs
+CREATE TABLE IF NOT EXISTS aral_sessions (
+    id TEXT PRIMARY KEY,
+    intervention_id TEXT NOT NULL REFERENCES aral_interventions(id) ON DELETE CASCADE,
+    session_date TEXT NOT NULL,                -- ISO YYYY-MM-DD
+    duration_minutes INTEGER NOT NULL CHECK(duration_minutes > 0),
+    competencies_covered TEXT NOT NULL,        -- Specific learning competencies practiced
+    attendance_status TEXT NOT NULL CHECK(attendance_status IN ('attended', 'absent_excused', 'absent_unexcused')),
+    learner_engagement_rating INTEGER CHECK(learner_engagement_rating BETWEEN 1 AND 5),
+    mastery_demonstrated INTEGER NOT NULL DEFAULT 0, -- 1 = learner exhibited competency mastery
+    notes TEXT,                                -- Tutor session notes and instructional reflections
+    created_at INTEGER NOT NULL
+);
+
+-- 3. ARAL Progress Assessments & Exit Evaluation
+CREATE TABLE IF NOT EXISTS aral_assessments (
+    id TEXT PRIMARY KEY,
+    intervention_id TEXT NOT NULL REFERENCES aral_interventions(id) ON DELETE CASCADE,
+    assessment_type TEXT NOT NULL CHECK(assessment_type IN ('baseline', 'midline_formative', 'post_intervention_summative')),
+    assessment_date TEXT NOT NULL,
+    raw_score REAL NOT NULL,
+    max_score REAL NOT NULL CHECK(max_score > 0),
+    percentage_score REAL NOT NULL,
+    evaluated_level TEXT NOT NULL CHECK(evaluated_level IN ('frustration', 'instructional', 'independent', 'mastered')),
+    exit_verdict TEXT CHECK(exit_verdict IN ('transition_to_tier1', 'continue_tier2', 'escalate_tier3', 'remedial_passed')),
+    assessor_name TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+```
+
+---
+
+### 16.4 DepEd Child Protection Policy & Confidential Pastoral Care Boundaries (DO 40, s. 2012)
+Under **DepEd Order No. 40, s. 2012** (DepEd Child Protection Policy) and the **Data Privacy Act of 2012 (R.A. 10173)**, student behavioral incidents, child protection complaints, and counseling case notes must never be merged with academic grade records or printed on public report cards:
+
+1. **Strict Cryptographic Isolation**:
+   - Guidance notes and Child Protection Committee (CPC) case files are stored in an isolated, encrypted table (`pastoral_case_records`).
+   - The payload is encrypted with a dedicated **Guidance Officer Key (GOK)** derived from the school counselor's personal credentials, completely inaccessible to subject teachers, advisers, or automated export scripts.
+2. **Exclusion from Official Public School Forms**:
+   - The OpenXML injection engine explicitly prohibits bindings that query `pastoral_case_records`. Neither SF9 (Form 138), SF10 (Form 137), nor SF5 can display disciplinary or counseling entries.
+   - Learner Individual Records (LIR) display only general developmental remarks vetted and approved by the teacher.
+3. **Statutory Incident Reporting Workflow**:
+   - Incidents categorized under Bullying (R.A. 10627), Child Abuse, Discrimination, or Exploitation trigger a standalone, encrypted incident report following DepEd CPC Intake Sheets (Annexes A, B, and C of DO 40 s. 2012).
+   - Generates password-protected confidential dossiers destined strictly for the School Division Office (SDO) Child Protection Unit.
+
+---
+*End of Master Architecture, Regulatory Corpus, 3-Term Calendar, Grading Specification, UI Module Catalog, OpenXML Reference, SQLite Relational Schemas, Migration Protocols, Local Collaboration Framework & ARAL Pastoral System.*

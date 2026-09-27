@@ -15,6 +15,7 @@ import { formatLearnerName } from '../utils/student-name';
 import { MasterExcelImportModal } from '../components/MasterExcelImportModal';
 import type { CurrentGrade1Data, ApplyImportResult } from '../services/sf9-g1-excel-import';
 import type { SF9Grade1Remarks } from '../services/sf9-g1-excel-export';
+import { getPaceRecordsForSchoolYear, savePaceRecord, type PaceFormSubject } from '../services/pace-record-service';
 import { 
   ArrowLeft, 
   FileSpreadsheet, 
@@ -81,35 +82,25 @@ export function PaceFormPage() {
     return (localStorage.getItem('formease_pace_active_form_type') as PacePageFormType) || 'reading';
   });
 
-  const getStorageKey = (type: PacePageFormType) => {
-    return type === 'gmrc-makabansa'
-      ? 'formease_pace_gmrc_makabansa_ratings'
-      : type === 'math' 
-      ? 'formease_pace_math_ratings'
-      : type === 'language' 
-      ? 'formease_pace_language_ratings' 
-      : 'formease_pace_reading_ratings';
-  };
-
-  const loadRatingsStore = (type: PacePageFormType): Record<string, PaceFormData> => {
+  const loadRatingsStore = useCallback((type: PacePageFormType, sy: string): Record<string, PaceFormData> => {
     if (type === 'sf9') return {};
-    const key = getStorageKey(type);
-    const saved = localStorage.getItem(key);
-    if (saved) return JSON.parse(saved);
-    if (type === 'reading') {
-      const legacy = localStorage.getItem('formease_pace_ratings');
-      if (legacy) return JSON.parse(legacy);
-    }
-    return {};
-  };
+    return getPaceRecordsForSchoolYear(type as PaceFormSubject, sy);
+  }, []);
 
-  const [ratingsStore, setRatingsStore] = useState<Record<string, PaceFormData>>(() => loadRatingsStore(formType));
+  const [ratingsStore, setRatingsStore] = useState<Record<string, PaceFormData>>(() => loadRatingsStore(formType, activeSchoolYear));
+
+  // Sync store whenever activeSchoolYear or formType changes
+  useEffect(() => {
+    if (formType !== 'sf9') {
+      setRatingsStore(loadRatingsStore(formType, activeSchoolYear));
+    }
+  }, [formType, activeSchoolYear, loadRatingsStore]);
 
   const handleFormTypeChange = (type: PacePageFormType) => {
     setFormType(type);
     localStorage.setItem('formease_pace_active_form_type', type);
     if (type !== 'sf9') {
-      setRatingsStore(loadRatingsStore(type));
+      setRatingsStore(loadRatingsStore(type, activeSchoolYear));
     }
   };
 
@@ -206,9 +197,8 @@ export function PaceFormPage() {
   }, [selectedLrn, selectedStudent, selectedSection, activeSchoolYear, schoolProfile, ratingsStore, resolveAdviserName]);
 
   const setRating = (ratingId: string, term: 't1' | 't2' | 't3', value: PaceRatingDescriptor) => {
-    if (!selectedLrn) return;
+    if (!selectedLrn || formType === 'sf9') return;
     setIsSaving(true);
-    const storageKey = getStorageKey(formType);
     const resolvedTeacher = resolveAdviserName(selectedSection) || schoolProfile.adviser_name || '';
     setRatingsStore(prev => {
       const studentPace = prev[selectedLrn] || {
@@ -224,20 +214,17 @@ export function PaceFormPage() {
       const compRating = studentPace.ratings[ratingId] || {};
       const updatedCompRating = { ...compRating, [term]: value };
 
-      const updatedPace = {
+      const updatedPace: PaceFormData = {
         ...studentPace,
+        schoolYear: activeSchoolYear,
         ratings: {
           ...studentPace.ratings,
           [ratingId]: updatedCompRating
         }
       };
 
-      const updatedStore = { ...prev, [selectedLrn]: updatedPace };
-      localStorage.setItem(storageKey, JSON.stringify(updatedStore));
-      if (formType === 'reading') {
-        localStorage.setItem('formease_pace_ratings', JSON.stringify(updatedStore));
-      }
-      return updatedStore;
+      savePaceRecord(formType as PaceFormSubject, activeSchoolYear, selectedLrn, updatedPace);
+      return { ...prev, [selectedLrn]: updatedPace };
     });
 
     setTimeout(() => {
@@ -247,14 +234,10 @@ export function PaceFormPage() {
 
   const getPaceRatingsForStudent = useCallback((sLrn?: string, studentId?: string) => {
     try {
-      const readingStore = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || localStorage.getItem('formease_pace_ratings') || '{}');
-      const languageStore = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
-      const mathStore = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
-      const gmrcMakabansaStore = {
-        ...JSON.parse(localStorage.getItem('formease_pace_gmrc_ratings') || '{}'),
-        ...JSON.parse(localStorage.getItem('formease_pace_makabansa_ratings') || '{}'),
-        ...JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}')
-      };
+      const readingStore = getPaceRecordsForSchoolYear('reading', activeSchoolYear);
+      const languageStore = getPaceRecordsForSchoolYear('language', activeSchoolYear);
+      const mathStore = getPaceRecordsForSchoolYear('math', activeSchoolYear);
+      const gmrcMakabansaStore = getPaceRecordsForSchoolYear('gmrc-makabansa', activeSchoolYear);
 
       const extractRatings = (store: Record<string, unknown>) => {
         if (!store || typeof store !== 'object') return {};
@@ -289,7 +272,7 @@ export function PaceFormPage() {
     } catch {
       return undefined;
     }
-  }, []);
+  }, [activeSchoolYear]);
 
   const getG1RemarksForStudent = useCallback((sLrn?: string, studentId?: string) => {
     try {
@@ -372,14 +355,10 @@ export function PaceFormPage() {
       }
     }
 
-    const reading = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || '{}');
-    const language = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
-    const math = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
-    const gmrcMakabansa = {
-      ...JSON.parse(localStorage.getItem('formease_pace_gmrc_ratings') || '{}'),
-      ...JSON.parse(localStorage.getItem('formease_pace_makabansa_ratings') || '{}'),
-      ...JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}')
-    };
+    const reading = getPaceRecordsForSchoolYear('reading', activeSchoolYear);
+    const language = getPaceRecordsForSchoolYear('language', activeSchoolYear);
+    const math = getPaceRecordsForSchoolYear('math', activeSchoolYear);
+    const gmrcMakabansa = getPaceRecordsForSchoolYear('gmrc-makabansa', activeSchoolYear);
 
     return {
       schoolYear: activeSchoolYear,
@@ -400,7 +379,7 @@ export function PaceFormPage() {
       setTempG1Remarks(r);
     }
     if (formType !== 'sf9') {
-      setRatingsStore(loadRatingsStore(formType));
+      setRatingsStore(loadRatingsStore(formType, activeSchoolYear));
     }
     useAppStore.getState().showNotification(
       `Master Excel imported! Updated ${result.updatedPaceCount} PACE ratings and ${result.updatedRemarksCount} SF9 remarks.`,

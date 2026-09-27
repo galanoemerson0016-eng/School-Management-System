@@ -40,12 +40,14 @@ function bytesToBase64(bytes: Uint8Array): string {
 
 export const AutoBackupManager = {
   _hourlyIntervalId: null as ReturnType<typeof setInterval> | null,
+  _initialCheckId: null as ReturnType<typeof setTimeout> | null,
+  _onlineHandler: null as (() => void) | null,
   _backupInFlight: null as Promise<string> | null,
 
   /**
    * Initializes the scheduler by checking if a backup is due and runs it.
    */
-  async init(): Promise<void> {
+  async init(isActive: () => boolean = () => true): Promise<void> {
     if (db.isPreviewMode()) {
       console.log('👁️ Snapshot preview mode active: skipping automated backup initialization.');
       return;
@@ -83,7 +85,7 @@ export const AutoBackupManager = {
       }
 
       // Start the active background hourly sync scheduler
-      this.startHourlyScheduler();
+      if (isActive()) this.startHourlyScheduler();
     } catch (error) {
       console.error('Failed to initialize AutoBackupManager:', error);
     }
@@ -113,15 +115,25 @@ export const AutoBackupManager = {
     };
 
     // Initial check after 10 seconds of app load
-    setTimeout(runHourlyCheck, 10000);
+    this._initialCheckId = setTimeout(runHourlyCheck, 10000);
 
     // Run check every hour
     this._hourlyIntervalId = setInterval(runHourlyCheck, 60 * 60 * 1000);
 
-    window.addEventListener('online', () => {
+    this._onlineHandler = () => {
       console.log('🌐 Internet connection restored: checking if cloud sync is due...');
-      runHourlyCheck();
-    });
+      void runHourlyCheck();
+    };
+    window.addEventListener('online', this._onlineHandler);
+  },
+
+  stop(): void {
+    if (this._hourlyIntervalId) clearInterval(this._hourlyIntervalId);
+    if (this._initialCheckId) clearTimeout(this._initialCheckId);
+    if (this._onlineHandler) window.removeEventListener('online', this._onlineHandler);
+    this._hourlyIntervalId = null;
+    this._initialCheckId = null;
+    this._onlineHandler = null;
   },
 
   /**

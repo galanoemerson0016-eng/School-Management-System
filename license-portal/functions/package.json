@@ -2,6 +2,7 @@
   "name": "functions",
   "description": "Firebase Cloud Functions for FormEase Licensing and Xendit Integration",
   "scripts": {
+    "test": "node --test payment-service.test.js",
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "start": "npm run shell",

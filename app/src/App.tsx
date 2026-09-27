@@ -462,10 +462,12 @@ function App() {
   }, []);
 
   useEffect(() => {
+    let active = true;
     if (isAuthenticated) {
       void initializeAppStore().then(() => {
+        if (!active) return;
         if (!isMobileAttendance) {
-          void AutoBackupService.init();
+          void AutoBackupService.init(() => active);
           IncrementalBackupService.init();
         }
         if (window.electronAPI) {
@@ -476,6 +478,8 @@ function App() {
         window.alert('FormEase Pro could not read the local school records. No repair or deletion was attempted. Keep the app closed and preserve your backups before retrying.');
       });
     } else {
+      AutoBackupService.stop();
+      IncrementalBackupService.stop();
       void revokeAttendancePairing();
       // Reset app-store state on logout to prevent data leaks between sessions
       useAppStore.setState({
@@ -495,6 +499,11 @@ function App() {
         selectedSection: null,
       });
     }
+    return () => {
+      active = false;
+      AutoBackupService.stop();
+      IncrementalBackupService.stop();
+    };
   }, [isAuthenticated, isMobileAttendance]);
 
   // Standalone Mobile Phone Attendance Portal (accessed via scanning QR code on phone)

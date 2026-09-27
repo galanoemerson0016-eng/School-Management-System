@@ -1,4 +1,14 @@
 // CSV Export Utility
+export function csvCell(value: unknown): string {
+    let text = String(value ?? '');
+    // Quoting alone does not stop Excel from evaluating imported formulas.
+    // Preserve numeric cells, including negative numeric measurements.
+    let prefix = text.trimStart();
+    while (prefix.length && prefix.charCodeAt(0) < 32) prefix = prefix.slice(1).trimStart();
+    if (typeof value === 'string' && /^[=+@-]/.test(prefix)) text = `'${text}`;
+    return `"${text.replace(/"/g, '""')}"`;
+}
+
 export function exportToCSV(data: Record<string, unknown>[], filename: string) {
     if (data.length === 0) return;
 
@@ -6,19 +16,15 @@ export function exportToCSV(data: Record<string, unknown>[], filename: string) {
     const csvRows: string[] = [];
 
     // Header row
-    csvRows.push(headers.map(h => `"${h}"`).join(','));
+    csvRows.push(headers.map(csvCell).join(','));
 
     // Data rows
     for (const row of data) {
-        const values = headers.map(h => {
-            const val = row[h];
-            const escaped = String(val ?? '').replace(/"/g, '""');
-            return `"${escaped}"`;
-        });
+        const values = headers.map(h => csvCell(row[h]));
         csvRows.push(values.join(','));
     }
 
-    const csvString = csvRows.join('\n');
+    const csvString = '\uFEFF' + csvRows.join('\r\n');
     const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
 

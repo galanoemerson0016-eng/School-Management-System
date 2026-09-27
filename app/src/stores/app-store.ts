@@ -7,8 +7,9 @@
 
 import { create } from 'zustand';
 import type { SchoolProfile, Student, Section, Subject, Announcement, ClassRecord, Enrollment, SchoolYear, ObservedValues, HPSRecord, SF2Sheet, User, AttendanceRecord } from '../types';
-import { db } from '../services/database';
+import { db, type AtomicRecordChange } from '../services/database';
 import { backup } from '../services/backup';
+import { persistLearnerUpdate, persistLearnerDelete, persistLearnersDelete, withLearnerMutation } from '../services/learner-record-service';
 import { normalizeSubjectName } from '../lib/subjectConfig';
 import { STANDARD_SUBJECTS, getDefaultTermForSubject, isGrade11CoreSubject } from '../lib/curriculum';
 import { getCurriculumPreset } from '../lib/curriculumPresets';
@@ -16,6 +17,27 @@ import { generateDeterministicSubjectId } from '../utils/grade-reconciliation';
 import { createGradingSlice, type GradingSlice } from './slices/grading-slice';
 import { createAttendanceSlice, type AttendanceSlice } from './slices/attendance-slice';
 import { createAnnouncementsSlice, type AnnouncementsSlice } from './slices/announcements-slice';
+
+export type SF1RowStatus = 'imported' | 'updated' | 'skipped' | 'conflicted' | 'failed';
+
+export interface SF1RowOutcome {
+  lrn: string;
+  name: string;
+  status: SF1RowStatus;
+  error?: string;
+  details?: string;
+}
+
+export interface SF1ImportResult {
+  count: number;
+  total: number;
+  imported: number;
+  updated: number;
+  skipped: number;
+  conflicted: number;
+  failed: number;
+  outcomes: SF1RowOutcome[];
+}
 
 export interface ProfileDiffItem {
   fieldName: string;
@@ -82,7 +104,7 @@ interface AppState extends GradingSlice, AttendanceSlice, AnnouncementsSlice {
   addStudent: (student: Student) => Promise<void>;
   updateStudent: (lrn: string, updates: Partial<Student>) => Promise<void>;
   deleteStudent: (lrn: string) => Promise<void>;
-  importStudentsFromSF1: (students: Student[], sectionName: string) => Promise<number>;
+  importStudentsFromSF1: (students: Student[], sectionName: string) => Promise<SF1ImportResult>;
   bulkAddStudents: (students: Student[]) => Promise<void>;
   clearSection: (sectionName: string) => Promise<void>;
 
@@ -320,19 +342,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   setStudents: (students) => set({ students }),
   studentProfiles: [],
   setStudentProfiles: (students) => set({ studentProfiles: students }),
-  addStudent: async (student) => {
+  addStudent: (student) => withLearnerMutation(async () => {
     try {
-      set((state) => ({ students: [...state.students, student] }));
+      if (await db.getRecord('students', student.lrn)) throw new Error('A learner with this LRN already exists.');
       await db.putRecord('students', student);
+      set((state) => ({ students: [...state.students, student] }));
       get().showNotification('Student added successfully', 'success');
     } catch (error) {
       console.error('Error adding student:', error);
       get().showNotification('Failed to add student', 'error');
-      set((state) => ({ students: state.students.filter((s) => s.lrn !== student.lrn) }));
       throw error;
     }
-  },
-  updateStudent: async (lrn, updates) => {
+  }),
+  updateStudent: (lrn, updates) => withLearnerMutation(async () => {
     try {
       const existing = get().students.find((s) => s.lrn === lrn);
       if (!existing) throw new Error('Student not found');
@@ -353,79 +375,17 @@ export const useAppStore = create<AppState>((set, get) => ({
           };
         }
 
-        // 1. Database (IndexedDB) Updates
-        // Delete old student record
-        await db.deleteRecord('students', lrn);
-
-        // Cascade to enrollments
-        const enrollmentsToUpdate = await db.getRecordsByIndex<Enrollment>('enrollments', 'by-student-lrn', lrn);
-        for (const e of enrollmentsToUpdate) {
-          await db.deleteRecord('enrollments', e.id);
-          const newId = e.id.replace(lrn, updated.lrn);
-          const newE = { ...e, id: newId, student_lrn: updated.lrn };
-          await db.putRecord('enrollments', newE);
-        }
-
-        // Cascade to classRecords
-        const classRecordsToUpdate = await db.getRecordsByIndex<ClassRecord>('classRecords', 'by-student-lrn', lrn);
-        for (const r of classRecordsToUpdate) {
-          await db.deleteRecord('classRecords', r.id);
-          const newId = r.id.replace(lrn, updated.lrn);
-          const newR = { ...r, id: newId, student_lrn: updated.lrn };
-          await db.putRecord('classRecords', newR);
-        }
-
-        // Cascade to gradingSheetRecords
-        const gradingSheetRecordsToUpdate = await db.getRecordsByIndex<ClassRecord>('gradingSheetRecords', 'by-student-lrn', lrn);
-        for (const r of gradingSheetRecordsToUpdate) {
-          await db.deleteRecord('gradingSheetRecords', r.id);
-          const newId = r.id.replace(lrn, updated.lrn);
-          const newR = { ...r, id: newId, student_lrn: updated.lrn };
-          await db.putRecord('gradingSheetRecords', newR);
-        }
-
-        // Cascade to attendanceRecords
-        const attendanceRecordsToUpdate = await db.getRecordsByIndex<AttendanceRecord>('attendanceRecords', 'by-student-lrn', lrn);
-        for (const r of attendanceRecordsToUpdate) {
-          await db.deleteRecord('attendanceRecords', r.id);
-          const newId = r.id.replace(lrn, updated.lrn);
-          const newR = { ...r, id: newId, student_lrn: updated.lrn };
-          await db.putRecord('attendanceRecords', newR);
-        }
-
-        // Cascade to observedValues
-        const observedValuesToUpdate = await db.getRecordsByIndex<ObservedValues>('observedValues', 'by-student-lrn', lrn);
-        for (const v of observedValuesToUpdate) {
-          await db.deleteRecord('observedValues', v.id);
-          const newId = v.id.replace(lrn, updated.lrn);
-          const newV = { ...v, id: newId, student_lrn: updated.lrn };
-          await db.putRecord('observedValues', newV);
-        }
-
-        // Cascade to sf2Sheets
-        const allSf2Sheets = await db.getAllRecords<SF2Sheet>('sf2Sheets');
-        for (const sheet of allSf2Sheets) {
-          let changed = false;
-          const attendance = { ...sheet.attendance };
-          const remarks = { ...sheet.remarks };
-          if (attendance[lrn]) {
-            attendance[updated.lrn] = attendance[lrn];
-            delete attendance[lrn];
-            changed = true;
-          }
-          if (remarks[lrn]) {
-            remarks[updated.lrn] = remarks[lrn];
-            delete remarks[lrn];
-            changed = true;
-          }
-          if (changed) {
-            const newSheet = { ...sheet, attendance, remarks };
-            await db.putRecord('sf2Sheets', newSheet);
-          }
-        }
+        await persistLearnerUpdate(lrn, updated);
 
         // 2. Zustand Store State Updates
         set((state) => ({
+          sf2Sheets: state.sf2Sheets.map(sheet => {
+            const attendance = { ...sheet.attendance };
+            const remarks = { ...sheet.remarks };
+            if (Object.prototype.hasOwnProperty.call(attendance, lrn)) { attendance[updated.lrn] = attendance[lrn]; delete attendance[lrn]; }
+            if (Object.prototype.hasOwnProperty.call(remarks, lrn)) { remarks[updated.lrn] = remarks[lrn]; delete remarks[lrn]; }
+            return { ...sheet, attendance, remarks };
+          }),
           students: state.students.map((s) => (s.lrn === lrn ? updated : s)),
           studentProfiles: state.studentProfiles.map((s) => (s.lrn === lrn ? updated : s)),
           enrollments: state.enrollments.map((e) =>
@@ -451,12 +411,12 @@ export const useAppStore = create<AppState>((set, get) => ({
           let changed = false;
           const attendance = { ...activeSheet.attendance };
           const remarks = { ...activeSheet.remarks };
-          if (attendance[lrn]) {
+          if (Object.prototype.hasOwnProperty.call(attendance, lrn)) {
             attendance[updated.lrn] = attendance[lrn];
             delete attendance[lrn];
             changed = true;
           }
-          if (remarks[lrn]) {
+          if (Object.prototype.hasOwnProperty.call(remarks, lrn)) {
             remarks[updated.lrn] = remarks[lrn];
             delete remarks[lrn];
             changed = true;
@@ -466,104 +426,130 @@ export const useAppStore = create<AppState>((set, get) => ({
           }
         }
       } else {
-        // Normal update (no LRN change)
+        // Publish state only after the durable write succeeds.
+        await persistLearnerUpdate(lrn, updated);
         set((state) => ({
           students: state.students.map((s) => (s.lrn === lrn ? updated : s)),
           studentProfiles: state.studentProfiles.map((s) => (s.lrn === lrn ? updated : s)),
         }));
       }
 
-      await db.putRecord('students', updated);
       get().showNotification('Student updated', 'success');
     } catch (error) {
       console.error('Error updating student:', error);
       get().showNotification('Failed to update student', 'error');
       throw error;
     }
-  },
-  deleteStudent: async (lrn) => {
-    const previousStudents = get().students;
-    const previousClassRecords = get().classRecords;
-    const previousGradingSheetRecords = get().gradingSheetRecords;
-    const previousEnrollments = get().enrollments;
-    const previousAttendanceRecords = get().attendanceRecords;
+  }),
+  deleteStudent: (lrn) => withLearnerMutation(async () => {
     try {
-      // 1. Delete student
-      await db.deleteRecord('students', lrn);
-
-      // 2. Cascade delete from classRecords
-      const matchingClassRecs = previousClassRecords.filter(r => r.student_lrn === lrn);
-      for (const rec of matchingClassRecs) {
-        await db.deleteRecord('classRecords', rec.id);
-      }
-
-      // 3. Cascade delete from gradingSheetRecords
-      const matchingGradingRecs = previousGradingSheetRecords.filter(r => r.student_lrn === lrn);
-      for (const rec of matchingGradingRecs) {
-        await db.deleteRecord('gradingSheetRecords', rec.id);
-      }
-
-      // 4. Cascade delete from enrollments
-      const matchingEnrollments = previousEnrollments.filter(r => r.student_lrn === lrn);
-      for (const rec of matchingEnrollments) {
-        await db.deleteRecord('enrollments', rec.id);
-      }
-
-      // 5. Cascade delete from attendanceRecords
-      const matchingAttendance = previousAttendanceRecords.filter(r => r.student_lrn === lrn);
-      for (const rec of matchingAttendance) {
-        await db.deleteRecord('attendanceRecords', rec.id);
-      }
-
-      set((state) => ({
-        students: state.students.filter((s) => s.lrn !== lrn),
-        classRecords: state.classRecords.filter((r) => r.student_lrn !== lrn),
-        gradingSheetRecords: state.gradingSheetRecords.filter((r) => r.student_lrn !== lrn),
-        enrollments: state.enrollments.filter((r) => r.student_lrn !== lrn),
-        attendanceRecords: state.attendanceRecords.filter((r) => r.student_lrn !== lrn),
-      }));
-
+      await persistLearnerDelete(lrn);
+      set((state) => {
+        const activeSF2Sheet = state.activeSF2Sheet;
+        const attendance = { ...activeSF2Sheet?.attendance };
+        const remarks = { ...activeSF2Sheet?.remarks };
+        delete attendance[lrn];
+        delete remarks[lrn];
+        return {
+          students: state.students.filter(s => s.lrn !== lrn),
+          studentProfiles: state.studentProfiles.filter(s => s.lrn !== lrn),
+          classRecords: state.classRecords.filter(r => r.student_lrn !== lrn),
+          gradingSheetRecords: state.gradingSheetRecords.filter(r => r.student_lrn !== lrn),
+          enrollments: state.enrollments.filter(r => r.student_lrn !== lrn),
+          attendanceRecords: state.attendanceRecords.filter(r => r.student_lrn !== lrn),
+          observedValues: state.observedValues.filter(r => r.student_lrn !== lrn),
+          activeSF2Sheet: activeSF2Sheet ? { ...activeSF2Sheet, attendance, remarks } : null,
+          sf2Sheets: state.sf2Sheets.map(sheet => {
+            const attendance = { ...sheet.attendance };
+            const remarks = { ...sheet.remarks };
+            delete attendance[lrn]; delete remarks[lrn];
+            return { ...sheet, attendance, remarks };
+          }),
+        };
+      });
       get().showNotification('Student and associated records deleted', 'success');
     } catch (error) {
       console.error('Error deleting student:', error);
-      set({
-        students: previousStudents,
-        classRecords: previousClassRecords,
-        gradingSheetRecords: previousGradingSheetRecords,
-        enrollments: previousEnrollments,
-        attendanceRecords: previousAttendanceRecords,
-      });
-      get().showNotification('Failed to delete student', 'error');
+      get().showNotification('Failed to delete student. Existing records were preserved.', 'error');
       throw error;
     }
-  },
+  }),
   importStudentsFromSF1: async (students, sectionName) => {
-    void sectionName;
     try {
-      let count = 0;
-      const validStudents = students.filter(s => s && s.lrn);
+      const validStudents = (students || []).filter(s => s && s.lrn && s.lrn.trim());
       
-      const existingStudents = await db.getAllRecords<Student>('students');
-      
+      const outcomeList: SF1RowOutcome[] = [];
+      let importedCount = 0;
+      let updatedCount = 0;
+      let skippedCount = 0;
+      let conflictedCount = 0;
+      let failedCount = 0;
+
+      if (validStudents.length === 0) {
+        return {
+          count: 0,
+          total: 0,
+          imported: 0,
+          updated: 0,
+          skipped: 0,
+          conflicted: 0,
+          failed: 0,
+          outcomes: []
+        };
+      }
+
+      // Track incoming LRNs within this import file to reject duplicate identities in the same batch
+      const seenIncomingLrns = new Set<string>();
+
       for (const student of validStudents) {
-        // 1. Check if LRN already exists
-        const matchByLrn = existingStudents.find(s => s.lrn === student.lrn);
-        
-        // 2. Check if Name + Gender matches (but ONLY if the existing record in database has a temporary LRN)
-        const matchByName = existingStudents.find(s => 
-          s.lrn.startsWith('TEMP-') &&
-          s.last_name?.trim().toUpperCase() === student.last_name?.trim().toUpperCase() &&
-          s.first_name?.trim().toUpperCase() === student.first_name?.trim().toUpperCase() &&
-          (s.middle_name || '').trim().toUpperCase() === (student.middle_name || '').trim().toUpperCase() &&
-          (s.name_extension || '').trim().toUpperCase() === (student.name_extension || '').trim().toUpperCase() &&
-          s.gender === student.gender
-        );
+        const studentName = `${student.first_name || ''} ${student.last_name || ''}`.trim() || student.lrn;
+        const incomingLrn = student.lrn.trim();
+
+        // 1. Detect duplicate LRN within the incoming file
+        if (seenIncomingLrns.has(incomingLrn)) {
+          conflictedCount++;
+          outcomeList.push({
+            lrn: incomingLrn,
+            name: studentName,
+            status: 'conflicted',
+            error: `Duplicate LRN ${incomingLrn} encountered in the import file. Subsequent row was not applied.`,
+          });
+          continue;
+        }
+        seenIncomingLrns.add(incomingLrn);
+
+        // 2. Identify match in database
+        // Match by exact LRN
+        const matchByLrn = await db.getRecord<Student>('students', incomingLrn);
+
+        // Match by Name + Gender for learners currently having temporary LRN
+        let matchByName: Student | null = null;
+        if (!matchByLrn) {
+          const allDbStudents = await db.getAllRecords<Student>('students');
+          const tempMatches = allDbStudents.filter(s =>
+            (s.lrn.startsWith('TEMP-') || s.lrn.startsWith('TEMP_')) &&
+            s.last_name?.trim().toUpperCase() === student.last_name?.trim().toUpperCase() &&
+            s.first_name?.trim().toUpperCase() === student.first_name?.trim().toUpperCase() &&
+            (s.middle_name || '').trim().toUpperCase() === (student.middle_name || '').trim().toUpperCase() &&
+            (s.name_extension || '').trim().toUpperCase() === (student.name_extension || '').trim().toUpperCase() &&
+            s.gender === student.gender
+          );
+
+          // If there are multiple same-name learners with temporary LRNs, treat as separate to prevent guessing
+          if (tempMatches.length === 1) {
+            matchByName = tempMatches[0];
+          }
+        }
 
         const existing = matchByLrn || matchByName;
-        let resolvedStudent = { ...student };
+        let resolvedStudent: Student = {
+          ...student,
+          lrn: incomingLrn,
+          student_section: sectionName || student.student_section
+        };
 
+        // 3. Compare fields and prompt for merge if differences exist
         if (existing) {
-          // Compare fields to see if we have differences
           const diffItems: ProfileDiffItem[] = [];
           const fieldsToCompare = [
             { field: 'first_name', label: 'First Name' },
@@ -592,213 +578,280 @@ export const useAppStore = create<AppState>((set, get) => ({
           }
 
           if (diffItems.length > 0) {
+            // Interactive conflict resolution without holding any lock or transaction
             const mergedFields = await new Promise<Record<string, string> | null>((resolve) => {
               get().addMergeConflict({
                 studentName: `${student.first_name} ${student.last_name}`,
-                lrn: student.lrn,
+                lrn: incomingLrn,
                 diffItems,
                 resolve
               });
             });
 
             if (mergedFields === null) {
-              // User chose to skip importing this student entirely
+              // User skipped this row
+              skippedCount++;
+              outcomeList.push({
+                lrn: incomingLrn,
+                name: studentName,
+                status: 'skipped',
+                details: 'User chose to skip importing this student.'
+              });
               continue;
             }
 
-            // Apply selected merged fields
             resolvedStudent = {
-              ...student,
+              ...resolvedStudent,
               ...mergedFields
             };
           }
-
-          // If LRN has changed (e.g. upgraded from TEMP- or corrected), delete the old record from IndexedDB and cascade LRN update
-          if (existing.lrn !== resolvedStudent.lrn) {
-            const oldLrn = existing.lrn;
-            const newLrn = resolvedStudent.lrn;
-
-            await db.deleteRecord('students', oldLrn);
-
-            // Cascade to enrollments
-            const enrollmentsToUpdate = await db.getRecordsByIndex<Enrollment>('enrollments', 'by-student-lrn', oldLrn);
-            for (const e of enrollmentsToUpdate) {
-              await db.deleteRecord('enrollments', e.id);
-              const newId = e.id.replace(oldLrn, newLrn);
-              const newE = { ...e, id: newId, student_lrn: newLrn };
-              await db.putRecord('enrollments', newE);
-            }
-
-            // Cascade to classRecords
-            const classRecordsToUpdate = await db.getRecordsByIndex<ClassRecord>('classRecords', 'by-student-lrn', oldLrn);
-            for (const r of classRecordsToUpdate) {
-              await db.deleteRecord('classRecords', r.id);
-              const newId = r.id.replace(oldLrn, newLrn);
-              const newR = { ...r, id: newId, student_lrn: newLrn };
-              await db.putRecord('classRecords', newR);
-            }
-
-            // Cascade to gradingSheetRecords
-            const gradingSheetRecordsToUpdate = await db.getRecordsByIndex<ClassRecord>('gradingSheetRecords', 'by-student-lrn', oldLrn);
-            for (const r of gradingSheetRecordsToUpdate) {
-              await db.deleteRecord('gradingSheetRecords', r.id);
-              const newId = r.id.replace(oldLrn, newLrn);
-              const newR = { ...r, id: newId, student_lrn: newLrn };
-              await db.putRecord('gradingSheetRecords', newR);
-            }
-
-            // Cascade to attendanceRecords
-            const attendanceRecordsToUpdate = await db.getRecordsByIndex<AttendanceRecord>('attendanceRecords', 'by-student-lrn', oldLrn);
-            for (const r of attendanceRecordsToUpdate) {
-              await db.deleteRecord('attendanceRecords', r.id);
-              const newId = r.id.replace(oldLrn, newLrn);
-              const newR = { ...r, id: newId, student_lrn: newLrn };
-              await db.putRecord('attendanceRecords', newR);
-            }
-
-            // Cascade to observedValues
-            const observedValuesToUpdate = await db.getRecordsByIndex<ObservedValues>('observedValues', 'by-student-lrn', oldLrn);
-            for (const v of observedValuesToUpdate) {
-              await db.deleteRecord('observedValues', v.id);
-              const newId = v.id.replace(oldLrn, newLrn);
-              const newV = { ...v, id: newId, student_lrn: newLrn };
-              await db.putRecord('observedValues', newV);
-            }
-
-            // Cascade to sf2Sheets
-            const allSf2Sheets = await db.getAllRecords<SF2Sheet>('sf2Sheets');
-            for (const sheet of allSf2Sheets) {
-              let changed = false;
-              const attendance = { ...sheet.attendance };
-              const remarks = { ...sheet.remarks };
-              if (attendance[oldLrn]) {
-                attendance[newLrn] = attendance[oldLrn];
-                delete attendance[oldLrn];
-                changed = true;
-              }
-              if (remarks[oldLrn]) {
-                remarks[newLrn] = remarks[oldLrn];
-                delete remarks[oldLrn];
-                changed = true;
-              }
-              if (changed) {
-                const newSheet = { ...sheet, attendance, remarks };
-                await db.putRecord('sf2Sheets', newSheet);
-              }
-            }
-
-            // Update local state arrays for this student to keep UI fully in sync
-            set((state) => ({
-              enrollments: state.enrollments.map((e) =>
-                e.student_lrn === oldLrn ? { ...e, id: e.id.replace(oldLrn, newLrn), student_lrn: newLrn } : e
-              ),
-              classRecords: state.classRecords.map((r) =>
-                r.student_lrn === oldLrn ? { ...r, id: r.id.replace(oldLrn, newLrn), student_lrn: newLrn } : r
-              ),
-              gradingSheetRecords: state.gradingSheetRecords.map((r) =>
-                r.student_lrn === oldLrn ? { ...r, id: r.id.replace(oldLrn, newLrn), student_lrn: newLrn } : r
-              ),
-              attendanceRecords: state.attendanceRecords.map((r) =>
-                r.student_lrn === oldLrn ? { ...r, id: r.id.replace(oldLrn, newLrn), student_lrn: newLrn } : r
-              ),
-              observedValues: state.observedValues.map((v) =>
-                v.student_lrn === oldLrn ? { ...v, id: v.id.replace(oldLrn, newLrn), student_lrn: newLrn } : v
-              ),
-            }));
-
-            const activeSheet = get().activeSF2Sheet;
-            if (activeSheet) {
-              let changed = false;
-              const attendance = { ...activeSheet.attendance };
-              const remarks = { ...activeSheet.remarks };
-              if (attendance[oldLrn]) {
-                attendance[newLrn] = attendance[oldLrn];
-                delete attendance[oldLrn];
-                changed = true;
-              }
-              if (remarks[oldLrn]) {
-                remarks[newLrn] = remarks[oldLrn];
-                delete remarks[oldLrn];
-                changed = true;
-              }
-              if (changed) {
-                set({ activeSF2Sheet: { ...activeSheet, attendance, remarks } });
-              }
-            }
-          }
-
-          // Merge: Keep custom fields from existing, but update all profile fields from the imported student
-          let merged = {
-            ...existing,
-            ...resolvedStudent,
-            lrn: resolvedStudent.lrn,
-            grade_level: resolvedStudent.grade_level,
-            student_section: resolvedStudent.student_section
-          };
-
-          // If nested awardEvaluations exist, update their IDs/LRNs as well
-          if (existing.lrn !== resolvedStudent.lrn && existing.awardEvaluations) {
-            merged = {
-              ...merged,
-              awardEvaluations: existing.awardEvaluations.map((ae) => ({
-                ...ae,
-                student_lrn: resolvedStudent.lrn,
-                id: ae.id.replace(existing.lrn, resolvedStudent.lrn),
-              })),
-            };
-          }
-
-          await db.putRecord('students', merged);
-        } else {
-          // Brand new student: write as is
-          await db.putRecord('students', resolvedStudent);
         }
-        count++;
+
+        // 4. Perform durable write using withLearnerMutation
+        try {
+          await withLearnerMutation(async () => {
+            if (existing) {
+              // Reload fresh record from DB after interactive conflict resolution
+              const freshExisting = await db.getRecord<Student>('students', existing.lrn);
+              if (!freshExisting) {
+                throw new Error(`Original student record for LRN ${existing.lrn} was removed concurrently.`);
+              }
+
+              if (freshExisting.lrn !== resolvedStudent.lrn) {
+                // Temporary to official LRN upgrade
+                const collision = await db.getRecord<Student>('students', resolvedStudent.lrn);
+                if (collision) {
+                  throw new Error(`A learner with the target LRN ${resolvedStudent.lrn} already exists.`);
+                }
+
+                const merged: Student = {
+                  ...freshExisting,
+                  ...resolvedStudent,
+                  lrn: resolvedStudent.lrn,
+                  grade_level: resolvedStudent.grade_level || freshExisting.grade_level,
+                  student_section: resolvedStudent.student_section || sectionName || freshExisting.student_section
+                };
+
+                if (freshExisting.awardEvaluations) {
+                  merged.awardEvaluations = freshExisting.awardEvaluations.map((ae) => ({
+                    ...ae,
+                    student_lrn: resolvedStudent.lrn,
+                    id: ae.id ? ae.id.replace(freshExisting.lrn, resolvedStudent.lrn) : ae.id,
+                  }));
+                }
+
+                await persistLearnerUpdate(freshExisting.lrn, merged);
+                updatedCount++;
+                outcomeList.push({
+                  lrn: resolvedStudent.lrn,
+                  name: studentName,
+                  status: 'updated',
+                  details: `Upgraded LRN from ${freshExisting.lrn} to ${resolvedStudent.lrn}`
+                });
+              } else {
+                // Same LRN - update profile
+                const merged: Student = {
+                  ...freshExisting,
+                  ...resolvedStudent,
+                  grade_level: resolvedStudent.grade_level || freshExisting.grade_level,
+                  student_section: resolvedStudent.student_section || sectionName || freshExisting.student_section
+                };
+                await persistLearnerUpdate(freshExisting.lrn, merged);
+                updatedCount++;
+                outcomeList.push({
+                  lrn: resolvedStudent.lrn,
+                  name: studentName,
+                  status: 'updated',
+                  details: 'Profile updated with merged fields'
+                });
+              }
+            } else {
+              // Brand new student
+              const collision = await db.getRecord<Student>('students', resolvedStudent.lrn);
+              if (collision) {
+                throw new Error(`A learner with LRN ${resolvedStudent.lrn} already exists.`);
+              }
+              await db.putRecord('students', resolvedStudent);
+              importedCount++;
+              outcomeList.push({
+                lrn: resolvedStudent.lrn,
+                name: studentName,
+                status: 'imported'
+              });
+            }
+          });
+        } catch (rowError) {
+          console.error(`Error processing row for ${studentName} (${incomingLrn}):`, rowError);
+          const errMsg = rowError instanceof Error ? rowError.message : String(rowError);
+          failedCount++;
+          outcomeList.push({
+            lrn: incomingLrn,
+            name: studentName,
+            status: 'failed',
+            error: errMsg
+          });
+        }
       }
-      
-      // Update local state so UI refreshes
+
+      // 5. Refresh all in-memory stores after import completion
       const allStudents = await db.getAllRecords<Student>('students');
-      set({ students: allStudents, studentProfiles: allStudents });
-      
-      get().showNotification(`${count} students imported`, 'success');
-      return count;
+      const allEnrollments = await db.getAllRecords<Enrollment>('enrollments');
+      const allClassRecords = await db.getAllRecords<ClassRecord>('classRecords');
+      const allGradingSheetRecords = await db.getAllRecords<ClassRecord>('gradingSheetRecords');
+      const allAttendanceRecords = await db.getAllRecords<AttendanceRecord>('attendanceRecords');
+      const allObservedValues = await db.getAllRecords<ObservedValues>('observedValues');
+      const allSf2Sheets = await db.getAllRecords<SF2Sheet>('sf2Sheets');
+
+      set({
+        students: allStudents,
+        studentProfiles: allStudents,
+        enrollments: allEnrollments,
+        classRecords: allClassRecords,
+        gradingSheetRecords: allGradingSheetRecords,
+        attendanceRecords: allAttendanceRecords,
+        observedValues: allObservedValues,
+        sf2Sheets: allSf2Sheets,
+      });
+
+      const totalSuccess = importedCount + updatedCount;
+      if (failedCount > 0 || conflictedCount > 0) {
+        get().showNotification(
+          `${totalSuccess} processed (${importedCount} new, ${updatedCount} updated), ${skippedCount} skipped, ${failedCount + conflictedCount} issues`,
+          failedCount > 0 ? 'error' : 'info'
+        );
+      } else {
+        get().showNotification(
+          `${totalSuccess} students imported successfully (${importedCount} new, ${updatedCount} updated)${skippedCount > 0 ? `, ${skippedCount} skipped` : ''}`,
+          'success'
+        );
+      }
+
+      return {
+        count: totalSuccess,
+        total: validStudents.length,
+        imported: importedCount,
+        updated: updatedCount,
+        skipped: skippedCount,
+        conflicted: conflictedCount,
+        failed: failedCount,
+        outcomes: outcomeList
+      };
     } catch (error) {
-      console.error('Error importing students:', error);
+      console.error('Error importing students from SF1:', error);
       throw error;
     }
   },
-  bulkAddStudents: async (newStudents) => {
+  bulkAddStudents: (newStudents) => withLearnerMutation(async () => {
     try {
-      await db.putRecordsBulk('students', newStudents);
+      if (!newStudents || newStudents.length === 0) return;
+
+      // 1. Validate incoming batch and check for internal duplicate LRNs
+      const incomingLrns = new Set<string>();
+      const duplicateInBatch: string[] = [];
+      for (const student of newStudents) {
+        if (!student.lrn || !student.lrn.trim()) {
+          throw new Error('All students must have a valid LRN.');
+        }
+        const trimmedLrn = student.lrn.trim();
+        if (incomingLrns.has(trimmedLrn)) {
+          duplicateInBatch.push(trimmedLrn);
+        }
+        incomingLrns.add(trimmedLrn);
+      }
+      if (duplicateInBatch.length > 0) {
+        throw new Error(`Duplicate LRN(s) in batch: ${duplicateInBatch.join(', ')}`);
+      }
+
+      // 2. Check for collisions against existing database records to prevent silent replacement
+      const collidingLrns: string[] = [];
+      for (const lrn of incomingLrns) {
+        const existing = await db.getRecord<Student>('students', lrn);
+        if (existing) {
+          collidingLrns.push(lrn);
+        }
+      }
+      if (collidingLrns.length > 0) {
+        throw new Error(
+          `Cannot add students. The following LRN(s) already exist: ${collidingLrns.join(', ')}. Use SF1 import or edit existing profiles to update them.`
+        );
+      }
+
+      // 3. Atomically put all new students
+      const changes = [{
+        store: 'students' as const,
+        puts: newStudents.map(s => ({ ...s, lrn: s.lrn.trim() }))
+      }];
+      await db.commitRecordChanges(changes);
+
+      // 4. Refresh store
       const allStudents = await db.getAllRecords<Student>('students');
       set({ students: allStudents, studentProfiles: allStudents });
       get().showNotification(`${newStudents.length} students added successfully`, 'success');
     } catch (error) {
       console.error('Error in bulkAddStudents:', error);
-      get().showNotification('Failed to add students in bulk', 'error');
+      get().showNotification(error instanceof Error ? error.message : 'Failed to add students in bulk', 'error');
       throw error;
     }
-  },
-  clearSection: async (sectionName) => {
+  }),
+  clearSection: (sectionName) => withLearnerMutation(async () => {
     try {
-      const studentsInSection = get().students.filter((s) => s.student_section === sectionName);
+      // 1. Query all durable records from database, not just in-memory state
+      const allDbStudents = await db.getAllRecords<Student>('students');
+      const studentsInSection = allDbStudents.filter((s) => s.student_section === sectionName);
       
-      for (const student of studentsInSection) {
-        await db.deleteRecord('students', student.lrn);
+      if (studentsInSection.length === 0) {
+        get().showNotification(`Section ${sectionName} is already empty`, 'info');
+        return;
       }
 
-      set((state) => ({
-        students: state.students.filter((s) => s.student_section !== sectionName),
-        studentProfiles: state.studentProfiles.filter((s) => s.student_section !== sectionName),
-      }));
-      
-      get().showNotification(`Section ${sectionName} cleared successfully`, 'success');
+      const lrnsToDelete = studentsInSection.map((s) => s.lrn);
+
+      // 2. Cascade delete all students and their relationships atomically
+      await persistLearnersDelete(lrnsToDelete);
+
+      // 3. Refresh in-memory Zustand store completely
+      const remainingStudents = await db.getAllRecords<Student>('students');
+      const remainingEnrollments = await db.getAllRecords<Enrollment>('enrollments');
+      const remainingClassRecords = await db.getAllRecords<ClassRecord>('classRecords');
+      const remainingGradingRecords = await db.getAllRecords<ClassRecord>('gradingSheetRecords');
+      const remainingAttendance = await db.getAllRecords<AttendanceRecord>('attendanceRecords');
+      const remainingObserved = await db.getAllRecords<ObservedValues>('observedValues');
+      const remainingSf2Sheets = await db.getAllRecords<SF2Sheet>('sf2Sheets');
+
+      const activeSheet = get().activeSF2Sheet;
+      let updatedActiveSheet = activeSheet;
+      if (activeSheet) {
+        let changed = false;
+        const attendance = { ...activeSheet.attendance };
+        const remarks = { ...activeSheet.remarks };
+        for (const lrn of lrnsToDelete) {
+          if (attendance[lrn]) { delete attendance[lrn]; changed = true; }
+          if (remarks[lrn]) { delete remarks[lrn]; changed = true; }
+        }
+        if (changed) {
+          updatedActiveSheet = { ...activeSheet, attendance, remarks };
+        }
+      }
+
+      set({
+        students: remainingStudents,
+        studentProfiles: remainingStudents,
+        enrollments: remainingEnrollments,
+        classRecords: remainingClassRecords,
+        gradingSheetRecords: remainingGradingRecords,
+        attendanceRecords: remainingAttendance,
+        observedValues: remainingObserved,
+        sf2Sheets: remainingSf2Sheets,
+        activeSF2Sheet: updatedActiveSheet,
+      });
+
+      get().showNotification(`Cleared ${lrnsToDelete.length} students from ${sectionName}`, 'success');
     } catch (error) {
       console.error('Error clearing section:', error);
       get().showNotification('Failed to clear section', 'error');
       throw error;
     }
-  },
+  }),
 
   // ==================== SECTIONS ====================
   sections: [],
@@ -854,96 +907,106 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       }
     }
-    const oldSection = get().sections.find((s) => s.id === sectionToUpdate.id);
-    const oldName = oldSection?.section_name;
-    const newName = section.section_name;
-    const nameChanged = oldName && oldName !== newName;
 
     try {
-      set((state) => ({
-        sections: state.sections.map((s) => (s.id === sectionToUpdate.id ? sectionToUpdate : s)),
-      }));
-      await db.putRecord('sections', sectionToUpdate);
+      const oldSection = (await db.getRecord<Section>('sections', sectionToUpdate.id)) || get().sections.find((s) => s.id === sectionToUpdate.id);
+      const oldName = oldSection?.section_name;
+      const newName = sectionToUpdate.section_name;
+      const nameChanged = Boolean(oldName && oldName.trim() !== newName.trim());
 
       if (nameChanged) {
-        // Cascade changes to students list
-        const updatedStudents = get().students.map((student) => {
-          if (student.student_section === oldName || student.student_section === section.id) {
-            return { ...student, student_section: newName };
-          }
-          return student;
-        });
+        // Collision guard: reject renaming if another section already uses newName
+        const allSections = await db.getAllRecords<Section>('sections');
+        const collision = allSections.find(s => s.id !== sectionToUpdate.id && s.section_name.trim().toLowerCase() === newName.trim().toLowerCase());
+        if (collision) {
+          throw new Error(`A section named "${newName}" already exists.`);
+        }
+      }
 
-        const studentsToUpdate = get().students
-          .filter((s) => s.student_section === oldName || s.student_section === section.id)
+      const changes: AtomicRecordChange[] = [
+        { store: 'sections', puts: [sectionToUpdate] },
+      ];
+
+      if (nameChanged && oldName) {
+        const allDbStudents = await db.getAllRecords<Student>('students');
+        const studentsToUpdate = allDbStudents
+          .filter((s) => s.student_section === oldName || s.student_section === sectionToUpdate.id)
           .map((s) => ({ ...s, student_section: newName }));
 
-        await db.putRecordsBulk('students', studentsToUpdate);
+        if (studentsToUpdate.length > 0) {
+          changes.push({ store: 'students', puts: studentsToUpdate });
+        }
 
-        // Cascade changes to studentProfiles list
-        const updatedStudentProfiles = get().studentProfiles.map((student) => {
-          if (student.student_section === oldName || student.student_section === section.id) {
-            return { ...student, student_section: newName };
-          }
-          return student;
-        });
-
-        // Cascade changes to enrollments list
-        const updatedEnrollments = get().enrollments.map((e) => {
-          if (e.student_section === oldName || e.student_section === section.id) {
-            return { ...e, student_section: newName };
-          }
-          return e;
-        });
-
-        const enrollmentsToUpdate = get().enrollments
-          .filter((e) => e.student_section === oldName || e.student_section === section.id)
+        const allDbEnrollments = await db.getAllRecords<Enrollment>('enrollments');
+        const enrollmentsToUpdate = allDbEnrollments
+          .filter((e) => e.student_section === oldName || e.student_section === sectionToUpdate.id)
           .map((e) => ({ ...e, student_section: newName }));
 
-        await db.putRecordsBulk('enrollments', enrollmentsToUpdate);
-
-        set({
-          students: updatedStudents,
-          studentProfiles: updatedStudentProfiles,
-          enrollments: updatedEnrollments,
-        });
+        if (enrollmentsToUpdate.length > 0) {
+          changes.push({ store: 'enrollments', puts: enrollmentsToUpdate });
+        }
       }
+
+      await db.commitRecordChanges(changes);
+
+      // Publish in-memory state only after successful commit
+      const freshSections = await db.getAllRecords<Section>('sections');
+      const freshStudents = await db.getAllRecords<Student>('students');
+      const freshEnrollments = await db.getAllRecords<Enrollment>('enrollments');
+      set({
+        sections: freshSections,
+        students: freshStudents,
+        studentProfiles: freshStudents,
+        enrollments: freshEnrollments,
+      });
 
       get().showNotification('Section updated', 'success');
     } catch (error) {
       console.error('Error updating section:', error);
-      get().showNotification('Failed to update section', 'error');
+      get().showNotification(error instanceof Error ? error.message : 'Failed to update section', 'error');
       throw error;
     }
   },
   deleteSection: async (id) => {
-    const previousSections = get().sections;
-    const targetSection = previousSections.find((s) => s.id === id);
-    if (!targetSection) return;
-
-    // If students are assigned to this section, unassign them so deletion can proceed
-    const activeStudents = get().students.filter(
-      (student) => student.student_section === targetSection.id || student.student_section === targetSection.section_name
-    );
-
-    if (activeStudents.length > 0) {
-      const updatedStudents = get().students.map((student) => {
-        if (student.student_section === targetSection.id || student.student_section === targetSection.section_name) {
-          return { ...student, student_section: '' };
-        }
-        return student;
-      });
-      set({ students: updatedStudents, studentProfiles: updatedStudents });
-      void db.putRecordsBulk('students', updatedStudents).catch(e => console.error('Failed to unassign students on section delete:', e));
-    }
-
     try {
-      set((state) => ({ sections: state.sections.filter((s) => s.id !== id) }));
-      await db.deleteRecord('sections', id);
+      const targetSection = (await db.getRecord<Section>('sections', id)) || get().sections.find((s) => s.id === id);
+      if (!targetSection) return;
+
+      const matches = (item: { student_section?: string }) =>
+        item.student_section === targetSection.id || item.student_section === targetSection.section_name;
+
+      const allDbStudents = await db.getAllRecords<Student>('students');
+      const assignedStudents = allDbStudents.filter(matches);
+
+      const allDbEnrollments = await db.getAllRecords<Enrollment>('enrollments');
+      const assignedEnrollments = allDbEnrollments.filter(matches);
+
+      const changes: AtomicRecordChange[] = [
+        { store: 'sections', deletes: [id] },
+      ];
+      if (assignedStudents.length > 0) {
+        changes.push({ store: 'students', puts: assignedStudents.map(student => ({ ...student, student_section: '' })) });
+      }
+      if (assignedEnrollments.length > 0) {
+        changes.push({ store: 'enrollments', puts: assignedEnrollments.map(e => ({ ...e, student_section: '' })) });
+      }
+
+      await db.commitRecordChanges(changes);
+
+      const freshSections = await db.getAllRecords<Section>('sections');
+      const freshStudents = await db.getAllRecords<Student>('students');
+      const freshEnrollments = await db.getAllRecords<Enrollment>('enrollments');
+
+      set({
+        sections: freshSections,
+        students: freshStudents,
+        studentProfiles: freshStudents,
+        enrollments: freshEnrollments,
+      });
+
       get().showNotification('Section deleted', 'success');
     } catch (error) {
       console.error('Error deleting section:', error);
-      set({ sections: previousSections });
       get().showNotification('Failed to delete section', 'error');
       throw error;
     }
@@ -1030,205 +1093,254 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
   updateSubject: async (subject) => {
-    const previousSubjects = get().subjects;
-    const previousSections = get().sections;
-    const oldSubject = previousSubjects.find(s => s.id === subject.id);
-    
-    if (!oldSubject) return;
-
-    const sanitizedSubject: Subject = {
-      ...subject,
-      subject_name: (subject.subject_name || '').trim()
-    };
-    const oldName = oldSubject.subject_name;
-    const newName = sanitizedSubject.subject_name;
-    const nameChanged = oldName.trim() !== newName.trim();
-
     try {
-      // 1. Update subjects
-      // If the name changed, we also rename any OTHER subjects in the same grade 
-      // that have the same old name (to clean up duplicates)
-      const newSubjects = get().subjects.map((s) => {
-        if (s.id === subject.id) return subject;
-        if (nameChanged && s.grade_level === subject.grade_level && (normalizeSubjectName(s.subject_name) === normalizeSubjectName(oldName) || s.subject_name.trim().toLowerCase() === oldName.trim().toLowerCase())) {
-          return { ...s, subject_name: newName };
-        }
-        return s;
-      });
-      
-      // 2. Propagate name change to sections if necessary
-      let newSections = previousSections;
-      if (nameChanged) {
-        newSections = previousSections.map(sec => {
-          const oldNorm = normalizeSubjectName(oldName);
-          const metadata = sec.section_metadata ? { ...sec.section_metadata } : undefined;
-          let hidden = metadata?.hiddenConsolidatedSubjects ? [...metadata.hiddenConsolidatedSubjects] : undefined;
+      const oldSubject = (await db.getRecord<Subject>('subjects', subject.id)) || get().subjects.find(s => s.id === subject.id);
+      if (!oldSubject) return;
 
-          if (hidden && hidden.length > 0) {
-            hidden = hidden.filter(h => {
-              if (h.toLowerCase().trim() === oldName.toLowerCase().trim()) return false;
-              if (normalizeSubjectName(h) === oldNorm) return false;
-              return true;
+      const sanitizedSubject: Subject = {
+        ...subject,
+        subject_name: (subject.subject_name || '').trim()
+      };
+      const oldName = oldSubject.subject_name;
+      const newName = sanitizedSubject.subject_name;
+      const nameChanged = oldName.trim() !== newName.trim();
+
+      if (nameChanged) {
+        const allSubjects = await db.getAllRecords<Subject>('subjects');
+        const collision = allSubjects.find(s =>
+          s.id !== subject.id &&
+          (s.grade_level || 'all').trim() === (sanitizedSubject.grade_level || 'all').trim() &&
+          (s.section_id || 'all').trim() === (sanitizedSubject.section_id || 'all').trim() &&
+          normalizeSubjectName(s.subject_name) === normalizeSubjectName(newName)
+        );
+        if (collision) {
+          throw new Error(`A subject named "${newName}" already exists in this grade level.`);
+        }
+      }
+
+      const allDbSubjects = await db.getAllRecords<Subject>('subjects');
+      const allDbSections = await db.getAllRecords<Section>('sections');
+
+      // 1. Rename any duplicate subjects in the same grade level/scope
+      const renamedOthers: Subject[] = [];
+      if (nameChanged) {
+        for (const s of allDbSubjects) {
+          if (s.id !== subject.id &&
+              s.grade_level === subject.grade_level &&
+              (s.section_id || '') === (subject.section_id || '') &&
+              (normalizeSubjectName(s.subject_name) === normalizeSubjectName(oldName) || s.subject_name.trim().toLowerCase() === oldName.trim().toLowerCase())) {
+            renamedOthers.push({ ...s, subject_name: newName });
+          }
+        }
+      }
+
+      // 2. Propagate name change to sections SCOPED by grade_level and section_id
+      const sectionsToUpdate: Section[] = [];
+      if (nameChanged) {
+        const oldNorm = normalizeSubjectName(oldName);
+        for (const sec of allDbSections) {
+          // SCOPE CHECK: Only update sections in matching grade level / section_id
+          if (subject.grade_level && sec.section_grade_level !== subject.grade_level) {
+            continue;
+          }
+          if (subject.section_id && sec.id !== subject.section_id) {
+            continue;
+          }
+
+          let changed = false;
+          const taught = (sec.taught_subjects || []).map(name => {
+            if (name.trim().toLowerCase() === oldName.trim().toLowerCase() || normalizeSubjectName(name) === oldNorm) {
+              changed = true;
+              return newName;
+            }
+            return name;
+          });
+          const teaching = (sec.teaching_subjects || []).map(name => {
+            if (name.trim().toLowerCase() === oldName.trim().toLowerCase() || normalizeSubjectName(name) === oldNorm) {
+              changed = true;
+              return newName;
+            }
+            return name;
+          });
+
+          if (changed) {
+            sectionsToUpdate.push({
+              ...sec,
+              taught_subjects: taught,
+              teaching_subjects: teaching,
             });
           }
-
-          return {
-            ...sec,
-            taught_subjects: sec.taught_subjects?.map(name => 
-              (name.trim().toLowerCase() === oldName.trim().toLowerCase() || normalizeSubjectName(name) === oldNorm) ? newName : name
-            ) || [],
-            teaching_subjects: sec.teaching_subjects?.map(name =>
-              (name.trim().toLowerCase() === oldName.trim().toLowerCase() || normalizeSubjectName(name) === oldNorm) ? newName : name
-            ) || [],
-            section_metadata: metadata ? {
-              ...metadata,
-              hiddenConsolidatedSubjects: hidden
-            } : undefined
-          };
-        });
-      }
-
-      set({ subjects: newSubjects, sections: newSections });
-      
-      // 3. Persist subject changes
-      await db.putRecord('subjects', subject);
-      if (nameChanged) {
-          // Persist other renamed subjects
-          const renamedOthers = newSubjects.filter(s => s.id !== subject.id && s.subject_name === newName && normalizeSubjectName(previousSubjects.find(ps => ps.id === s.id)?.subject_name || '') === normalizeSubjectName(oldName));
-          for (const s of renamedOthers) {
-              await db.putRecord('subjects', s);
-          }
-      }
-      
-      // 4. Persist section changes
-      if (nameChanged) {
-        for (const sec of newSections) {
-          const prevSec = previousSections.find(ps => ps.id === sec.id);
-          if (JSON.stringify(prevSec?.taught_subjects) !== JSON.stringify(sec.taught_subjects) ||
-              JSON.stringify(prevSec?.teaching_subjects) !== JSON.stringify(sec.teaching_subjects)) {
-            await db.putRecord('sections', sec);
-          }
         }
       }
+
+      const changes: AtomicRecordChange[] = [
+        { store: 'subjects', puts: [sanitizedSubject, ...renamedOthers] },
+      ];
+      if (sectionsToUpdate.length > 0) {
+        changes.push({ store: 'sections', puts: sectionsToUpdate });
+      }
+
+      await db.commitRecordChanges(changes);
+
+      // Publish in-memory state only after successful commit
+      const freshSubjects = await db.getAllRecords<Subject>('subjects');
+      const freshSections = await db.getAllRecords<Section>('sections');
+      set({ subjects: freshSubjects, sections: freshSections });
 
       get().showNotification('Subject updated and teaching loads synchronized', 'success');
     } catch (error) {
       console.error('Error updating subject:', error);
-      set({ subjects: previousSubjects, sections: previousSections });
-      get().showNotification('Failed to update subject', 'error');
+      get().showNotification(error instanceof Error ? error.message : 'Failed to update subject', 'error');
       throw error;
     }
   },
   deleteSubject: async (id) => {
-    const previousSubjects = get().subjects;
-    const previousSections = get().sections;
-    const subjectToDelete = previousSubjects.find(s => s.id === id);
-    
     try {
-      // 1. Remove the subject itself
-      const newSubjects = get().subjects.filter((s) => s.id !== id);
-      
-      // 2. Clean up sections that were teaching this subject by name
-      // This prevents "ghost" checkboxes in the Section Edit modal
-      const newSections = get().sections.map(sec => {
-        if (!subjectToDelete) return sec;
-        return {
-          ...sec,
-          taught_subjects: sec.taught_subjects?.filter(name => 
-            normalizeSubjectName(name) !== normalizeSubjectName(subjectToDelete.subject_name)
-          ) || [],
-          teaching_subjects: sec.teaching_subjects?.filter(name =>
-            normalizeSubjectName(name) !== normalizeSubjectName(subjectToDelete.subject_name)
-          ) || []
-        };
-      });
+      const subjectToDelete = (await db.getRecord<Subject>('subjects', id)) || get().subjects.find(s => s.id === id);
+      if (!subjectToDelete) return;
 
-      set({ subjects: newSubjects, sections: newSections });
-      
+      const allDbSections = await db.getAllRecords<Section>('sections');
+      const allClassRecords = await db.getAllRecords<ClassRecord>('classRecords');
+
       // Preserve subject_name on any affected classRecords/gradingSheetRecords before deletion
-      if (subjectToDelete) {
-        const stateRecords = get().classRecords || [];
-        const affectedCr = stateRecords.filter(r => r.subject_id === id && !r.subject_name);
-        if (affectedCr.length > 0) {
-          const updatedCr = affectedCr.map(r => ({ ...r, subject_name: subjectToDelete.subject_name }));
-          await db.putRecordsBulk('classRecords', updatedCr);
+      const affectedCr = allClassRecords.filter(r => r.subject_id === id && !r.subject_name);
+      const updatedCr = affectedCr.map(r => ({ ...r, subject_name: subjectToDelete.subject_name }));
+
+      // Clean up sections SCOPED to the subject's grade_level and section_id
+      const sectionsToUpdate: Section[] = [];
+      const targetNorm = normalizeSubjectName(subjectToDelete.subject_name);
+
+      for (const sec of allDbSections) {
+        if (subjectToDelete.grade_level && sec.section_grade_level !== subjectToDelete.grade_level) {
+          continue;
+        }
+        if (subjectToDelete.section_id && sec.id !== subjectToDelete.section_id) {
+          continue;
+        }
+
+        const originalTaughtLen = (sec.taught_subjects || []).length;
+        const originalTeachingLen = (sec.teaching_subjects || []).length;
+
+        const filteredTaught = (sec.taught_subjects || []).filter(name =>
+          normalizeSubjectName(name) !== targetNorm
+        );
+        const filteredTeaching = (sec.teaching_subjects || []).filter(name =>
+          normalizeSubjectName(name) !== targetNorm
+        );
+
+        if (filteredTaught.length !== originalTaughtLen || filteredTeaching.length !== originalTeachingLen) {
+          sectionsToUpdate.push({
+            ...sec,
+            taught_subjects: filteredTaught,
+            teaching_subjects: filteredTeaching,
+          });
         }
       }
 
-      await db.deleteRecord('subjects', id);
-      
-      // Persist section changes to database
-      if (subjectToDelete) {
-        for (const sec of newSections) {
-          const prevSec = previousSections.find(ps => ps.id === sec.id);
-          if (JSON.stringify(prevSec?.taught_subjects) !== JSON.stringify(sec.taught_subjects) ||
-              JSON.stringify(prevSec?.teaching_subjects) !== JSON.stringify(sec.teaching_subjects)) {
-            await db.putRecord('sections', sec);
-          }
-        }
+      const changes: AtomicRecordChange[] = [
+        { store: 'subjects', deletes: [id] },
+      ];
+      if (updatedCr.length > 0) {
+        changes.push({ store: 'classRecords', puts: updatedCr });
       }
+      if (sectionsToUpdate.length > 0) {
+        changes.push({ store: 'sections', puts: sectionsToUpdate });
+      }
+
+      await db.commitRecordChanges(changes);
+
+      const freshSubjects = await db.getAllRecords<Subject>('subjects');
+      const freshSections = await db.getAllRecords<Section>('sections');
+      const freshClassRecords = await db.getAllRecords<ClassRecord>('classRecords');
+      set({
+        subjects: freshSubjects,
+        sections: freshSections,
+        classRecords: freshClassRecords,
+      });
 
       get().showNotification('Subject deleted and teaching loads updated', 'success');
     } catch (error) {
       console.error('Error deleting subject:', error);
-      set({ subjects: previousSubjects, sections: previousSections });
       get().showNotification('Failed to delete subject', 'error');
       throw error;
     }
   },
   deleteSubjectsBulk: async (ids: string[]) => {
-    const previousSubjects = get().subjects;
-    const previousSections = get().sections;
-    const subjectsToDelete = previousSubjects.filter(s => ids.includes(s.id));
-    const deletedNames = new Set(subjectsToDelete.map(s => normalizeSubjectName(s.subject_name)));
-    
     try {
-      // 1. Remove the subjects
-      const newSubjects = get().subjects.filter((s) => !ids.includes(s.id));
-      
-      // 2. Clean up sections
-      const newSections = get().sections.map(sec => {
-        if (deletedNames.size === 0) return sec;
-        return {
-          ...sec,
-          taught_subjects: sec.taught_subjects?.filter(name => 
-            !deletedNames.has(normalizeSubjectName(name))
-          ) || [],
-          teaching_subjects: sec.teaching_subjects?.filter(name =>
-            !deletedNames.has(normalizeSubjectName(name))
-          ) || []
-        };
-      });
+      if (!ids || ids.length === 0) return;
 
-      set({ subjects: newSubjects, sections: newSections });
-      
+      const allDbSubjects = await db.getAllRecords<Subject>('subjects');
+      const subjectsToDelete = allDbSubjects.filter(s => ids.includes(s.id));
+      if (subjectsToDelete.length === 0) return;
+
+      const allDbSections = await db.getAllRecords<Section>('sections');
+      const allClassRecords = await db.getAllRecords<ClassRecord>('classRecords');
+
       // Preserve subject_name on affected grade records before deletion
-      for (const subj of subjectsToDelete) {
-        const stateRecords = get().classRecords || [];
-        const affectedCr = stateRecords.filter(r => r.subject_id === subj.id && !r.subject_name);
-        if (affectedCr.length > 0) {
-          const updatedCr = affectedCr.map(r => ({ ...r, subject_name: subj.subject_name }));
-          await db.putRecordsBulk('classRecords', updatedCr);
+      const subjectMap = new Map(subjectsToDelete.map(s => [s.id, s.subject_name]));
+      const affectedCr = allClassRecords.filter(r => ids.includes(r.subject_id) && !r.subject_name);
+      const updatedCr = affectedCr.map(r => ({ ...r, subject_name: subjectMap.get(r.subject_id) || '' }));
+
+      // Clean up sections SCOPED to each subject's grade_level and section_id
+      const sectionsToUpdate: Section[] = [];
+      for (const sec of allDbSections) {
+        let changed = false;
+        let taught = [...(sec.taught_subjects || [])];
+        let teaching = [...(sec.teaching_subjects || [])];
+
+        for (const subj of subjectsToDelete) {
+          if (subj.grade_level && sec.section_grade_level !== subj.grade_level) {
+            continue;
+          }
+          if (subj.section_id && sec.id !== subj.section_id) {
+            continue;
+          }
+          const norm = normalizeSubjectName(subj.subject_name);
+          const newTaught = taught.filter(name => normalizeSubjectName(name) !== norm);
+          if (newTaught.length !== taught.length) {
+            taught = newTaught;
+            changed = true;
+          }
+          const newTeaching = teaching.filter(name => normalizeSubjectName(name) !== norm);
+          if (newTeaching.length !== teaching.length) {
+            teaching = newTeaching;
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          sectionsToUpdate.push({
+            ...sec,
+            taught_subjects: taught,
+            teaching_subjects: teaching,
+          });
         }
       }
 
-      // Persist to DB
-      for (const id of ids) {
-        await db.deleteRecord('subjects', id);
+      const changes: AtomicRecordChange[] = [
+        { store: 'subjects', deletes: ids },
+      ];
+      if (updatedCr.length > 0) {
+        changes.push({ store: 'classRecords', puts: updatedCr });
       }
-      
-      for (const sec of newSections) {
-        const prevSec = previousSections.find(ps => ps.id === sec.id);
-        if (JSON.stringify(prevSec?.taught_subjects) !== JSON.stringify(sec.taught_subjects) ||
-            JSON.stringify(prevSec?.teaching_subjects) !== JSON.stringify(sec.teaching_subjects)) {
-          await db.putRecord('sections', sec);
-        }
+      if (sectionsToUpdate.length > 0) {
+        changes.push({ store: 'sections', puts: sectionsToUpdate });
       }
+
+      await db.commitRecordChanges(changes);
+
+      const freshSubjects = await db.getAllRecords<Subject>('subjects');
+      const freshSections = await db.getAllRecords<Section>('sections');
+      const freshClassRecords = await db.getAllRecords<ClassRecord>('classRecords');
+      set({
+        subjects: freshSubjects,
+        sections: freshSections,
+        classRecords: freshClassRecords,
+      });
 
       get().showNotification(`${ids.length} subjects deleted`, 'success');
     } catch (error) {
       console.error('Error deleting subjects in bulk:', error);
-      set({ subjects: previousSubjects, sections: previousSections });
       get().showNotification('Failed to delete subjects', 'error');
       throw error;
     }

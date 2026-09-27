@@ -6,6 +6,21 @@ const licenseManager = require('./license.cjs');
 const { backupPath, readBackupFile, deleteBackupFile, saveBackupFile, saveBinaryBackupFile, rotateVerifiedBackupPairs, verifyStrongComprehensiveBackup, isInstallBackupReady } = require('./backup-files.cjs');
 
 const isDev = process.env.NODE_ENV === 'development';
+const { createRendererPolicy } = require('./security.cjs');
+const rendererPolicy = createRendererPolicy(path.join(__dirname, '..', 'dist', 'index.html'), isDev);
+let trustedRenderer = null;
+function handleTrustedIpc(channel, handler) {
+  ipcMain.handle(channel, (event, ...args) => {
+    if (!rendererPolicy.isTrustedSender(event, trustedRenderer)) throw new Error('Untrusted IPC sender');
+    return handler(event, ...args);
+  });
+}
+function onTrustedIpc(channel, handler) {
+  ipcMain.on(channel, (event, ...args) => {
+    if (!rendererPolicy.isTrustedSender(event, trustedRenderer)) return;
+    handler(event, ...args);
+  });
+}
 
 // Opt-in isolated profile for packaged-app verification. This must be set
 // before Electron initializes logging, sessions, or any user-data path.
@@ -120,6 +135,30 @@ if (!gotTheLock) {
       autoHideMenuBar: true
     });
 
+    trustedRenderer = mainWindow.webContents;
+    mainWindow.webContents.on('will-navigate', (event, url) => {
+      if (!rendererPolicy.isTrustedUrl(url)) event.preventDefault();
+    });
+    mainWindow.webContents.on('will-redirect', (event, url) => {
+      if (!rendererPolicy.isTrustedUrl(url)) event.preventDefault();
+    });
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+      // Local print/PDF previews need a child window, but never the preload.
+      if (url === 'about:blank' || url.startsWith('blob:')) {
+        return { action: 'allow', overrideBrowserWindowOptions: {
+          webPreferences: { preload: '', nodeIntegration: false, contextIsolation: true, sandbox: true },
+        } };
+      }
+      const external = rendererPolicy.externalUrl(url);
+      if (external) require('electron').shell.openExternal(external).catch(error => log.warn('Unable to open external link:', error.message));
+      return { action: 'deny' };
+    });
+    mainWindow.webContents.on('did-create-window', child => {
+      child.webContents.on('will-navigate', (event, url) => {
+        if (url !== 'about:blank' && !url.startsWith('blob:')) event.preventDefault();
+      });
+      child.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    });
     mainWindow.maximize();
 
     // Hide the menu bar completely
@@ -250,7 +289,7 @@ app.commandLine.appendSwitch('ignore-gpu-blocklist');
 // --- Renderer error logging ---
 // Global error/unhandledrejection handlers in the renderer forward here so
 // failures persist to the log file even though prod builds strip console.
-ipcMain.on('log-renderer-error', (event, payload = {}) => {
+onTrustedIpc('log-renderer-error', (event, payload = {}) => {
   try {
     const { kind, message, stack } = payload;
     log.error(`[renderer:${kind || 'error'}] ${String(message).slice(0, 2000)}`);
@@ -262,11 +301,11 @@ ipcMain.on('log-renderer-error', (event, payload = {}) => {
 
 // --- License IPC (verdict is computed in the main process only) ---
 
-ipcMain.handle('license:status', () => {
+handleTrustedIpc('license:status', () => {
   return licenseManager.getStatus();
 });
 
-ipcMain.handle('license:verify-online', async () => {
+handleTrustedIpc('license:verify-online', async () => {
   try {
     return await licenseManager.verifyOnline();
   } catch (error) {
@@ -274,7 +313,7 @@ ipcMain.handle('license:verify-online', async () => {
   }
 });
 
-ipcMain.handle('license:activate', async (event, { serial, fullName, platform } = {}) => {
+handleTrustedIpc('license:activate', async (event, { serial, fullName, platform } = {}) => {
   try {
     return await licenseManager.activate(serial, fullName, platform);
   } catch (error) {
@@ -282,7 +321,7 @@ ipcMain.handle('license:activate', async (event, { serial, fullName, platform } 
   }
 });
 
-ipcMain.handle('get-machine-id', () => {
+handleTrustedIpc('get-machine-id', () => {
   try {
     return machineIdSync();
   } catch (error) {
@@ -291,7 +330,7 @@ ipcMain.handle('get-machine-id', () => {
   }
 });
 
-ipcMain.handle('get-local-ip', () => {
+handleTrustedIpc('get-local-ip', () => {
   try {
     const os = require('os');
     const interfaces = os.networkInterfaces();
@@ -329,7 +368,7 @@ ipcMain.handle('get-local-ip', () => {
   return 'localhost';
 });
 
-ipcMain.handle('get-all-local-ips', () => {
+handleTrustedIpc('get-all-local-ips', () => {
   try {
     const os = require('os');
     const interfaces = os.networkInterfaces();
@@ -347,7 +386,7 @@ ipcMain.handle('get-all-local-ips', () => {
   }
 });
 
-ipcMain.handle('save-auto-backup', async (event, { data, filename, retentionLimit }) => {
+handleTrustedIpc('save-auto-backup', async (event, { data, filename, retentionLimit }) => {
   try {
     const backupDir = path.join(app.getPath('userData'), 'backups');
     const filePath = saveBackupFile(backupDir, filename, data, retentionLimit);
@@ -377,7 +416,7 @@ function isValidRawDek(value) {
   return typeof value === 'string' && /^[A-Za-z0-9+/]+={0,2}$/.test(value) && Buffer.from(value, 'base64').length === 32;
 }
 
-ipcMain.handle('db:read-salt', async () => {
+handleTrustedIpc('db:read-salt', async () => {
   const { safeStorage } = require('electron');
   if (!safeStorage.isEncryptionAvailable()) return null;
   try {
@@ -391,7 +430,7 @@ ipcMain.handle('db:read-salt', async () => {
   }
 });
 
-ipcMain.handle('db:store-salt', async (event, saltHex) => {
+handleTrustedIpc('db:store-salt', async (event, saltHex) => {
   const { safeStorage } = require('electron');
   if (!safeStorage.isEncryptionAvailable()) return false;
   try {
@@ -405,7 +444,7 @@ ipcMain.handle('db:store-salt', async (event, saltHex) => {
   }
 });
 
-ipcMain.handle('save-auto-backup-workbook', async (_event, { data, filename }) => {
+handleTrustedIpc('save-auto-backup-workbook', async (_event, { data, filename }) => {
   try {
     const backupDir = path.join(app.getPath('userData'), 'backups');
     const filePath = saveBinaryBackupFile(backupDir, filename, data);
@@ -416,7 +455,7 @@ ipcMain.handle('save-auto-backup-workbook', async (_event, { data, filename }) =
   }
 });
 
-ipcMain.handle('rotate-auto-backup-pairs', async (_event, retentionLimit) => {
+handleTrustedIpc('rotate-auto-backup-pairs', async (_event, retentionLimit) => {
   try {
     const backupDir = path.join(app.getPath('userData'), 'backups');
     return { success: true, removedPairs: rotateVerifiedBackupPairs(backupDir, retentionLimit) };
@@ -428,12 +467,12 @@ ipcMain.handle('rotate-auto-backup-pairs', async (_event, retentionLimit) => {
 
 // The renderer can only protect/recover a 32-byte DEK.  It cannot invoke
 // arbitrary safeStorage encryption/decryption or choose filesystem paths.
-ipcMain.handle('db:recovery-protector-available', () => {
+handleTrustedIpc('db:recovery-protector-available', () => {
   const { safeStorage } = require('electron');
   return safeStorage.isEncryptionAvailable();
 });
 
-ipcMain.handle('db:protect-recovery-dek', async (_event, rawDek) => {
+handleTrustedIpc('db:protect-recovery-dek', async (_event, rawDek) => {
   const { safeStorage } = require('electron');
   if (!safeStorage.isEncryptionAvailable() || !isValidRawDek(rawDek)) return false;
   try {
@@ -445,7 +484,7 @@ ipcMain.handle('db:protect-recovery-dek', async (_event, rawDek) => {
   }
 });
 
-ipcMain.handle('db:recover-protected-dek', async () => {
+handleTrustedIpc('db:recover-protected-dek', async () => {
   const { safeStorage } = require('electron');
   if (!safeStorage.isEncryptionAvailable()) return null;
   try {
@@ -518,11 +557,11 @@ if (autoUpdater) {
     sendStatusToWindow({ type: 'update-downloaded', info });
   });
 
-  ipcMain.on('check-for-updates', () => {
+  onTrustedIpc('check-for-updates', () => {
     void checkForUpdatesSafely();
   });
 
-  ipcMain.handle('download-update', async () => {
+  handleTrustedIpc('download-update', async () => {
     if (autoUpdater) {
       try {
         await autoUpdater.downloadUpdate();
@@ -542,7 +581,7 @@ if (autoUpdater) {
     return { success: false, error: 'Auto-updater not available' };
   });
 
-  ipcMain.handle('quit-and-install', async (_event, safetyBackupFilename) => {
+  handleTrustedIpc('quit-and-install', async (_event, safetyBackupFilename) => {
     if (!downloadedUpdateReady) {
       return { success: false, error: 'No downloaded update is ready to install.' };
     }
@@ -601,7 +640,7 @@ if (autoUpdater) {
   });
 }
 
-ipcMain.on('close-app', (event, force = false) => {
+onTrustedIpc('close-app', (event, force = false) => {
   if (force) {
     isQuitting = true;
     app.quit();
@@ -615,12 +654,12 @@ ipcMain.on('close-app', (event, force = false) => {
   }
 });
 
-ipcMain.on('minimize-app', () => {
+onTrustedIpc('minimize-app', () => {
   const focusedWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
   if (focusedWindow) focusedWindow.minimize();
 });
 
-ipcMain.on('maximize-app', () => {
+onTrustedIpc('maximize-app', () => {
   const focusedWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
   if (focusedWindow) {
     if (focusedWindow.isMaximized()) {
@@ -631,7 +670,7 @@ ipcMain.on('maximize-app', () => {
   }
 });
 
-ipcMain.handle('print-to-pdf', async (event, { defaultFilename, autoSave = false, landscape, pageSize } = {}) => {
+handleTrustedIpc('print-to-pdf', async (event, { defaultFilename, autoSave = false, landscape, pageSize } = {}) => {
   const status = licenseManager.getStatus();
   if (!status.activated) {
     return { success: false, error: 'Product Activation Required. Please activate FormEase Pro to use this feature.' };
@@ -696,7 +735,7 @@ ipcMain.handle('print-to-pdf', async (event, { defaultFilename, autoSave = false
 // --- Pre-Update Validation & Reconciliation IPC ---
 const PRE_UPDATE_STATE_FILE = 'formease-pre-update-state.json';
 
-ipcMain.handle('db:verify-disk-space', async () => {
+handleTrustedIpc('db:verify-disk-space', async () => {
   try {
     if (fs.statfsSync) {
       const stats = fs.statfsSync(app.getPath('userData'));
@@ -710,7 +749,7 @@ ipcMain.handle('db:verify-disk-space', async () => {
   }
 });
 
-ipcMain.handle('db:write-pre-update-state', async (event, stateData) => {
+handleTrustedIpc('db:write-pre-update-state', async (event, stateData) => {
   try {
     const filePath = path.join(app.getPath('userData'), PRE_UPDATE_STATE_FILE);
     fs.writeFileSync(filePath, JSON.stringify(stateData, null, 2));
@@ -721,7 +760,7 @@ ipcMain.handle('db:write-pre-update-state', async (event, stateData) => {
   }
 });
 
-ipcMain.handle('db:read-pre-update-state', async () => {
+handleTrustedIpc('db:read-pre-update-state', async () => {
   try {
     const filePath = path.join(app.getPath('userData'), PRE_UPDATE_STATE_FILE);
     if (!fs.existsSync(filePath)) return null;
@@ -733,7 +772,7 @@ ipcMain.handle('db:read-pre-update-state', async () => {
   }
 });
 
-ipcMain.handle('db:clear-pre-update-state', async () => {
+handleTrustedIpc('db:clear-pre-update-state', async () => {
   try {
     const filePath = path.join(app.getPath('userData'), PRE_UPDATE_STATE_FILE);
     if (fs.existsSync(filePath)) {
@@ -747,7 +786,7 @@ ipcMain.handle('db:clear-pre-update-state', async () => {
 });
 
 // --- Recovery Center Filesystem Backups IPC ---
-ipcMain.handle('list-fs-backups', async () => {
+handleTrustedIpc('list-fs-backups', async () => {
   try {
     const userDataPath = app.getPath('userData');
     const backupDir = path.join(userDataPath, 'backups');
@@ -802,7 +841,7 @@ ipcMain.handle('list-fs-backups', async () => {
   }
 });
 
-ipcMain.handle('read-fs-backup-content', async (event, filename) => {
+handleTrustedIpc('read-fs-backup-content', async (event, filename) => {
   try {
     const backupDir = path.join(app.getPath('userData'), 'backups');
     return readBackupFile(backupDir, filename);
@@ -812,7 +851,7 @@ ipcMain.handle('read-fs-backup-content', async (event, filename) => {
   }
 });
 
-ipcMain.handle('delete-fs-backup', async (event, filename) => {
+handleTrustedIpc('delete-fs-backup', async (event, filename) => {
   try {
     const backupDir = path.join(app.getPath('userData'), 'backups');
     deleteBackupFile(backupDir, filename);
@@ -829,6 +868,7 @@ const http = require('http');
 const crypto = require('crypto');
 const { shell } = require('electron');
 
+const { readTokenFile, writeTokenFile } = require('./token-store.cjs');
 const getGdriveAuthPath = () => path.join(app.getPath('userData'), 'gdrive_auth.json');
 
 const storeGdriveTokens = ({ refreshToken, accessToken, expiresIn, clientId, clientSecret, email }) => {
@@ -840,14 +880,14 @@ const storeGdriveTokens = ({ refreshToken, accessToken, expiresIn, clientId, cli
   const expiresAt = expiresIn ? Date.now() + (expiresIn - 60) * 1000 : (currentAuth.expires_at || null);
   const finalEmail = email || currentAuth.email || null;
 
-  fs.writeFileSync(authPath, JSON.stringify({
+  writeTokenFile(authPath, {
     refresh_token: finalRefreshToken,
     access_token: finalAccessToken,
     expires_at: expiresAt,
     client_id: clientId || currentAuth.client_id,
     client_secret: clientSecret || currentAuth.client_secret,
     email: finalEmail
-  }, null, 2), 'utf-8');
+  }, require('electron').safeStorage);
 };
 
 const storeGdriveRefreshToken = (refreshToken, clientId, clientSecret, email) => {
@@ -858,10 +898,10 @@ const getGdriveAuth = () => {
   const authPath = getGdriveAuthPath();
   if (!fs.existsSync(authPath)) return null;
   try {
-    const content = fs.readFileSync(authPath, 'utf-8');
-    return JSON.parse(content);
+    return readTokenFile(authPath, require('electron').safeStorage);
   } catch (e) {
-    return null;
+    log.error('Stored Google Drive credentials could not be opened. Reconnect Google Drive.');
+    throw new Error('Stored Google Drive credentials could not be opened. Reconnect Google Drive.');
   }
 };
 
@@ -1046,7 +1086,7 @@ const uploadFileToFolder = async (token, parentFolderId, filename, content) => {
   return data.id;
 };
 
-ipcMain.handle('gdrive:auth-start', async (event, { clientId, clientSecret } = {}) => {
+handleTrustedIpc('gdrive:auth-start', async (event, { clientId, clientSecret } = {}) => {
   if (!clientId) {
     throw new Error('Google OAuth Client ID is required.');
   }
@@ -1142,7 +1182,7 @@ ipcMain.handle('gdrive:auth-start', async (event, { clientId, clientSecret } = {
   });
 });
 
-ipcMain.handle('gdrive:status', async () => {
+handleTrustedIpc('gdrive:status', async () => {
   const auth = getGdriveAuth();
   if (!auth || !auth.refresh_token) {
     return { connected: false, email: null };
@@ -1159,7 +1199,7 @@ ipcMain.handle('gdrive:status', async () => {
   }
 });
 
-ipcMain.handle('gdrive:disconnect', async () => {
+handleTrustedIpc('gdrive:disconnect', async () => {
   const authPath = getGdriveAuthPath();
   if (fs.existsSync(authPath)) {
     fs.unlinkSync(authPath);
@@ -1178,7 +1218,7 @@ const deleteGoogleDriveFile = async (token, fileId) => {
   }
 };
 
-ipcMain.handle('gdrive:upload-backup', async (event, { backupJsonStr, filename }) => {
+handleTrustedIpc('gdrive:upload-backup', async (event, { backupJsonStr, filename }) => {
   try {
     const accessToken = await getGoogleAccessToken();
     if (!accessToken) throw new Error('Google Drive authorization has expired or is invalid. Please click Disconnect and then Link Drive to re-authorize.');
@@ -1217,7 +1257,7 @@ ipcMain.handle('gdrive:upload-backup', async (event, { backupJsonStr, filename }
   }
 });
 
-ipcMain.handle('gdrive:list-backups', async () => {
+handleTrustedIpc('gdrive:list-backups', async () => {
   try {
     const accessToken = await getGoogleAccessToken();
     if (!accessToken) throw new Error('Not connected to Google Drive.');
@@ -1241,7 +1281,7 @@ ipcMain.handle('gdrive:list-backups', async () => {
   }
 });
 
-ipcMain.handle('gdrive:download-backup', async (event, fileId) => {
+handleTrustedIpc('gdrive:download-backup', async (event, fileId) => {
   try {
     const accessToken = await getGoogleAccessToken();
     if (!accessToken) throw new Error('Not connected to Google Drive.');
@@ -1359,7 +1399,7 @@ async function saveHtmlAsPdf(payload) {
   }
 }
 
-ipcMain.handle('app:export-html-pdf', async (event, payload) => {
+handleTrustedIpc('app:export-html-pdf', async (event, payload) => {
   try {
     return await saveHtmlAsPdf(payload);
   } catch (err) {
@@ -1368,7 +1408,7 @@ ipcMain.handle('app:export-html-pdf', async (event, payload) => {
   }
 });
 
-ipcMain.handle('push-attendance-session', async (event, sessionData) => {
+handleTrustedIpc('push-attendance-session', async (event, sessionData) => {
   try {
     const srv = global.expressServer || expressServer;
     if (srv && srv.updateActiveSession) {
@@ -1382,7 +1422,7 @@ ipcMain.handle('push-attendance-session', async (event, sessionData) => {
   }
 });
 
-ipcMain.handle('start-attendance-pairing', async () => {
+handleTrustedIpc('start-attendance-pairing', async () => {
   try {
     const srv = global.expressServer || expressServer;
     if (srv && srv.startAttendancePairing) return srv.startAttendancePairing();
@@ -1392,7 +1432,7 @@ ipcMain.handle('start-attendance-pairing', async () => {
   }
 });
 
-ipcMain.handle('revoke-attendance-pairing', async (_event, token) => {
+handleTrustedIpc('revoke-attendance-pairing', async (_event, token) => {
   try {
     const srv = global.expressServer || expressServer;
     return { success: Boolean(srv && srv.revokeAttendancePairing && srv.revokeAttendancePairing(token)) };
@@ -1406,7 +1446,7 @@ ipcMain.handle('revoke-attendance-pairing', async (_event, token) => {
 // bypassing HTTP entirely. Critical for the production EXE where the renderer loads
 // from file:// protocol and relative fetch URLs don't reach the Express server.
 
-ipcMain.handle('push-attendance-update', async (_event, syncEvent) => {
+handleTrustedIpc('push-attendance-update', async (_event, syncEvent) => {
   try {
     const srv = global.expressServer || expressServer;
     if (srv && srv.pushSyncEvent) {
@@ -1419,7 +1459,7 @@ ipcMain.handle('push-attendance-update', async (_event, syncEvent) => {
   }
 });
 
-ipcMain.handle('get-attendance-updates', async (_event, sinceTimestamp) => {
+handleTrustedIpc('get-attendance-updates', async (_event, sinceTimestamp) => {
   try {
     const srv = global.expressServer || expressServer;
     if (srv && srv.getSyncEventsSince) {
@@ -1433,7 +1473,7 @@ ipcMain.handle('get-attendance-updates', async (_event, sinceTimestamp) => {
 });
 
 
-ipcMain.handle('send-sms-http-request', async (event, { url, method, headers, body }) => {
+handleTrustedIpc('send-sms-http-request', async (event, { url, method, headers, body }) => {
   return new Promise((resolve) => {
     try {
       const urlObj = new URL(url);

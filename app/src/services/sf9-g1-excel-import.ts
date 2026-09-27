@@ -12,6 +12,7 @@ import type { SF9Grade1Remarks } from './sf9-g1-excel-export';
 import { G1_PACE_LOOKUP_MAP } from './g1-pace-lookup-map';
 import { PACE_MASTER_CELL_COLORS } from './pace-template-config';
 import { PACE_LANGUAGE_MASTER_CELL_COLORS } from './pace-language-template-config';
+import { savePaceRecord, getPaceRecord, type PaceFormSubject } from './pace-record-service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -681,11 +682,12 @@ export async function applyGrade1MasterImport(
   const paceDiffs = applicableDiffs.filter(d => d.category === 'pace');
 
   const updateSubjectStore = (
-    key: string,
+    subject: PaceFormSubject,
+    legacyKey: string,
     diffsForSubject: ImportDiffItem[]
   ) => {
     if (diffsForSubject.length === 0) return;
-    const raw = localStorage.getItem(key);
+    const raw = localStorage.getItem(legacyKey);
     const store: Record<string, { ratings?: Record<string, Record<string, string>> }> = raw ? JSON.parse(raw) : {};
 
     for (const d of diffsForSubject) {
@@ -698,25 +700,47 @@ export async function applyGrade1MasterImport(
         store[d.studentLrn].ratings = {};
       }
       const compId = d.field.split(' ')[0];
-      const term = d.term || 't1';
+      const term = (d.term || 't1') as 't1' | 't2' | 't3';
       if (!store[d.studentLrn].ratings![compId]) {
         store[d.studentLrn].ratings![compId] = {};
       }
       store[d.studentLrn].ratings![compId][term] = d.newValue;
+
+      // Also persist to versioned school-year scoped PACE service
+      const existing = getPaceRecord(subject, sy, d.studentLrn) || {
+        lrn: d.studentLrn,
+        studentName: '',
+        gradeLevel: 'Grade 1',
+        section: '',
+        schoolYear: sy,
+        teacherName: '',
+        ratings: {},
+      };
+
+      const compRating = existing.ratings[compId] || {};
+      const updatedCompRating = { ...compRating, [term]: d.newValue as PaceRatingDescriptor };
+      savePaceRecord(subject, sy, d.studentLrn, {
+        ...existing,
+        schoolYear: sy,
+        ratings: {
+          ...existing.ratings,
+          [compId]: updatedCompRating,
+        },
+      });
     }
 
-    localStorage.setItem(key, JSON.stringify(store));
+    localStorage.setItem(legacyKey, JSON.stringify(store));
   };
 
-  updateSubjectStore('formease_pace_reading_ratings', paceDiffs.filter(d => d.subject === 'reading'));
-  updateSubjectStore('formease_pace_language_ratings', paceDiffs.filter(d => d.subject === 'language'));
-  updateSubjectStore('formease_pace_math_ratings', paceDiffs.filter(d => d.subject === 'math'));
+  updateSubjectStore('reading', 'formease_pace_reading_ratings', paceDiffs.filter(d => d.subject === 'reading'));
+  updateSubjectStore('language', 'formease_pace_language_ratings', paceDiffs.filter(d => d.subject === 'language'));
+  updateSubjectStore('math', 'formease_pace_math_ratings', paceDiffs.filter(d => d.subject === 'math'));
   
   // GMRC and Makabansa are saved to both their individual keys and combined key
   const gmrcMakabansaDiffs = paceDiffs.filter(d => d.subject === 'gmrc' || d.subject === 'makabansa');
-  updateSubjectStore('formease_pace_gmrc_makabansa_ratings', gmrcMakabansaDiffs);
-  updateSubjectStore('formease_pace_gmrc_ratings', paceDiffs.filter(d => d.subject === 'gmrc'));
-  updateSubjectStore('formease_pace_makabansa_ratings', paceDiffs.filter(d => d.subject === 'makabansa'));
+  updateSubjectStore('gmrc-makabansa', 'formease_pace_gmrc_makabansa_ratings', gmrcMakabansaDiffs);
+  updateSubjectStore('gmrc-makabansa', 'formease_pace_gmrc_ratings', paceDiffs.filter(d => d.subject === 'gmrc'));
+  updateSubjectStore('gmrc-makabansa', 'formease_pace_makabansa_ratings', paceDiffs.filter(d => d.subject === 'makabansa'));
 
   return {
     updatedRemarksCount: remarksDiffs.length,

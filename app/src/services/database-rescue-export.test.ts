@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { IDBFactory } from 'fake-indexeddb';
 import * as XLSX from 'xlsx';
 import { db } from './database';
 import {
@@ -17,8 +18,19 @@ vi.mock('xlsx', async () => {
 });
 
 describe('Database Rescue & Direct Export Service', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
+        vi.restoreAllMocks();
         vi.clearAllMocks();
+        await db.resetConnection();
+        db.setDatabaseEncryptionKey(null);
+        globalThis.indexedDB = new IDBFactory();
+    });
+    afterEach(async () => { vi.restoreAllMocks(); await db.resetConnection(); });
+
+    it('rejects an incomplete rescue export when any source table cannot be read', async () => {
+        vi.spyOn(db, 'getAllRecords').mockRejectedValue(new Error('synthetic database failure'));
+        await expect(exportDirectDatabaseToExcel()).rejects.toThrow('synthetic database failure');
+        expect(XLSX.writeFile).not.toHaveBeenCalled();
     });
 
     describe('generateSafeExcelSheetName', () => {

@@ -9,14 +9,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // True only for the License Admin Portal (email/password sign-in).
-    // This project's Firestore is shared with every customer's desktop app,
-    // and that app calls signInAnonymously() on every login — so
-    // `request.auth != null` alone does NOT mean "is the admin". Anonymous
-    // sessions must never pass this check.
+    // Provision this claim with the Admin SDK before deploying these rules.
+    // A password/Google sign-in by itself never grants administrative access.
     function isAdmin() {
-      return request.auth != null
-        && request.auth.token.firebase.sign_in_provider != 'anonymous';
+      return request.auth != null && request.auth.token.get('admin', false) == true;
     }
 
     // Commercial License Rules (G7 Special)
@@ -75,8 +71,20 @@ service cloud.firestore {
 
     // Purchase Requests
     match /artifacts/g7-special/admin/data/purchase_requests/{requestId} {
-      // Anyone can submit a purchase request.
-      allow create: if true;
+      // Public submissions may request review, but cannot self-approve or
+      // assign licenses. Trusted payment functions bypass client rules.
+      allow create: if request.resource.data.keys().hasOnly([
+          'name', 'email', 'payment_method', 'duration', 'proof_id', 'platform',
+          'proof_image', 'status', 'created_at', 'license_key'
+        ])
+        && request.resource.data.status == 'pending'
+        && request.resource.data.license_key == null
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 200
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.platform in ['windows', 'mac'];
 
       // Every record holds customer PII (name, email, payment proof image)
       // and, once approved, a live unredeemed license_key. Reading,

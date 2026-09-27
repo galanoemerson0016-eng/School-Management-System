@@ -208,7 +208,6 @@ export function isRestorableBackupSettingKey(key: string): boolean {
         key === 'disable-animations' ||
         key === 'formease-theme' ||
         key === 'sms_broadcast_history' ||
-        key === 'formease_sms_gateway_config' ||
         key === 'formease_sms_delivery_logs' ||
         key === 'formease_backup_history' ||
         key === 'formease_snapshot_retention_limit';
@@ -639,8 +638,126 @@ export function generateBackupReport(backup: ComprehensiveBackup): string {
     ].join('\n');
 }
 
-export async function validateBackup(backup: ComprehensiveBackup): Promise<{ isValid: boolean; issues: string[] }> {
+export const CURRENT_BACKUP_SCHEMA_VERSION = '2.0.0-local';
+export const MAXIMUM_SUPPORTED_BACKUP_MAJOR_VERSION = 3;
+
+export interface BackupValidationResult {
+    isValid: boolean;
+    issues: string[];
+    version?: string;
+    isFutureVersion?: boolean;
+}
+
+export function validateBackupPayloadStructure(rawBackupData: unknown): BackupValidationResult {
     const issues: string[] = [];
+    if (!rawBackupData || typeof rawBackupData !== 'object') {
+        return { isValid: false, issues: ['Backup payload is empty or not a valid JSON object.'] };
+    }
+
+    const raw = rawBackupData as Record<string, unknown>;
+    const metadata = (raw.metadata || {}) as Record<string, unknown>;
+    const versionStr = typeof metadata.version === 'string' ? metadata.version.trim() : '';
+
+    let isFutureVersion = false;
+    if (versionStr) {
+        const match = versionStr.match(/^v?(\d+)/i);
+        if (match) {
+            const major = parseInt(match[1], 10);
+            if (major > MAXIMUM_SUPPORTED_BACKUP_MAJOR_VERSION) {
+                isFutureVersion = true;
+                issues.push(
+                    `Backup version "${versionStr}" is newer than this version of FormEase Pro (v3.5.20). Please update FormEase Pro to restore this backup.`
+                );
+            }
+        }
+    }
+
+    // Extract payload
+    const payload = (raw.payload && typeof raw.payload === 'object' && !Array.isArray(raw.payload))
+        ? raw.payload as Record<string, unknown>
+        : raw;
+
+    // Validate duplicate LRNs in students
+    const rawStudents = (payload.students || payload.studentProfiles || payload.learners) as unknown[] | undefined;
+    if (Array.isArray(rawStudents)) {
+        const seenLrns = new Set<string>();
+        for (let i = 0; i < rawStudents.length; i++) {
+            const s = rawStudents[i];
+            if (s && typeof s === 'object') {
+                const rawLrn = (s as Record<string, unknown>).lrn ?? (s as Record<string, unknown>).student_lrn ?? (s as Record<string, unknown>).LRN;
+                if (typeof rawLrn === 'string' || typeof rawLrn === 'number') {
+                    const lrn = String(rawLrn).trim();
+                    if (lrn && !lrn.startsWith('TEMP-RESTORE-')) {
+                        if (seenLrns.has(lrn)) {
+                            issues.push(`Backup students has a missing or repeated lrn (duplicate student LRN "${lrn}"). Restore was cancelled to prevent data corruption.`);
+                        } else {
+                            seenLrns.add(lrn);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Validate duplicate Section IDs
+    const rawSections = (payload.sections || payload.classes) as unknown[] | undefined;
+    if (Array.isArray(rawSections)) {
+        const seenSecIds = new Set<string>();
+        for (let i = 0; i < rawSections.length; i++) {
+            const sec = rawSections[i];
+            if (sec && typeof sec === 'object') {
+                const id = String((sec as Record<string, unknown>).id || (sec as Record<string, unknown>).section_id || '').trim();
+                if (id) {
+                    if (seenSecIds.has(id)) {
+                        issues.push(`Backup contains duplicate section ID "${id}".`);
+                    } else {
+                        seenSecIds.add(id);
+                    }
+                }
+            }
+        }
+    }
+
+    // Validate duplicate Subject IDs
+    const rawSubjects = (payload.subjects || payload.learningAreas) as unknown[] | undefined;
+    if (Array.isArray(rawSubjects)) {
+        const seenSubIds = new Set<string>();
+        for (let i = 0; i < rawSubjects.length; i++) {
+            const sub = rawSubjects[i];
+            if (sub && typeof sub === 'object') {
+                const id = String((sub as Record<string, unknown>).id || (sub as Record<string, unknown>).subject_id || '').trim();
+                if (id) {
+                    if (seenSubIds.has(id)) {
+                        issues.push(`Backup contains duplicate subject ID "${id}".`);
+                    } else {
+                        seenSubIds.add(id);
+                    }
+                }
+            }
+        }
+    }
+
+    // Check SF10 storage if present
+    const localData = (payload.localStorageData || raw.localStorageData) as Record<string, unknown> | undefined;
+    if (localData && typeof localData['sf10-storage'] === 'string') {
+        try {
+            JSON.parse(localData['sf10-storage']);
+        } catch {
+            issues.push('SF10 storage data is corrupted or invalid JSON.');
+        }
+    }
+
+    return {
+        isValid: issues.length === 0,
+        issues,
+        version: versionStr,
+        isFutureVersion,
+    };
+}
+
+export async function validateBackup(backup: ComprehensiveBackup): Promise<{ isValid: boolean; issues: string[] }> {
+    const structureResult = validateBackupPayloadStructure(backup);
+    const issues: string[] = [...structureResult.issues];
 
     if (!backup?.metadata?.exportDate) {
         issues.push('Missing backup metadata timestamp');
@@ -650,15 +767,6 @@ export async function validateBackup(backup: ComprehensiveBackup): Promise<{ isV
     }
     if (!Array.isArray(backup?.payload?.sections)) {
         issues.push('Sections payload is invalid');
-    }
-
-    // Verify SF10 storage integrity if present in payload
-    if (backup?.payload?.localStorageData?.['sf10-storage']) {
-        try {
-            JSON.parse(backup.payload.localStorageData['sf10-storage']);
-        } catch {
-            issues.push('SF10 storage data is corrupted or invalid JSON');
-        }
     }
 
     if (backup?.metadata?.payloadHash) {

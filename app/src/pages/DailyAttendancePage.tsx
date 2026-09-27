@@ -1,3 +1,4 @@
+import { escapeHtml } from '../utils/html-escape';
 /**
  * Daily Attendance Sheet — quick per-day roll call for the whole school or one
  * section, with QR/barcode check-in (USB wedge scanner or camera) and automatic
@@ -252,12 +253,12 @@ export function DailyAttendancePage() {
             .map(
                 ({ student, qrUrl }) => `
                 <div class="qr-card">
-                    <div class="header">${schoolName}</div>
+                    <div class="header">${escapeHtml(schoolName)}</div>
                     <div class="subtitle">ATTENDANCE QR BADGE</div>
                     <img src="${qrUrl}" class="qr-img" />
-                    <div class="student-name">${student.last_name}, ${student.first_name}</div>
-                    <div class="lrn">LRN: ${student.lrn}</div>
-                    <div class="section">${student.grade_level || ''} ${student.student_section ? `— ${student.student_section}` : ''}</div>
+                    <div class="student-name">${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</div>
+                    <div class="lrn">LRN: ${escapeHtml(student.lrn)}</div>
+                    <div class="section">${escapeHtml(student.grade_level || '')} ${student.student_section ? `— ${escapeHtml(student.student_section)}` : ''}</div>
                 </div>
             `
             )

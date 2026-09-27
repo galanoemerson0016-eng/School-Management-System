@@ -1,3 +1,4 @@
+import { csvCell } from '../utils/csv-export';
 /**
  * DepEd FormEase Pro — Complete Database Rescue & Direct Offline Extraction Service
  *
@@ -32,6 +33,14 @@ import {
     normalizeWeightFraction
 } from '../lib/grading';
 import { isMatchingSubject } from '../utils/grading-helpers';
+import { getTotalPaceRecordCount, loadPaceEnvelope, PACE_SUBJECTS } from './pace-record-service';
+
+export interface StoreHealthStatus {
+    status: 'healthy' | 'partial' | 'unreadable' | 'unavailable';
+    count: number | null;
+    quarantined: number;
+    error?: string;
+}
 
 export interface DatabaseHealthCounts {
     students: number;
@@ -50,6 +59,10 @@ export interface DatabaseHealthCounts {
     paceRatings?: number;
     totalRecords: number;
     hasData: boolean;
+    storeStatuses?: Record<string, StoreHealthStatus>;
+    hasUnreadableStores?: boolean;
+    quarantinedCount?: number;
+    pendingJournal?: boolean;
 }
 
 export type DatabaseRecordCounts = DatabaseHealthCounts;
@@ -71,6 +84,30 @@ export interface BackupUser {
  * live record counts regardless of what is visible on the current screen.
  */
 export async function getLiveDatabaseRecordCounts(): Promise<DatabaseHealthCounts> {
+    const storeStatuses: Record<string, StoreHealthStatus> = {};
+    let hasUnreadableStores = false;
+
+    async function fetchStore<T>(storeName: string): Promise<T[]> {
+        try {
+            const records = await db.getAllRecords<T>(storeName);
+            storeStatuses[storeName] = {
+                status: 'healthy',
+                count: records.length,
+                quarantined: 0,
+            };
+            return records;
+        } catch (err) {
+            hasUnreadableStores = true;
+            storeStatuses[storeName] = {
+                status: 'unreadable',
+                count: null,
+                quarantined: 0,
+                error: err instanceof Error ? err.message : String(err),
+            };
+            return [];
+        }
+    }
+
     try {
         const [
             students,
@@ -87,42 +124,46 @@ export async function getLiveDatabaseRecordCounts(): Promise<DatabaseHealthCount
             announcements,
             users
         ] = await Promise.all([
-            db.getAllRecords<Student>('students').catch(() => []),
-            db.getAllRecords<Section>('sections').catch(() => []),
-            db.getAllRecords<Subject>('subjects').catch(() => []),
-            db.getAllRecords<ClassRecord>('classRecords').catch(() => []),
-            db.getAllRecords<HPSRecord>('hpsRecords').catch(() => []),
-            db.getAllRecords<ClassRecord>('gradingSheetRecords').catch(() => []),
-            db.getAllRecords<AttendanceRecord>('attendanceRecords').catch(() => []),
-            db.getAllRecords<SF2Sheet>('sf2Sheets').catch(() => []),
-            db.getAllRecords<Enrollment>('enrollments').catch(() => []),
-            db.getAllRecords<SchoolProfile>('schoolProfile').catch(() => []),
-            db.getAllRecords<ObservedValues>('observedValues').catch(() => []),
-            db.getAllRecords<Announcement>('announcements').catch(() => []),
-            db.getAllRecords<BackupUser>('users').catch(() => [])
+            fetchStore<Student>('students'),
+            fetchStore<Section>('sections'),
+            fetchStore<Subject>('subjects'),
+            fetchStore<ClassRecord>('classRecords'),
+            fetchStore<HPSRecord>('hpsRecords'),
+            fetchStore<ClassRecord>('gradingSheetRecords'),
+            fetchStore<AttendanceRecord>('attendanceRecords'),
+            fetchStore<SF2Sheet>('sf2Sheets'),
+            fetchStore<Enrollment>('enrollments'),
+            fetchStore<SchoolProfile>('schoolProfile'),
+            fetchStore<ObservedValues>('observedValues'),
+            fetchStore<Announcement>('announcements'),
+            fetchStore<BackupUser>('users')
         ]);
 
         // Count Grade 1 PACE Form records in localStorage
         let paceCount = 0;
         try {
-            const paceKeys = [
-                'formease_pace_reading_ratings',
-                'formease_pace_language_ratings',
-                'formease_pace_math_ratings',
-                'formease_pace_gmrc_makabansa_ratings',
-                'formease_pace_ratings'
-            ];
-            for (const key of paceKeys) {
-                const raw = localStorage.getItem(key);
-                if (raw) {
-                    const parsed = JSON.parse(raw);
-                    paceCount += Object.keys(parsed).length;
+            paceCount = getTotalPaceRecordCount();
+            if (paceCount === 0) {
+                const paceKeys = [
+                    'formease_pace_reading_ratings',
+                    'formease_pace_language_ratings',
+                    'formease_pace_math_ratings',
+                    'formease_pace_gmrc_makabansa_ratings',
+                    'formease_pace_ratings'
+                ];
+                for (const key of paceKeys) {
+                    const raw = localStorage.getItem(key);
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        paceCount += Object.keys(parsed).length;
+                    }
                 }
             }
         } catch {
             // localStorage not available or parse error
         }
 
+        const quarantineStats = db.getQuarantineStats ? db.getQuarantineStats() : { total: 0, byStore: {} };
         const counts: DatabaseHealthCounts = {
             students: students.length,
             sections: sections.length,
@@ -153,7 +194,10 @@ export async function getLiveDatabaseRecordCounts(): Promise<DatabaseHealthCount
                 announcements.length +
                 users.length +
                 paceCount,
-            hasData: false
+            hasData: false,
+            storeStatuses,
+            hasUnreadableStores,
+            quarantinedCount: quarantineStats.total,
         };
 
         counts.hasData = counts.totalRecords > 0;
@@ -333,19 +377,19 @@ export async function exportDirectDatabaseToExcel(): Promise<{
         announcements,
         users
     ] = await Promise.all([
-        db.getAllRecords<Student>('students').catch(() => []),
-        db.getAllRecords<Section>('sections').catch(() => []),
-        db.getAllRecords<Subject>('subjects').catch(() => []),
-        db.getAllRecords<ClassRecord>('classRecords').catch(() => []),
-        db.getAllRecords<HPSRecord>('hpsRecords').catch(() => []),
-        db.getAllRecords<ClassRecord>('gradingSheetRecords').catch(() => []),
-        db.getAllRecords<AttendanceRecord>('attendanceRecords').catch(() => []),
-        db.getAllRecords<SF2Sheet>('sf2Sheets').catch(() => []),
-        db.getAllRecords<Enrollment>('enrollments').catch(() => []),
-        db.getAllRecords<SchoolProfile>('schoolProfile').catch(() => []),
-        db.getAllRecords<ObservedValues>('observedValues').catch(() => []),
-        db.getAllRecords<Announcement>('announcements').catch(() => []),
-        db.getAllRecords<BackupUser>('users').catch(() => [])
+        db.getAllRecords<Student>('students', { strict: true }),
+        db.getAllRecords<Section>('sections', { strict: true }),
+        db.getAllRecords<Subject>('subjects', { strict: true }),
+        db.getAllRecords<ClassRecord>('classRecords', { strict: true }),
+        db.getAllRecords<HPSRecord>('hpsRecords', { strict: true }),
+        db.getAllRecords<ClassRecord>('gradingSheetRecords', { strict: true }),
+        db.getAllRecords<AttendanceRecord>('attendanceRecords', { strict: true }),
+        db.getAllRecords<SF2Sheet>('sf2Sheets', { strict: true }),
+        db.getAllRecords<Enrollment>('enrollments', { strict: true }),
+        db.getAllRecords<SchoolProfile>('schoolProfile', { strict: true }),
+        db.getAllRecords<ObservedValues>('observedValues', { strict: true }),
+        db.getAllRecords<Announcement>('announcements', { strict: true }),
+        db.getAllRecords<BackupUser>('users', { strict: true })
     ]);
 
     const activeSchoolYear =
@@ -1556,41 +1600,84 @@ export async function exportDirectDatabaseToExcel(): Promise<{
 
         const paceRows: Array<Record<string, unknown>> = [];
 
-        for (const area of paceLearningAreas) {
-            let parsedData: Record<string, { ratings?: Record<string, { t1?: string; t2?: string; t3?: string }> }> = {};
-            for (const key of area.keys) {
-                const item = localStorage.getItem(key);
-                if (item) {
-                    try {
-                        parsedData = { ...parsedData, ...JSON.parse(item) };
-                    } catch {
-                        // ignore
-                    }
-                }
-            }
+        const paceSubjectLabels: Record<string, string> = {
+            reading: 'Reading & Literacy',
+            language: 'Language',
+            math: 'Mathematics',
+            'gmrc-makabansa': 'GMRC & Makabansa'
+        };
 
-            for (const [sLrn, entry] of Object.entries(parsedData)) {
+        for (const subj of PACE_SUBJECTS) {
+            const env = loadPaceEnvelope(subj);
+            const label = paceSubjectLabels[subj] || subj;
+            for (const record of Object.values(env.records)) {
+                const sLrn = record.lrn;
                 const student = studentMap.get(sLrn);
                 const studentName = student
                     ? `${student.last_name}, ${student.first_name}${student.middle_name ? ' ' + student.middle_name : ''}`
-                    : '';
-                const secName = (student?.student_section ? sectionMap.get(student.student_section) : '') || student?.student_section || '';
+                    : record.studentName || '';
+                const secName = (student?.student_section ? sectionMap.get(student.student_section) : '') || student?.student_section || record.section || '';
 
-                if (entry && entry.ratings && typeof entry.ratings === 'object') {
-                    for (const [compId, rating] of Object.entries(entry.ratings)) {
+                if (record.ratings && typeof record.ratings === 'object') {
+                    for (const [compId, rating] of Object.entries(record.ratings)) {
                         if (rating && (rating.t1 || rating.t2 || rating.t3)) {
                             paceRows.push({
+                                'School Year': record.schoolYear,
                                 'Student LRN': sLrn,
                                 'Learner Name': studentName,
                                 'Gender': student?.gender || '',
                                 'Section': secName,
-                                'Learning Area': area.label,
+                                'Learning Area': label,
                                 'Competency Code / Key': compId,
                                 'Term 1 Rating': rating.t1 || '',
                                 'Term 2 Rating': rating.t2 || '',
                                 'Term 3 Rating': rating.t3 || '',
                                 'Rating Standard': 'A = Advanced, B = Proficient, C = Approaching, D = Developing, E = Beginning'
                             });
+                        }
+                    }
+                }
+            }
+        }
+
+        if (paceRows.length === 0) {
+            for (const area of paceLearningAreas) {
+                let parsedData: Record<string, { ratings?: Record<string, { t1?: string; t2?: string; t3?: string }> }> = {};
+                for (const key of area.keys) {
+                    const item = localStorage.getItem(key);
+                    if (item) {
+                        try {
+                            parsedData = { ...parsedData, ...JSON.parse(item) };
+                        } catch {
+                            // ignore
+                        }
+                    }
+                }
+
+                for (const [sLrn, entry] of Object.entries(parsedData)) {
+                    const student = studentMap.get(sLrn);
+                    const studentName = student
+                        ? `${student.last_name}, ${student.first_name}${student.middle_name ? ' ' + student.middle_name : ''}`
+                        : '';
+                    const secName = (student?.student_section ? sectionMap.get(student.student_section) : '') || student?.student_section || '';
+
+                    if (entry && entry.ratings && typeof entry.ratings === 'object') {
+                        for (const [compId, rating] of Object.entries(entry.ratings)) {
+                            if (rating && (rating.t1 || rating.t2 || rating.t3)) {
+                                paceRows.push({
+                                    'School Year': '',
+                                    'Student LRN': sLrn,
+                                    'Learner Name': studentName,
+                                    'Gender': student?.gender || '',
+                                    'Section': secName,
+                                    'Learning Area': area.label,
+                                    'Competency Code / Key': compId,
+                                    'Term 1 Rating': rating.t1 || '',
+                                    'Term 2 Rating': rating.t2 || '',
+                                    'Term 3 Rating': rating.t3 || '',
+                                    'Rating Standard': 'A = Advanced, B = Proficient, C = Approaching, D = Developing, E = Beginning'
+                                });
+                            }
                         }
                     }
                 }
@@ -1916,7 +2003,7 @@ export async function exportDirectDatabaseToExcel(): Promise<{
  * Direct Extraction & CSV Download of a specific IndexedDB table
  */
 export async function exportDirectDatabaseStoreToCSV(storeName: string): Promise<number> {
-    const rawRecords = await db.getAllRecords<Record<string, unknown>>(storeName).catch(() => []);
+    const rawRecords = await db.getAllRecords<Record<string, unknown>>(storeName, { strict: true });
     if (rawRecords.length === 0) {
         return 0;
     }
@@ -1998,8 +2085,8 @@ export async function exportDirectDatabaseStoreToCSV(storeName: string): Promise
     // Handle HPS Records specially: unpack arrays into clean columns and resolve names
     if (storeName === 'hpsRecords') {
         const [sections, subjects] = await Promise.all([
-            db.getAllRecords<Section>('sections').catch(() => []),
-            db.getAllRecords<Subject>('subjects').catch(() => [])
+            db.getAllRecords<Section>('sections', { strict: true }),
+            db.getAllRecords<Subject>('subjects', { strict: true })
         ]);
         const secMap = new Map(sections.map((s) => [s.id, s.section_grade_level ? `${s.section_grade_level} - ${s.section_name}` : s.section_name]));
         const subMap = new Map(subjects.map((s) => [s.id, s.subject_name]));
@@ -2042,9 +2129,9 @@ export async function exportDirectDatabaseStoreToCSV(storeName: string): Promise
     // Handle Class Records and Published Grading Sheets: unpack arrays into clean columns
     if (storeName === 'classRecords' || storeName === 'gradingSheetRecords') {
         const [students, sections, subjects] = await Promise.all([
-            db.getAllRecords<Student>('students').catch(() => []),
-            db.getAllRecords<Section>('sections').catch(() => []),
-            db.getAllRecords<Subject>('subjects').catch(() => [])
+            db.getAllRecords<Student>('students', { strict: true }),
+            db.getAllRecords<Section>('sections', { strict: true }),
+            db.getAllRecords<Subject>('subjects', { strict: true })
         ]);
         const stuMap = new Map(students.map((s) => [s.lrn, `${s.last_name}, ${s.first_name}${s.middle_name ? ' ' + s.middle_name : ''}`.toUpperCase()]));
         const genderMap = new Map(students.map((s) => [s.lrn, s.gender || '']));
@@ -2117,19 +2204,19 @@ export async function exportDirectDatabaseStoreToCSV(storeName: string): Promise
     const headers = Array.from(keySet);
 
     const csvRows: string[] = [];
-    csvRows.push(headers.map((h) => `"${h}"`).join(','));
+    csvRows.push(headers.map(csvCell).join(','));
 
     for (const row of rawRecords) {
         const values = headers.map((h) => {
             const val = row[h];
             if (val === undefined || val === null) return '""';
             if (Array.isArray(val)) {
-                return `"${val.map(String).join(' | ').replace(/"/g, '""')}"`;
+                return csvCell(val.map(String).join(' | '));
             }
             if (typeof val === 'object') {
-                return `"${JSON.stringify(val).replace(/"/g, '""')}"`;
+                return csvCell(JSON.stringify(val));
             }
-            return `"${String(val).replace(/"/g, '""')}"`;
+            return csvCell(val);
         });
         csvRows.push(values.join(','));
     }
@@ -2140,13 +2227,13 @@ export async function exportDirectDatabaseStoreToCSV(storeName: string): Promise
 function downloadArrayOfObjectsAsCSV(rows: Array<Record<string, unknown>>, filePrefix: string): number {
     if (rows.length === 0) return 0;
     const headers = Object.keys(rows[0]);
-    const csvRows: string[] = [headers.map((h) => `"${h}"`).join(',')];
+    const csvRows: string[] = [headers.map(csvCell).join(',')];
 
     for (const row of rows) {
         const values = headers.map((h) => {
             const val = row[h];
             if (val === undefined || val === null) return '""';
-            return `"${String(val).replace(/"/g, '""')}"`;
+            return csvCell(val);
         });
         csvRows.push(values.join(','));
     }

@@ -130,7 +130,7 @@ describe('Snapshot Live Preview Mode', () => {
     localStorage.setItem('formease_preview_mode_active', 'true');
     localStorage.setItem('activeSchoolYear', '2024-2025'); // in preview
 
-    const cleanupSpy = vi.spyOn(db, 'cleanupPreviewDatabase').mockResolvedValue();
+    const cleanupSpy = vi.spyOn(db, 'cleanupPreviewDatabase').mockResolvedValue({ success: true });
     const resetSpy = vi.spyOn(db, 'resetConnection').mockResolvedValue();
 
     await SnapshotPreviewService.exitPreview();
@@ -161,7 +161,7 @@ describe('Snapshot Live Preview Mode', () => {
     localStorage.setItem('formease_preview_mode_active', 'true');
     localStorage.setItem('activeSchoolYear', '2023-2024'); // stale preview year
 
-    const cleanupSpy = vi.spyOn(db, 'cleanupPreviewDatabase').mockResolvedValue();
+    const cleanupSpy = vi.spyOn(db, 'cleanupPreviewDatabase').mockResolvedValue({ success: true });
 
     await SnapshotPreviewService.checkAndCleanOrphanPreviewSession();
 

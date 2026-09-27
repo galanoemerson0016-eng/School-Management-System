@@ -3,6 +3,7 @@ import { AutoBackupManager } from './AutoBackupManager';
 
 let isDirty = false;
 let timerId: ReturnType<typeof setInterval> | null = null;
+let unsubscribe: (() => void) | null = null;
 const INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
 export const IncrementalBackupService = {
@@ -12,7 +13,7 @@ export const IncrementalBackupService = {
     console.log('⏰ Initializing Background Incremental Backup Scheduler...');
     
     // Listen to all database modifications
-    db.onDatabaseChange((storeName) => {
+    unsubscribe = db.onDatabaseChange((storeName) => {
       // Avoid tracking logs or automated backups themselves
       if (storeName !== 'activityLog' && storeName !== 'automated_backups' && storeName !== 'backups') {
         isDirty = true;
@@ -27,14 +28,23 @@ export const IncrementalBackupService = {
     }, INTERVAL_MS);
   },
 
+  stop(): void {
+    if (timerId) clearInterval(timerId);
+    timerId = null;
+    unsubscribe?.();
+    unsubscribe = null;
+  },
+
   async triggerIncrementalBackup(): Promise<void> {
     if (db.isPreviewMode()) {
       return;
     }
     try {
       console.log('📦 Background scheduler: changes detected. Creating a paired recovery snapshot...');
+      const generation = db.getWriteGeneration();
       await AutoBackupManager.triggerBackup();
-      isDirty = false;
+      // A save during an in-flight snapshot still needs the next backup.
+      isDirty = db.getWriteGeneration() !== generation;
     } catch (error) {
       console.error('❌ Background incremental backup failed:', error);
     }

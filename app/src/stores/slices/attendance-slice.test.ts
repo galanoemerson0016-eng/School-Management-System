@@ -15,6 +15,12 @@ vi.mock('../../services/database', () => ({
     putRecordsBulk: vi.fn(async (store: string, records: Array<{ id: string }>) => {
       records.forEach((record) => table(store).set(record.id, record));
     }),
+    commitRecordChanges: vi.fn(async (changes: Array<{ store: string; puts?: Array<{ id: string }>; deletes?: string[] }>) => {
+      for (const change of changes) {
+        change.deletes?.forEach(id => table(change.store).delete(id));
+        change.puts?.forEach(record => table(change.store).set(record.id, record));
+      }
+    }),
     deleteRecord: vi.fn(async (store: string, id: string) => table(store).delete(id)),
   },
 }));
