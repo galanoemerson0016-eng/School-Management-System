@@ -226,21 +226,21 @@ export default function Storefront() {
     <div className="min-h-screen bg-[#030712] text-slate-100 font-sans selection:bg-blue-500/30 antialiased relative overflow-x-hidden">
       {/* Dynamic ambient background glow */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div className="absolute top-[-10%] left-1/4 w-[650px] h-[650px] bg-blue-600/12 rounded-full blur-[140px] animate-pulse" />
-        <div className="absolute top-[40%] right-[-10%] w-[550px] h-[550px] bg-indigo-600/10 rounded-full blur-[140px]" />
-        <div className="absolute bottom-[-10%] left-[-5%] w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[150px]" />
+        <div className="absolute top-[-10%] left-1/4 w-162.5 h-162.5 bg-blue-600/12 rounded-full blur-[140px] animate-pulse" />
+        <div className="absolute top-[40%] right-[-10%] w-137.5 h-137.5 bg-indigo-600/10 rounded-full blur-[140px]" />
+        <div className="absolute bottom-[-10%] left-[-5%] w-150 h-150 bg-cyan-600/10 rounded-full blur-[150px]" />
       </div>
 
       {/* Top Navigation */}
-      <nav className="relative z-50 border-b border-white/5 backdrop-blur-xl bg-slate-950/60 sticky top-0">
+      <nav className="sticky top-0 z-50 border-b border-white/5 backdrop-blur-xl bg-slate-950/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3.5">
-            <div className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl shadow-xl shadow-blue-500/20 flex items-center justify-center">
+            <div className="p-2.5 bg-linear-to-br from-blue-600 to-indigo-600 rounded-2xl shadow-xl shadow-blue-500/20 flex items-center justify-center">
               <Shield className="w-6 h-6 text-white" />
             </div>
             <div>
               <span className="text-xl font-black tracking-tight text-white flex items-center gap-1.5">
-                FormEase <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">Pro</span>
+                FormEase <span className="bg-linear-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">Pro</span>
               </span>
               <span className="block text-[9px] uppercase tracking-[0.2em] font-black text-slate-500">Official Licensing Portal</span>
             </div>
@@ -305,7 +305,7 @@ export default function Storefront() {
             className="text-4xl sm:text-6xl md:text-7xl font-black text-white tracking-tight leading-[1.1] mb-6"
           >
             Empower Your Teaching. <br />
-            <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+            <span className="bg-linear-to-r from-blue-400 via-indigo-400 to-cyan-400 bg-clip-text text-transparent">
               One Key, Unlocked for 1 Year.
             </span>
           </motion.h1>
@@ -353,7 +353,7 @@ export default function Storefront() {
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="max-w-2xl mx-auto p-8 sm:p-12 bg-gradient-to-br from-slate-900/90 to-slate-950/90 border border-emerald-500/30 rounded-[2.5rem] shadow-2xl relative overflow-hidden text-center"
+                  className="max-w-2xl mx-auto p-8 sm:p-12 bg-linear-to-br from-slate-900/90 to-slate-950/90 border border-emerald-500/30 rounded-[2.5rem] shadow-2xl relative overflow-hidden text-center"
                 >
                   <div className="w-20 h-20 bg-emerald-500/20 border border-emerald-500/30 rounded-3xl flex items-center justify-center mx-auto mb-6 text-emerald-400">
                     <CheckCircle2 className="w-10 h-10" />
@@ -363,7 +363,7 @@ export default function Storefront() {
                     Thank you, Teacher <strong className="text-white">{submitSuccessData.name}</strong>. Your payment via {submitSuccessData.channel} is now in our verification queue.
                   </p>
 
-                  <div className="p-6 bg-white/[0.03] border border-white/10 rounded-2xl text-left space-y-3 mb-8">
+                  <div className="p-6 bg-white/3 border border-white/10 rounded-2xl text-left space-y-3 mb-8">
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-slate-500 font-bold uppercase tracking-wider">Reference Number</span>
                       <div className="flex items-center gap-2 font-mono font-black text-blue-400 text-sm">
@@ -422,8 +422,8 @@ export default function Storefront() {
                         onClick={() => setSelectedPlatform('windows')}
                         className={`p-8 rounded-[2.5rem] border cursor-pointer transition-all relative overflow-hidden flex flex-col justify-between ${
                           selectedPlatform === 'windows'
-                            ? 'bg-gradient-to-br from-blue-600/20 via-blue-950/40 to-slate-950 border-blue-500 shadow-2xl shadow-blue-600/20 ring-2 ring-blue-500/40'
-                            : 'bg-white/[0.03] border-white/10 hover:border-white/20'
+                            ? 'bg-linear-to-br from-blue-600/20 via-blue-950/40 to-slate-950 border-blue-500 shadow-2xl shadow-blue-600/20 ring-2 ring-blue-500/40'
+                            : 'bg-white/3 border-white/10 hover:border-white/20'
                         }`}
                       >
                         <div className="flex items-start justify-between mb-6">
@@ -466,8 +466,8 @@ export default function Storefront() {
                         onClick={() => setSelectedPlatform('mac')}
                         className={`p-8 rounded-[2.5rem] border cursor-pointer transition-all relative overflow-hidden flex flex-col justify-between ${
                           selectedPlatform === 'mac'
-                            ? 'bg-gradient-to-br from-indigo-600/20 via-indigo-950/40 to-slate-950 border-indigo-500 shadow-2xl shadow-indigo-600/20 ring-2 ring-indigo-500/40'
-                            : 'bg-white/[0.03] border-white/10 hover:border-white/20'
+                            ? 'bg-linear-to-br from-indigo-600/20 via-indigo-950/40 to-slate-950 border-indigo-500 shadow-2xl shadow-indigo-600/20 ring-2 ring-indigo-500/40'
+                            : 'bg-white/3 border-white/10 hover:border-white/20'
                         }`}
                       >
                         <div className="flex items-start justify-between mb-6">
@@ -508,7 +508,7 @@ export default function Storefront() {
                   </div>
 
                   {/* Step 2 & 3: Scan QR & Submit Proof */}
-                  <div className="max-w-5xl mx-auto bg-gradient-to-br from-slate-900/80 to-slate-950/80 border border-white/10 rounded-[3rem] p-6 sm:p-10 shadow-2xl relative">
+                  <div className="max-w-5xl mx-auto bg-linear-to-br from-slate-900/80 to-slate-950/80 border border-white/10 rounded-[3rem] p-6 sm:p-10 shadow-2xl relative">
                     <div className="text-center mb-10">
                       <span className="text-[10px] font-black uppercase tracking-[0.25em] text-blue-400">Step 2 & 3</span>
                       <h2 className="text-3xl font-black text-white mt-1">Scan QR & Submit Payment Proof</h2>
@@ -527,7 +527,7 @@ export default function Storefront() {
                           className={`px-6 py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2.5 border ${
                             selectedMethodId === method.id
                               ? `${method.borderColor} bg-white/10 text-white shadow-xl scale-105`
-                              : 'border-white/5 bg-white/[0.02] text-slate-400 hover:text-white hover:bg-white/5'
+                              : 'border-white/5 bg-white/2 text-slate-400 hover:text-white hover:bg-white/5'
                           }`}
                         >
                           <QrCode className="w-4 h-4" />
@@ -544,7 +544,7 @@ export default function Storefront() {
                       <div className="lg:col-span-5 space-y-6">
                         <div
                           onClick={() => setPreviewQr(selectedMethod)}
-                          className={`p-6 rounded-3xl border ${selectedMethod.borderColor} bg-gradient-to-br ${selectedMethod.color} text-center space-y-4 group cursor-pointer relative shadow-xl`}
+                          className={`p-6 rounded-3xl border ${selectedMethod.borderColor} bg-linear-to-br ${selectedMethod.color} text-center space-y-4 group cursor-pointer relative shadow-xl`}
                         >
                           <div className="flex items-center justify-between px-1">
                             <span className="text-[11px] font-black text-white uppercase tracking-wider">{selectedMethod.name} QR Code</span>
@@ -553,7 +553,7 @@ export default function Storefront() {
                             </div>
                           </div>
 
-                          <div className="bg-white p-3 rounded-2xl shadow-2xl inline-block max-w-[280px] mx-auto w-full aspect-square relative">
+                          <div className="bg-white p-3 rounded-2xl shadow-2xl inline-block max-w-70 mx-auto w-full aspect-square relative">
                             <img
                               src={selectedMethod.img}
                               alt={`${selectedMethod.name} QR Code`}
@@ -568,7 +568,7 @@ export default function Storefront() {
                         </div>
 
                         {/* Quick Instructions Card */}
-                        <div className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl space-y-2.5 text-xs">
+                        <div className="p-5 bg-white/2 border border-white/5 rounded-2xl space-y-2.5 text-xs">
                           <p className="font-black text-slate-300 uppercase tracking-wider text-[10px] flex items-center gap-1.5">
                             <Info className="w-3.5 h-3.5 text-blue-400" /> Instructions for {selectedMethod.name}
                           </p>
@@ -582,7 +582,7 @@ export default function Storefront() {
 
                       {/* Right Column: Order Form */}
                       <div className="lg:col-span-7">
-                        <form onSubmit={handlePurchaseSubmit} className="space-y-5 bg-white/[0.02] border border-white/5 p-6 sm:p-8 rounded-3xl">
+                        <form onSubmit={handlePurchaseSubmit} className="space-y-5 bg-white/2 border border-white/5 p-6 sm:p-8 rounded-3xl">
                           <div>
                             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
                               1. Teacher Full Name <span className="text-rose-400">*</span>
@@ -682,7 +682,7 @@ export default function Storefront() {
                           <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="w-full py-4 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-2xl font-black text-sm tracking-wide transition-all shadow-xl shadow-blue-600/25 disabled:opacity-50 flex items-center justify-center gap-2 mt-4 cursor-pointer"
+                            className="w-full py-4 px-6 bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-2xl font-black text-sm tracking-wide transition-all shadow-xl shadow-blue-600/25 disabled:opacity-50 flex items-center justify-center gap-2 mt-4 cursor-pointer"
                           >
                             {isSubmitting ? (
                               <>
@@ -935,7 +935,7 @@ export default function Storefront() {
                 <h3 className="text-xl font-black text-white mb-1">{previewQr.name} Official QR</h3>
                 <p className="text-xs text-slate-400 font-medium mb-6">Scan to pay ₱{price}.00 for {selectedPlatform} Edition</p>
 
-                <div className="bg-white p-4 rounded-2xl shadow-xl max-w-[260px] mx-auto mb-6">
+                <div className="bg-white p-4 rounded-2xl shadow-xl max-w-65 mx-auto mb-6">
                   <img src={previewQr.img} alt={previewQr.name} className="w-full h-full object-contain" />
                 </div>
 
