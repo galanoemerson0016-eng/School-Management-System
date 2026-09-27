@@ -2534,7 +2534,6 @@ export function SF9Page() {
     const observedValues = useAppStore(state => state.observedValues);
     const storeSf2Sheets = useAppStore(state => state.sf2Sheets);
     const storeAttendanceRecords = useAppStore(state => state.attendanceRecords);
-    const setSF2Sheets = useAppStore(state => state.setSF2Sheets);
     const updateObservedValue = useAppStore(state => state.updateObservedValue);
     const setCurrentView = useAppStore(state => state.setCurrentView);
     const teachers = useAppStore(state => state.teachers);
@@ -2701,90 +2700,6 @@ export function SF9Page() {
         return !!section.is_advisory || !!legacy;
     }, []);
 
-    useEffect(() => {
-        if (!selectedSectionObj) return;
-        if (!isAdvisorySection(selectedSectionObj)) return;
-
-        const sectionTokens = new Set<string>([
-            normalizeSectionToken(selectedSectionObj.id),
-            normalizeSectionToken(selectedSectionObj.section_name)
-        ].filter(Boolean));
-
-        const sectionSheets = sf2Sheets.filter((sheet) => {
-            const sheetTokens = [normalizeSectionToken(sheet.section_id)];
-            const idParts = (sheet.id || '').split('_').filter(Boolean);
-            if (idParts.length >= 3) {
-                sheetTokens.push(normalizeSectionToken(idParts.slice(0, idParts.length - 2).join('_')));
-            }
-
-            const sectionMatch = sheetTokens.some((token) => {
-                for (const target of sectionTokens) {
-                    if (!target) continue;
-                    if (token === target || token.includes(target) || target.includes(token)) {
-                        return true;
-                    }
-                }
-                return false;
-            });
-
-            if (!sectionMatch) return false;
-
-            const sheetYear = (sheet.school_year || '').trim();
-            return sheetYear === activeSchoolYear;
-        });
-
-        const existingMonths = new Set<string>();
-        sectionSheets.forEach((sheet) => {
-            const month = normalizeMonthToken(sheet.month) || extractMonthFromSf2Id(sheet.id);
-            if (month) existingMonths.add(month);
-        });
-
-        const missingMonths = SF2_MONTHS.filter((month) => !existingMonths.has(month));
-        if (missingMonths.length === 0) return;
-
-        let isMounted = true;
-
-        const createMissingSf2Sheets = async () => {
-            const sectionKey = selectedSectionObj.section_name || selectedSectionObj.id;
-            const now = new Date().toISOString();
-
-            const generatedSheets: SF2Sheet[] = missingMonths.map((month) => ({
-                id: `${sectionKey}_${activeSchoolYear}_${month}`,
-                section_id: sectionKey,
-                school_year: activeSchoolYear,
-                month,
-                date_labels: buildDefaultSf2DateLabels(month, activeSchoolYear),
-                attendance: {},
-                remarks: {},
-                updated_at: now
-            }));
-
-            try {
-                await Promise.all(generatedSheets.map((sheet) => db.putRecord('sf2Sheets', sheet)));
-                if (!isMounted) return;
-
-                setHydratedSf2Sheets((prev) => {
-                    const merged = new Map<string, SF2Sheet>();
-                    prev.forEach((sheet) => merged.set(sheet.id, sheet));
-                    generatedSheets.forEach((sheet) => merged.set(sheet.id, sheet));
-                    return Array.from(merged.values());
-                });
-
-                const mergedStoreMap = new Map<string, SF2Sheet>();
-                storeSf2Sheets.forEach((sheet) => mergedStoreMap.set(sheet.id, sheet));
-                generatedSheets.forEach((sheet) => mergedStoreMap.set(sheet.id, sheet));
-                setSF2Sheets(Array.from(mergedStoreMap.values()));
-            } catch (error) {
-                console.error('Failed to create missing SF2 month sheets from SF9:', error);
-            }
-        };
-
-        createMissingSf2Sheets();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [selectedSectionObj, activeSchoolYear, sf2Sheets, storeSf2Sheets, setSF2Sheets, isAdvisorySection]);
 
     const filteredSections = useMemo(() => {
         return [...filterSF9Sections(user, sections)]
