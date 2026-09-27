@@ -1,7 +1,6 @@
 import { gradeRecordId } from '../services/grade-record-service';
 import { calculateCompositeTermGrade, calculateQuarterlyFinalGrade, calculateWeightedGradeAverage, countMissingGradeValues, countMissingOfferedGradeValues } from '../services/grade-calculation';
 import type { GradeCompletionStatus } from '../services/grade-calculation';
-import { GradeStatusMarker } from '../components/GradeStatusMarker';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo, Fragment, useEffect, useCallback, memo, useRef } from 'react';
 import { useAppStore } from '../stores/app-store';
@@ -722,12 +721,11 @@ const StudentGradeRow = memo(({
                                                     title={sData.finalStatus === 'complete'
                                                         ? 'Final grade is complete for this subject’s offered terms.'
                                                         : sData.finalStatus === 'provisional'
-                                                            ? 'Provisional final: one or more offered terms are missing.'
+                                                            ? 'Incomplete: one or more offered terms are missing.'
                                                             : 'No final grade is available.'}
                                                 >
                                                     <span className="inline-flex items-center justify-center gap-0.5">
                                                         {formatGradeForDisplay(finalVal, sectionObj?.section_grade_level || '') || ''}
-                                                        <GradeStatusMarker status={sData.finalStatus} kind="subject" />
                                                     </span>
                                                 </td>
                                             </>
@@ -816,9 +814,9 @@ const StudentGradeRow = memo(({
             })}
             {showGenAvg && (
                 <>
-                    <td className={`consolidated-average-col border border-black ${isElementary ? 'p-0.5' : 'p-1'} text-center font-bold bg-gray-50/50 tabular-nums`} data-col-key="col-average" style={{ width: `${averageColWidth || 65}px`, minWidth: `${averageColWidth || 65}px` }} title={data.generalAverageStatus === 'complete' ? 'Average is complete for the applicable offered subjects.' : data.generalAverageStatus === 'provisional' ? 'Provisional average: applicable subject grades are incomplete.' : 'No average is available.'}>{data.termAverage || ''}</td>
-                    <td className={`consolidated-general-average-col border border-black ${isElementary ? 'p-0.5' : 'p-1'} text-center font-bold bg-gray-100/50 tabular-nums`} data-col-key="col-generalAverage" style={{ width: `${generalAvgColWidth || 75}px`, minWidth: `${generalAvgColWidth || 75}px` }} title={data.generalAverageStatus === 'complete' ? 'Average is complete for the applicable offered subjects.' : data.generalAverageStatus === 'provisional' ? 'Provisional average: applicable subject grades are incomplete.' : 'No average is available.'}>
-                        <span className="inline-flex items-center justify-center gap-1">{data.generalAverage || ''}<GradeStatusMarker status={data.generalAverageStatus} kind="average" /></span>
+                    <td className={`consolidated-average-col border border-black ${isElementary ? 'p-0.5' : 'p-1'} text-center font-bold bg-gray-50/50 tabular-nums`} data-col-key="col-average" style={{ width: `${averageColWidth || 65}px`, minWidth: `${averageColWidth || 65}px` }} title={data.generalAverageStatus === 'complete' ? 'Average is complete for the applicable offered subjects.' : data.generalAverageStatus === 'provisional' ? 'General average (applicable subject grades are incomplete).' : 'No average is available.'}>{data.termAverage || ''}</td>
+                    <td className={`consolidated-general-average-col border border-black ${isElementary ? 'p-0.5' : 'p-1'} text-center font-bold bg-gray-100/50 tabular-nums`} data-col-key="col-generalAverage" style={{ width: `${generalAvgColWidth || 75}px`, minWidth: `${generalAvgColWidth || 75}px` }} title={data.generalAverageStatus === 'complete' ? 'Average is complete for the applicable offered subjects.' : data.generalAverageStatus === 'provisional' ? 'General average (applicable subject grades are incomplete).' : 'No average is available.'}>
+                        <span className="inline-flex items-center justify-center gap-1">{data.generalAverage || ''}</span>
                     </td>
                     {showDescriptor && (
                         <td className="consolidated-descriptor-col border border-black p-1 text-center font-bold bg-gray-200 text-[6px] leading-tight uppercase" data-col-key="col-descriptor" style={{ width: `${descriptorColWidth || 100}px`, minWidth: `${descriptorColWidth || 100}px` }}>
