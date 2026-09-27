@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, ArrowRight, CheckCircle2, Loader2, AlertCircle, Zap, Monitor, Apple, Key, MessageCircle } from 'lucide-react';
+import { ShieldCheck, ArrowRight, CheckCircle2, Loader2, AlertCircle, Zap, Monitor, Apple, MessageCircle } from 'lucide-react';
 import { useAppStore } from '../stores/app-store';
 import { useAuthStore } from '../stores/auth-store';
 import { getMachineId } from '../utils/machine-id';
