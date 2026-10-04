@@ -1,244 +1,582 @@
-# FormEase Pro — Comprehensive System Audit & Bug Checker Workflow (v1.0)
+# FormEase Pro — Comprehensive System Audit & Bug Checker Workflow v2.0
 
-Execute a complete, non-destructive, end-to-end system audit and diagnostic bug inspection across FormEase Pro by strictly following this fail-safe workflow. 
+## Mission
+Perform a thorough, evidence-based, non-destructive audit of FormEase Pro across its implemented application components, data storage, grading engines, school forms, security boundaries, and critical user workflows.
 
-> **CRITICAL DIRECTIVE**: This is a pure diagnostic, validation, and audit workflow. **DO NOT TRIGGER A RELEASE, DO NOT BUMP VERSIONS, DO NOT CREATE GIT TAGS, AND DO NOT PUSH RELEASES.**
+Identify reproducible defects, risks, inconsistencies, and coverage gaps. Explain their impact and recommend prioritized corrective actions.
 
----
+> **CRITICAL DIRECTIVE**: This is a diagnostic-only task. **Do not implement fixes or trigger a release.**
 
-## 1. Pre-Audit Environment & Working Tree Sanity
-Navigate to `app/` and verify runtime stability before executing audits:
+### Strict Prohibitions
+**Never:**
+- Bump versions, create tags, commit changes, push, deploy, publish, sign, or upload release artifacts.
+- Modify application source, dependency manifests, lockfiles, existing tests, snapshots, or official templates.
+- Repair, migrate, quarantine, overwrite, or delete real client records.
+- Reset, clean, stash, or discard existing working-tree changes.
+- Relax checks or alter expected results to make tests pass.
 
-1. **Inspect Working Tree & Unstaged Artifacts**:
-   ```bash
-   git status
-   ```
-   - Check if any modified files or untracked assets exist.
-   - Verify that test artifacts, scratch logs, or temporary database dumps are not corrupting the source tree.
-
-2. **Inspect Commit History & Recent Changes**:
-   ```bash
-   git log -n 5 --oneline
-   ```
-   - Record the current HEAD commit hash and recent modifications for the audit audit trail.
+*Audit reports, logs, synthetic fixtures, and disposable test outputs may be created in a designated audit directory.*
 
 ---
 
-## 2. Static Code Quality, Type Safety & Shield Compilation Audit
-Execute static code analyzers to ensure structural integrity and catch latent syntax or type errors:
+## 1. Establish Scope, Baseline, and Safe Execution
 
-1. **Strict TypeScript Compilation Check**:
-   ```bash
-   npx tsc --noEmit -p tsconfig.app.json && npx tsc -b
-   ```
-   - Must return **0 errors**.
-   - Audit for:
-     - Unsafe type casts or missing interface properties in `Student`, `Section`, `Subject`, `ClassRecord`, and `GradingSheetRecord`.
-     - Broken imports across services, pages, and store modules.
+### 1.1 Repository Discovery
+Start at the repository root. Read applicable repository instructions and inspect the actual project structure.
 
-2. **ESLint Static Analysis**:
-   ```bash
-   npm run lint
-   ```
-   - Ensure **0 lint errors** across all TypeScript, TSX, and React components.
-   - Audit for:
-     - Unused variables or imports that could indicate abandoned logic.
-     - Unhandled `any` types that bypass compiler safety.
-     - Improper React hooks dependencies (stale closures in `useEffect` or `useMemo`).
+Discover implemented components, including where present:
+- `app/`: renderer, services, grading, forms, and data storage.
+- Electron main process, preload bridge, licensing, and local file persistence.
+- `license-portal/` and its backend functions.
+- `formease-mobile/` and desktop/mobile communication.
+- `update-server/`, update configuration, and release metadata.
+- Shared schemas, templates, scripts, and automated tests.
 
-3. **Electron Shield & Production Bundle Compilation**:
-   ```bash
-   npm run obfuscate:electron && npm run build
-   ```
-   - Audit for:
-     - Successful minification and obfuscation of `main.cjs`, `preload.cjs`, and `license.cjs` into `dist-electron/`.
-     - Vite production build cleanly generating chunks without chunk-size blowouts or circular dependency warnings.
+Treat documentation and previously generated audit reports as context to verify against current code. Identify implemented features separately from plans, prototypes, and unused files. Do not claim coverage of components that were not inspected.
 
----
+### 1.2 Record the Baseline
+Capture:
+- Audit start time and timezone: `Asia/Manila`.
+- Repository root, branch, and full HEAD commit hash.
+- Existing tracked modifications and untracked files.
+- Recent relevant commits.
+- Operating system and available runtime/tool versions (Node, npm, TypeScript, Electron).
+- Dependency installation and lockfile state.
+- Available test runners, browser/Electron tooling, and spreadsheet applications.
 
-## 3. Database Security, Cryptography & Client Vault Audit
-Audit the offline-first IndexedDB storage, encryption engines, and migration resilience:
+Record whether the audit covers a clean commit or a working tree containing additional changes. Do not attribute all results solely to HEAD when local changes are present.
 
-1. **Universal Store Quarantine & DPAPI Key Security**:
-   - Audit file: `app/src/services/database.ts` & `app/src/utils/db-crypto.ts`
-   - **Verification Checklist**:
-     - [ ] Master DPAPI salt overwrite protection: Salt is preserved across launches without resetting key derivation.
-     - [ ] Store-wide quarantine: Corrupted or unreadable records in encrypted stores (`classRecords`, `gradingSheetRecords`, `students`, `hpsRecords`, `sections`, `subjects`) are safely quarantined rather than locking the user out of the app.
-     - [ ] Quarantine metadata: Quarantined records preserve their original ID and a descriptive quarantine reason for diagnostic inspection.
+### 1.3 Isolate Runtime Checks
+Use a disposable application profile with synthetic data.
 
-2. **Migration Primary Key & Count Integrity**:
-   - Audit file: `app/src/utils/encryption-migration.ts` & `app/src/services/dek-indexeddb-migration.ts`
-   - **Verification Checklist**:
-     - [ ] Primary key resolution (`identifierOf`): Explicit store-to-key mapping (`students -> lrn`, `settings -> key`, `enrollments -> enrollment_id`, default -> `id`).
-     - [ ] Tolerant migration count check: Minor count differentials do not abort valid migration workflows.
+Before launching the application or running write-capable routines, verify the locations used for:
+- Electron user data.
+- IndexedDB and browser storage.
+- Encryption keys and credentials.
+- Local database mirrors and backup files.
+- Licenses, settings, caches, and logs.
+- Network endpoints and background update processes.
 
-3. **Automated Database Test Suite**:
-   ```bash
-   npx vitest run src/utils/encryption-migration.test.ts src/services/dek-indexeddb-migration.test.ts src/utils/backup-import.test.ts src/testing/backup-full-restore-check.test.ts
-   ```
-   - All tests must pass with **0 failures**.
+Isolation must be established before startup routines can write data. If isolation cannot be demonstrated, mark affected runtime checks **BLOCKED** and continue safe source inspection.
 
----
+> **SAFETY RULE**: Do not use real learner records, production credentials, or production school accounts as test fixtures.
 
-## 4. Grading Calculation, Transmutation & Self-Healing Audit
-Audit all grading algorithms, weight transmutations, and client data self-healing mechanisms:
+### 1.4 Review Command Side Effects
+Before running commands, inspect:
+- Package scripts and pre/post lifecycle hooks.
+- Test setup and teardown.
+- Build, obfuscation, and output-cleaning scripts.
+- Network calls and production endpoint defaults.
+- Automatic migration, repair, update, or telemetry behavior.
 
-1. **DepEd DO 15, s. 2026 Table 4 Transmutation Accuracy**:
-   - Audit file: `app/src/lib/grading.ts` & `app/src/utils/grading-helpers.ts`
-   - **Verification Checklist**:
-     - [ ] Initial grades correctly map to transmuted ratings (e.g., initial 0–59.99 transmutes to 60; initial 100 transmutes to 100).
-     - [ ] Boundary conditions: Test values at 74.99 vs 75.00, 89.99 vs 90.00, and 99.99 vs 100.00.
-     - [ ] Key Stage 1 (Kindergarten & Grade 1) descriptive grading: Transmuted grades correctly convert to letter marks (A, B, C, D) without exposing raw numeric scores.
+Use installed tools and existing dependency versions. Prevent implicit package downloads. Do not install missing dependencies or change configuration during the audit.
 
-2. **Weight Normalization & Thousands-Scale Healing**:
-   - Audit file: `app/src/utils/grade-reconciliation.ts`
-   - **Verification Checklist**:
-     - [ ] Whole number weights (`40`, `60`, `20`) are normalized to decimal fractions (`0.40`, `0.60`, `0.20`).
-     - [ ] Table headers display standard percentages (`40%`, `60%`, `20%`) and never inflated headers (`4000%`, `6000%`).
-     - [ ] Thousands-scale scores (`7153.94 -> 76`, `3004.60 -> 66`, `9232.07 -> 93`, `8489.50 -> 87`) self-heal on startup.
+Builds and write-capable tests must run in a disposable workspace or otherwise verified isolated output locations. Preserve the current working tree’s contents when creating an isolated audit copy, including relevant local modifications.
 
-3. **Ghost Record Suppression**:
-   - Audit file: `app/src/utils/grading-helpers.ts` (`resolveStudentQuarterGrade`)
-   - **Verification Checklist**:
-     - [ ] Students with zero entered scores or empty score arrays return empty/null.
-     - [ ] Headless score containers never output phantom `final_grade: 100` or false passing marks.
-
-4. **Composite Subject Weighting (MAPEH)**:
-   - **Verification Checklist**:
-     - [ ] MAPEH correctly computes as the average of Music & Arts and PE & Health.
-     - [ ] Incomplete sub-components do not produce skewed or artificial grades.
-
-5. **Automated Grading Engine Test Suite**:
-   ```bash
-   npx vitest run src/lib/grading.test.ts src/utils/grade-reconciliation.test.ts src/utils/grading-helpers.test.ts src/testing/eclassRecordSummarySync.test.ts src/testing/grade1EClassRecord.test.ts
-   ```
-   - All tests must pass with **0 failures**.
+**Prohibit release and deployment commands, including:**
+- `npm run electron:build` and platform variants.
+- Deployment, release upload, and release synchronization scripts.
+- `git tag`, `git push`, and version-changing commands.
 
 ---
 
-## 5. DepEd MATATAG Compliance & Academic Awards Audit
-Audit the awards and recognition module to ensure 100% compliance with current DepEd MATATAG directives:
+## 2. Define Requirements and Evidence
 
-1. **Unified Academic Excellence Award Standards**:
-   - Audit files: `app/src/utils/grading-helpers.ts`, `app/src/pages/ReportsPage.tsx`, `app/src/pages/CertificateGeneratorPage.tsx`, `app/src/pages/SF9Page.tsx`
-   - **Verification Checklist**:
-     - [ ] **Qualification Rules**: Strictly requires General Average of **90.00 to 100** AND **no final/quarterly grade below 80** in any learning area.
-     - [ ] **No Legacy Tiers**: Zero active logic generating or referencing the legacy 3-tier subcategories ("With Honors 90–94", "With High Honors 95–97", "With Highest Honors 98–100").
-     - [ ] **No 85 Threshold**: Zero active logic requiring a minimum grade of 85.
-     - [ ] **Alphabetical Ordering**: Awardees are sorted alphabetically by last name (never by numeric rank) to uphold DepEd's anti-ranking policy.
-     - [ ] **Certificate Generation**: Certificates issue the official title: *"Academic Excellence Award / Gawad sa Akademikong Kahusayan"*.
+Create a requirements-to-evidence matrix:
 
-2. **Core Values (AO/SO/RO/NO) Retirement Verification**:
-   - Audit file: `app/src/pages/SF9Page.tsx`
-   - **Verification Checklist**:
-     - [ ] The obsolete 4-core behavior rating grid (Maka-Diyos, Makatao, Makakalikasan, Makabansa rated AO/SO/RO/NO) has been cleanly removed from the SF9 UI.
-     - [ ] Modal dialog functions exclusively for *"Teacher's Comments & Remarks"*.
+| ID | Requirement | Source or Rationale | Applicable Context | Implementation | Verification Method | Result | Evidence |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 
-3. **Senior High School G12 Export Criteria**:
-   - Audit files: `app/src/services/sf9-g12-academic-cross-excel-export.ts`, `app/src/services/sf9-g12-techpro-excel-export.ts`, `app/src/services/sf9-g12-techpro-cross-excel-export.ts`
-   - **Verification Checklist**:
-     - [ ] All three Grade 12 Excel export engines assign `'Academic Excellence Award'` when `generalAverage >= 90 && minGrade >= 80`.
+### Result States
+- **PASS**: The stated check succeeded with sufficient evidence.
+- **FAIL**: Evidence demonstrates a requirement violation.
+- **BLOCKED**: A prerequisite or environment limitation prevented verification.
+- **UNVERIFIED**: The requirement or conclusion lacks sufficient supporting evidence.
+- **NOT RUN**: The check was identified but not executed.
+- **NOT APPLICABLE**: The check does not apply, with a documented reason.
 
-4. **Automated Awards & Compliance Test Suite**:
-   ```bash
-   npx vitest run src/services/sf9-g12-academic-cross-excel-export.test.ts src/services/sf9-g12-techpro-excel-export.test.ts src/services/sf9-g12-techpro-cross-excel-export.test.ts
-   ```
-   - All tests must pass with **0 failures**.
+### Verification Methods
+Distinguish:
+- Source inspection.
+- Unit tests.
+- Integration tests.
+- End-to-end application tests.
+- Visual or manual verification.
+
+*An inspected code path is not an executed workflow. A passing test suite does not establish complete system correctness.*
 
 ---
 
-## 6. DepEd School Forms (SF) & Excel Formula Preservation Audit
-Audit the fidelity of generated DepEd official forms and Excel workbook preservation:
+## 3. Verify DepEd Policy Applicability
 
-1. **School Forms Coverage**:
-   - [ ] **SF1 (School Register)**: Correct enrollment counts, LRN validation (12 digits), gender segregation, and birth certificate verification flags.
-   - [ ] **SF2 (Daily Attendance)**: Monthly absent and tardy rollups, aggregate percentage of attendance calculation.
-   - [ ] **SF4 (Monthly Learner Movement)**: Transferred in, transferred out, dropped, and promoted counts.
-   - [ ] **SF5 (Report on Promotion & Level of Proficiency)**: Promoted/Retained status, general average, proficiency level buckets (Did Not Meet Expectations to Outstanding).
-   - [ ] **SF9 (Learner Progress Report Card)**: Primary (G1–G6), JHS (G7–G10), and SHS (G11–G12) XML structures.
-   - [ ] **SF10 (Learner Permanent Record / Form 137)**: Multi-year academic histories, eligibility checks, and transfer credentials.
-   - [ ] **Temporary Grade Slip (TGS)**: Accurate quarter-by-quarter grade synchronization and printable slip rendering.
+Before evaluating grading, awards, attendance, promotion, or school-form compliance, establish the applicable requirements.
 
-2. **Excel Template & Formula Preservation Integrity**:
-   - Audit file: `app/src/services/sf9-g12-academic-cross-excel-export.ts` (and sibling export services)
-   - **Verification Checklist**:
-     - [ ] **Zero Corruption Warnings**: Exported `.xlsx` files open in Microsoft Excel without prompt: *"We found a problem with some content in..."*.
-     - [ ] **Formula Preservation**: Pre-existing Excel formulas in summary worksheets remain intact and uncorrupted.
-     - [ ] **Style Xfs Bounds**: Cell styles do not reference non-existent style indexes in `xl/styles.xml`.
+For each policy-dependent rule, record:
+- Official document title and order number.
+- Source URL or supplied official document (e.g., [DepEd Learning Systems Portal](https://sites.google.com/deped.gov.ph/lsguide/orientation-package)).
+- Relevant page, section, table, or annex.
+- Effective school year.
+- Applicable grade levels, curriculum, tracks, and school types.
+- Transition provisions, amendments, and historical applicability.
 
-3. **Automated School Forms Test Suite**:
-   ```bash
-   npx vitest run src/testing/sf9Template2.test.ts src/testing/sf9Template2PdfRender.test.ts src/testing/sf10SubjectCustomization.test.ts src/testing/temporaryGradeSlip.test.ts
-   ```
-   - All tests must pass with **0 failures**.
+Verify the exact requirements before accepting assumptions about:
+- Transmutation tables and rounding rules.
+- Key Stage 1 (Kindergarten & Grade 1) descriptive grading and its rollout.
+- Assessment component weights (Written Work, Performance Tasks, Quarterly Assessment).
+- Three-term versus four-quarter reporting.
+- Academic awards and eligibility exclusions (General Average $\ge 90$, no grade $< 80$).
+- Anti-ranking provisions, award titles, and alphabetical ordering.
+- Core-values ratings (AO/SO/RO/NO) retirement versus teacher remarks.
+- MAPEH components (Music & Arts + PE & Health).
+- Senior High School (SHS) averaging, promotion, and completion rules.
 
----
-
-## 7. Role-Based Access Control (RBAC) & Tenant Isolation Audit
-Audit permission boundaries and data privacy across user roles:
-
-1. **RBAC Rules Verification**:
-   - Audit file: `app/src/lib/rbac.ts`
-   - **Verification Checklist**:
-     - [ ] **Teacher Role**: Can only view and edit classes/subjects assigned to their specific teaching load (`is_teaching_load`).
-     - [ ] **Adviser Role**: Can manage the official advisory section, student profiles, and official SF forms for their advisory section.
-     - [ ] **Admin / Registrar Role**: Full institutional oversight, school profile configuration, and master records archiving.
-     - [ ] **Teaching Load Isolation**: Subject teachers cannot see or modify unassigned advisory sections or grades.
-
-2. **Automated RBAC Test Suite**:
-   ```bash
-   npx vitest run src/testing/eclassSyncTeachingLoad.test.ts src/testing/userWorkflowImprovements.test.ts
-   ```
-   - All tests must pass with **0 failures**.
+> **RULE**: Do not treat existing code, tests, templates, or this prompt as authoritative policy evidence. If a source is unavailable or ambiguous, document the uncertainty and mark affected compliance conclusions **UNVERIFIED**. Verify that current and historical records select the appropriate policy; do not assume older rules must disappear from the codebase.
 
 ---
 
-## 8. Complete System Integration & Full Diagnostic Suite
-Execute the entire test suite across all modules in fail-safe run mode:
+## 4. Static Quality and Build Verification
 
-```bash
-npm test -- --run
-```
-- Verify:
-  - Total test files passed vs failed.
-  - Zero unhandled promise rejections or EventEmitter memory leak warnings.
-  - Snapshot test fidelity.
+Discover the actual configuration and supported commands before execution.
 
----
+### 4.1 Type Checking
+Verify:
+- Renderer and application TypeScript (`npx tsc --noEmit -p tsconfig.app.json` and `npx tsc -b`).
+- Relevant service, shared, portal, and backend types.
+- Imports and module boundaries.
+- Types for students, sections, subjects, enrollments, class records, and grading records.
+- Unsafe casts (`as any`) and unchecked data at external boundaries.
 
-## 9. Audit Report Synthesis & Health Scorecard
-Upon completing all checks, compile the final audit report using this structure:
+*Use the repository’s existing configuration. Distinguish configured type-check success from a broader claim of strict type safety.*
 
-```
-=============================================================
-  FormEase Pro Comprehensive Audit & Bug Report
-=============================================================
-Audit Timestamp    : <YYYY-MM-DD HH:mm:ss>
-Repository Commit  : <Git Commit Hash>
-Environment        : Node <version> | Windows / Electron
-Status             : PASSED / ACTION REQUIRED
+### 4.2 Linting
+Run applicable lint checks (`npm run lint`) and record errors and warnings separately:
+- Hook dependencies and stale closures in `useEffect`, `useMemo`, and `useCallback`.
+- Unhandled promises or missing `catch` blocks.
+- Unsafe `any` usage at important data boundaries.
+- Dead code that affects active behavior.
+- Error handling and resource cleanup.
+- Uncleaned event listeners, IPC subscriptions, and timers.
 
-Domain Scorecard :
-  1. Static Typing & Linting   : [ 10/10 ] (0 errors, 0 warnings)
-  2. Database & Cryptography   : [ 10/10 ] (Stores quarantined, DPAPI salt safe)
-  3. Grading Engine & Weights  : [ 10/10 ] (Normalized, no thousands-scale scores)
-  4. DepEd MATATAG Compliance  : [ 10/10 ] (Unified award GA 90-100, min 80)
-  5. School Forms & Templates  : [ 10/10 ] (Zero Excel repair warnings)
-  6. RBAC & Data Privacy       : [ 10/10 ] (Teaching loads strictly isolated)
-  7. Integration Test Suite    : [ 10/10 ] (All unit & integration tests green)
+### 4.3 Build and Obfuscation
+Where safely isolated, verify:
+- Renderer production compilation (`npm run build`).
+- Electron obfuscation outputs (`npm run obfuscate:electron`).
+- Required preload and main-process assets (`dist-electron/`).
+- Imports, asset paths, and chunk initialization.
+- Build warnings and missing resources.
 
-Identified Issues & Bug Findings :
-  (List any warnings, edge-case risks, or recommendations, or state: "Zero critical bugs identified.")
-
-Next Recommended Action :
-  (Specify next engineering step, e.g., "Ready for staging smoke test")
-=============================================================
-```
+*Review commands before using them. Avoid redundant compilation when one command includes another. Successful compilation establishes buildability only; runtime startup requires separate verification.*
 
 ---
 
-## Strict Rules
-- **Non-Destructive**: Never modify database records, git tags, or version files during an audit.
-- **Fail-Safe Gates**: If any diagnostic command fails, document the exact stack trace and failing test name immediately.
-- **Zero Release Contamination**: Under no circumstances should `npm run electron:build`, `git tag`, or `git push` be executed as part of this audit workflow.
-- **Client Data First**: Always verify that client databases remain protected, backed up, and quarantined if unreadable.
+## 5. Database, Encryption, and Recovery Integrity
+
+Inspect actual persistence paths, including:
+- `app/src/services/database.ts`
+- `app/src/utils/db-crypto.ts`
+- `app/src/utils/encryption-migration.ts`
+- `app/src/services/dek-indexeddb-migration.ts`
+
+### 5.1 Encryption and Key Lifecycle
+Check:
+- Stable key and DPAPI salt handling across launches (preventing key re-derivation loss).
+- Protection against accidental key replacement.
+- Ciphertext authentication and tamper detection (AES-256-GCM auth tags).
+- Wrong, missing, or unavailable key behavior.
+- Platform-specific secure storage behavior.
+- Plaintext leakage through logs, temporary files, errors, or exports.
+- Separation of credentials, licenses, and learner data where applicable.
+
+*Test failure cases only with disposable synthetic data.*
+
+### 5.2 Quarantine
+Verify that unreadable records:
+- Do not unnecessarily prevent access to healthy records (preventing client lockout).
+- Retain their original identity and recoverable encrypted content.
+- Include useful, non-sensitive diagnostic metadata (e.g., quarantine reason and timestamp).
+- Are not silently discarded or replaced.
+- Have a documented recovery path.
+
+*Quarantine behavior may run only in the isolated test environment.*
+
+### 5.3 Migration Reconciliation
+Require every source record to be accounted for:
+- Correct primary-key mappings for every store (`identifierOf`).
+- Preserved identifiers, values, relationships, and ownership.
+- Explicit handling of duplicates and exclusions.
+- Destination and quarantine reconciliation.
+- Interrupted migration, restart, rollback, and retry behavior.
+- Idempotence: repeating a completed migration produces no additional transformation.
+
+*Unexplained count differences are integrity failures, even when small. Count equality alone is insufficient: compare record identities and relevant content.*
+
+### 5.4 Backup and Restore
+Test:
+- Backup $\to$ restore $\to$ compare $\to$ restart.
+- Older supported backup formats.
+- Truncated or tampered files.
+- Wrong passwords or keys.
+- Duplicate imports and conflicting identifiers.
+- Partial failures and interrupted writes.
+- Disk-full or permission-denied behavior where safely simulatable.
+
+*Do not overwrite a working dataset before a replacement is validated.*
+
+---
+
+## 6. Grading, Rounding, and Reconciliation
+
+Inspect the grading engines and their consumers, including:
+- `app/src/lib/grading.ts`
+- `app/src/utils/grading-helpers.ts`
+- `app/src/utils/grade-reconciliation.ts`
+
+### 6.1 Independent Expected Results
+Construct synthetic examples whose expected results are derived independently from verified policy:
+- Every applicable transmutation interval (e.g., DO 15, s. 2026 Table 4).
+- Values immediately below, at, and above boundaries (e.g., 74.99 vs 75.00, 89.99 vs 90.00).
+- Rounding precision and rounding order (nearest whole number vs internal decimal places).
+- Component weights and aggregation (e.g., 40/40/20, 50/50, 60/20/20).
+- Term, quarter, final, and general-average calculations.
+- Curriculum, grade-level, subject, track, and school-year selection.
+
+*Do not derive expected outputs by calling the same function under test.*
+
+### 6.2 Missing and Invalid Values
+Distinguish:
+- No assessment entered.
+- An explicitly entered score of 0.
+- Missing component.
+- Incomplete reporting period.
+- Zero maximum possible score.
+- Negative or above-maximum score.
+- Invalid numeric text, `NaN`, and `Infinity`.
+- Duplicate assessment entries.
+
+*An entered zero must not disappear through truthiness checks (`val || null`). Missing data must not produce phantom perfect grades (`100`), artificial passing marks, or unjustified award eligibility.*
+
+### 6.3 Weight Normalization
+Verify:
+- Accepted weight representations are clearly defined (`0.40` vs `40`).
+- Mixed representations are detected.
+- Weights satisfy the applicable specification (summing to 100% / 1.0).
+- Normalization is applied exactly once.
+- Displayed percentages agree with calculation inputs (preventing `4000%` header bug).
+- Invalid configurations produce visible, actionable handling.
+
+### 6.4 Historical Grade Repair
+Treat previously reported inflated scores as regression cases requiring verified expected results.
+
+Require:
+- Evidence identifying the corruption mechanism.
+- A documented transformation (`7153.94 -> 76`).
+- Preserved original values and provenance.
+- A dry-run before/after comparison.
+- Idempotence.
+- Ambiguous records to be flagged rather than guessed.
+
+*Do not execute repair against real client records.*
+
+### 6.5 Composite and Synchronized Grades
+Verify applicable MAPEH and SHS aggregation rules, incomplete components, excluded subjects, and unit weighting.
+
+Compare results across:
+- Class records.
+- Summary screens.
+- Consolidated grades.
+- SF9 and SF10.
+- Temporary grade slips.
+- Certificates and awards.
+- Excel and PDF outputs.
+
+*Investigate divergence even when individual module tests pass.*
+
+---
+
+## 7. Awards, Descriptive Grading, and Historical Compatibility
+
+Using verified policy requirements, check:
+- Eligible grade levels and reporting periods.
+- General-average thresholds ($\ge 90$).
+- Minimum subject-grade requirements (no grade $< 80$).
+- Additional eligibility conditions (conduct, disciplinary clearance).
+- Treatment of incomplete, missing, remedial, and transferred grades.
+- Rounding at eligibility boundaries.
+- Official titles and certificate wording (*Academic Excellence Award / Gawad sa Akademikong Kahusayan*).
+- Required ordering of awardees (alphabetical order, zero numeric ranking).
+- Key Stage 1 descriptive marks (A, B, C, D) and numeric-score suppression.
+- Applicable behavior ratings and teacher remarks.
+
+Check all consumers, including reports, certificates, SF9, and Grade 12 export services.
+
+*Separate current-policy behavior from historical record rendering. Confirm that opening an older record does not silently reinterpret or rewrite it under a newer policy.*
+
+---
+
+## 8. School Forms, Excel, PDF, and Printing
+
+Discover all supported forms and template variants. Include where implemented:
+- SF1, SF2, SF4, SF5, SF6, SF8, SF9, and SF10.
+- Temporary Grade Slips.
+- Electronic class records.
+- Descriptive-assessment forms (Key Stage 1).
+- Consolidated grade sheets and certificates.
+
+Create a coverage matrix by form, template version, grade level, track, curriculum, and school year.
+
+### 8.1 Data Correctness
+Verify:
+- Learner identifiers (12-digit LRN) and leading zero preservation.
+- Enrollment, attendance, movement, and promotion totals.
+- Names, dates, demographics, and subject labels.
+- Transfer and historical records.
+- Grade and award synchronization.
+- Missing and incomplete data handling.
+
+### 8.2 Workbook Integrity
+Check:
+- Workbook and worksheet relationships.
+- Formula preservation and references.
+- Style indexes (`xl/styles.xml`), shared strings, and merged cells.
+- Named ranges, validations, and protected areas.
+- Print areas, page breaks, and hidden sheets.
+- External links and unexpected active content.
+- Text fields that could be interpreted as formulas (CSV/Excel injection prevention).
+
+*Preserve intentional template formulas while handling user-entered text safely.*
+
+### 8.3 Application and Visual Verification
+For representative outputs:
+- Open and recalculate in Microsoft Excel when available.
+- Record any repair or compatibility warnings (*"We found a problem with some content..."*).
+- Verify calculated values rather than trusting stale cached values.
+- Inspect PDF or print output for clipping, pagination, alignment, and readability.
+- Include long names, accented characters, large rosters, empty classes, and multi-page records.
+
+*Structural XML validation alone does not prove that Excel opens a workbook without repair warnings. Report unavailable application-level checks explicitly.*
+
+---
+
+## 9. Authorization, Privacy, and Electron Security
+
+First identify the actual authentication and ownership model. Do not assume tenant isolation exists merely because the UI exposes roles.
+
+### 9.1 Access Control
+Where applicable, test teacher, adviser, administrator, registrar, and unauthenticated contexts.
+
+Verify permissions through:
+- UI routes and controls.
+- Direct service calls.
+- IPC handlers.
+- Imports and exports.
+- Backup and restore.
+- Cached state and session changes.
+- Local/mobile endpoints.
+
+*Include attempts to access unrelated learners, sections, subjects, schools, and academic years. Hidden buttons are insufficient evidence of authorization enforcement.*
+
+### 9.2 Electron Boundaries
+Inspect:
+- Renderer isolation (`contextIsolation: true`) and Node exposure (`nodeIntegration: false`).
+- Preload API scope (least privilege).
+- IPC sender validation and input validation.
+- Navigation, external links (`setWindowOpenHandler`), and window creation.
+- Filesystem paths and traversal handling.
+- Sensitive token and key storage.
+- Error messages and logs (no leaked plaintext PII).
+- Development versus production configuration.
+
+*Obfuscation must not be treated as an authorization or cryptographic control.*
+
+### 9.3 Dependency and Configuration Risks
+Review manifests, lockfiles, and configuration for relevant risks.
+
+If an advisory lookup is performed, record its source, date, and limitations. Distinguish package presence from reachable application exposure.
+
+*Do not run automatic dependency fixes or upload source, credentials, or learner data.*
+
+---
+
+## 10. Licensing, Mobile, Backend, and Updates
+
+Audit implemented components using fixtures, mocks, or local emulators:
+
+### 10.1 Licensing
+- Check activation, validation, offline behavior, expiry, device changes, unavailable secure storage, and recovery paths against documented product requirements.
+- Verify licensing failures do not destroy learner records.
+
+### 10.2 Backend and Portal
+- Check authentication, authorization, input validation, state transitions, duplicate requests, secret handling, and sensitive responses.
+
+### 10.3 Mobile and Local Communication
+- Check pairing, endpoint exposure, request authentication, malformed input, disconnection, retries, duplicates, and desktop/mobile data consistency.
+
+### 10.4 Updates
+- Inspect configured trust and integrity checks, metadata handling, interrupted-download behavior, and preservation of user data.
+
+*Do not publish, install updates into the real application, change real licenses, or perform production backend writes. Record inaccessible live-environment behavior as a coverage limitation.*
+
+---
+
+## 11. End-to-End User Journeys
+
+Execute supported journeys in the isolated environment:
+
+### Primary Journey
+1. Configure a synthetic school and academic year.
+2. Create users or select supported roles.
+3. Create sections and subjects.
+4. Enroll synthetic learners.
+5. Assign teaching loads.
+6. Record attendance and assessment scores.
+7. Calculate reporting-period and final grades.
+8. Evaluate awards.
+9. Generate forms and exports.
+10. Create a backup.
+11. Restore into a second empty test profile.
+12. Restart and compare records and outputs.
+
+### Additional Scenarios
+Cover relevant edge-cases:
+- Transfer in/out and duplicate learner identifiers.
+- Subject changes and incomplete components.
+- Historical records and school-year rollover.
+- Three-term and four-quarter compatibility where supported.
+- Offline startup and reconnect.
+- Rapid edits followed by navigation or shutdown.
+- Repeated clicks and concurrent windows where supported.
+- Interrupted saves and recovery.
+- Large but bounded datasets (e.g., 60+ students, 12+ subjects).
+- Empty, loading, error, and permission-denied states.
+- Keyboard navigation, focus, validation messages, and readability in critical workflows.
+
+*Capture console errors, unhandled rejections, and resource warnings with reproduction context.*
+
+---
+
+## 12. Test Execution and Failure Handling
+
+Inventory tests across all components and runners:
+- Application unit and integration tests.
+- Standalone Electron tests.
+- Backend function tests.
+- Export and template tests.
+- Existing end-to-end tests.
+
+*Treat previously listed test paths as discovery hints. Verify that they exist and cover the intended behavior.*
+
+### Command Logging
+For each command, record:
+- Working directory and exact command line.
+- Purpose.
+- Start time, duration, and exit code.
+- Passed, failed, skipped, and discovered test counts.
+- Relevant warnings.
+- Evidence file locations.
+
+*Use explicit, reasonable timeouts. Run independent checks concurrently only when profiles, files, ports, and other resources cannot conflict.*
+
+### On Failure
+- Preserve the original failure evidence.
+- Classify: assertion failure, environment failure, timeout, or tool failure.
+- Record the failing test and relevant redacted stack trace.
+- Continue independent checks; stop dependent or unsafe checks.
+- A diagnostic rerun must not erase the original failure. Report inconsistent reruns as possible flakiness.
+
+*Do not update snapshots, delete failing tests, or weaken assertions. When coverage is missing, use safe independent verification where practical and document the remaining gap.*
+
+---
+
+## 13. Findings and Prioritization
+
+Assign a stable ID to each finding (`FINDING-001`, `FINDING-002`, ...).
+
+For every finding, include:
+- **Title and affected domain**.
+- **Severity**: Critical, High, Medium, Low, or Informational.
+- **Confidence**: High, Medium, or Low.
+- **Affected commit / working-tree state**.
+- **File and line references** where available.
+- **Preconditions and synthetic reproduction steps**.
+- **Expected and actual behavior**.
+- **User impact and affected scope**.
+- **Supporting evidence**.
+- **Confirmed cause** or clearly labeled hypothesis.
+- **Recommended correction and regression test**.
+
+### Severity Prioritization
+1. Data loss or unrecoverable records.
+2. Unauthorized access or sensitive-data exposure.
+3. Incorrect grades, awards, or official records.
+4. Broken primary workflows.
+5. Reliability, performance, and usability defects.
+
+*Consolidate duplicate symptoms without hiding affected workflows.*
+
+---
+
+## 14. Final Report
+
+Create a readable report and retain supporting evidence in the designated audit directory.
+
+### Audit Identity
+- Timestamp and timezone.
+- Repository, branch, full commit, and local modifications.
+- Environment and tool versions.
+- Components and policies assessed.
+- Isolation method and synthetic dataset summary.
+
+### Overall Result
+- **PASSED WITHIN VERIFIED SCOPE**: Required applicable checks completed successfully.
+- **ACTION REQUIRED**: Confirmed defects or failed checks require attention.
+- **INCOMPLETE**: Material blocked, unverified, or unexecuted checks prevent a sufficient conclusion.
+
+*If defects and coverage gaps both exist, report both prominently.*
+
+### Domain Results Table
+
+| Domain | Result | Evidence | Findings | Coverage Gaps |
+| :--- | :--- | :--- | :--- | :--- |
+| Static quality and builds | | | | |
+| Database and encryption | | | | |
+| Migration and recovery | | | | |
+| Grading and policy selection | | | | |
+| Awards and descriptive grading | | | | |
+| Forms and exports | | | | |
+| Authorization and privacy | | | | |
+| Electron security | | | | |
+| Licensing, mobile, backend, updates | | | | |
+| End-to-end workflows | | | | |
+
+*Do not assign arbitrary numerical health scores.*
+
+### Required Report Sections
+1. Executive summary.
+2. Confirmed findings, ordered by severity.
+3. Requirements-to-evidence matrix.
+4. Test and command summary.
+5. Policy sources and unresolved interpretations.
+6. Blocked, skipped, and untested areas.
+7. Prioritized corrective actions and suggested regression tests.
+8. Post-audit preservation checks.
+
+Use bounded conclusions such as:
+> *"No critical defects were identified in the checks executed. The following areas remain unverified: …"*
+
+*Do not claim 'zero bugs,' '100% compliance,' complete security, or release readiness without evidence supporting that exact scope.*
+
+---
+
+## 15. Post-Audit Preservation Checks
+
+Before concluding:
+1. Compare the working tree with its recorded baseline (`git status`, `git diff`).
+2. Confirm application source, versions, dependencies, templates, and existing tests were preserved.
+3. Confirm runtime activity remained inside the isolated profiles.
+4. List all audit-generated files and their locations.
+5. Stop only processes started for this audit.
+6. Retain useful evidence and reproduction artifacts.
+7. Report unexpected changes without silently reverting user work.
+8. Confirm that no release, deployment, production write, or real-data repair occurred.
+
+*Finish with the most important confirmed issues, material uncertainties, and recommended next engineering steps. Stop after diagnosis and reporting. Implement fixes only under a separate explicit instruction.*
