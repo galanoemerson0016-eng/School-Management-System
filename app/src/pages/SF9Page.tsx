@@ -2256,7 +2256,6 @@ export function SF9Page() {
     });
     const [pageSize, setPageSize] = useState<'A4' | 'LETTER'>('A4');
     const [isValuesModalOpen, setIsValuesModalOpen] = useState(false);
-    const [modalViewMode, setModalViewMode] = useState<'remarks' | 'values'>('remarks');
     const [modalQuarter, setModalQuarter] = useState<1 | 2 | 3>(1);
     const teacherList: User[] = teachers;
     const [isBatchReady, setIsBatchReady] = useState(false);
@@ -3747,9 +3746,9 @@ export function SF9Page() {
                     <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                         {selectedStudent && !isBatchReady && !isShsSf9Section && !isGrade1Level(selectedStudent.grade_level) && (
                             <button
-                                onClick={() => { setPendingChanges({}); setModalViewMode('remarks'); setIsValuesModalOpen(true); }}
+                                onClick={() => { setPendingChanges({}); setIsValuesModalOpen(true); }}
                                 className="h-7.5 px-2 rounded-lg bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 text-[8px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center gap-1 shadow-xs shrink-0 active:scale-95 cursor-pointer"
-                                title="Edit Teacher's Comments/Remarks & Observed Values"
+                                title="Edit Teacher's Comments/Remarks"
                             >
                                 <Edit3 className="w-3 h-3 text-blue-500" />
                                 <span className="hidden sm:inline">Remarks</span>
@@ -4147,30 +4146,9 @@ export function SF9Page() {
                                         <Edit3 className="w-7 h-7 text-white" />
                                     </div>
                                     <div className="flex flex-col">
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => setModalViewMode('remarks')}
-                                                className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                                    modalViewMode === 'remarks'
-                                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
-                                                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                                                }`}
-                                            >
-                                                Teacher's Comments/Remarks
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setModalViewMode('values')}
-                                                className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                                    modalViewMode === 'values'
-                                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
-                                                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                                                }`}
-                                            >
-                                                Core Values
-                                            </button>
-                                        </div>
+                                        <h3 className="text-base font-black text-slate-800 uppercase tracking-wider">
+                                            Teacher's Comments & Remarks
+                                        </h3>
                                         <div className="flex items-center gap-3 mt-2.5">
                                             <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 text-[9px] font-black rounded-lg uppercase tracking-widest border border-indigo-100">{selectedStudent.lrn}</span>
                                             <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{formatLearnerName(selectedStudent)}</span>
@@ -4200,9 +4178,9 @@ export function SF9Page() {
                             </div>
 
                             {/* Evaluation Grid or Remarks Textarea */}
-                            <div className={`flex-1 overflow-y-auto custom-scrollbar bg-slate-50/20 ${modalViewMode === 'remarks' ? 'p-4 md:p-6' : 'p-12'}`}>
+                            <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50/20 p-4 md:p-6">
                                 <div className="max-w-5xl mx-auto">
-                                    {modalViewMode === 'remarks' ? (() => {
+                                    {(() => {
                                         const currentComment = pendingChanges[modalQuarter]?.['teacher_comment'] !== undefined
                                             ? pendingChanges[modalQuarter]['teacher_comment']
                                             : observedValues.find(v => v.student_lrn === selectedStudent.lrn && v.school_year === activeSchoolYear && v.quarter === modalQuarter)?.values?.['teacher_comment'] || '';
@@ -4532,59 +4510,7 @@ export function SF9Page() {
                                                 </div>
                                             </div>
                                         );
-                                    })() : (
-                                        <div className="space-y-12">
-                                            {CORE_VALUES.map((cv) => (
-                                                <div key={cv.name} className="space-y-6">
-                                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.3em] ml-2">{cv.name}</h3>
-                                                    <div className="grid grid-cols-1 gap-4">
-                                                        {cv.behaviors.map((behavior, bIdx) => {
-                                                            const key = `${cv.name}_${bIdx}`;
-                                                            const pendingForQ = pendingChanges[modalQuarter]?.[key];
-                                                            const currentRating = pendingForQ !== undefined 
-                                                                ? pendingForQ 
-                                                                : observedValues.find(v => v.student_lrn === selectedStudent.lrn && v.school_year === activeSchoolYear && v.quarter === modalQuarter)?.values[key] || '';
-                                                            
-                                                            return (
-                                                                <div key={bIdx} className="bg-white p-6 rounded-2.5xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
-                                                                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                                                                        <p className="text-sm font-bold text-slate-600 leading-relaxed max-w-2xl">
-                                                                            {behavior}
-                                                                        </p>
-                                                                        <div className="flex items-center gap-1.5 shrink-0 w-full overflow-x-auto custom-scrollbar">
-                                                                            {[
-                                                                                { val: 'AO', label: 'AO', color: 'bg-emerald-500', desc: 'Always Observed' },
-                                                                                { val: 'SO', label: 'SO', color: 'bg-indigo-500', desc: 'Sometimes Observed' },
-                                                                                { val: 'RO', label: 'RO', color: 'bg-amber-500', desc: 'Rarely Observed' },
-                                                                                { val: 'NO', label: 'NO', color: 'bg-rose-500', desc: 'Not Observed' }
-                                                                            ].map((opt) => (
-                                                                                <button
-                                                                                    key={opt.val}
-                                                                                    onClick={() => {
-                                                                                        setPendingChanges(prev => ({
-                                                                                            ...prev,
-                                                                                            [modalQuarter]: {
-                                                                                                ...(prev[modalQuarter] || {}),
-                                                                                                [key]: opt.val
-                                                                                            }
-                                                                                        }));
-                                                                                    }}
-                                                                                    className={`w-12 h-12 rounded-xl font-black text-[10px] transition-all relative ${currentRating === opt.val ? `${opt.color} text-white shadow-lg scale-110 z-10` : 'bg-slate-50 text-slate-300 hover:bg-slate-100 hover:text-slate-500'}`}
-                                                                                    title={opt.desc}
-                                                                                >
-                                                                                    {opt.label}
-                                                                                </button>
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
+                                    })()}
                                 </div>
                             </div>
 
