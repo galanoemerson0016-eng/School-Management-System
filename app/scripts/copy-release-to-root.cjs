@@ -21,17 +21,11 @@ for (const file of files) {
   if (file.endsWith('.exe') || file.endsWith('.dmg') || file.endsWith('.blockmap') || file.endsWith('.yml')) {
     const srcPath = path.join(releaseDir, file);
     if (fs.statSync(srcPath).isFile()) {
-      // Copy to root directory (for .exe and .dmg)
-      if (file.endsWith('.exe') || file.endsWith('.dmg')) {
-        const destRoot = path.join(rootDir, file);
-        fs.copyFileSync(srcPath, destRoot);
-        console.log(`[copy-release] Copied ${file} -> ${destRoot}`);
-        copied++;
-      }
       // Copy all release artifacts to root/release/
       const destRelease = path.join(rootReleaseDir, file);
       fs.copyFileSync(srcPath, destRelease);
       console.log(`[copy-release] Copied ${file} -> ${destRelease}`);
+      copied++;
     }
   }
 }

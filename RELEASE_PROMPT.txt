@@ -1,4 +1,4 @@
-# Release FormEase Pro (Enhanced Workflow v2.4)
+# Release FormEase Pro (Enhanced Workflow v3.0)
 
 Prepare, verify, and publish an official release for FormEase Pro by strictly following this fail-safe workflow.
 
@@ -7,17 +7,18 @@ Prepare, verify, and publish an official release for FormEase Pro by strictly fo
 ## 1. Pre-Flight Verification & Health Check
 Execute all pre-flight checks inside `app/` before initiating the release. If any check fails, **ABORT immediately** and report the error traceback:
 
-1. **Inspect Working Tree**:
+1. **Inspect Working Tree & Workspace Hygiene**:
    ```bash
    git status
    ```
-   - Verify all feature changes, services (`grade-reconciliation.ts`, `database-rescue-export.ts`, `pre-update-safety.ts`, `shs-g12-excel-export.ts`), and templates in `app/public/templates/` are accounted for.
+   - Verify all feature changes, services (`database.ts`, `encryption-migration.ts`, `db-crypto.ts`, `grade-reconciliation.ts`, `pre-update-safety.ts`, `sf9-excel-export.ts`), and templates in `app/public/templates/` (exactly 79 official templates) are accounted for.
+   - Verify workspace is clean: zero scratch directories (`scratch/`, `app/scratch/`), no loose root `.exe` duplicates, and no unneeded test files.
 
 2. **Code Quality & Linting**:
    ```bash
    npm run lint
    ```
-   - Ensure **0 lint errors** across TypeScript and React files (no unhandled `@typescript-eslint/no-explicit-any` or `prefer-const` warnings).
+   - Ensure **0 lint errors and 0 warnings** across TypeScript and React files.
 
 3. **Type Checking & Production Build**:
    ```bash
@@ -27,60 +28,87 @@ Execute all pre-flight checks inside `app/` before initiating the release. If an
 
 4. **Targeted Critical Test Suite (Fail-Fast)**:
    ```bash
-   npx vitest run src/lib/grading.test.ts src/utils/grade-reconciliation.test.ts src/utils/grading-helpers.test.ts
+   npx vitest run src/lib/grading.test.ts src/utils/grade-reconciliation.test.ts src/services/database.test.ts src/services/database-audit-regressions.test.ts
    ```
    - Verify that:
+     - Universal store quarantine safely handles unreadable/corrupted records without crashing the app or locking out the user.
+     - Legacy primary keys and salt overwrite protections prevent decryption mismatch.
      - Header weights normalize (`40 -> 0.40`, `4000% -> 40%`).
-     - Thousands-scale scores self-heal (`7153.94 -> 76`, `3004.60 -> 66`, `9232.07 -> 93`, `8489.50 -> 87`).
-     - Stored IndexedDB records self-heal on startup.
+     - Thousands-scale scores self-heal (`7153.94 -> 76`, `3004.60 -> 66`, `9232.07 -> 93`).
      - Ghost records with empty scores do not produce phantom `final_grade: 100`.
 
 5. **Complete Test Suite**:
    ```bash
    npm test -- --run
    ```
-   - Confirm all integration suites pass (SF9 multi-level, ECR Excel exports, SSHS pilot, G12 K-12).
+   - Confirm all 116+ test suites and 980+ integration/unit tests pass with 0 failures.
 
 ---
 
-## 2. Determine Release Type & Versioning
+## 2. Core Architectural & DepEd Compliance Standards
+
+Every release MUST adhere to these non-negotiable architectural mandates:
+
+1. **Client Login Lockout & Universal Store Quarantine (`database.ts`)**:
+   - Universal quarantine across all encrypted stores (`classRecords`, `students`, `gradingSheetRecords`, `hpsRecords`, `sections`, `subjects`, `attendance`, `enrollment`, `settings`).
+   - If a record is corrupted or undecryptable (e.g., Macasandig NHS scenario), it must be quarantined with diagnostic telemetry into `quarantined_records` without aborting initialization or locking the teacher out.
+   - Primary key resolution (`identifierOf`) and tolerant count comparison in `encryption-migration.ts` must prevent schema variance rollback (e.g., San Pedro NHS scenario).
+   - Master DPAPI salt overwrite protection (`db-crypto.ts`) must immutably preserve existing salts across restarts.
+
+2. **DepEd MATATAG Curriculum Alignment**:
+   - **Core Values (AO/SO/RO/NO) Retired**: The obsolete 4-value quarterly rating grid (Maka-Diyos, Makatao, Makakalikasan, Makabansa) is retired under MATATAG. The SF9 modal serves strictly as **Teacher's Comments & Remarks**.
+   - **Academic Excellence Award**: All awards are unified to **Academic Excellence Award / Gawad sa Akademikong Kahusayan**:
+     - General Average: **90.00 to 100**
+     - Minimum Grade: **No grade below 80** in any learning area
+     - Ordering: Strictly **alphabetical** by learner surname (numeric ranking is prohibited per DepEd order).
+
+3. **Institute Profile Exact Casing Preservation**:
+   - Never call `.toUpperCase()` or apply CSS `uppercase` on `head_name`, `head_position`, `principal`, `principalTitle`, or `adviser`.
+   - Exact user casing, honorifics, and degree suffixes (e.g., `Agapito S. Gonzaga, PhD.`, `OIC-School Head, HT-VI`) must be rendered verbatim in all SF9, SF5, SF10, ECR, and Excel export engines.
+
+4. **macOS Sequoia / Sonoma Gatekeeper Bypass**:
+   - Ensure [`Fix-FormEase-Mac.command`](file:///c:/Users/Emerson/Desktop/FormEase%20Pro/Fix-FormEase-Mac.command) (and its `.zip`) is bundled and published in `license-portal/public/` and `update-server/`.
+   - Provide 1-click terminal command (`xattr -cr "/Applications/FormEase Pro.app" && open "/Applications/FormEase Pro.app"`) on [`UpdatesPage.tsx`](file:///c:/Users/Emerson/Desktop/FormEase%20Pro/license-portal/src/pages/UpdatesPage.tsx) to resolve the false "damaged" macOS Sequoia dialog.
+
+---
+
+## 3. Determine Release Type & Versioning
 1. Check the current active version dynamically:
    ```bash
    node -p "require('./app/package.json').version"
    git describe --tags --abbrev=0
    ```
 2. Determine the release bump level relative to `<current-version>`:
-   - **Patch** (`x.y.Z` -> `x.y.Z+1`): Critical client data self-healing, weight normalization, bug fixes, template formula preservation, or stability patches.
+   - **Patch** (`x.y.Z` -> `x.y.Z+1`): Critical login lockout fixes, client data self-healing, weight normalization, bug fixes, template formula preservation, or stability patches.
    - **Minor** (`x.Y.0` -> `x.Y+1.0`): New major DepEd forms/templates, new curriculum levels (e.g., SSHS Pilot, Grade 12 ECR, full SCP suite), or significant feature modules.
    - **Major** (`X.0.0` -> `X+1.0.0`): Structural architectural overhauls or breaking database schema shifts.
 
 ---
 
-## 3. Collect Release Information & Synthesize History
+## 4. Collect Release Information & Synthesize History
 1. Extract all commits since the last release tag:
    ```bash
    git log $(git describe --tags --abbrev=0)..HEAD --oneline
    ```
 2. Group the extracted changes into:
-   - 🚀 **New Features & Enhancements**:
-     - *Senior High School & SCP Curricula*: Grade 12 3-Term ECR, SSHS Pilot 8-subject sheets, Special Curricular Programs (SPFL, SPJ, SPA, SPS, SPTVE, SSES/SPSTEM).
-     - *DepEd School Forms*: Multi-level SF9 (Grades 1–12), SF10 (Form 137), Temporary Grade Slip (TGS) with 1-click sync.
-     - *Data Rescue*: Built-in Offline Database Rescue Export tool (`database-rescue-export.ts`) and Pre-Update Safety Vault (`pre-update-safety.ts`).
-   - ⚡ **Client Data Protection & Self-Healing Engines**:
-     - **Automatic Startup Grade Healing**: Background scan in `grade-reconciliation.ts` heals legacy unnormalized weights (`> 120`) and false `100`s in stored `classRecords` and `gradingSheetRecords` in IndexedDB upon app boot.
-     - **Weight Normalization Engine**: Dynamically converts whole weights (`40`, `60`, `20`) to decimal fractions (`0.40`, `0.60`, `0.20`) and headers to standard percentages (`40%`, not `4000%`), restoring true transmuted DepEd grades.
-     - **Ghost Record Suppression**: Prevents headless records with empty score containers from returning phantom grades.
-     - **Canonical Subject Deduplication**: Unified resolver for PE & Health variations (`PE and HEALTH`, `Physical Education and Health`), merging duplicates with zero data loss.
-     - **Guaranteed Visibility**: Enforces `term: 'all'` for all Elementary and JHS subjects, permanently eliminating accidental `term: 'none'` hiding.
-   - 🐞 **Bug Fixes**:
-     - Fixed `4000%` header weight bug and thousands-scale initial grades (`7153.94`, `3004.60`, etc.) clamping grades to 100.
-     - Fixed Grade 11 SF9 Excel repair warnings (`sheet6.xml` style Xfs bounds and shared formulas).
-     - Resolved DepEd DO 15 s. 2026 Table 4 transmutation edge-case boundaries.
+   - 🛡️ **Client Login & Encryption Integrity**:
+     - Universal store quarantine across all encrypted stores preventing boot crashes.
+     - Store-specific primary key resolution (`identifierOf`) and tolerant migration variance.
+     - Master DPAPI salt overwrite protection.
+   - 📜 **DepEd MATATAG Curriculum Alignment**:
+     - Retired obsolete Core Values checklist in SF9.
+     - Unified DepEd Academic Excellence Award (GA 90-100, no grade below 80, alphabetical ranking).
+   - ✍️ **Institute Profile Exact Casing Preservation**:
+     - Exact casing preserved across all forms and exports for School Head, Adviser, and degree titles (e.g., `PhD.`, `HT-VI`).
+   - 🍏 **macOS Sequoia Compatibility**:
+     - 1-click Gatekeeper fix tool (`Fix-FormEase-Mac.command`) and license portal integration.
+   - 🧹 **Workspace & Build Optimization**:
+     - Deep cleanup: purged legacy templates, old app installers, and test dumps, reclaiming ~5.25 GB.
 3. Prepare the Conventional Commit message: `chore(release): v<new-version>`.
 
 ---
 
-## 4. Preview Plan (Mandatory User Approval)
+## 5. Preview Plan (Mandatory User Approval)
 Display the release preview and **WAIT for explicit user approval (`Proceed`)** before modifying any files:
 
 ```
@@ -104,17 +132,17 @@ Files to Modify :
   ✓ app/dist-electron/license.cjs
 
 Release Highlights :
-  • Automated IndexedDB Grade Healing: Repairs legacy inflated initial grades and false 100s on app boot with zero teacher re-encoding.
-  • Weight Normalization Engine: Eliminates 4000% table headers and thousands-scale scores, calculating authentic DepEd grades.
-  • Ghost Record Protection: Suppresses phantom 100s when raw score containers are empty.
-  • High-Fidelity DepEd Exports: SF9 multi-level report cards, SHS Grade 12 ECR, and SSHS Pilot with 100% formula preservation.
-  • Zero Data Loss Guarantee: 100% preservation of all student records and profiles.
+  • Client Login Lockout Fix: Universal store quarantine prevents crashes from unreadable records.
+  • DepEd MATATAG Alignment: Unified Academic Excellence Award criteria; retired Core Values checklist.
+  • Exact Casing Preservation: Verbatim titles/degrees (e.g., PhD., HT-VI) in all forms and exports.
+  • macOS Sequoia Gatekeeper Tool: 1-click unblock script for false "damaged" macOS dialog.
+  • 100% Zero Data Loss & Backward Compatibility Guarantee.
 =============================================================
 ```
 
 ---
 
-## 5. Update Version Files & Electron Shields
+## 6. Update Version Files & Electron Shields
 Upon explicit user confirmation:
 1. **Update `app/package.json` & `app/package-lock.json`**:
    - Bump `"version": "<new-version>"`.
@@ -123,10 +151,10 @@ Upon explicit user confirmation:
    - Update `notes` in `checkForPostUpdateReconciliation` so teachers see the post-update announcement on first startup:
      ```ts
      notes: [
-       "⚡ Automated Startup Grade Healing: Audits and repairs inflated weights and false 100s on launch with zero teacher re-encoding.",
-       "🎯 Normalized Weights & Header Percentages: Table headers display standard 40%/60%/20% weights, ensuring genuine DepEd grades.",
-       "🛡️ Ghost Record Protection: Suppresses phantom grades when score containers are empty.",
-       "📊 Official Excel Template & Formula Preservation: 100% native DepEd formula integrity across SF9, SHS G12, and SSHS Pilot.",
+       "🛡️ Client Login & Data Safety: Universal store quarantine guarantees zero login lockouts.",
+       "📜 DepEd MATATAG Alignment: Unified Academic Excellence Award (GA 90-100, no grade below 80).",
+       "✍️ Exact Casing Preservation: Verbatim school head and adviser names/degrees across all forms.",
+       "🍏 macOS Sequoia Gatekeeper Support: 1-click helper script resolves false 'damaged' warnings.",
        "🔒 100% backward-compatible update with zero data loss guarantee."
      ]
      ```
@@ -138,34 +166,28 @@ Upon explicit user confirmation:
 
 ---
 
-## 6. Update Documentation (`VERSION_HISTORY.md` & `SettingsPage.tsx`)
+## 7. Update Documentation (`VERSION_HISTORY.md` & `SettingsPage.tsx`)
 1. Insert the new release section at the very top of `VERSION_HISTORY.md` (below `<!-- markdownlint-disable -->`):
 
 ```markdown
 ## v<new-version> (<YYYY-MM-DD>)
 
-### ⚡ Client Data Protection & Self-Healing
+### 🛡️ Client Login & Data Security
+- **Universal Store Quarantine**: FormEase Pro automatically isolates corrupted or unreadable encrypted records into a diagnostic quarantine store without aborting database initialization, permanently resolving client login lockouts.
+- **Tolerant Migration & DPAPI Salt Protection**: Added store-specific primary key resolution and salt overwrite protection to prevent encryption key mismatches across reboots and version updates.
 
-- **Automated Startup Database Healing**: FormEase Pro automatically scans local IndexedDB on startup, recalculates any unnormalized legacy weights (`> 120`), and restores genuine DepEd grades with zero manual re-encoding required from teachers.
-- **Weight Normalization Engine**: Converted whole weights (`40`, `60`, `20`) to standard fractions (`0.40`, `0.60`, `0.20`) and display percentages (`40%`), eliminating thousands-scale weighted scores and the `4000%` header bug.
-- **Ghost Record Suppression**: Implemented score container verification in `resolveStudentQuarterGrade` ensuring empty score arrays never output phantom grades in SF9, SF10, or Consolidated Grades.
-- **Unified Subject Canonicalization & Deduplication**: Unified normalization for PE & Health and GMRC/Values Education across Grade Management, SF9, SF10, and Temporary Grade Slips.
+### 📜 DepEd MATATAG Curriculum Compliance
+- **Unified Academic Excellence Award**: Standardized honors to Academic Excellence Award / Gawad sa Akademikong Kahusayan (GA 90.00–100, no grade below 80, strictly alphabetical ordering with no numeric ranking).
+- **Core Values Retired**: Retired the obsolete DepEd Core Values checklist (AO/SO/RO/NO) in SF9 in alignment with current DepEd MATATAG curriculum standards.
 
-### 🚀 Enhancements & Export Resilience
+### ✍️ Exact Casing Preservation
+- **Form Output Casing**: Removed hardcoded uppercase transformations across all SF9, SF5, SF10, and Excel export services to preserve raw user input, titles, and academic degrees (e.g., `Agapito S. Gonzaga, PhD.`, `OIC-School Head, HT-VI`).
 
-- **Grade 11 SF9 Excel & PDF Export Resilience**: Fixed style index boundaries and shared formulas in `sheet6.xml`, eliminating Excel file repair prompts.
-- **Database Rescue Export Tool**: Added direct offline JSON & Excel database extraction and repair in `database-rescue-export.ts`.
-- **Pre-Update Safety Vault**: Automated local database snapshot and school forms packaging in `pre-update-safety.ts`.
-
-### 🐞 Bug Fixes
-
-- Resolved issue where table headers displayed `4000%` / `6000%` and weighted scores multiplied into the thousands.
-- Fixed term grades clamping to 100 on subjects with custom or legacy weights.
-- Fixed `prefer-const` and explicit `any` lint violations in grading helpers and reconciliation services.
+### 🍏 macOS Sequoia Support
+- **1-Click Gatekeeper Tool**: Bundled `Fix-FormEase-Mac.command` to automatically remove `com.apple.quarantine` on macOS Sequoia and Sonoma, resolving false "damaged" dialogs.
 
 ### 📝 Notes
-
-- 100% backward-compatible update with automatic local database self-healing on first launch.
+- 100% backward-compatible update with zero data loss guarantee.
 ```
 
 2. **Update `app/src/pages/SettingsPage.tsx`**:
@@ -174,7 +196,20 @@ Upon explicit user confirmation:
 
 ---
 
-## 7. CI/CD Workflow, Checksum & Multi-Platform Safeguards
+## 8. Package Production Installer (Windows & Mac)
+1. **Windows Installer Packaging**:
+   ```bash
+   cd app && npm run electron:build:win
+   ```
+   - Compiles production Vite build, obfuscates Electron core, packages NSIS installer, and copies artifacts to `release/`.
+   - Confirms `release/FormEase Pro Setup <version>.exe` and `latest.yml` are generated.
+
+2. **Verify Installer Hygiene**:
+   - Ensure no duplicate `.exe` files sit in the project root. All installer binaries reside in `release/` and `app/release/`.
+
+---
+
+## 9. CI/CD Workflow, Checksum & Multi-Platform Safeguards
 Verify release pipeline integrity:
 1. **Metadata Upload List (`.github/workflows/release.yml`)**: Verify `app/release/*.yml` (`latest.yml`, `latest-mac.yml`) and `app/release/*.blockmap` are included in the release upload files so Windows and macOS update metadata publish to GitHub Releases.
 2. **Dynamic SHA-512 Re-Hashing (`app/scripts/patch-metadata-ci.cjs`)**: Ensure `patch-metadata-ci.cjs` dynamically re-computes `crypto.createHash('sha512')` for renamed binaries (`FormEase.Pro.Setup.X.Y.Z.exe` / `.dmg`) and patches `latest.yml` and `latest-mac.yml` to prevent `sha512 checksum mismatch` errors.
@@ -183,7 +218,7 @@ Verify release pipeline integrity:
 
 ---
 
-## 8. Create Release Commit & Git Tag
+## 10. Create Release Commit & Git Tag
 1. Stage all modified and generated release assets:
    ```bash
    git add app/package.json app/package-lock.json app/src/ app/public/ VERSION_HISTORY.md app/dist-electron/ .gitignore .github/workflows/
@@ -200,7 +235,7 @@ Verify release pipeline integrity:
 
 ---
 
-## 9. Publish Release & Trigger Pipeline
+## 11. Publish Release & Trigger Pipeline
 1. **Set Repository Visibility to Public (for GitHub Actions release quota & runner execution)**:
    ```bash
    gh repo edit galanoemerson0016-eng/School-Management-System --visibility public --accept-visibility-change-consequences
@@ -213,7 +248,7 @@ Verify release pipeline integrity:
 
 ---
 
-## 10. Post-Release: Monitor Pipeline & Restore Private Visibility
+## 12. Post-Release: Monitor Pipeline & Restore Private Visibility
 1. Monitor GitHub Actions release build until all Windows and macOS runners successfully complete:
    `https://github.com/galanoemerson0016-eng/School-Management-System/actions`
 2. Once the release pipeline completes and installer assets are live on GitHub Releases, **restore repository visibility to Private immediately**:
@@ -227,13 +262,13 @@ Verify release pipeline integrity:
 
 ---
 
-## 11. Final Verification Report
+## 13. Final Verification Report
 Verify checklist:
 - [x] Working directory is clean (`git status`).
 - [x] Commit and Tag exist on GitHub remote (`origin/main` & `v<new-version>`).
 - [x] `app/package.json`, `update-store.ts`, and `VERSION_HISTORY.md` match `v<new-version>`.
 - [x] Repository visibility successfully restored to `private`.
-- [x] All client data self-healing mechanisms and test suites verified.
+- [x] All client login safeguards and test suites verified.
 - [x] Provide direct link to monitor GitHub Actions pipeline: `https://github.com/galanoemerson0016-eng/School-Management-System/actions`
 
 Output final summary:
@@ -265,9 +300,9 @@ Modified Files        :
 ## Strict Rules
 - **Never skip Preview**: Always display the preview and wait for explicit confirmation before modifying files.
 - **Fail-Fast Quality Gates**: If `npm run lint`, `npx tsc --noEmit -p tsconfig.app.json`, `npm run build`, or `vitest run` fails, abort immediately.
-- **Client Data Protection Guarantee**: Ensure the startup self-healing reconciliation module is always included in the build to safeguard existing client databases.
+- **Client Data Protection Guarantee**: Universal store quarantine and startup self-healing reconciliation must always be included in the build to safeguard existing client databases.
 - **Reverse Chronological**: Ensure latest releases are at the very top of `VERSION_HISTORY.md`.
-- **Tag Formatting**: Always prefix version tags with `v` (e.g., `v3.5.14`).
+- **Tag Formatting**: Always prefix version tags with `v` (e.g., `v3.5.21`).
 - **Refspec Precision**: Always use `refs/heads/main` when pushing to avoid refspec ambiguity.
 - **Dynamic Checksum Protection**: Always verify `patch-metadata-ci.cjs` dynamically patches SHA-512 hashes before uploading release assets.
 - **Safety & Confidentiality**: Never mention repository visibility toggling (public/private switching) in user-facing release notes (`VERSION_HISTORY.md` or `SettingsPage.tsx`).
