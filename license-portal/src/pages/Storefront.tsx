@@ -916,6 +916,10 @@ export default function Storefront() {
                 {
                   q: 'What is included in the 1-Year Commercial License?',
                   a: 'Your license grants unlimited access to all features: Automated SF9 (both DepEd MATATAG and Standard), SF10 permanent records, SF2 monthly attendance, SF5 promotions, SF6 summaries, PACE Form 138-Reading, Certificate Generator, ID Card Maker, and all official updates throughout your active subscription.'
+                },
+                {
+                  q: 'Mac Users: What if it says "FormEase Pro is damaged and can\'t be opened"?',
+                  a: 'On macOS Sequoia / Sonoma, Apple displays a false "damaged" message for direct school downloads outside the Mac App Store. To resolve this instantly: Open Terminal (Cmd+Space → Terminal), paste: xattr -cr "/Applications/FormEase Pro.app" && open "/Applications/FormEase Pro.app" and press Enter. You can also download our 1-Click Mac Fix Tool directly from the Updates page!'
                 }
               ].map((faq, i) => (
                 <div key={i} className="p-6 bg-slate-900/60 border border-white/5 rounded-2xl space-y-2">
@@ -991,7 +995,7 @@ export default function Storefront() {
               <MessageCircle className="w-3.5 h-3.5" /> Support
             </a>
             <span className="text-slate-700">·</span>
-            <span className="text-slate-500">v3.5.20 Certified</span>
+            <span className="text-slate-500">v3.5.21 Certified</span>
           </div>
         </footer>
       </main>

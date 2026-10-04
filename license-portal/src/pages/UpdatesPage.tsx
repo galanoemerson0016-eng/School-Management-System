@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   DownloadCloud, Monitor, Apple, CheckCircle2, ChevronRight, ArrowLeft, 
-  Cpu, Zap, Sparkles, ShieldCheck 
+  Cpu, Zap, Sparkles, ShieldCheck, Terminal, Copy, Check, AlertTriangle, FileCode 
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { licenseService } from '../lib/license-service';
@@ -17,6 +17,16 @@ export default function UpdatesPage() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [copiedCmd, setCopiedCmd] = useState(false);
+  const [showMacHelp, setShowMacHelp] = useState(true);
+
+  const macFixCommand = 'xattr -cr "/Applications/FormEase Pro.app" && open "/Applications/FormEase Pro.app"';
+
+  const handleCopyCmd = () => {
+    navigator.clipboard.writeText(macFixCommand);
+    setCopiedCmd(true);
+    setTimeout(() => setCopiedCmd(false), 2500);
+  };
 
   useEffect(() => {
     async function fetchMetadata() {
@@ -91,8 +101,8 @@ export default function UpdatesPage() {
     <div className="min-h-screen w-full flex flex-col bg-[#0A192F] text-slate-200 relative overflow-x-hidden pb-16">
       {/* Background Glows */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-blue-600/10 rounded-full blur-[150px] animate-pulse" />
-        <div className="absolute bottom-[-15%] left-[-10%] w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }} />
+        <div className="absolute top-[-20%] right-[-10%] w-200 h-200 bg-blue-600/10 rounded-full blur-[150px] animate-pulse" />
+        <div className="absolute bottom-[-15%] left-[-10%] w-150 h-150 bg-indigo-600/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }} />
       </div>
 
       {/* Header Bar */}
@@ -203,6 +213,67 @@ export default function UpdatesPage() {
                 <DownloadCloud className="w-3.5 h-3.5 text-slate-400" />
                 <span>Intel Core (Older Macs)</span>
               </a>
+
+              {/* macOS Sequoia / Sonoma Gatekeeper Helper */}
+              <div className="mt-2 pt-4 border-t border-white/10 space-y-3">
+                <div className="flex items-center justify-between text-left">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> macOS "App is Damaged"?
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowMacHelp(!showMacHelp)}
+                    className="text-indigo-400 hover:text-indigo-300 text-[10px] font-black uppercase tracking-wider underline cursor-pointer"
+                  >
+                    {showMacHelp ? 'Hide' : 'Show Fix'}
+                  </button>
+                </div>
+
+                {showMacHelp && (
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-3.5 text-left space-y-3">
+                    <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
+                      On macOS Sequoia & Sonoma, Apple blocks direct school downloads with a false <strong className="text-amber-300 font-bold">"damaged"</strong> warning. Unlock it in 1 click:
+                    </p>
+
+                    {/* Option A: Download 1-Click Fix Tool */}
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                        <FileCode className="w-3 h-3 text-indigo-400" /> Option A (Automatic 1-Click Tool):
+                      </span>
+                      <a
+                        href="/Fix-FormEase-Mac.command.zip"
+                        download="Fix-FormEase-Mac.command.zip"
+                        className="w-full py-2.5 px-3 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/40 border border-indigo-500/40 text-indigo-200 font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md text-center"
+                      >
+                        <FileCode className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>Download 1-Click Mac Fix Tool</span>
+                      </a>
+                      <p className="text-[10px] text-slate-400 pl-1">Extract & double-click to unlock and auto-launch.</p>
+                    </div>
+
+                    {/* Option B: Terminal One-Liner */}
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                        <Terminal className="w-3 h-3 text-emerald-400" /> Option B (Terminal Command):
+                      </span>
+                      <div className="flex items-center gap-1.5 bg-black/50 border border-white/10 rounded-xl p-2 font-mono text-[10px] text-slate-300">
+                        <span className="truncate flex-1 select-all">{macFixCommand}</span>
+                        <button
+                          type="button"
+                          onClick={handleCopyCmd}
+                          className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all cursor-pointer shrink-0"
+                          title="Copy command to clipboard"
+                        >
+                          {copiedCmd ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                      {copiedCmd && (
+                        <p className="text-[10px] text-emerald-400 font-bold">✓ Copied! Open Terminal (Cmd+Space → Terminal), paste, and press Enter.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </motion.div>
 

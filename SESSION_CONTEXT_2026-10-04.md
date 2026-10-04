@@ -49,6 +49,24 @@ This file contains the complete summary of all architectural fixes, feature adju
   - **Size**: 183,269,868 bytes (~183 MB)
   - **Timestamp**: October 4, 2026 @ 3:30 PM
 
+### F. macOS Gatekeeper 1-Click Unblock Tool (macOS Sequoia / Sonoma)
+- **Problem**: macOS Sequoia (macOS 15) removed the Control-click/Right-click bypass and "Open Anyway" button for unnotarized apps, displaying `"FormEase Pro" is damaged and can't be opened. You should move it to the Trash`.
+- **Fix Applied**:
+  - Developed [`Fix-FormEase-Mac.command`](file:///c:/Users/Emerson/Desktop/FormEase%20Pro/Fix-FormEase-Mac.command) (and `.zip`) with LF line endings and auto-detection of app locations.
+  - Automatically copies app to `/Applications`, strips quarantine flag with `xattr -cr`, and launches the application.
+  - Published to `license-portal/public/` and `update-server/`.
+  - Added dedicated 1-click download card & terminal command copy button in `license-portal/src/pages/UpdatesPage.tsx`.
+  - Added macOS troubleshooting FAQ entry in `license-portal/src/pages/Storefront.tsx`.
+
+### G. Institute Profile Exact Casing Preservation Across All Forms
+- **Problem**: Titles and designations with mixed casing/degrees (e.g., `Agapito S. Gonzaga, PhD.`, `OIC-School Head, HT-VI`) were converted into uppercase across SF9, SF5, SF10, and Excel export services.
+- **Fix Applied**:
+  - Removed all hardcoded `.toUpperCase()` transforms and CSS `uppercase` styling on `head_name`, `head_position`, `principal`, `principalTitle`, and `adviser` in:
+    - `SF9Page.tsx`, `SF5Page.tsx`, `Grade1SF9PDFDocument.tsx`, `SF9Template2Document.tsx`
+    - `SF10JHSRenderer.tsx`, `SF10SHSRenderer.tsx`, `SF10SpecRenderer.tsx`
+    - `sf9-excel-export.ts`, `sf9-g1-excel-export.ts`, `sf9-g12-academic-cross-excel-export.ts`, `sf9-g12-techpro-excel-export.ts`, `sf9-g12-techpro-cross-excel-export.ts`, `ecr-excel-export.ts`
+  - Verified 100% pass on all 986 unit and integration tests.
+
 ---
 
 ## 2. Recent Git Commit Log (Branch: `main`)
