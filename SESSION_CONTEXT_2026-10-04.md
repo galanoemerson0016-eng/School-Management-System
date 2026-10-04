@@ -67,14 +67,15 @@ This file contains the complete summary of all architectural fixes, feature adju
     - `sf9-excel-export.ts`, `sf9-g1-excel-export.ts`, `sf9-g12-academic-cross-excel-export.ts`, `sf9-g12-techpro-excel-export.ts`, `sf9-g12-techpro-cross-excel-export.ts`, `ecr-excel-export.ts`
   - Verified 100% pass on all 986 unit and integration tests.
 
-### H. Workspace Deep Cleanup (~4.92 GB Reclaimed)
+### H. Workspace Deep Cleanup (~5.25 GB Reclaimed)
 - **Problem**: Project root and subdirectories accumulated gigabytes of historical installer binaries (`v3.3.1` through `v3.5.18`), unpacked electron caches, old test spreadsheets, and scratch scripts.
 - **Actions Taken**:
-  - **Removed Obsolete Installers**: Purged 10 historical `.exe` and `.blockmap` versions (`v3.3.1`, `v3.5.8`-`v3.5.18`) and unpacked electron folders (`win-unpacked`, `win-ia32-unpacked`) from `release/` and `app/release/`. Preserved active `v3.5.21` installer and `latest.yml`.
+  - **Removed Obsolete Installers**: Purged 10 historical `.exe` and `.blockmap` versions (`v3.3.1`, `v3.5.8`-`v3.5.18`) and unpacked electron folders (`win-unpacked`, `win-ia32-unpacked`) from `release/` and `app/release/`. Preserved active `v3.5.21` installer and `latest.yml`. Removed loose duplicate root installer executable.
   - **Purged Scratch Directories**: Completely deleted `scratch/` (559 MB) and `app/scratch/` (4.8 MB) containing test dumps and outdated temporary reports.
+  - **Purged Unused Reference Templates**: Purged `app/Templates/` (134 MB, including 68 MB `sheet013.htm` and HTML image slices), `app/GRADE 7-10 K TO 12 E-CLASS RECORD/` (20 MB), and scratch test spreadsheets in `app/public/templates/` (`scratch_test*.xlsx`).
+  - **Cleaned Obsolete Scripts & Legacy Landing Pages**: Removed `patch_metadata.ps1` (v1.0.31), `patch_urls.ps1` (v1.0.51), `BUILD_APP_G7_MAC.command`, `download.html` (1.1 MB), 0-byte `research_templates_extracted.txt`, root ad-hoc `node_modules/`, and retired `WindowsSandbox-FormEase-v3518.wsb`.
   - **Cleaned Obsolete Update Assets**: Removed ancient `.blockmap` files in `update-server/updates/` (`v1.0.44` through `v2.11.7`).
-  - **Removed Unneeded Scratch Scripts**: Deleted non-git diagnostic and scraping scripts in `app/scripts/`, root ad-hoc `node_modules/`, and retired `WindowsSandbox-FormEase-v3518.wsb`.
-  - **Results**: Reduced project footprint by **~4.92 GB**; 0 lint errors, 0 typecheck errors.
+  - **Results**: Reduced project footprint by **~5.25 GB** total (from ~7.4 GB down to ~2.1 GB); 0 lint errors, 0 typecheck errors, all 983 automated tests green.
 
 ---
 
