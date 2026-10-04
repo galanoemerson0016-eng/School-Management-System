@@ -1,0 +1,244 @@
+# FormEase Pro — Comprehensive System Audit & Bug Checker Workflow (v1.0)
+
+Execute a complete, non-destructive, end-to-end system audit and diagnostic bug inspection across FormEase Pro by strictly following this fail-safe workflow. 
+
+> **CRITICAL DIRECTIVE**: This is a pure diagnostic, validation, and audit workflow. **DO NOT TRIGGER A RELEASE, DO NOT BUMP VERSIONS, DO NOT CREATE GIT TAGS, AND DO NOT PUSH RELEASES.**
+
+---
+
+## 1. Pre-Audit Environment & Working Tree Sanity
+Navigate to `app/` and verify runtime stability before executing audits:
+
+1. **Inspect Working Tree & Unstaged Artifacts**:
+   ```bash
+   git status
+   ```
+   - Check if any modified files or untracked assets exist.
+   - Verify that test artifacts, scratch logs, or temporary database dumps are not corrupting the source tree.
+
+2. **Inspect Commit History & Recent Changes**:
+   ```bash
+   git log -n 5 --oneline
+   ```
+   - Record the current HEAD commit hash and recent modifications for the audit audit trail.
+
+---
+
+## 2. Static Code Quality, Type Safety & Shield Compilation Audit
+Execute static code analyzers to ensure structural integrity and catch latent syntax or type errors:
+
+1. **Strict TypeScript Compilation Check**:
+   ```bash
+   npx tsc --noEmit -p tsconfig.app.json && npx tsc -b
+   ```
+   - Must return **0 errors**.
+   - Audit for:
+     - Unsafe type casts or missing interface properties in `Student`, `Section`, `Subject`, `ClassRecord`, and `GradingSheetRecord`.
+     - Broken imports across services, pages, and store modules.
+
+2. **ESLint Static Analysis**:
+   ```bash
+   npm run lint
+   ```
+   - Ensure **0 lint errors** across all TypeScript, TSX, and React components.
+   - Audit for:
+     - Unused variables or imports that could indicate abandoned logic.
+     - Unhandled `any` types that bypass compiler safety.
+     - Improper React hooks dependencies (stale closures in `useEffect` or `useMemo`).
+
+3. **Electron Shield & Production Bundle Compilation**:
+   ```bash
+   npm run obfuscate:electron && npm run build
+   ```
+   - Audit for:
+     - Successful minification and obfuscation of `main.cjs`, `preload.cjs`, and `license.cjs` into `dist-electron/`.
+     - Vite production build cleanly generating chunks without chunk-size blowouts or circular dependency warnings.
+
+---
+
+## 3. Database Security, Cryptography & Client Vault Audit
+Audit the offline-first IndexedDB storage, encryption engines, and migration resilience:
+
+1. **Universal Store Quarantine & DPAPI Key Security**:
+   - Audit file: `app/src/services/database.ts` & `app/src/utils/db-crypto.ts`
+   - **Verification Checklist**:
+     - [ ] Master DPAPI salt overwrite protection: Salt is preserved across launches without resetting key derivation.
+     - [ ] Store-wide quarantine: Corrupted or unreadable records in encrypted stores (`classRecords`, `gradingSheetRecords`, `students`, `hpsRecords`, `sections`, `subjects`) are safely quarantined rather than locking the user out of the app.
+     - [ ] Quarantine metadata: Quarantined records preserve their original ID and a descriptive quarantine reason for diagnostic inspection.
+
+2. **Migration Primary Key & Count Integrity**:
+   - Audit file: `app/src/utils/encryption-migration.ts` & `app/src/services/dek-indexeddb-migration.ts`
+   - **Verification Checklist**:
+     - [ ] Primary key resolution (`identifierOf`): Explicit store-to-key mapping (`students -> lrn`, `settings -> key`, `enrollments -> enrollment_id`, default -> `id`).
+     - [ ] Tolerant migration count check: Minor count differentials do not abort valid migration workflows.
+
+3. **Automated Database Test Suite**:
+   ```bash
+   npx vitest run src/utils/encryption-migration.test.ts src/services/dek-indexeddb-migration.test.ts src/utils/backup-import.test.ts src/testing/backup-full-restore-check.test.ts
+   ```
+   - All tests must pass with **0 failures**.
+
+---
+
+## 4. Grading Calculation, Transmutation & Self-Healing Audit
+Audit all grading algorithms, weight transmutations, and client data self-healing mechanisms:
+
+1. **DepEd DO 15, s. 2026 Table 4 Transmutation Accuracy**:
+   - Audit file: `app/src/lib/grading.ts` & `app/src/utils/grading-helpers.ts`
+   - **Verification Checklist**:
+     - [ ] Initial grades correctly map to transmuted ratings (e.g., initial 0–59.99 transmutes to 60; initial 100 transmutes to 100).
+     - [ ] Boundary conditions: Test values at 74.99 vs 75.00, 89.99 vs 90.00, and 99.99 vs 100.00.
+     - [ ] Key Stage 1 (Kindergarten & Grade 1) descriptive grading: Transmuted grades correctly convert to letter marks (A, B, C, D) without exposing raw numeric scores.
+
+2. **Weight Normalization & Thousands-Scale Healing**:
+   - Audit file: `app/src/utils/grade-reconciliation.ts`
+   - **Verification Checklist**:
+     - [ ] Whole number weights (`40`, `60`, `20`) are normalized to decimal fractions (`0.40`, `0.60`, `0.20`).
+     - [ ] Table headers display standard percentages (`40%`, `60%`, `20%`) and never inflated headers (`4000%`, `6000%`).
+     - [ ] Thousands-scale scores (`7153.94 -> 76`, `3004.60 -> 66`, `9232.07 -> 93`, `8489.50 -> 87`) self-heal on startup.
+
+3. **Ghost Record Suppression**:
+   - Audit file: `app/src/utils/grading-helpers.ts` (`resolveStudentQuarterGrade`)
+   - **Verification Checklist**:
+     - [ ] Students with zero entered scores or empty score arrays return empty/null.
+     - [ ] Headless score containers never output phantom `final_grade: 100` or false passing marks.
+
+4. **Composite Subject Weighting (MAPEH)**:
+   - **Verification Checklist**:
+     - [ ] MAPEH correctly computes as the average of Music & Arts and PE & Health.
+     - [ ] Incomplete sub-components do not produce skewed or artificial grades.
+
+5. **Automated Grading Engine Test Suite**:
+   ```bash
+   npx vitest run src/lib/grading.test.ts src/utils/grade-reconciliation.test.ts src/utils/grading-helpers.test.ts src/testing/eclassRecordSummarySync.test.ts src/testing/grade1EClassRecord.test.ts
+   ```
+   - All tests must pass with **0 failures**.
+
+---
+
+## 5. DepEd MATATAG Compliance & Academic Awards Audit
+Audit the awards and recognition module to ensure 100% compliance with current DepEd MATATAG directives:
+
+1. **Unified Academic Excellence Award Standards**:
+   - Audit files: `app/src/utils/grading-helpers.ts`, `app/src/pages/ReportsPage.tsx`, `app/src/pages/CertificateGeneratorPage.tsx`, `app/src/pages/SF9Page.tsx`
+   - **Verification Checklist**:
+     - [ ] **Qualification Rules**: Strictly requires General Average of **90.00 to 100** AND **no final/quarterly grade below 80** in any learning area.
+     - [ ] **No Legacy Tiers**: Zero active logic generating or referencing the legacy 3-tier subcategories ("With Honors 90–94", "With High Honors 95–97", "With Highest Honors 98–100").
+     - [ ] **No 85 Threshold**: Zero active logic requiring a minimum grade of 85.
+     - [ ] **Alphabetical Ordering**: Awardees are sorted alphabetically by last name (never by numeric rank) to uphold DepEd's anti-ranking policy.
+     - [ ] **Certificate Generation**: Certificates issue the official title: *"Academic Excellence Award / Gawad sa Akademikong Kahusayan"*.
+
+2. **Core Values (AO/SO/RO/NO) Retirement Verification**:
+   - Audit file: `app/src/pages/SF9Page.tsx`
+   - **Verification Checklist**:
+     - [ ] The obsolete 4-core behavior rating grid (Maka-Diyos, Makatao, Makakalikasan, Makabansa rated AO/SO/RO/NO) has been cleanly removed from the SF9 UI.
+     - [ ] Modal dialog functions exclusively for *"Teacher's Comments & Remarks"*.
+
+3. **Senior High School G12 Export Criteria**:
+   - Audit files: `app/src/services/sf9-g12-academic-cross-excel-export.ts`, `app/src/services/sf9-g12-techpro-excel-export.ts`, `app/src/services/sf9-g12-techpro-cross-excel-export.ts`
+   - **Verification Checklist**:
+     - [ ] All three Grade 12 Excel export engines assign `'Academic Excellence Award'` when `generalAverage >= 90 && minGrade >= 80`.
+
+4. **Automated Awards & Compliance Test Suite**:
+   ```bash
+   npx vitest run src/services/sf9-g12-academic-cross-excel-export.test.ts src/services/sf9-g12-techpro-excel-export.test.ts src/services/sf9-g12-techpro-cross-excel-export.test.ts
+   ```
+   - All tests must pass with **0 failures**.
+
+---
+
+## 6. DepEd School Forms (SF) & Excel Formula Preservation Audit
+Audit the fidelity of generated DepEd official forms and Excel workbook preservation:
+
+1. **School Forms Coverage**:
+   - [ ] **SF1 (School Register)**: Correct enrollment counts, LRN validation (12 digits), gender segregation, and birth certificate verification flags.
+   - [ ] **SF2 (Daily Attendance)**: Monthly absent and tardy rollups, aggregate percentage of attendance calculation.
+   - [ ] **SF4 (Monthly Learner Movement)**: Transferred in, transferred out, dropped, and promoted counts.
+   - [ ] **SF5 (Report on Promotion & Level of Proficiency)**: Promoted/Retained status, general average, proficiency level buckets (Did Not Meet Expectations to Outstanding).
+   - [ ] **SF9 (Learner Progress Report Card)**: Primary (G1–G6), JHS (G7–G10), and SHS (G11–G12) XML structures.
+   - [ ] **SF10 (Learner Permanent Record / Form 137)**: Multi-year academic histories, eligibility checks, and transfer credentials.
+   - [ ] **Temporary Grade Slip (TGS)**: Accurate quarter-by-quarter grade synchronization and printable slip rendering.
+
+2. **Excel Template & Formula Preservation Integrity**:
+   - Audit file: `app/src/services/sf9-g12-academic-cross-excel-export.ts` (and sibling export services)
+   - **Verification Checklist**:
+     - [ ] **Zero Corruption Warnings**: Exported `.xlsx` files open in Microsoft Excel without prompt: *"We found a problem with some content in..."*.
+     - [ ] **Formula Preservation**: Pre-existing Excel formulas in summary worksheets remain intact and uncorrupted.
+     - [ ] **Style Xfs Bounds**: Cell styles do not reference non-existent style indexes in `xl/styles.xml`.
+
+3. **Automated School Forms Test Suite**:
+   ```bash
+   npx vitest run src/testing/sf9Template2.test.ts src/testing/sf9Template2PdfRender.test.ts src/testing/sf10SubjectCustomization.test.ts src/testing/temporaryGradeSlip.test.ts
+   ```
+   - All tests must pass with **0 failures**.
+
+---
+
+## 7. Role-Based Access Control (RBAC) & Tenant Isolation Audit
+Audit permission boundaries and data privacy across user roles:
+
+1. **RBAC Rules Verification**:
+   - Audit file: `app/src/lib/rbac.ts`
+   - **Verification Checklist**:
+     - [ ] **Teacher Role**: Can only view and edit classes/subjects assigned to their specific teaching load (`is_teaching_load`).
+     - [ ] **Adviser Role**: Can manage the official advisory section, student profiles, and official SF forms for their advisory section.
+     - [ ] **Admin / Registrar Role**: Full institutional oversight, school profile configuration, and master records archiving.
+     - [ ] **Teaching Load Isolation**: Subject teachers cannot see or modify unassigned advisory sections or grades.
+
+2. **Automated RBAC Test Suite**:
+   ```bash
+   npx vitest run src/testing/eclassSyncTeachingLoad.test.ts src/testing/userWorkflowImprovements.test.ts
+   ```
+   - All tests must pass with **0 failures**.
+
+---
+
+## 8. Complete System Integration & Full Diagnostic Suite
+Execute the entire test suite across all modules in fail-safe run mode:
+
+```bash
+npm test -- --run
+```
+- Verify:
+  - Total test files passed vs failed.
+  - Zero unhandled promise rejections or EventEmitter memory leak warnings.
+  - Snapshot test fidelity.
+
+---
+
+## 9. Audit Report Synthesis & Health Scorecard
+Upon completing all checks, compile the final audit report using this structure:
+
+```
+=============================================================
+  FormEase Pro Comprehensive Audit & Bug Report
+=============================================================
+Audit Timestamp    : <YYYY-MM-DD HH:mm:ss>
+Repository Commit  : <Git Commit Hash>
+Environment        : Node <version> | Windows / Electron
+Status             : PASSED / ACTION REQUIRED
+
+Domain Scorecard :
+  1. Static Typing & Linting   : [ 10/10 ] (0 errors, 0 warnings)
+  2. Database & Cryptography   : [ 10/10 ] (Stores quarantined, DPAPI salt safe)
+  3. Grading Engine & Weights  : [ 10/10 ] (Normalized, no thousands-scale scores)
+  4. DepEd MATATAG Compliance  : [ 10/10 ] (Unified award GA 90-100, min 80)
+  5. School Forms & Templates  : [ 10/10 ] (Zero Excel repair warnings)
+  6. RBAC & Data Privacy       : [ 10/10 ] (Teaching loads strictly isolated)
+  7. Integration Test Suite    : [ 10/10 ] (All unit & integration tests green)
+
+Identified Issues & Bug Findings :
+  (List any warnings, edge-case risks, or recommendations, or state: "Zero critical bugs identified.")
+
+Next Recommended Action :
+  (Specify next engineering step, e.g., "Ready for staging smoke test")
+=============================================================
+```
+
+---
+
+## Strict Rules
+- **Non-Destructive**: Never modify database records, git tags, or version files during an audit.
+- **Fail-Safe Gates**: If any diagnostic command fails, document the exact stack trace and failing test name immediately.
+- **Zero Release Contamination**: Under no circumstances should `npm run electron:build`, `git tag`, or `git push` be executed as part of this audit workflow.
+- **Client Data First**: Always verify that client databases remain protected, backed up, and quarantined if unreadable.
