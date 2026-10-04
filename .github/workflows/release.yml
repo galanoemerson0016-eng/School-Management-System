@@ -193,6 +193,7 @@ jobs:
             app/release/*.exe
             app/release/*.yml
             app/release/*.blockmap
+            app/release/*.command
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -212,6 +213,7 @@ jobs:
             app/release/*.exe
             app/release/*.yml
             app/release/*.blockmap
+            app/release/*.command
 
       # These deployments publish only versioned staging metadata. They do not
       # replace updates/latest*.yml or otherwise advance the live updater pointer.

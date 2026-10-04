@@ -4,6 +4,7 @@ const https = require('https');
 
 // Determine directories
 const appDir = path.resolve(__dirname, '..');
+const rootDir = path.resolve(appDir, '..');
 const releaseDir = path.resolve(appDir, 'release');
 const packageJson = require(path.join(appDir, 'package.json'));
 const version = packageJson.version; // e.g. "2.9.5"
@@ -169,6 +170,8 @@ async function uploadDriveFile(accessToken, targetFolderId, filePath, folderLabe
   if (ext === '.exe') contentType = 'application/vnd.microsoft.portable-executable';
   else if (ext === '.dmg') contentType = 'application/x-apple-diskimage';
   else if (ext === '.yml' || ext === '.yaml') contentType = 'text/yaml';
+  else if (ext === '.command') contentType = 'application/x-sh';
+  else if (ext === '.zip') contentType = 'application/zip';
 
   const multipartRequestBody = Buffer.concat([
     Buffer.from(
@@ -206,11 +209,11 @@ async function syncTargetPlatform(accessToken, parentFolderId, platformName, fil
 
   // 1. Purge old installer & blockmap files in this platform folder
   const existingFiles = await listDriveItems(accessToken, platformFolderId);
-  const extsToPurge = ['.exe', '.dmg', '.zip', '.yml', '.yaml', '.blockmap'];
+  const extsToPurge = ['.exe', '.dmg', '.zip', '.yml', '.yaml', '.blockmap', '.command'];
 
   for (const file of existingFiles) {
     const ext = path.extname(file.name).toLowerCase();
-    if (extsToPurge.includes(ext) || file.name.startsWith('FormEase') || file.name.startsWith('latest')) {
+    if (extsToPurge.includes(ext) || file.name.startsWith('FormEase') || file.name.startsWith('latest') || file.name.startsWith('Fix-FormEase-Mac')) {
       await deleteDriveFile(accessToken, file.id, file.name, platformName);
     }
   }
@@ -237,6 +240,31 @@ async function main() {
     const accessToken = await getAccessToken();
     console.log(`✅ Authenticated successfully! Root Folder ID: ${rootFolderId}`);
 
+    // Ensure Fix-FormEase-Mac repair files are available in releaseDir
+    if (!fs.existsSync(releaseDir)) {
+      fs.mkdirSync(releaseDir, { recursive: true });
+    }
+    const macCommandSource = [
+      path.join(releaseDir, 'Fix-FormEase-Mac.command'),
+      path.join(rootDir, 'Fix-FormEase-Mac.command'),
+      path.join(rootDir, 'license-portal', 'public', 'Fix-FormEase-Mac.command'),
+    ].find(p => fs.existsSync(p));
+
+    const macZipSource = [
+      path.join(releaseDir, 'Fix-FormEase-Mac.command.zip'),
+      path.join(rootDir, 'license-portal', 'public', 'Fix-FormEase-Mac.command.zip'),
+      path.join(rootDir, 'Fix-FormEase-Mac.command.zip'),
+    ].find(p => fs.existsSync(p));
+
+    if (macCommandSource && !fs.existsSync(path.join(releaseDir, 'Fix-FormEase-Mac.command'))) {
+      fs.copyFileSync(macCommandSource, path.join(releaseDir, 'Fix-FormEase-Mac.command'));
+      console.log(`📋 Copied Fix-FormEase-Mac.command into release folder`);
+    }
+    if (macZipSource && !fs.existsSync(path.join(releaseDir, 'Fix-FormEase-Mac.command.zip'))) {
+      fs.copyFileSync(macZipSource, path.join(releaseDir, 'Fix-FormEase-Mac.command.zip'));
+      console.log(`📋 Copied Fix-FormEase-Mac.command.zip into release folder`);
+    }
+
     // Process Windows Subfolder (Strictly latest version .exe binary only, NO .yml, NO .blockmap)
     await syncTargetPlatform(
       accessToken,
@@ -252,13 +280,14 @@ async function main() {
       }
     );
 
-    // Process Mac Subfolder (Strictly latest version 2 .dmg binaries only, NO .yml, NO .zip, NO .blockmap)
+    // Process Mac Subfolder (Latest version .dmg binaries + Clickable Fix-FormEase-Mac tools)
     await syncTargetPlatform(
       accessToken,
       rootFolderId,
       'mac',
       (filename) => {
-        if (filename.endsWith('.blockmap') || filename.endsWith('.yml') || filename.endsWith('.yaml') || filename.endsWith('.zip')) return false;
+        if (filename.endsWith('.blockmap') || filename.endsWith('.yml') || filename.endsWith('.yaml')) return false;
+        if (filename.startsWith('Fix-FormEase-Mac')) return true;
         const ext = path.extname(filename).toLowerCase();
         if (ext === '.dmg') {
           return filename.includes(version);

@@ -173,4 +173,16 @@ filesInRelease.forEach(file => {
   }
 });
 
+// 4. Ensure Fix-FormEase-Mac repair tools are staged into releaseDir
+const macFixCommand = path.join(rootDir, 'Fix-FormEase-Mac.command');
+const macFixZip = path.join(rootDir, 'license-portal', 'public', 'Fix-FormEase-Mac.command.zip');
+if (fs.existsSync(macFixCommand)) {
+  fs.copyFileSync(macFixCommand, path.join(releaseDir, 'Fix-FormEase-Mac.command'));
+  console.log(`📁 Staged Fix-FormEase-Mac.command in release directory`);
+}
+if (fs.existsSync(macFixZip)) {
+  fs.copyFileSync(macFixZip, path.join(releaseDir, 'Fix-FormEase-Mac.command.zip'));
+  console.log(`📁 Staged Fix-FormEase-Mac.command.zip in release directory`);
+}
+
 console.log(`\n🎉 CI/CD Release Asset Patching completed successfully!`);

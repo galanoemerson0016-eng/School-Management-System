@@ -1,0 +1,48 @@
+name: Sync Release to Google Drive
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to sync (e.g. v3.5.21)'
+        required: false
+        default: 'v3.5.21'
+
+jobs:
+  sync:
+    name: Sync to Google Drive
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci || npm install
+
+      - name: Download GitHub Release Assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p app/release
+          TAG="${{ github.event.inputs.release_tag || 'v3.5.21' }}"
+          echo "Downloading assets from release $TAG..."
+          gh release download "$TAG" --repo "${{ github.repository }}" --dir app/release || true
+          ls -la app/release
+
+      - name: Sync Assets to Google Drive
+        working-directory: app
+        run: npm run sync:gdrive
+        env:
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+          GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
