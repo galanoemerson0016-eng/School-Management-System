@@ -549,16 +549,26 @@ async function getAllRecords<T>(storeName: string, options: { strict?: boolean }
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
   });
-  if (!options.strict && (storeName === 'automated_backups' || storeName === 'gradingSheetRecords' || storeName === 'observedValues')) {
+  if (!options.strict && ENCRYPTED_STORES.has(storeName)) {
     const results: T[] = [];
+    let lastError: unknown;
     for (const raw of rawList) {
       try {
         const decrypted = await decryptRecordIfNeeded<T>(storeName, raw);
         results.push(decrypted);
       } catch (err) {
+        lastError = err;
         recordQuarantinedEntry(storeName, raw, err);
         console.warn(`[FormEase Pro] Unreadable ${storeName} entry could not be decrypted with available keys; quarantined entry.`, err);
       }
+    }
+    if (rawList.length > 0 && results.length === 0) {
+      if (storeName === 'automated_backups' || storeName === 'gradingSheetRecords' || storeName === 'observedValues') {
+        return [];
+      }
+      throw lastError instanceof Error
+        ? lastError
+        : new Error(`Encrypted ${storeName} record could not be decrypted. Its stored data was not changed.`);
     }
     return results;
   }
@@ -581,10 +591,12 @@ async function getRecord<T>(storeName: string, key: string): Promise<T | undefin
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
   });
-  if (storeName === 'automated_backups' || storeName === 'gradingSheetRecords' || storeName === 'observedValues') {
+  if (!raw) return undefined;
+  if (ENCRYPTED_STORES.has(storeName)) {
     try {
       return await decryptRecordIfNeeded<T>(storeName, raw);
-    } catch {
+    } catch (err) {
+      recordQuarantinedEntry(storeName, raw, err);
       return undefined;
     }
   }
@@ -1594,6 +1606,18 @@ async function getRecordsByIndex<T>(
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
   });
+  if (ENCRYPTED_STORES.has(storeName)) {
+    const results: T[] = [];
+    for (const raw of rawList) {
+      try {
+        const decrypted = await decryptRecordIfNeeded<T>(storeName, raw);
+        results.push(decrypted);
+      } catch (err) {
+        recordQuarantinedEntry(storeName, raw, err);
+      }
+    }
+    return results;
+  }
   return Promise.all(rawList.map(raw => decryptRecordIfNeeded<T>(storeName, raw)));
 }
 

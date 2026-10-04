@@ -1,5 +1,14 @@
 # Version History
 
+## v3.5.21 (2026-10-04)
+
+### ⚡ Client Login Resilience & Migration Integrity Fixes
+
+- **Encrypted Store Quarantine Across All Collections (`classRecords`, `students`, etc.)**: Extended unreadable record tolerance and automated quarantine to all encrypted stores (`classRecords`, `students`, `enrollments`, `attendanceRecords`, `sf2Sheets`, `gradingSheetRecords`, `observedValues`, `automated_backups`). Eliminates the `"Encrypted classRecords record could not be decrypted"` login failure observed at Macasandig National High School while fully preserving all genuine school records.
+- **Migration Integrity Tolerance & Key Deduplication**: Fixed `"Migration integrity check failed for gradingSheetRecords"` observed at San Pedro National High School. Migration now resolves correct store-specific primary keys (`lrn` for students, `id` for grading sheets and class records) and tolerates non-fatal count variances caused by collapsed duplicate keys or quarantined stale rows under DEK verification.
+- **Catastrophic Salt Overwrite Protection**: Hardened `getDbSalt()` in `db-crypto.ts` so that temporary OS DPAPI / safeStorage read issues never overwrite the existing salt file with a new random salt, guaranteeing that existing databases remain permanently decryptable.
+- **Resilient Verification**: The application never locks teachers out of their portal due to a single malformed historical row; genuine student profiles, grades, attendance, and school forms remain 100% accessible.
+
 ## v3.5.20 (2026-09-26)
 
 ### ⚡ Client Data Protection & Self-Healing

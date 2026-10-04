@@ -3801,7 +3801,7 @@ export function SettingsPage() {
                                             <h2 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">
                                                 FormEase Pro
                                             </h2>
-                                            <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.20</span>
+                                            <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.21</span>
                                             <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5">
                                                 Latest Production
                                             </span>
@@ -3859,12 +3859,12 @@ export function SettingsPage() {
                                 <div className="pt-4 space-y-4">
                                     <div className="p-4 rounded-xl bg-slate-50/60 dark:bg-white/2 border border-slate-150 dark:border-white/5 space-y-2">
                                         <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">
-                                            What&apos;s New in Version 3.5.20
+                                            What&apos;s New in Version 3.5.21
                                         </h4>
                                         <ul className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 font-medium list-disc list-inside leading-relaxed">
-                                            <li>⚡ <strong>Decryption Fault-Tolerance</strong>: Unreadable legacy encrypted entries in grading sheet records and observed values are handled safely without interrupting startup or teacher login.</li>
-                                            <li>🔑 <strong>Login & Recovery Hardening</strong>: Displays registered User ID directly on the login portal, simplifies default setup credentials, and supports master recovery with zero data loss.</li>
-                                            <li>🛡️ <strong>Update Center Reliability</strong>: Eliminates false database lockouts during auto-updates with automatic retry delays and clear guidance.</li>
+                                            <li>⚡ <strong>Universal Encrypted Store Quarantine</strong>: Prevents login lockouts across classRecords, students, and all encrypted stores if legacy undecryptable records exist.</li>
+                                            <li>🔑 <strong>Migration Integrity Tolerance</strong>: Resolves primary keys accurately and prevents migration integrity check aborts on gradingSheetRecords.</li>
+                                            <li>🛡️ <strong>Salt Protection</strong>: Prevents accidental overwrite of database cryptographic salt, ensuring 100% data access continuity.</li>
                                         </ul>
                                     </div>
                                 </div>

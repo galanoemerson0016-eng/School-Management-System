@@ -71,7 +71,14 @@ export async function getDbSalt(): Promise<Uint8Array> {
         }
         return salt;
       }
+      if (hex === 'DECRYPTION_FAILED') {
+        console.error('[db-crypto] Protected salt file decryption failed. Protecting existing salt from overwrite.');
+        throw new Error('Database security key cannot be unlocked by the current OS profile. Salt file was not modified.');
+      }
     } catch (e) {
+      if (e instanceof Error && e.message.includes('Database security key cannot be unlocked')) {
+        throw e;
+      }
       console.warn('safeStorage salt IPC failed, falling back to localStorage', e);
     }
   }

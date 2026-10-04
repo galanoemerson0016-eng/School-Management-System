@@ -30,12 +30,28 @@ export function VersionHistoryTimeline({ onCheckForUpdates }: VersionHistoryTime
 
             <div className="relative max-h-150 overflow-y-auto pr-2 custom-scrollbar">
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 3.5.20 */}
+                                {/* Version 3.5.21 */}
                                 <div className="relative pl-6">
                                     <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.20</span>
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.21</span>
                                         <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">October 4, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>🛡️ <strong>Universal Decryption Fault-Tolerance</strong>: Resilient quarantine protects all encrypted stores (including <code>classRecords</code> and <code>students</code>), ensuring unreadable or stale entries never block teacher sign-in.</li>
+                                        <li>🔑 <strong>Migration Integrity Self-Healing</strong>: Eliminates migration integrity check failures (e.g. <code>gradingSheetRecords</code>) by properly reconciling store primary keys and tolerating quarantined variance.</li>
+                                        <li>🔒 <strong>DPAPI Master Salt Shield</strong>: Prevents destructive overwrites of local database master encryption salts during Windows safeStorage transient issues.</li>
+                                        <li>⚡ <strong>Zero Data Loss Guarantee</strong>: All existing DepEd learner records, attendance, and grading sheets remain 100% intact and preserved.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 3.5.20 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 dark:bg-slate-700 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.5.20</span>
+                                        <span className="rounded-md bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/10 text-slate-700 dark:text-slate-300 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Previous Production</span>
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 26, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">

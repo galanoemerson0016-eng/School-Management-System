@@ -286,6 +286,78 @@ describe('DEK migration using production IndexedDB persistence', () => {
     expect(validGradingSheets.some(g => g.id === synthetic.gradingSheetRecords[0].id)).toBe(true);
   });
 
+  it('allows login and preserves all school records when classRecords contains an unreadable/stale legacy record (Macasandig NHS fix)', async () => {
+    const salt = await getDbSalt();
+    const passwordKey = await deriveDbKey(PASSWORD, salt);
+    const unreadableKey = await deriveDbKey('unknown-ancient-password-key', salt);
+
+    db.setDatabaseEncryptionKey(passwordKey, [], false);
+    for (const [storeName, records] of Object.entries(synthetic)) {
+      if (storeName === 'classRecords') continue;
+      await db.putRecordsBulk(storeName, [...records]);
+    }
+
+    // Put valid classRecords under passwordKey
+    await db.putRecordsBulk('classRecords', [...synthetic.classRecords]);
+
+    // Put an additional stale/unreadable classRecords record under an unknown key
+    db.setDatabaseEncryptionKey(unreadableKey, [], false);
+    await db.putRecord('classRecords', {
+      id: 'cr-stale-unreadable-record',
+      student_lrn: '999999999999',
+      subject_id: 'sub-unknown',
+      final_grade: 88,
+    });
+
+    localStorage.setItem('formease-credentials-v2', JSON.stringify({
+      version: 2, username: 'jamesking482', passwordHash: await hashSecret(PASSWORD), role: 'admin',
+    }));
+
+    // Must NOT fail with "Encrypted classRecords record could not be decrypted"
+    expect(await useAuthStore.getState().login('jamesking482', PASSWORD)).toBe(true);
+    expect(metadata().state).toBe('migrated');
+
+    // All valid school data must be intact and readable
+    expect(await db.getAllRecords('students')).toHaveLength(synthetic.students.length);
+    expect(await db.getAllRecords('classRecords')).toHaveLength(synthetic.classRecords.length);
+  });
+
+  it('allows login and migration when gradingSheetRecords has duplicate keys or variance (San Pedro NHS fix)', async () => {
+    const salt = await getDbSalt();
+    const passwordKey = await deriveDbKey(PASSWORD, salt);
+
+    db.setDatabaseEncryptionKey(passwordKey, [], false);
+    for (const [storeName, records] of Object.entries(synthetic)) {
+      await db.putRecordsBulk(storeName, [...records]);
+    }
+
+    // Add multiple grading sheet records for the same student sharing an LRN but different subjects
+    await db.putRecord('gradingSheetRecords', {
+      id: 'gs-math-q1',
+      student_lrn: '105563160001',
+      lrn: '105563160001',
+      subject_id: 'sub-math',
+      quarter: 1,
+      final_grade: 89,
+    });
+    await db.putRecord('gradingSheetRecords', {
+      id: 'gs-eng-q1',
+      student_lrn: '105563160001',
+      lrn: '105563160001',
+      subject_id: 'sub-eng',
+      quarter: 1,
+      final_grade: 92,
+    });
+
+    localStorage.setItem('formease-credentials-v2', JSON.stringify({
+      version: 2, username: 'jamesking482', passwordHash: await hashSecret(PASSWORD), role: 'admin',
+    }));
+
+    // Must NOT fail with "Migration integrity check failed for gradingSheetRecords"
+    expect(await useAuthStore.getState().login('jamesking482', PASSWORD)).toBe(true);
+    expect(metadata().state).toBe('migrated');
+  });
+
   it.each([
     'migration_in_progress',
     'after_first_store',
