@@ -562,7 +562,7 @@ export async function populateGrade12AcademicCrossTemplateBuffer(
     if (options.schoolYear) inputXml = updateCellInSheetXml(inputXml, 'F18', options.schoolYear);
 
     const principal = options.principal || prof?.head_name || '';
-    if (principal) inputXml = updateCellInSheetXml(inputXml, 'F19', principal.toUpperCase());
+    if (principal) inputXml = updateCellInSheetXml(inputXml, 'F19', principal);
 
     const adviser = options.adviser || prof?.adviser_name || '';
     if (adviser) inputXml = updateCellInSheetXml(inputXml, 'F26', adviser.toUpperCase());
@@ -711,7 +711,7 @@ export async function populateGrade12AcademicCrossTemplateBuffer(
 
     // Signatures
     const principal = options.principal || prof?.head_name || '';
-    if (principal) sf9Xml = updateCellInSheetXml(sf9Xml, 'A25', principal.toUpperCase(), 'IF(\'INPUT DATA\'!F19="","",\'INPUT DATA\'!F19)');
+    if (principal) sf9Xml = updateCellInSheetXml(sf9Xml, 'A25', principal, 'IF(\'INPUT DATA\'!F19="","",\'INPUT DATA\'!F19)');
     const adviser = options.adviser || prof?.adviser_name || '';
     if (adviser) sf9Xml = updateCellInSheetXml(sf9Xml, 'C25', adviser.toUpperCase(), 'IF(\'INPUT DATA\'!F26="","",\'INPUT DATA\'!F26)');
 

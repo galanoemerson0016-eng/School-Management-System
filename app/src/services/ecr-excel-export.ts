@@ -973,7 +973,7 @@ export async function populateECRWorkbookZip(
     sheet1Xml = updateCellInXml(sheet1Xml, 'E13', schoolProfile?.school_id || '', 'string');
     sheet1Xml = updateCellInXml(sheet1Xml, 'E14', (schoolProfile?.name || '').toUpperCase(), 'string');
     sheet1Xml = updateCellInXml(sheet1Xml, 'E15', schoolYear || '', 'string');
-    sheet1Xml = updateCellInXml(sheet1Xml, 'E16', (schoolProfile?.head_name || '').toUpperCase(), 'string');
+    sheet1Xml = updateCellInXml(sheet1Xml, 'E16', (schoolProfile?.head_name || ''), 'string');
     sheet1Xml = updateCellInXml(sheet1Xml, 'E23', (teacherName || section.adviser_name || schoolProfile?.adviser_name || '').toUpperCase(), 'string');
     sheet1Xml = updateCellInXml(sheet1Xml, 'E24', normalizeSubjectForECR(subject.subject_name, templateType === 'epp_tle_components' ? 'epp_tle' : templateType, section.section_grade_level), 'string');
     sheet1Xml = updateCellInXml(sheet1Xml, 'E25', normalizeGradeLevelForECR(section.section_grade_level), 'string');

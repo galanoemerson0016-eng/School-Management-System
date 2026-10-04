@@ -1007,7 +1007,7 @@ async function populateUpdatedAllInOneGrade1Workbook(
       'F15': opts.schoolProfile.school_id || '',
       'F16': (opts.schoolProfile.name || '').toUpperCase(),
       'F18': opts.schoolYear,
-      'F19': rawPrincipal.toUpperCase(),
+      'F19': rawPrincipal,
       'F26': rawAdviser.toUpperCase(),
       'F27': (opts.gradeLevel || 'Grade 1'),
       'F28': rawSection.toUpperCase()
@@ -1545,7 +1545,7 @@ async function populateUpdatedAllInOneGrade1Workbook(
       'O17': hasActiveBday ? activeEosy.years : '',
       'R17': hasActiveBday ? activeEosy.months : '',
       'M72': rawAdviser.toUpperCase(),
-      'M75': rawPrincipal.toUpperCase()
+      'M75': rawPrincipal
     });
     zip.file(sf9Path, sf9Xml);
   }
@@ -2050,7 +2050,7 @@ export async function populateGrade1TemplateBuffer(
       'F15': schoolProfile.school_id || '',
       'F16': (schoolProfile.name || '').toUpperCase(),
       'F18': schoolYear,
-      'F19': rawPrincipalLegacy.toUpperCase(),
+      'F19': rawPrincipalLegacy,
       'F26': rawAdviserLegacy.toUpperCase(),
       'F27': (gradeLevel || 'Grade 1'),
       'F28': rawSectionLegacy.toUpperCase()
@@ -2139,7 +2139,7 @@ export async function populateGrade1TemplateBuffer(
 
       // Signatures
       'M72': rawAdviserLegacy.toUpperCase(),
-      'M75': (principal || schoolProfile.head_name || '').toUpperCase()
+      'M75': (principal || schoolProfile.head_name || '')
     };
 
     // Style overrides (Remarks in Term 2 & 3 use non-bold styles 394 and 357)

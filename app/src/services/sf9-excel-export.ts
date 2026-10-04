@@ -459,15 +459,15 @@ async function populateTemplate(buffer: ArrayBuffer, opts: SF9ExcelExportOptions
 
   // -- Signatures --
   if (principal) {
-      ws.getCell('W42').value = principal.toUpperCase();
-      ws.getCell('W50').value = principal.toUpperCase();
+      ws.getCell('W42').value = principal;
+      ws.getCell('W50').value = principal;
   }
   if (principalTitle) {
-      ws.getCell('W43').value = principalTitle.toUpperCase();
-      ws.getCell('W51').value = principalTitle.toUpperCase();
+      ws.getCell('W43').value = principalTitle;
+      ws.getCell('W51').value = principalTitle;
   }
   if (adviser) {
-      ws.getCell('AC42').value = adviser.toUpperCase();
+      ws.getCell('AC42').value = adviser;
   }
 
   // Clear defined names (named ranges) from the template to prevent Excel corruption errors

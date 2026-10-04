@@ -312,8 +312,8 @@ export const SF10SHSRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data,
                                             <div className="text-[10px] uppercase">Date</div>
                                         </div>
                                         <div className="grow mx-10 text-center">
-                                            <div className="border-b border-black w-full mb-px min-h-3.5 flex items-center justify-center uppercase font-bold">
-                                                <input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal(`certification.principalSignatureName`)} onChange={(e) => onUpdate?.(`certification.principalSignatureName`, e.target.value)} />
+                                            <div className="border-b border-black w-full mb-px min-h-3.5 flex items-center justify-center font-bold">
+                                                <input type="text" className="border-none bg-transparent w-full text-center font-bold focus:outline-none" value={getVal(`certification.principalSignatureName`)} onChange={(e) => onUpdate?.(`certification.principalSignatureName`, e.target.value)} />
                                             </div>
                                             <div className="text-[10px] uppercase pt-1">Signature of Principal/School Head over Printed Name</div>
                                         </div>

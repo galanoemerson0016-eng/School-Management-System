@@ -990,7 +990,7 @@ export function SF5Page() {
                                                                         </div>
                                                                     )}
                                                                     <div className="text-center font-bold tracking-wide">
-                                                                    {(schoolProfile.head_name || 'TEST HEAD').toUpperCase()}
+                                                                    {schoolProfile.head_name || 'TEST HEAD'}
                                                                     </div>
                                                                     <div className="border-t border-black text-center pt-0.5 mx-auto w-full leading-tight">
                                                                         School Head<br/>

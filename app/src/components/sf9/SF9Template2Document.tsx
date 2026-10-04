@@ -1147,7 +1147,7 @@ export function SF9Template2SlipBack({
 
           <View style={s.sigPairRow}>
             <View style={s.sigCol}>
-              <Text style={[s.sigRoleText, { fontSize: 7.5 }]} wrap={false}>{principal ? principal.toUpperCase() : ' '}</Text>
+              <Text style={[s.sigRoleText, { fontSize: 7.5 }]} wrap={false}>{principal ? principal : ' '}</Text>
               <View style={s.sigPersonLine}>
               </View>
               <Text style={s.sigRoleText}>{principalTitle || 'School Head'}</Text>
@@ -1176,7 +1176,7 @@ export function SF9Template2SlipBack({
           </View>
 
           <View style={{ alignItems: 'center', width: '45%', alignSelf: 'center', marginTop: 10, marginBottom: 2 }}>
-            <Text style={[s.sigRoleText, { fontSize: 7.5 }]} wrap={false}>{principal ? principal.toUpperCase() : ' '}</Text>
+            <Text style={[s.sigRoleText, { fontSize: 7.5 }]} wrap={false}>{principal ? principal : ' '}</Text>
             <View style={s.sigPersonLine}>
             </View>
             <Text style={s.sigRoleText}>{principalTitle || 'School Head'}</Text>

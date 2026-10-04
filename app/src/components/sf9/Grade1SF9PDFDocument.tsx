@@ -451,7 +451,7 @@ export const Grade1SF9PDFDocument: React.FC<Grade1SF9PDFDocumentProps> = ({
 
                   <View style={{ alignItems: 'center', width: '80%', alignSelf: 'center', marginBottom: 9 }}>
                     <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.2, borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center' }}>
-                      {principal ? principal.toUpperCase() : ' '}
+                      {principal ? principal : ' '}
                     </Text>
                     <Text style={{ fontFamily: 'BookmanOldStyle-Italic', fontSize: 5.2, marginTop: 1 }}>School Head</Text>
                   </View>
@@ -471,7 +471,7 @@ export const Grade1SF9PDFDocument: React.FC<Grade1SF9PDFDocumentProps> = ({
                   </View>
                   <View style={{ alignItems: 'center', width: '80%', alignSelf: 'center' }}>
                     <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.2, borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center' }}>
-                      {principal ? principal.toUpperCase() : ' '}
+                      {principal ? principal : ' '}
                     </Text>
                     <Text style={{ fontFamily: 'BookmanOldStyle-Italic', fontSize: 5.2, marginTop: 1 }}>School Head</Text>
                   </View>

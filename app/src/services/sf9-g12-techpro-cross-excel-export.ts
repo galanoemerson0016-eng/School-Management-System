@@ -581,8 +581,8 @@ export async function populateGrade12TechProCrossTemplateBuffer(
     inputXml = updateCellInSheetXml(inputXml, 'F17', sy, undefined, '34');
 
     const principal = options.principal || prof?.head_name || '';
-    if (principal) inputXml = updateCellInSheetXml(inputXml, 'F19', principal.toUpperCase(), undefined, '34');
-    if (prof?.head_position) inputXml = updateCellInSheetXml(inputXml, 'F20', prof.head_position.toUpperCase(), undefined, '34');
+    if (principal) inputXml = updateCellInSheetXml(inputXml, 'F19', principal, undefined, '34');
+    if (prof?.head_position) inputXml = updateCellInSheetXml(inputXml, 'F20', prof.head_position, undefined, '34');
 
     const adviserName = (options.adviser || prof?.adviser_name || '').toUpperCase();
     inputXml = updateCellInSheetXml(inputXml, 'F26', adviserName, undefined, '34');
@@ -962,7 +962,7 @@ export async function populateGrade12TechProCrossTemplateBuffer(
     const adviserVal = (options.adviser || prof?.adviser_name || '').toUpperCase();
     sf9Xml = updateCellInSheetXml(sf9Xml, 'X37', adviserVal, 'IF(\'INPUT DATA\'!F26="","",' + '\'INPUT DATA\'!F26)', '468');
 
-    const principalVal = (options.principal || prof?.head_name || '').toUpperCase();
+    const principalVal = (options.principal || prof?.head_name || '');
     sf9Xml = updateCellInSheetXml(sf9Xml, 'A39', principalVal, 'IF(\'INPUT DATA\'!F19="","",' + '\'INPUT DATA\'!F19)');
 
     // Sanitize any remaining un-guarded #VALUE! cells in sheet 4

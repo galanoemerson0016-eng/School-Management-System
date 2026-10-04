@@ -1468,7 +1468,7 @@ function SF9Pages({
                                         </View>
 
                                         <View style={{ alignItems: 'center', width: '80%', alignSelf: 'center', marginBottom: 14 }}>
-                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7, borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center' }}>{!hideHeadName && principal ? principal.toUpperCase() : ' '}</Text>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7, borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center' }}>{!hideHeadName && principal ? principal : ' '}</Text>
                                             <Text style={{ fontFamily: 'BookmanOldStyle-Italic', fontSize: 6, marginTop: 1 }}>School Head</Text>
                                         </View>
 
@@ -1484,7 +1484,7 @@ function SF9Pages({
                                             </View>
                                         </View>
                                         <View style={{ alignItems: 'center', width: '80%', alignSelf: 'center' }}>
-                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7, borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center' }}>{!hideHeadName && principal ? principal.toUpperCase() : ' '}</Text>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7, borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center' }}>{!hideHeadName && principal ? principal : ' '}</Text>
                                             <Text style={{ fontFamily: 'BookmanOldStyle-Italic', fontSize: 6, marginTop: 1 }}>School Head</Text>
                                         </View>
                                     </View>
@@ -2069,11 +2069,11 @@ function SF9Pages({
                                             </View>
                                         )}
                                         <Text style={[{ fontSize: 7.5, fontFamily: 'BookmanOldStyle-Bold', textAlign: 'center', minHeight: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
-                                            {!hideHeadName ? (principal || '').toUpperCase() : ' '}
+                                            {!hideHeadName ? (principal || '') : ' '}
                                         </Text>
                                         <View style={{ borderBottomWidth: 1, borderBottomColor: borderColor, width: '100%', marginTop: 1 }} />
                                         <Text style={[{ fontSize: 6.5, fontFamily: 'BookmanOldStyle', marginTop: 1, textAlign: 'center' }, isValuesOnly ? { color: transparentBorder } : {}]}>
-                                            {(principalTitle || 'School Head').toUpperCase()}
+                                            {principalTitle || 'School Head'}
                                         </Text>
                                     </View>
                                     <View style={{ width: '45%', alignItems: 'center', position: 'relative' }}>
@@ -2113,11 +2113,11 @@ function SF9Pages({
                                             </View>
                                         )}
                                         <Text style={[{ fontSize: 7.5, fontFamily: 'BookmanOldStyle-Bold', textAlign: 'center', minHeight: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
-                                            {!hideHeadName ? (principal || '').toUpperCase() : ' '}
+                                            {!hideHeadName ? (principal || '') : ' '}
                                         </Text>
                                         <View style={{ borderBottomWidth: 1, borderBottomColor: borderColor, width: '100%', marginTop: 1 }} />
                                         <Text style={[{ fontSize: 6.5, fontFamily: 'BookmanOldStyle', marginTop: 1, textAlign: 'center' }, isValuesOnly ? { color: transparentBorder } : {}]}>
-                                            {(principalTitle || 'School Head').toUpperCase()}
+                                            {principalTitle || 'School Head'}
                                         </Text>
                                     </View>
                                     <View style={{ flex: 1 }} />
