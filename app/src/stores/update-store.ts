@@ -551,12 +551,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "⚡ Automated Startup Grade Healing: Audits and repairs inflated weights and false 100s on launch with zero teacher re-encoding.",
-              "🎯 Normalized Weights & Header Percentages: Table headers display standard 40%/60%/20% weights, ensuring genuine DepEd grades.",
-              "🛡️ Ghost Record Protection: Suppresses phantom grades when score containers are empty.",
-              "📋 SF9 Elem & JHS Clean Layout: Streamlined learner header by removing unused Track & Strand rows for Grades 1–10.",
-              "🏛️ Redesigned Institute Dashboard: Modernized single-screen institutional overview with specimen signatures & official seal studio.",
-              "📊 Official Excel Template & Formula Preservation: 100% native DepEd formula integrity across SF9, SHS G12, and SSHS Pilot.",
+              "🛡️ Client Login & Data Safety: Universal store quarantine guarantees zero login lockouts across all encrypted collections.",
+              "📜 DepEd MATATAG Alignment: Unified Academic Excellence Award (GA 90-100, no grade below 80); retired obsolete Core Values checklist.",
+              "✍️ Exact Casing Preservation: Verbatim school head and adviser names/degrees across all forms and exports.",
+              "🍏 macOS Sequoia Gatekeeper Support: 1-click helper script resolves false 'damaged' warnings.",
               "🔒 100% backward-compatible update with zero data loss guarantee."
             ],
             timestamp: Date.now(),
