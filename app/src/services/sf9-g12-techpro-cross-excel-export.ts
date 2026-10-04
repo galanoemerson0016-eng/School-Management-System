@@ -412,14 +412,12 @@ export function extractGrade12TechProCrossGrades(
     generalAverageRemarks = generalAverage >= 75 ? 'Passed' : 'Failed';
   }
 
-  // Check DO 15, s. 2026 Academic Excellence criteria
+  // Check DepEd Academic Excellence criteria: GA 90-100 and no grade below 80
   if (allCompleted && typeof generalAverage === 'number' && generalAverage >= 90) {
     const gradesList = items.map(i => i.grade as number);
     const minGrade = Math.min(...gradesList);
     if (minGrade >= 80) {
-      if (generalAverage >= 98) honors = 'With Highest Honors';
-      else if (generalAverage >= 95) honors = 'With High Honors';
-      else honors = 'With Honors';
+      honors = 'Academic Excellence Award';
     }
   }
 

@@ -357,11 +357,9 @@ FEATURES:
 2. Live General Average: FormEase Pro computes the student's General Average live, applying official
    DepEd rounding rules (rounded to the nearest whole number for reporting, with two decimal places
    maintained for ranking).
-3. Academic Honors Identification:
-   Learners who qualify for honors are highlighted automatically according to DepEd guidelines:
-   - "With Honors": General Average of 90 to 94 (and NO final grade below 85 in ANY subject).
-   - "With High Honors": General Average of 95 to 97 (and NO final grade below 85 in ANY subject).
-   - "With Highest Honors": General Average of 98 to 100 (and NO final grade below 85 in ANY subject).
+3. Academic Excellence Award Identification:
+   Learners who qualify for awards are highlighted automatically according to DepEd MATATAG guidelines:
+   - "Academic Excellence Award": General Average of 90 to 100 (and NO final grade below 80 in ANY learning area). Listed alphabetically.
 4. Export Master Sheet: Click "Export Consolidated Grades" to download the complete multi-subject
    Excel spreadsheet for your records or submission to the School Quality Management Committee.
 

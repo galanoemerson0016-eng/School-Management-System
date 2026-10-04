@@ -322,11 +322,10 @@ Where:
 ### 2.4 DepEd Order No. 36, s. 2016
 *Policy Guidelines on Awards and Recognition for the K to 12 Basic Education Program*
 
-- **Academic Excellence Awards Criteria (Evaluated at End of School Year)**:
-  - **With Highest Honors / May Pinakamataas na Karangalan**: General Average of **98.00 to 100**, with **no quarterly, trimester, or final grade below 85** in any subject.
-  - **With High Honors / May Mataas na Karangalan**: General Average of **95.00 to 97.99**, with **no quarterly, trimester, or final grade below 85** in any subject.
-  - **With Honors / May Karangalan**: General Average of **90.00 to 94.99**, with **no quarterly, trimester, or final grade below 80** in any subject.
-  - *Disqualification Rule*: Any failing grade ($<75$) or unserved disciplinary suspension automatically disqualifies a student from honor rolls regardless of General Average.
+- **Academic Excellence Award Criteria (Evaluated at End of School Year / Per Term)**:
+  - **Academic Excellence Award / Gawad sa Akademikong Kahusayan**: General Average of **90.00 to 100**, with **no quarterly, trimester, or final grade below 80** in any learning area.
+  - *Deprecated Legacy Tiers*: The former 3-tier subcategories ("With Honors", "With High Honors", "With Highest Honors") and the 85 minimum grade threshold are retired under MATATAG guidelines; awardees are listed alphabetically.
+  - *Disqualification Rule*: Any failing grade ($<75$) or unserved disciplinary suspension automatically disqualifies a student from award lists regardless of General Average.
 - **Special Grade-Level Awards & Objective Rubrics**:
   - *Leadership Award*: Evaluates motivational skills (40%), planning & organization (40%), and contribution to school climate (20%). Zero disciplinary records required.
   - *Award for Research / Innovation*: Project significance (35%), methodological rigor (30%), presentation/defense (15%), and final subject grade in research (20%).

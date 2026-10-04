@@ -761,9 +761,9 @@ export function AnnouncementsPage() {
                             { label: 'Grade Consultation', msg: 'Notice: Grade Consultation Day at {school_name} is on {date}. Parents of {student_name} may inquire about academic standing.' },
                         ]},
                         awards: { icon: '🏆', label: 'Awards', color: 'text-purple-600 dark:text-purple-400', activeColor: 'bg-purple-500 text-white', templates: [
-                            { label: 'With Honors', msg: 'Congratulations! Your child {student_name} has achieved WITH HONORS at {school_name} for this Quarter! Keep up the great work!' },
-                            { label: 'With High Honors', msg: 'Congratulations! Your child {student_name} has achieved WITH HIGH HONORS at {school_name} for this Quarter!' },
-                            { label: 'Highest Honors', msg: 'Congratulations! Your child {student_name} has achieved WITH HIGHEST HONORS at {school_name} for this Quarter! Outstanding!' },
+                            { label: 'Academic Excellence', msg: 'Congratulations! Your child {student_name} has achieved the ACADEMIC EXCELLENCE AWARD at {school_name} for this Quarter (Gen. Avg 90-100 with no grade below 80)! Keep up the great work!' },
+
+
                             { label: 'Perfect Attendance', msg: 'Congratulations! {student_name} achieved PERFECT ATTENDANCE at {school_name} this Quarter. Thank you for your support!' },
                             { label: 'Best in Subject', msg: 'Congratulations! {student_name} was awarded BEST IN SUBJECT at {school_name} this Quarter. Well done!' },
                             { label: 'Leadership Award', msg: 'Congratulations! {student_name} received a LEADERSHIP AWARD at {school_name}. Keep inspiring others!' },

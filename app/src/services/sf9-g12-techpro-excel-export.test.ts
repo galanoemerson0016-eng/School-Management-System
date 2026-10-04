@@ -41,7 +41,7 @@ describe('SF9 Grade 12 Technical-Professional (TechPro / SSHS) Excel Export Serv
     expect(extracted.tp3).toBe(92);
     expect(extracted.wi).toBe(94);
     expect(extracted.remarks).toBe('Passed');
-    expect(extracted.honors).toBe('With Honors');
+    expect(extracted.honors).toBe('Academic Excellence Award');
     // Total weighted: 12*90 + 12*92 + 12*94 = 1080 + 1104 + 1128 = 3312
     // General Average: 3312 / 36 = 92
     expect(extracted.generalAverage).toBe(92);

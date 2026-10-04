@@ -381,11 +381,9 @@ export function extractGrade12AcademicCrossGrades(
     generalAverage = Math.round(weightedAverage);
     remarks = generalAverage >= 75 && allPassed ? 'Passed' : (generalAverage < 75 ? 'Failed' : 'Passed');
 
-    // DO 15, s. 2026 Academic Excellence criteria
+    // DepEd Academic Excellence criteria: GA 90-100 and no grade below 80
     if (generalAverage >= 90 && minGrade >= 80) {
-      if (generalAverage >= 98) honors = 'With Highest Honors';
-      else if (generalAverage >= 95) honors = 'With High Honors';
-      else honors = 'With Honors';
+      honors = 'Academic Excellence Award';
     }
   }
 

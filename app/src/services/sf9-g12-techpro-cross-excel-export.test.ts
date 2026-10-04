@@ -95,7 +95,7 @@ describe('SF9 Grade 12 TechPro with Cross-Specialization Excel Export', () => {
       expect(res.wi).toBe(94);
       expect(res.generalAverage).toBe(92);
       expect(res.generalAverageRemarks).toBe('Passed');
-      expect(res.honors).toBe('With Honors'); // min grade is 89 (>= 80), avg 92
+      expect(res.honors).toBe('Academic Excellence Award'); // min grade is 89 (>= 80), avg 92
     });
 
     it('evaluates DO 15, s. 2026 Academic Excellence criteria correctly', () => {
@@ -110,7 +110,7 @@ describe('SF9 Grade 12 TechPro with Cross-Specialization Excel Export', () => {
       };
       const highRes = extractGrade12TechProCrossGrades(highestGrades);
       expect(highRes.generalAverage).toBeGreaterThanOrEqual(98);
-      expect(highRes.honors).toBe('With Highest Honors');
+      expect(highRes.honors).toBe('Academic Excellence Award');
 
       // Disqualified if any grade < 80
       const disqualifiedGrades: Record<string, unknown> = {

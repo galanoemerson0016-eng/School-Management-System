@@ -54,7 +54,7 @@ describe('SF9 Grade 12 Academic with Cross-Specialization Excel Export Service',
 
     expect(extracted.tp1).toBe(94);
     expect(extracted.remarks).toBe('Passed');
-    expect(extracted.honors).toBe('With Honors');
+    expect(extracted.honors).toBe('Academic Excellence Award');
     // Total weighted: 3*(88+90+89+91) + 3*(92+90+93+91) + 12*94 = 3*358 + 3*366 + 1128 = 1074 + 1098 + 1128 = 3300.
     // General Average: 3300 / 36 = 91.666 -> 92
     expect(extracted.generalAverage).toBe(92);
