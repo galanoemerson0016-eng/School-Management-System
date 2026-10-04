@@ -184,5 +184,10 @@ if (fs.existsSync(macFixZip)) {
   fs.copyFileSync(macFixZip, path.join(releaseDir, 'Fix-FormEase-Mac.command.zip'));
   console.log(`📁 Staged Fix-FormEase-Mac.command.zip in release directory`);
 }
+const macInstructions = path.join(rootDir, 'PLEASE_READ_MAC_INSTRUCTIONS.txt');
+if (fs.existsSync(macInstructions)) {
+  fs.copyFileSync(macInstructions, path.join(releaseDir, 'PLEASE_READ_MAC_INSTRUCTIONS.txt'));
+  console.log(`📁 Staged PLEASE_READ_MAC_INSTRUCTIONS.txt in release directory`);
+}
 
 console.log(`\n🎉 CI/CD Release Asset Patching completed successfully!`);

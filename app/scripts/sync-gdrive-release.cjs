@@ -172,6 +172,7 @@ async function uploadDriveFile(accessToken, targetFolderId, filePath, folderLabe
   else if (ext === '.yml' || ext === '.yaml') contentType = 'text/yaml';
   else if (ext === '.command') contentType = 'application/x-sh';
   else if (ext === '.zip') contentType = 'application/zip';
+  else if (ext === '.txt') contentType = 'text/plain; charset=UTF-8';
 
   const multipartRequestBody = Buffer.concat([
     Buffer.from(
@@ -209,11 +210,11 @@ async function syncTargetPlatform(accessToken, parentFolderId, platformName, fil
 
   // 1. Purge old installer & blockmap files in this platform folder
   const existingFiles = await listDriveItems(accessToken, platformFolderId);
-  const extsToPurge = ['.exe', '.dmg', '.zip', '.yml', '.yaml', '.blockmap', '.command'];
+  const extsToPurge = ['.exe', '.dmg', '.zip', '.yml', '.yaml', '.blockmap', '.command', '.txt'];
 
   for (const file of existingFiles) {
     const ext = path.extname(file.name).toLowerCase();
-    if (extsToPurge.includes(ext) || file.name.startsWith('FormEase') || file.name.startsWith('latest') || file.name.startsWith('Fix-FormEase-Mac')) {
+    if (extsToPurge.includes(ext) || file.name.startsWith('FormEase') || file.name.startsWith('latest') || file.name.startsWith('Fix-FormEase-Mac') || file.name.includes('PLEASE_READ')) {
       await deleteDriveFile(accessToken, file.id, file.name, platformName);
     }
   }
@@ -240,7 +241,7 @@ async function main() {
     const accessToken = await getAccessToken();
     console.log(`✅ Authenticated successfully! Root Folder ID: ${rootFolderId}`);
 
-    // Ensure Fix-FormEase-Mac repair files are available in releaseDir
+    // Ensure Fix-FormEase-Mac repair files and instructions are available in releaseDir
     if (!fs.existsSync(releaseDir)) {
       fs.mkdirSync(releaseDir, { recursive: true });
     }
@@ -256,6 +257,12 @@ async function main() {
       path.join(rootDir, 'Fix-FormEase-Mac.command.zip'),
     ].find(p => fs.existsSync(p));
 
+    const macNoteSource = [
+      path.join(releaseDir, 'PLEASE_READ_MAC_INSTRUCTIONS.txt'),
+      path.join(rootDir, 'PLEASE_READ_MAC_INSTRUCTIONS.txt'),
+      path.join(rootDir, 'license-portal', 'public', 'PLEASE_READ_MAC_INSTRUCTIONS.txt'),
+    ].find(p => fs.existsSync(p));
+
     if (macCommandSource && !fs.existsSync(path.join(releaseDir, 'Fix-FormEase-Mac.command'))) {
       fs.copyFileSync(macCommandSource, path.join(releaseDir, 'Fix-FormEase-Mac.command'));
       console.log(`📋 Copied Fix-FormEase-Mac.command into release folder`);
@@ -263,6 +270,10 @@ async function main() {
     if (macZipSource && !fs.existsSync(path.join(releaseDir, 'Fix-FormEase-Mac.command.zip'))) {
       fs.copyFileSync(macZipSource, path.join(releaseDir, 'Fix-FormEase-Mac.command.zip'));
       console.log(`📋 Copied Fix-FormEase-Mac.command.zip into release folder`);
+    }
+    if (macNoteSource && !fs.existsSync(path.join(releaseDir, 'PLEASE_READ_MAC_INSTRUCTIONS.txt'))) {
+      fs.copyFileSync(macNoteSource, path.join(releaseDir, 'PLEASE_READ_MAC_INSTRUCTIONS.txt'));
+      console.log(`📋 Copied PLEASE_READ_MAC_INSTRUCTIONS.txt into release folder`);
     }
 
     // Process Windows Subfolder (Strictly latest version .exe binary only, NO .yml, NO .blockmap)
@@ -280,14 +291,14 @@ async function main() {
       }
     );
 
-    // Process Mac Subfolder (Latest version .dmg binaries + Clickable Fix-FormEase-Mac tools)
+    // Process Mac Subfolder (Latest version .dmg binaries + Clickable Fix-FormEase-Mac tools + Instructions)
     await syncTargetPlatform(
       accessToken,
       rootFolderId,
       'mac',
       (filename) => {
         if (filename.endsWith('.blockmap') || filename.endsWith('.yml') || filename.endsWith('.yaml')) return false;
-        if (filename.startsWith('Fix-FormEase-Mac')) return true;
+        if (filename.startsWith('Fix-FormEase-Mac') || filename.includes('PLEASE_READ')) return true;
         const ext = path.extname(filename).toLowerCase();
         if (ext === '.dmg') {
           return filename.includes(version);

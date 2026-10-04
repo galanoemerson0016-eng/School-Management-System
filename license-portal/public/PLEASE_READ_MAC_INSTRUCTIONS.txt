@@ -1,0 +1,60 @@
+================================================================================
+   FormEase Pro — macOS Installation & Gatekeeper Fix Guide
+   Official DepEd School Management System
+================================================================================
+
+📌 STEP 1: CHOOSE THE CORRECT INSTALLER FOR YOUR MAC
+--------------------------------------------------------------------------------
+Click the Apple menu () at top-left -> "About This Mac" to see your Chip/Processor:
+
+  1. Apple Silicon Macs (M1, M2, M3, M4 chip):
+     👉 Download: FormEase.Pro-3.5.21-arm64.dmg
+
+  2. Intel-based Macs (Intel Core i5 / i7 / i9):
+     👉 Download: FormEase.Pro-3.5.21.dmg
+
+
+📌 STEP 2: INSTALLATION
+--------------------------------------------------------------------------------
+  1. Double-click the downloaded .dmg file to open it.
+  2. Drag and drop "FormEase Pro.app" into your "Applications" folder.
+  3. Eject the installer disk image.
+
+
+📌 STEP 3: FIXING macOS "APP IS DAMAGED" OR GATEKEEPER WARNING
+--------------------------------------------------------------------------------
+On macOS Sequoia (macOS 15) and Sonoma (macOS 14), Apple blocks custom school
+management software with a false warning:
+   ❌ "FormEase Pro is damaged and can't be opened. You should move it to the Trash."
+
+Don't worry! The application is NOT damaged. macOS attaches a quarantine flag
+to downloaded software. You can unlock it in 5 seconds using either method below:
+
+────────────────────────────────────────────────────────────────────────────────
+METHOD A (RECOMMENDED — 1-CLICK FIX TOOL):
+────────────────────────────────────────────────────────────────────────────────
+  1. In this same Google Drive folder, download:
+     👉 Fix-FormEase-Mac.command  (or Fix-FormEase-Mac.command.zip)
+
+  2. If you downloaded the .zip, double-click it to extract.
+
+  3. Double-click "Fix-FormEase-Mac.command".
+     - A Terminal window will open and automatically unlock FormEase Pro.
+     - If prompted for a password, type your Mac user login password and press [Enter].
+       (Note: Characters will not appear on screen while typing passwords in Terminal;
+       simply type your password and hit Enter).
+     - Once you see "SUCCESS! FormEase Pro is now completely unlocked",
+       FormEase Pro will launch automatically!
+
+────────────────────────────────────────────────────────────────────────────────
+METHOD B (MANUAL TERMINAL COMMAND):
+────────────────────────────────────────────────────────────────────────────────
+  If you prefer entering the command manually:
+  1. Press [Command + Space] on your keyboard, type "Terminal", and press [Enter].
+  2. Copy and paste this exact command:
+
+     xattr -cr "/Applications/FormEase Pro.app"
+
+  3. Press [Enter].
+  4. Open your Applications folder and click FormEase Pro — it will open immediately!
+================================================================================
