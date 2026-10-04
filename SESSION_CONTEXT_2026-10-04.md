@@ -67,6 +67,15 @@ This file contains the complete summary of all architectural fixes, feature adju
     - `sf9-excel-export.ts`, `sf9-g1-excel-export.ts`, `sf9-g12-academic-cross-excel-export.ts`, `sf9-g12-techpro-excel-export.ts`, `sf9-g12-techpro-cross-excel-export.ts`, `ecr-excel-export.ts`
   - Verified 100% pass on all 986 unit and integration tests.
 
+### H. Workspace Deep Cleanup (~4.92 GB Reclaimed)
+- **Problem**: Project root and subdirectories accumulated gigabytes of historical installer binaries (`v3.3.1` through `v3.5.18`), unpacked electron caches, old test spreadsheets, and scratch scripts.
+- **Actions Taken**:
+  - **Removed Obsolete Installers**: Purged 10 historical `.exe` and `.blockmap` versions (`v3.3.1`, `v3.5.8`-`v3.5.18`) and unpacked electron folders (`win-unpacked`, `win-ia32-unpacked`) from `release/` and `app/release/`. Preserved active `v3.5.21` installer and `latest.yml`.
+  - **Purged Scratch Directories**: Completely deleted `scratch/` (559 MB) and `app/scratch/` (4.8 MB) containing test dumps and outdated temporary reports.
+  - **Cleaned Obsolete Update Assets**: Removed ancient `.blockmap` files in `update-server/updates/` (`v1.0.44` through `v2.11.7`).
+  - **Removed Unneeded Scratch Scripts**: Deleted non-git diagnostic and scraping scripts in `app/scripts/`, root ad-hoc `node_modules/`, and retired `WindowsSandbox-FormEase-v3518.wsb`.
+  - **Results**: Reduced project footprint by **~4.92 GB**; 0 lint errors, 0 typecheck errors.
+
 ---
 
 ## 2. Recent Git Commit Log (Branch: `main`)
