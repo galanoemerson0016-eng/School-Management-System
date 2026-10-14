@@ -80,14 +80,6 @@ import {
     SF9Template2BatchDocument,
 } from '../components/sf9/SF9Template2Document';
 import type { SF9Template2LearnerData } from '../components/sf9/sf9Template2Utils';
-const isKeyStage1 = (gradeLevel: string) => {
-    const gl = (gradeLevel || '').toLowerCase();
-    if (gl.includes('grade')) {
-        const num = parseInt(gl.replace(/\D/g, '')) || 0;
-        return num >= 1 && num <= 3;
-    }
-    return false;
-};
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const getDescriptor = (grade: number | string, gradeLevel?: string, schoolYear?: string): string => {

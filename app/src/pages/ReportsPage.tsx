@@ -143,7 +143,7 @@ export function ReportsPage() {
     const filteredSubjects = useMemo(() => {
         if (selectedSectionFilter === 'all') return officialSubjects;
         const sectionObj = officialSections.find(s => s.id === selectedSectionFilter || s.section_name === selectedSectionFilter);
-        const secGradeNum = parseInt((sectionObj?.section_grade_level || (sectionObj as any)?.grade_level || '').replace(/\D/g, '')) || 0;
+        const secGradeNum = parseInt((sectionObj?.section_grade_level || ((sectionObj as unknown as Record<string, unknown> | undefined)?.grade_level as string) || '').replace(/\D/g, '')) || 0;
         return officialSubjects.filter(s => {
             if (s.section_id === selectedSectionFilter) return true;
             if (!s.section_id && secGradeNum > 0) {

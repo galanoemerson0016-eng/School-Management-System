@@ -1159,7 +1159,7 @@ export function ShsEClassRecord() {
             pt: hps_pt,
             qa: hps_qa
         };
-    }, [hpsRecords, effectiveSubjectId, subjectName, selectedSubjectObj, activeSchoolYear, quarter, selectedSection, selectedSectionObj, activeWwCount, activePtCount, useThreeExamLayout, subjects, classRecords]);
+    }, [hpsRecords, effectiveSubjectId, subjectName, selectedSubjectObj, activeSchoolYear, quarter, selectedSection, selectedSectionObj, activeWwCount, activePtCount, subjects, classRecords]);
 
     const isTermExamHpsMissing = useMemo(() => {
         if (!hps || !hps.qa) return false;

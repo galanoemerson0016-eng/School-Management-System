@@ -1,5 +1,4 @@
 import { useState, useMemo, useCallback } from 'react';
-import { motion } from 'framer-motion';
 import { useAppStore } from '../stores/app-store';
 import { useAuthStore } from '../stores/auth-store';
 import { useSF10Store } from '../stores/sf10-store';
@@ -14,7 +13,7 @@ import SF10JHSRenderer from '../components/SF10JHSRenderer';
 import { SF10SHSRenderer } from '../components/SF10SHSRenderer';
 import { mapStudentToSpecData } from '../utils/sf10Mapper';
 import { mapStudentToShsSf10Data } from '../utils/shsSf10Mapper';
-import { ArrowLeft, Printer, FileText, Plus, Minus, ChevronDown, Bug, RefreshCcw, Clock3 } from 'lucide-react';
+import { ArrowLeft, Printer, FileText, Plus, Minus, ChevronDown, Bug, RefreshCcw } from 'lucide-react';
 import { canAccessSF9Section, filterSF9Sections } from '../lib/rbac';
 
 export function SF10Page() {
@@ -110,7 +109,7 @@ export function SF10Page() {
         return sections.find((s) => s.section_name === selectedSection || s.id === selectedSection);
     }, [sections, selectedSection]);
 
-    const isShsSection = useMemo(() => {
+    const _isShsSection = useMemo(() => {
         const grade = (selectedSectionObj?.section_grade_level || '').toString().toLowerCase();
         if (!grade.includes('grade')) return false;
         const num = parseInt(grade.replace(/\D/g, '')) || 0;

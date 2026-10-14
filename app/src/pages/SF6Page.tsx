@@ -269,7 +269,7 @@ export function SF6Page() {
 
             addToCounts(bucket.enrollment, gender);
 
-            const secGradeNum = parseInt((sectionMatch?.section_grade_level || (sectionMatch as any)?.grade_level || '').replace(/\D/g, '')) || 0;
+            const secGradeNum = parseInt((sectionMatch?.section_grade_level || ((sectionMatch as unknown as Record<string, unknown> | undefined)?.grade_level as string) || '').replace(/\D/g, '')) || 0;
             const sectionSubjects = subjects.filter(s => {
                 if (s.term === 'none') return false;
                 if (s.section_id === sectionMatch?.id || (s as Subject & { section_name?: string }).section_name === student.student_section) return true;

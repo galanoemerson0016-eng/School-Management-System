@@ -504,7 +504,7 @@ export function Dashboard() {
         let totalSlots = 0;
         officialSections.forEach(sec => {
             const studentCount = filteredStudents.filter(s => s.student_section === sec.id || s.student_section === sec.section_name).length;
-            const secGradeNum = parseInt((sec.section_grade_level || (sec as any).grade_level || '').replace(/\D/g, '')) || 0;
+            const secGradeNum = parseInt((sec.section_grade_level || ((sec as unknown as Record<string, unknown>).grade_level as string) || '').replace(/\D/g, '')) || 0;
             const subjectCount = officialSubjects.filter(sub => {
                 if (sub.section_id === sec.id) return true;
                 if (!sub.section_id && secGradeNum > 0) {
@@ -2095,7 +2095,7 @@ export function Dashboard() {
                                         {filteredAchievers.length > 0 ? (
                                             filteredAchievers.map((item, index) => {
                                                 const student = item.student;
-                                                const rank = index + 1;
+                                                const _rank = index + 1;
                                                 const average = item.average;
                                                 
                                                 // Honors details per DepEd Order 36 s. 2016
