@@ -130,8 +130,7 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
     saveSF2Sheet: (sheet) => enqueueAttendanceWrite(async () => {
       try {
         const rebuilt = buildAttendanceRecordsFromSf2Sheet(sheet);
-        // A saved SF2 is authoritative for its own section/month.  Reconcile
-        // even if every mark was cleared so stale attendance cannot resurface.
+        const rebuiltByKey = new Map(rebuilt.map(r => [`${r.student_lrn}_${r.date}`, r]));
         {
           const allAttendance = await db.getAllRecords<AttendanceRecord>('attendanceRecords');
           const monthIndex = [
@@ -155,8 +154,17 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
             return false;
           };
 
+          // Preserve existing 'present' records (and their time_in/time_out timestamps)
+          // when the SF2 cell for that student/day is blank ('present').
+          const preservedPresentRecords = allAttendance.filter((record) => {
+            if (!isRecordForSheetSection(record) || !monthDates.has(record.date)) return false;
+            const key = `${record.student_lrn}_${record.date}`;
+            return record.status === 'present' && !rebuiltByKey.has(key);
+          });
+          const preservedIds = new Set(preservedPresentRecords.map(r => r.id));
+
           const staleIds = allAttendance
-            .filter((record) => isRecordForSheetSection(record) && monthDates.has(record.date))
+            .filter((record) => isRecordForSheetSection(record) && monthDates.has(record.date) && !preservedIds.has(record.id))
             .map((record) => record.id);
 
           await db.commitRecordChanges([
@@ -193,21 +201,31 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
         const removedRecords = allAttendance.filter((record) => ids.includes(record.id));
         const planned: SF2Sheet[] = [];
         const activeSchoolYear = get().activeSchoolYear as string;
-        const grouped = new Map<string, AttendanceRecord[]>();
+        const allSections = (get().sections || []) as Section[];
+        const grouped = new Map<string, { sectionId: string; month: string; records: AttendanceRecord[] }>();
         for (const record of removedRecords) {
           const context = getSf2MonthContext(record.date, activeSchoolYear);
           if (!context || !record.section_id) continue;
-          const sheetId = `${record.section_id}_${activeSchoolYear}_${context.month}`;
-          const bucket = grouped.get(sheetId) || [];
-          bucket.push(record);
+          const matchedSection = allSections.find((s) => s.id === record.section_id || s.section_name === record.section_id);
+          const targetSectionId = matchedSection?.id || record.section_id;
+          const sheetId = `${targetSectionId}_${activeSchoolYear}_${context.month}`;
+          const bucket = grouped.get(sheetId) || { sectionId: targetSectionId, month: context.month, records: [] };
+          bucket.records.push(record);
           grouped.set(sheetId, bucket);
         }
 
         for (const [sheetId, group] of grouped.entries()) {
-          const existing = await db.getRecord<SF2Sheet>('sf2Sheets', sheetId);
+          const matchedSection = allSections.find((s) => s.id === group.sectionId || s.section_name === group.sectionId);
+          let existing = await db.getRecord<SF2Sheet>('sf2Sheets', sheetId);
+          if (!existing && matchedSection) {
+            const altId1 = `${matchedSection.section_name}_${activeSchoolYear}_${group.month}`;
+            const altId2 = `${matchedSection.id}_${activeSchoolYear}_${group.month}`;
+            if (altId1 !== sheetId) existing = await db.getRecord<SF2Sheet>('sf2Sheets', altId1);
+            if (!existing && altId2 !== sheetId) existing = await db.getRecord<SF2Sheet>('sf2Sheets', altId2);
+          }
           if (!existing) continue;
           const attendance = { ...existing.attendance };
-          for (const record of group) {
+          for (const record of group.records) {
             const context = getSf2MonthContext(record.date, activeSchoolYear);
             if (!context) continue;
             const row = { ...(attendance[record.student_lrn] || {}) };

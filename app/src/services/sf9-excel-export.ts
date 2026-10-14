@@ -92,8 +92,9 @@ const FONT_REMARKS_VAL: Partial<ExcelJS.Font> = { name: 'Bookman Old Style', siz
 
 function getSubjectAverage(grades: number[]): number | null {
   if (!grades || grades.length === 0) return null;
-  const result = calculateQuarterlyFinalGrade(grades, grades.map((_, index) => index + 1));
-  return result.status === 'missing' ? null : result.value;
+  const requiredTerms = [1, 2, 3];
+  const result = calculateQuarterlyFinalGrade(grades, requiredTerms, requiredTerms);
+  return result.status === 'complete' ? result.value : null;
 }
 
 function getFinalRemarks(average: number | null): string {
@@ -413,11 +414,12 @@ async function populateTemplate(buffer: ArrayBuffer, opts: SF9ExcelExportOptions
 
   // General Average
   const average = calculateWeightedGradeAverage(generalAverageEntries);
-  if (average !== null) {
+  if (average !== null && generalAverageEntries.length > 0) {
       const generalAvg = Math.round(average);
+      const hasLowGrade = generalAverageEntries.some(e => e.grade < 85);
       
       let genAvgRemarks = generalAvg >= 75 ? 'Promoted' : 'Retained';
-      if (generalAvg >= 90) {
+      if (generalAvg >= 90 && !hasLowGrade) {
           genAvgRemarks += '\nwith Academic\nExcellence Award';
       }
       

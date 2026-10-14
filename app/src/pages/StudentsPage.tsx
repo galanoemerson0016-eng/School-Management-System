@@ -21,7 +21,7 @@ import { exportToCSV } from '../utils/csv-export';
 import { parseSF1 } from '../utils/sf1-parser';
 import { downloadEnrollmentTemplate, parseEnrollmentTemplate } from '../utils/enrollment-template';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
-import { isStudentInSection } from '../utils/grading-helpers';
+import { isStudentInSection, isMaleStudent, isFemaleStudent } from '../utils/grading-helpers';
 import { useRef } from 'react';
 
 export function StudentsPage() {
@@ -364,7 +364,7 @@ export function StudentsPage() {
         if (!section) return [];
         const filtered = students.filter(s => isStudentInSection(s, section, selectedSectionId));
         return filtered.sort((a, b) => {
-            if (a.gender !== b.gender) return a.gender === 'Male' ? -1 : 1;
+            if (isMaleStudent(a) !== isMaleStudent(b)) return isMaleStudent(a) ? -1 : 1;
             return a.last_name.localeCompare(b.last_name);
         });
     }, [students, officialSections, selectedSectionId, viewMode]);
@@ -434,7 +434,8 @@ export function StudentsPage() {
 
     const displayedStudents = useMemo(() => {
         let filtered = sectionStudents;
-        if (genderFilter !== 'All') filtered = filtered.filter(s => s.gender === genderFilter);
+        if (genderFilter === 'Male') filtered = filtered.filter(s => isMaleStudent(s));
+        else if (genderFilter === 'Female') filtered = filtered.filter(s => isFemaleStudent(s));
         if (addressFilter !== 'All') {
             filtered = filtered.filter(s => s.address?.includes(addressFilter));
         }
@@ -526,10 +527,10 @@ export function StudentsPage() {
                     accessorKey: 'gender',
                     header: 'Gender',
                     cell: (info) => {
-                        const gender = info.getValue() as string;
+                        const isMale = isMaleStudent(info.row.original);
                         return (
-                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${gender === 'Male' ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300' : 'bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300'}`}>
-                                {gender}
+                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${isMale ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300' : 'bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300'}`}>
+                                {isMale ? 'Male' : 'Female'}
                             </span>
                         );
                     }
@@ -625,10 +626,10 @@ export function StudentsPage() {
         return students.filter((student) => isStudentInSection(student, section)).length;
     };
     const getMaleCount = (section?: Section | null) => {
-        return students.filter((student) => isStudentInSection(student, section) && student.gender === 'Male').length;
+        return students.filter((student) => isStudentInSection(student, section) && isMaleStudent(student)).length;
     };
     const getFemaleCount = (section?: Section | null) => {
-        return students.filter((student) => isStudentInSection(student, section) && student.gender === 'Female').length;
+        return students.filter((student) => isStudentInSection(student, section) && isFemaleStudent(student)).length;
     };
 
     const validStudents = useMemo(() => {
@@ -636,8 +637,8 @@ export function StudentsPage() {
     }, [students, officialSections]);
 
     const _totalStudents = validStudents.length;
-    const _totalMale = validStudents.filter(s => s.gender === 'Male').length;
-    const _totalFemale = validStudents.filter(s => s.gender === 'Female').length;
+    const _totalMale = validStudents.filter(s => isMaleStudent(s)).length;
+    const _totalFemale = validStudents.filter(s => isFemaleStudent(s)).length;
 
     const _statsSectionsCount = officialSections.length;
 
@@ -1136,8 +1137,8 @@ export function StudentsPage() {
                         <div className="p-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 bg-linear-to-r from-gray-50/80 to-white/80 dark:from-white/2 dark:to-white/2 border-b border-gray-100 dark:border-white/10">
                             {[
                                 { label: 'Total', value: sectionStudents.length, icon: '👥', filter: 'All', color: 'blue' },
-                                { label: 'Male', value: sectionStudents.filter(s => s.gender === 'Male').length, icon: '♂️', filter: 'Male', color: 'sky' },
-                                { label: 'Female', value: sectionStudents.filter(s => s.gender === 'Female').length, icon: '♀️', filter: 'Female', color: 'pink' },
+                                { label: 'Male', value: sectionStudents.filter(s => isMaleStudent(s)).length, icon: '♂️', filter: 'Male', color: 'sky' },
+                                { label: 'Female', value: sectionStudents.filter(s => isFemaleStudent(s)).length, icon: '♀️', filter: 'Female', color: 'pink' },
                             ].map((stat) => (
                                 <motion.div
                                     key={stat.label}
@@ -1295,7 +1296,7 @@ export function StudentsPage() {
                                                                 />
                                                             ) : (
                                                                 <div className={`w-full h-full flex items-center justify-center text-sm font-black ${
-                                                                    student.gender === 'Male' ? 'bg-blue-50/70 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400' : 'bg-pink-50/70 dark:bg-pink-950/60 text-pink-600 dark:text-pink-400'
+                                                                    isMaleStudent(student) ? 'bg-blue-50/70 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400' : 'bg-pink-50/70 dark:bg-pink-950/60 text-pink-600 dark:text-pink-400'
                                                                 }`}>
                                                                     {initials}
                                                                 </div>
@@ -1318,9 +1319,9 @@ export function StudentsPage() {
                                                         {/* Badges */}
                                                         <div className="flex items-center gap-1 flex-wrap justify-center mb-1">
                                                             <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${
-                                                                student.gender === 'Male' ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300' : 'bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300'
+                                                                isMaleStudent(student) ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300' : 'bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300'
                                                             }`}>
-                                                                {student.gender}
+                                                                {isMaleStudent(student) ? 'Male' : 'Female'}
                                                             </span>
                                                             {student.age && (
                                                                 <span className="px-2 py-0.5 bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 text-[8px] font-black rounded-full uppercase tracking-wider">

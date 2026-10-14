@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx';
 import { db } from './database';
 import type { Student, Section, Subject } from '../types';
 import { readSafeWorkbook } from '../utils/safe-workbook-reader';
+import { useAppStore } from '../stores/app-store';
 
 const MAX_IMPORT_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
 
@@ -56,13 +57,15 @@ export async function importStudentsFromExcel(file: File): Promise<ImportResult>
           const row = rows[i] as Record<string, unknown>;
 
           try {
+            const rawGender = String(row['Gender'] || row['gender'] || row['Sex'] || row['sex'] || '').trim();
+            const normalizedGender: 'Male' | 'Female' = /^f/i.test(rawGender) ? 'Female' : 'Male';
             const student: Student = {
               lrn: String(row['LRN'] || row['lrn'] || '').trim(),
               first_name: String(row['First Name'] || row['first_name'] || '').trim(),
               last_name: String(row['Last Name'] || row['last_name'] || '').trim(),
               middle_name: String(row['Middle Name'] || row['middle_name'] || '').trim() || undefined,
               name_extension: String(row['Name Extension'] || row['name_extension'] || '').trim() || undefined,
-              gender: (String(row['Gender'] || row['gender'] || '').trim() as 'Male' | 'Female') || 'Male',
+              gender: normalizedGender,
               birthday: String(row['Birthday'] || row['birthday'] || '').trim(),
               age: Number(row['Age'] || row['age']) || 0,
               address: String(row['Address'] || row['address'] || '').trim(),
@@ -95,6 +98,11 @@ export async function importStudentsFromExcel(file: File): Promise<ImportResult>
             result.errors.push(`Row ${i + 1}: ${(error as Error).message}`);
             result.failed++;
           }
+        }
+
+        if (result.success > 0) {
+          const allStudents = await db.getAllRecords<Student>('students');
+          useAppStore.setState({ students: allStudents, studentProfiles: allStudents });
         }
 
         resolve(result);
@@ -162,6 +170,11 @@ export async function importSectionsFromExcel(file: File): Promise<ImportResult>
           }
         }
 
+        if (result.success > 0) {
+          const allSections = await db.getAllRecords<Section>('sections');
+          useAppStore.setState({ sections: allSections });
+        }
+
         resolve(result);
       } catch (error) {
         reject(error);
@@ -227,6 +240,11 @@ export async function importSubjectsFromExcel(file: File): Promise<ImportResult>
             result.errors.push(`Row ${i + 1}: ${(error as Error).message}`);
             result.failed++;
           }
+        }
+
+        if (result.success > 0) {
+          const allSubjects = await db.getAllRecords<Subject>('subjects');
+          useAppStore.setState({ subjects: allSubjects });
         }
 
         resolve(result);

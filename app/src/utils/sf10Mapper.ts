@@ -474,16 +474,17 @@ export function mapStudentToSpecData({
         const subjectName = dbSubject?.subject_name || record.subject_name || '';
         if (!subjectName) continue;
 
-        let sf10Key = matchSubjectKey(subjectName, subjectsData);
-
-        // Fallback for dynamic/custom curriculum keys (e.g. subject_0, subject_10)
-        if ((!sf10Key || !subjectsData[sf10Key]) && effectiveCurriculum) {
+        let sf10Key: string | null = null;
+        if (effectiveCurriculum) {
           const matchedCustomSubject = standardSubjectsForGrade.find(
             s => normalizeSubjectName(s.label) === normalizeSubjectName(subjectName)
           );
-          if (matchedCustomSubject?.key) {
+          if (matchedCustomSubject?.key && subjectsData[matchedCustomSubject.key]) {
             sf10Key = matchedCustomSubject.key;
           }
+        }
+        if (!sf10Key || !subjectsData[sf10Key]) {
+          sf10Key = matchSubjectKey(subjectName, subjectsData);
         }
 
         if (!sf10Key || !subjectsData[sf10Key]) continue;
@@ -596,7 +597,11 @@ export function mapStudentToSpecData({
           // GPA Calculation
           // Include main subjects and MAPEH (even if it's a header)
           const isMapeh = s.key === 'mapeh';
-          const isExcluded = s.label?.startsWith('*') || 
+          const matchedDbSub = dbSubjects.find(
+            d => normalizeSubjectName(d.subject_name) === normalizeSubjectName(s.label || '')
+          );
+          const isExcluded = matchedDbSub?.counts_in_general_average === false ||
+                            s.label?.startsWith('*') || 
                             s.label?.toLowerCase().includes('arabic language') || 
                             s.label?.toLowerCase().includes('islamic values');
           
@@ -627,7 +632,11 @@ export function mapStudentToSpecData({
               if (val > 0) {
                   // GPA Filter Logic
                   const isMapeh = s.key === 'mapeh';
-                  const isExcluded = s.label?.startsWith('*') || 
+                  const matchedDbSub = dbSubjects.find(
+                    d => normalizeSubjectName(d.subject_name) === normalizeSubjectName(s.label || '')
+                  );
+                  const isExcluded = matchedDbSub?.counts_in_general_average === false ||
+                                    s.label?.startsWith('*') || 
                                     s.label?.toLowerCase().includes('arabic language') || 
                                     s.label?.toLowerCase().includes('islamic values');
                   

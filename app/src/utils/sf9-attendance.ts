@@ -6,35 +6,11 @@
 
 import type { Student, SF2Sheet, Section, AttendanceRecord, CalendarEvent } from '../types';
 import { useAppStore } from '../stores/app-store';
-import { getSf2TotalColumns } from './sf2-sync';
+import { getSf2TotalColumns, SCHOOL_CALENDAR_2026_2027 } from './sf2-sync';
 
-const SCHOOL_CALENDAR_2026_2027: Record<string, number[]> = {
-  JUNE: [15, 16, 17, 18, 19, 22, 23, 24, 25, 26, 29, 30],
-  JULY: [1, 2, 3, 6, 7, 8, 9, 10, 13, 14, 15, 16, 17, 20, 21, 22, 23, 24, 27, 28, 29, 30, 31],
-  AUGUST: [3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 17, 18, 19, 20, 24, 25, 26, 27, 28],
-  SEPTEMBER: [1, 2, 3, 4, 7, 8, 9, 10, 11, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25, 28, 29, 30],
-  OCTOBER: [1, 2, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 26, 27, 28, 29, 30],
-  NOVEMBER: [3, 4, 5, 6, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 23, 24, 25, 26, 27],
-  DECEMBER: [1, 2, 3, 4, 7, 8, 9, 10, 11, 14, 15, 16, 17, 18],
-  JANUARY: [4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 18, 19, 20, 21, 22, 25, 26, 27, 28, 29],
-  FEBRUARY: [1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 15, 16, 17, 18, 19, 22, 23, 24, 25, 26],
-  MARCH: [1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 15, 16, 17, 18, 19, 22, 23, 24, 25, 26, 29, 30, 31],
-  APRIL: [1, 2, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 26, 27, 28, 29, 30]
-};
-
-const SCHOOL_CALENDAR_2026_2027_COUNTS: Record<string, number> = {
-  JUNE: 16,
-  JULY: 23,
-  AUGUST: 19,
-  SEPTEMBER: 22,
-  OCTOBER: 22,
-  NOVEMBER: 19,
-  DECEMBER: 13,
-  JANUARY: 20,
-  FEBRUARY: 20,
-  MARCH: 21,
-  APRIL: 6
-};
+const SCHOOL_CALENDAR_2026_2027_COUNTS: Record<string, number> = Object.fromEntries(
+  Object.entries(SCHOOL_CALENDAR_2026_2027).map(([m, days]) => [m, days.length])
+);
 
 export function computeStudentAttendance(
   student: Student, 

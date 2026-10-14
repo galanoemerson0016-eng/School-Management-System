@@ -5,6 +5,7 @@ import type { Student } from '../types';
 
 import { formatLearnerName } from '../utils/student-name';
 import { getBMICategoryForAge, getHeightForAge as getHFAStatus } from '../utils/sf8ReferenceData';
+import { isStudentInSection, isMaleStudent, isFemaleStudent } from '../utils/grading-helpers';
 
 function formatMonthYear(schoolYear: string) {
     return schoolYear || '2026-2027';
@@ -223,27 +224,26 @@ export function SF8Page() {
 
     const selectedStudents = useMemo(() => {
         if (!selectedSectionObj && !effectiveSelectedSection) return [];
-        const sectionName = selectedSectionObj?.section_name || effectiveSelectedSection;
-        const sectionId = selectedSectionObj?.id;
         return students
-            .filter(student => student.student_section === sectionName || student.student_section === sectionId)
+            .filter(student => isStudentInSection(student, selectedSectionObj, effectiveSelectedSection))
             .sort((a, b) => {
-                if (a.gender !== b.gender) return a.gender.localeCompare(b.gender);
+                if (isMaleStudent(a) !== isMaleStudent(b)) return isMaleStudent(a) ? -1 : 1;
                 return `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`);
             });
     }, [students, selectedSectionObj, effectiveSelectedSection]);
 
-    const femaleStudents = selectedStudents.filter(student => student.gender === 'Female');
-    const maleStudents = selectedStudents.filter(student => student.gender === 'Male');
+    const femaleStudents = selectedStudents.filter(student => isFemaleStudent(student));
+    const maleStudents = selectedStudents.filter(student => isMaleStudent(student));
 
     const summary = useMemo(() => {
         const result = getEmptySummary();
 
         selectedStudents.forEach((student) => {
             const healthFields = calculateHealthFields(student as HealthStudent);
-            const genderBucket = student.gender === 'Female' ? 'female' : 'male';
+            const isMale = isMaleStudent(student);
+            const genderBucket = isMale ? 'male' : 'female';
 
-            if (student.gender === 'Male') {
+            if (isMale) {
                 result.males += 1;
             } else {
                 result.females += 1;

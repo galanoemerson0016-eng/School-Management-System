@@ -406,7 +406,8 @@ export async function generateMasterExcelWorkbook(input: MasterBackupDataInput):
   ];
   const hpsRecords = (payload.hpsRecords || []) as Array<{
     subject_id?: string; section_id?: string; school_year?: string; quarter?: number | string;
-    written_works?: Array<number | string>; performance_tasks?: Array<number | string>; quarterly_exam?: number | string;
+    written_works?: Array<number | string>; performance_tasks?: Array<number | string>;
+    summative_tests?: Array<number | string>; quarterly_exam?: number | string;
   }>;
   const matchHps = (record: FlexibleClassRecordItem, group: string, index: number): number | string => {
     const hps = hpsRecords.find(item => item.subject_id === (record.subject_id || record.subjectId) &&
@@ -415,17 +416,23 @@ export async function generateMasterExcelWorkbook(input: MasterBackupDataInput):
     if (!hps) return '';
     if (group === 'Written Work') return hps.written_works?.[index] ?? '';
     if (group === 'Performance Task') return hps.performance_tasks?.[index] ?? '';
+    if (group === 'Summative Test') return hps.summative_tests?.[index] ?? '';
     return hps.quarterly_exam ?? '';
   };
   ((payload.classRecords || []) as Array<FlexibleClassRecordItem & {
-    id?: string; written_works?: Array<number | string>; performance_tasks?: Array<number | string>; quarterly_exam?: number | string;
+    id?: string; written_works?: Array<number | string>; performance_tasks?: Array<number | string>;
+    summative_tests?: Array<number | string>; quarterly_exam?: number | string;
   }>).forEach(record => {
     const base = {
       record_id: record.id || '', student_lrn: record.student_lrn || record.studentLrn || '',
       section_id: record.section_id || record.sectionId || '', school_year: record.school_year || record.schoolYear || '',
       term: record.quarter || '', subject_id: record.subject_id || record.subjectId || '',
     };
-    for (const [group, scores] of [['Written Work', record.written_works || []], ['Performance Task', record.performance_tasks || []]] as const) {
+    for (const [group, scores] of [
+      ['Written Work', record.written_works || []],
+      ['Performance Task', record.performance_tasks || []],
+      ['Summative Test', record.summative_tests || []],
+    ] as const) {
       scores.forEach((score, index) => wsAssessments.addRow({ ...base, group, assessment_number: index + 1, score, hps: matchHps(record, group, index) }));
     }
     wsAssessments.addRow({ ...base, group: 'Quarterly Exam', assessment_number: 1, score: record.quarterly_exam ?? '', hps: matchHps(record, 'Quarterly Exam', 0) });

@@ -886,10 +886,6 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, cla
 
                     if (maAvg > 0 && peAvg > 0) {
                         g = Math.round((maAvg + peAvg) / 2);
-                    } else if (maAvg > 0) {
-                        g = maAvg;
-                    } else if (peAvg > 0) {
-                        g = peAvg;
                     }
                 }
 
@@ -1178,8 +1174,11 @@ interface ShsGradeSlipCardProps {
     activeSchoolYear: string;
 }
 
-function isOffTerm(term: Subject['term'] | undefined, q: number) {
+function isOffTerm(term: Subject['term'] | string | undefined, q: number) {
     if (term === undefined || term === 'all' || term === 'none' || term === null) return false;
+    if (typeof term === 'string' && term.includes(',')) {
+        return !term.split(',').map(Number).includes(q);
+    }
     const termNum = Number(term);
     if (isNaN(termNum)) return false;
     return termNum !== q;
@@ -1190,8 +1189,8 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
     const logoUrl = schoolProfile.logo_url || 'school-logo.png';
     const depedLogo = `${baseUrl}deped_logo_left.png`;
 
-    const resolveShsTerm = useCallback((subj: Subject | { subject_name: string; id?: string; term?: Subject['term'] }): 1 | 2 | 3 | 'all' | 'none' => {
-        const subjectTermsMeta = (section?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, 1 | 2 | 3 | 'all' | 'none'> | undefined;
+    const resolveShsTerm = useCallback((subj: Subject | { subject_name: string; id?: string; term?: Subject['term'] }): 1 | 2 | 3 | 'all' | 'none' | string => {
+        const subjectTermsMeta = (section?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, 1 | 2 | 3 | 'all' | 'none' | string> | undefined;
         if (subjectTermsMeta) {
             if (subjectTermsMeta[subj.subject_name] !== undefined) return subjectTermsMeta[subj.subject_name];
             const norm = normalizeSubjectName(subj.subject_name);
@@ -1207,6 +1206,9 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
             return 'all';
         }
         const rawTerm = subj.term as string | number | undefined;
+        if (typeof rawTerm === 'string' && rawTerm.includes(',')) {
+            return rawTerm;
+        }
         if (rawTerm === 1 || rawTerm === 2 || rawTerm === 3 || rawTerm === '1' || rawTerm === '2' || rawTerm === '3') {
             return Number(rawTerm) as 1 | 2 | 3;
         }
@@ -1234,7 +1236,7 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
     }, [subjects]);
 
     const studentGrades = useMemo(() => {
-        const rawGrades: Record<string, { q1: number; q2: number; q3: number; final: number; term?: Subject['term'] }> = {};
+        const rawGrades: Record<string, { q1: number; q2: number; q3: number; final: number; term?: Subject['term'] | string }> = {};
         dedupedSubjects.forEach((subj) => {
             let q1 = 0, q2 = 0, q3 = 0;
             for (let q = 1; q <= 3; q++) {
@@ -1371,9 +1373,10 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
             }
 
             const rg = rawGrades[subj.id];
+            const offeredTermsCount = [1, 2, 3].filter(q => !isOffTerm(rg.term, q)).length || 1;
             const unitInfo = getShsSubjectUnitInfo(subj.subject_name, gradeLevel);
-            const termUnits = unitInfo.unitsPerTerm;
-            const yearUnits = unitInfo.yearUnits;
+            const termUnits = (subj.units && subj.units > 0) ? subj.units : unitInfo.unitsPerTerm;
+            const yearUnits = termUnits * offeredTermsCount;
             
             expectedYearUnits += yearUnits;
             if (!isOffTerm(rg.term, 1)) expectedT1Units += termUnits;
@@ -1400,29 +1403,34 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
 
         if (commSubjs.length > 0) {
             const ecUnitInfo = getShsSubjectUnitInfo('Effective Communication', gradeLevel);
-            const ecTermUnits = ecUnitInfo.unitsPerTerm;
-            const ecYearUnits = ecUnitInfo.yearUnits;
+            const ecSub = commSubjs.find(s => normalizeSubjectName(s.subject_name) === 'effectivecommunication');
+            const mkSub = commSubjs.find(s => normalizeSubjectName(s.subject_name) === 'mabisangkomunikasyon');
+            const ecTermUnits = (ecSub?.units && ecSub.units > 0) ? ecSub.units : ecUnitInfo.unitsPerTerm;
+            const mkTermUnits = (mkSub?.units && mkSub.units > 0) ? mkSub.units : ecUnitInfo.unitsPerTerm;
+            const combinedTermUnits = commSubjs.length > 1 ? (ecTermUnits + mkTermUnits) : ecTermUnits;
+            const offeredTermsCount = [1, 2, 3].filter(q => !isOffTerm(parentTerm, q)).length || 3;
+            const combinedYearUnits = combinedTermUnits * offeredTermsCount;
 
-            expectedYearUnits += ecYearUnits;
-            if (!isOffTerm(parentTerm, 1)) expectedT1Units += ecTermUnits;
-            if (!isOffTerm(parentTerm, 2)) expectedT2Units += ecTermUnits;
-            if (!isOffTerm(parentTerm, 3)) expectedT3Units += ecTermUnits;
+            expectedYearUnits += combinedYearUnits;
+            if (!isOffTerm(parentTerm, 1)) expectedT1Units += combinedTermUnits;
+            if (!isOffTerm(parentTerm, 2)) expectedT2Units += combinedTermUnits;
+            if (!isOffTerm(parentTerm, 3)) expectedT3Units += combinedTermUnits;
 
             if (parentQ1 > 0 && !isOffTerm(parentTerm, 1)) {
-                genAvgQ1Total += parentQ1 * ecTermUnits;
-                genAvgQ1Units += ecTermUnits;
+                genAvgQ1Total += parentQ1 * combinedTermUnits;
+                genAvgQ1Units += combinedTermUnits;
             }
             if (parentQ2 > 0 && !isOffTerm(parentTerm, 2)) {
-                genAvgQ2Total += parentQ2 * ecTermUnits;
-                genAvgQ2Units += ecTermUnits;
+                genAvgQ2Total += parentQ2 * combinedTermUnits;
+                genAvgQ2Units += combinedTermUnits;
             }
             if (parentQ3 > 0 && !isOffTerm(parentTerm, 3)) {
-                genAvgQ3Total += parentQ3 * ecTermUnits;
-                genAvgQ3Units += ecTermUnits;
+                genAvgQ3Total += parentQ3 * combinedTermUnits;
+                genAvgQ3Units += combinedTermUnits;
             }
             if (parentFinal > 0) {
-                genAvgFinalTotal += parentFinal * ecYearUnits;
-                genAvgFinalUnits += ecYearUnits;
+                genAvgFinalTotal += parentFinal * combinedYearUnits;
+                genAvgFinalUnits += combinedYearUnits;
             }
         }
 
@@ -1436,7 +1444,7 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
             isT3CompleteShs &&
             expectedYearUnits > 0 && genAvgFinalUnits >= expectedYearUnits;
 
-        const gradesLookup: Record<string, { q1: string; q2: string; q3: string; final: string; remarks: string; term?: Subject['term'] }> = {};
+        const gradesLookup: Record<string, { q1: string; q2: string; q3: string; final: string; remarks: string; term?: Subject['term'] | string }> = {};
         
         gradesLookup['parent_ec_mk'] = {
             q1: parentQ1 > 0 ? parentQ1.toString() : '',
@@ -1534,8 +1542,8 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
 
         type ShsSubjectItem = 
             | { type: 'header'; name: string }
-            | { type: 'parent'; name: string; id: string; term?: Subject['term'] }
-            | { type: 'subject'; name: string; id: string; isComponent?: boolean; term?: Subject['term'] };
+            | { type: 'parent'; name: string; id: string; term?: Subject['term'] | string }
+            | { type: 'subject'; name: string; id: string; isComponent?: boolean; term?: Subject['term'] | string };
 
         const finalRows: ShsSubjectItem[] = [];
 

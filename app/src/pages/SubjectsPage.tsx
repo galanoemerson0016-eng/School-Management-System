@@ -1795,7 +1795,7 @@ export function SubjectsPage() {
         setEditingSubjectId(null);
         setUseDepEdWeightsLocked(true);
         const targetSection = sections.find(s => s.id === (selectedSectionId && selectedSectionId !== 'all' ? selectedSectionId : undefined));
-        const std = getDepEdStandardWeights('', selectedGrade, targetSection?.track);
+        const std = getDepEdStandardWeights('', selectedGrade, targetSection?.track, targetSection?.curriculum_type);
         setFormData({
             subject_name: '',
             subject_code: '',
@@ -1816,7 +1816,7 @@ export function SubjectsPage() {
         let isLocked = true;
         if (hasCustomWeights) {
             const targetSection = sections.find(s => s.id === (subject.section_id || (selectedSectionId !== 'all' ? selectedSectionId : undefined)));
-            const std = getDepEdStandardWeights(subject.subject_name, subject.grade_level, targetSection?.track);
+            const std = getDepEdStandardWeights(subject.subject_name, subject.grade_level, targetSection?.track, targetSection?.curriculum_type);
             const subWw = normalizeWeightPercent(subject.written_weight);
             const subPt = normalizeWeightPercent(subject.performance_weight);
             const subQa = normalizeWeightPercent(subject.exam_weight);
@@ -2226,7 +2226,7 @@ export function SubjectsPage() {
             let updatedCount = 0;
             for (const sub of filteredSubjects) {
                 const targetSection = sections.find(s => s.id === sub.section_id);
-                const std = getDepEdStandardWeights(sub.subject_name, sub.grade_level, targetSection?.track);
+                const std = getDepEdStandardWeights(sub.subject_name, sub.grade_level, targetSection?.track, targetSection?.curriculum_type);
                 await updateSubject({
                     ...sub,
                     written_weight: std.written_weight,
@@ -3763,7 +3763,7 @@ export function SubjectsPage() {
                                             const val = e.target.value;
                                             if (useDepEdWeightsLocked) {
                                                 const targetSection = sections.find(s => s.id === (formData.section_id || (selectedSectionId !== 'all' ? selectedSectionId : undefined)));
-                                                const std = getDepEdStandardWeights(val, formData.grade_level || selectedGrade, targetSection?.track);
+                                                const std = getDepEdStandardWeights(val, formData.grade_level || selectedGrade, targetSection?.track, targetSection?.curriculum_type);
                                                 setFormData(prev => ({
                                                     ...prev,
                                                     subject_name: val,
@@ -3865,7 +3865,7 @@ export function SubjectsPage() {
                                                     setUseDepEdWeightsLocked(locked);
                                                     if (locked) {
                                                         const targetSection = sections.find(s => s.id === (formData.section_id || (selectedSectionId !== 'all' ? selectedSectionId : undefined)));
-                                                        const std = getDepEdStandardWeights(formData.subject_name || '', formData.grade_level || selectedGrade, targetSection?.track);
+                                                        const std = getDepEdStandardWeights(formData.subject_name || '', formData.grade_level || selectedGrade, targetSection?.track, targetSection?.curriculum_type);
                                                         setFormData(prev => ({
                                                             ...prev,
                                                             written_weight: String(Math.round(std.written_weight * 100)),

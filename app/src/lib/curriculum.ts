@@ -2498,7 +2498,8 @@ export function classifyJhsSubjectTrack(subjectName: string, gradeLevel: string 
 export function getDepEdStandardWeights(
     subjectName: string,
     gradeLevel?: string | null,
-    track?: string | null
+    track?: string | null,
+    curriculumType?: string | null
 ): { written_weight: number; performance_weight: number; exam_weight: number } {
     const norm = (subjectName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const isG11 = (gradeLevel || '').includes('11');
@@ -2506,10 +2507,10 @@ export function getDepEdStandardWeights(
     const isSHS = isG11 || isG12;
 
     if (isSHS) {
-        const isExplicitSSHS = track ? (
+        const isExplicitSSHS = (curriculumType || '').toUpperCase() === 'SSHS' || (track ? (
             track.toLowerCase().includes('sshs') ||
             track.toLowerCase().includes('cluster')
-        ) : false;
+        ) : false);
 
         // Legacy Grade 12 Traditional K-12 (DO 8, s. 2015)
         if (isG12 && !isExplicitSSHS) {

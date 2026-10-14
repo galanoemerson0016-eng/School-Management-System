@@ -7,7 +7,7 @@ import { Printer, ArrowLeft, ArrowRight, ChevronDown, Plus, Minus, Search, Downl
 import { canEditAttendanceSection, filterAttendanceSections } from '../lib/rbac';
 import { formatLearnerName } from '../utils/student-name';
 import { isStudentInSection, isMaleStudent } from '../utils/grading-helpers';
-import { getSf2MonthContext } from '../utils/sf2-sync';
+import { getSf2MonthContext, SCHOOL_CALENDAR_2026_2027 } from '../utils/sf2-sync';
 import { db } from '../services/database';
 import { exportSF2Excel } from '../lib/sf2-excel-export';
 
@@ -19,20 +19,7 @@ const MONTHS = ['JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'D
 type AttendanceDayStatus = string;
 type AttendanceMonthData = Record<string, Record<string | number, AttendanceDayStatus>>;
 type DateLabels = Record<number, string>;
- 
-const SCHOOL_CALENDAR_2026_2027: Record<string, number[]> = {
-    JUNE: [1, 2, 3, 4, 5, 8, 9, 10, 11, 15, 16, 17, 18, 19, 22, 23, 24, 25, 26, 29, 30],
-    JULY: [1, 2, 3, 6, 7, 8, 9, 10, 13, 14, 15, 16, 17, 20, 21, 22, 23, 24, 27, 28, 29, 30, 31],
-    AUGUST: [3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 17, 18, 19, 20, 24, 25, 26, 27, 28],
-    SEPTEMBER: [1, 2, 3, 4, 7, 8, 9, 10, 11, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25, 28, 29, 30],
-    OCTOBER: [1, 2, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 26, 27, 28, 29, 30],
-    NOVEMBER: [3, 4, 5, 6, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 23, 24, 25, 26, 27],
-    DECEMBER: [1, 2, 3, 4, 7, 9, 10, 11, 14, 15, 16, 17, 18],
-    JANUARY: [4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 18, 19, 20, 21, 22, 25, 26, 27, 28, 29],
-    FEBRUARY: [1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 15, 16, 17, 18, 19, 22, 23, 24, 25, 26],
-    MARCH: [1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 15, 16, 17, 18, 19, 22, 23, 24, 29, 30, 31],
-    APRIL: [1, 2, 5, 6, 7, 8],
-};
+
 
 function parseStudentStartDate(attDateStr?: string | null): Date | null {
     if (!attDateStr) return null;

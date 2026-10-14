@@ -150,16 +150,16 @@ function extractScoreNumber(val: unknown): number | '' {
   return !isNaN(num) && num > 0 ? num : '';
 }
 
-function getGradeFromEntry(entry: unknown, termIdx: number): number | '' {
+function getGradeFromEntry(entry: unknown, termIdx: number, allowFinalFallback = false): number | '' {
   if (!entry) return '';
   if (Array.isArray(entry)) {
     return extractScoreNumber(entry[termIdx]);
   }
   if (typeof entry === 'object') {
     const obj = entry as { q1?: unknown; q2?: unknown; q3?: unknown; q4?: unknown; final?: unknown };
-    if (termIdx === 0) return extractScoreNumber(obj.q1 !== undefined && obj.q1 !== null && obj.q1 !== '' ? obj.q1 : obj.final);
-    if (termIdx === 1) return extractScoreNumber(obj.q2 !== undefined && obj.q2 !== null && obj.q2 !== '' ? obj.q2 : obj.final);
-    if (termIdx === 2) return extractScoreNumber(obj.q3 !== undefined && obj.q3 !== null && obj.q3 !== '' ? obj.q3 : obj.final);
+    if (termIdx === 0) return extractScoreNumber(obj.q1 !== undefined && obj.q1 !== null && obj.q1 !== '' ? obj.q1 : (allowFinalFallback ? obj.final : ''));
+    if (termIdx === 1) return extractScoreNumber(obj.q2 !== undefined && obj.q2 !== null && obj.q2 !== '' ? obj.q2 : (allowFinalFallback ? obj.final : ''));
+    if (termIdx === 2) return extractScoreNumber(obj.q3 !== undefined && obj.q3 !== null && obj.q3 !== '' ? obj.q3 : (allowFinalFallback ? obj.final : ''));
   }
   if (typeof entry === 'number' || typeof entry === 'string') {
     return extractScoreNumber(entry);

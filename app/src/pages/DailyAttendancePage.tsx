@@ -14,7 +14,9 @@ import {
 import { generateQrDataUrl } from '../services/id-card/codes';
 import { triggerParentAttendanceSms } from '../services/sms-gateway';
 import { formatLearnerName } from '../utils/student-name';
-import { isStudentInSection } from '../utils/grading-helpers';
+import { isStudentInSection, isMaleStudent, isFemaleStudent } from '../utils/grading-helpers';
+import { filterAttendanceSections } from '../lib/rbac';
+import { useAuthStore } from '../stores/auth-store';
 import { broadcastAttendanceUpdate } from '../services/mobile-attendance-sync';
 import { PhoneAttendanceModal } from '../components/attendance/PhoneAttendanceModal';
 import {
@@ -80,6 +82,7 @@ function composeName(s: Student): string {
 }
 
 export function DailyAttendancePage() {
+    const { user } = useAuthStore();
     const students = useAppStore((s) => s.students);
     const sections = useAppStore((s) => s.sections);
     const attendanceRecords = useAppStore((s) => s.attendanceRecords);
@@ -313,7 +316,7 @@ export function DailyAttendancePage() {
                 composeName(s).toLowerCase().includes(q) || s.lrn.toLowerCase().includes(q))
             : bySection;
         // SF-form ordering: males alphabetically first, then females
-        const genderRank = (s: Student) => (s.gender === 'Male' ? 0 : s.gender === 'Female' ? 1 : 2);
+        const genderRank = (s: Student) => (isMaleStudent(s) ? 0 : isFemaleStudent(s) ? 1 : 2);
         return [...searched].sort((a, b) => {
             const genderCmp = genderRank(a) - genderRank(b);
             if (genderCmp !== 0) return genderCmp;
@@ -329,14 +332,14 @@ export function DailyAttendancePage() {
     }, [students, sections, sectionFilter, search]);
 
     const sortedSections = useMemo(() => {
-        return [...sections]
+        return [...filterAttendanceSections(user, sections)]
             .sort((a, b) => {
                 const ga = parseInt(a.section_grade_level.replace(/\D/g, '')) || 0;
                 const gb = parseInt(b.section_grade_level.replace(/\D/g, '')) || 0;
                 if (ga !== gb) return ga - gb;
                 return a.section_name.localeCompare(b.section_name);
             });
-    }, [sections]);
+    }, [sections, user]);
 
     // ---------- Marks for the selected day ----------
     const marks = useMemo(() => {
@@ -596,14 +599,16 @@ export function DailyAttendancePage() {
         let female = 0;
         let marked = 0;
         roster.forEach((s) => {
-            if (s.gender === 'Male') male += 1;
-            else if (s.gender === 'Female') female += 1;
+            const isMale = isMaleStudent(s);
+            const isFemale = isFemaleStudent(s);
+            if (isMale) male += 1;
+            else if (isFemale) female += 1;
             const st = marks.get(s.lrn);
             if (!st) return;
             marked += 1;
             counts[st].total += 1;
-            if (s.gender === 'Male') counts[st].male += 1;
-            else if (s.gender === 'Female') counts[st].female += 1;
+            if (isMale) counts[st].male += 1;
+            else if (isFemale) counts[st].female += 1;
         });
         const total = roster.length;
         const rate = total > 0 ? Math.round((counts.present.total / total) * 100) : 0;
@@ -832,11 +837,11 @@ export function DailyAttendancePage() {
                                 {roster.map((student, index) => {
                                     const current = marks.get(student.lrn);
                                     const isLastScanned = lastScan?.ok && lastScan.lrn === student.lrn;
-                                    const group = student.gender === 'Male' ? 'MALE' : student.gender === 'Female' ? 'FEMALE' : 'UNSPECIFIED';
+                                    const group = isMaleStudent(student) ? 'MALE' : isFemaleStudent(student) ? 'FEMALE' : 'UNSPECIFIED';
                                     const prev = index > 0 ? roster[index - 1] : null;
-                                    const prevGroup = prev ? (prev.gender === 'Male' ? 'MALE' : prev.gender === 'Female' ? 'FEMALE' : 'UNSPECIFIED') : null;
+                                    const prevGroup = prev ? (isMaleStudent(prev) ? 'MALE' : isFemaleStudent(prev) ? 'FEMALE' : 'UNSPECIFIED') : null;
                                     const groupCount = roster.filter((s) =>
-                                        (s.gender === 'Male' ? 'MALE' : s.gender === 'Female' ? 'FEMALE' : 'UNSPECIFIED') === group,
+                                        (isMaleStudent(s) ? 'MALE' : isFemaleStudent(s) ? 'FEMALE' : 'UNSPECIFIED') === group,
                                     ).length;
                                     const separator = group !== prevGroup ? (
                                         <tr key={`sep-${group}`} className={`border-y ${

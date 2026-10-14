@@ -17,7 +17,7 @@ import { generateDeterministicSubjectId } from '../utils/grade-reconciliation';
 import { createGradingSlice, type GradingSlice } from './slices/grading-slice';
 import { createAttendanceSlice, type AttendanceSlice } from './slices/attendance-slice';
 import { createAnnouncementsSlice, type AnnouncementsSlice } from './slices/announcements-slice';
-import { invalidateResolvedSubjectNameCache } from '../utils/grading-helpers';
+import { invalidateResolvedSubjectNameCache, isStudentInSection } from '../utils/grading-helpers';
 
 export type SF1RowStatus = 'imported' | 'updated' | 'skipped' | 'conflicted' | 'failed';
 
@@ -798,7 +798,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       // 1. Query all durable records from database, not just in-memory state
       const allDbStudents = await db.getAllRecords<Student>('students');
-      const studentsInSection = allDbStudents.filter((s) => s.student_section === sectionName);
+      const secObj = get().sections.find((s: Section) => s.section_name === sectionName || s.id === sectionName);
+      const studentsInSection = allDbStudents.filter((s) => isStudentInSection(s, secObj, sectionName));
       
       if (studentsInSection.length === 0) {
         get().showNotification(`Section ${sectionName} is already empty`, 'info');
@@ -1165,14 +1166,58 @@ export const useAppStore = create<AppState>((set, get) => ({
             return name;
           });
 
+          let nextMeta = sec.section_metadata;
+          if (sec.section_metadata?.subjectTerms && oldName in sec.section_metadata.subjectTerms) {
+            const nextSubjectTerms = { ...sec.section_metadata.subjectTerms };
+            nextSubjectTerms[newName] = nextSubjectTerms[oldName];
+            delete nextSubjectTerms[oldName];
+            nextMeta = { ...sec.section_metadata, subjectTerms: nextSubjectTerms };
+            changed = true;
+          }
+          if (sec.section_metadata?.hiddenConsolidatedSubjects?.includes(oldName)) {
+            const nextHidden = sec.section_metadata.hiddenConsolidatedSubjects.map(n => n === oldName ? newName : n);
+            nextMeta = { ...(nextMeta || sec.section_metadata), hiddenConsolidatedSubjects: nextHidden };
+            changed = true;
+          }
+
           if (changed) {
             sectionsToUpdate.push({
               ...sec,
               taught_subjects: taught,
               teaching_subjects: teaching,
+              ...(nextMeta ? { section_metadata: nextMeta } : {}),
             });
           }
         }
+      }
+
+      const classRecordsToUpdate: ClassRecord[] = [];
+      const gradingSheetsToUpdate: ClassRecord[] = [];
+      const hpsRecordsToUpdate: HPSRecord[] = [];
+
+      if (nameChanged) {
+        const oldNorm = normalizeSubjectName(oldName);
+        const allClassRecords = await db.getAllRecords<ClassRecord>('classRecords');
+        const allGradingSheetRecords = await db.getAllRecords<ClassRecord>('gradingSheetRecords');
+        const allHpsRecords = await db.getAllRecords<HPSRecord>('hpsRecords');
+
+        allClassRecords.forEach(r => {
+          if (r.subject_id === subject.id || (r.subject_name && normalizeSubjectName(r.subject_name) === oldNorm)) {
+            classRecordsToUpdate.push({ ...r, subject_name: newName });
+          }
+        });
+
+        allGradingSheetRecords.forEach(r => {
+          if (r.subject_id === subject.id || (r.subject_name && normalizeSubjectName(r.subject_name) === oldNorm)) {
+            gradingSheetsToUpdate.push({ ...r, subject_name: newName });
+          }
+        });
+
+        allHpsRecords.forEach(r => {
+          if (r.subject_id === subject.id || (r.subject_name && normalizeSubjectName(r.subject_name) === oldNorm)) {
+            hpsRecordsToUpdate.push({ ...r, subject_name: newName });
+          }
+        });
       }
 
       const changes: AtomicRecordChange[] = [
@@ -1181,13 +1226,32 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (sectionsToUpdate.length > 0) {
         changes.push({ store: 'sections', puts: sectionsToUpdate });
       }
+      if (classRecordsToUpdate.length > 0) {
+        changes.push({ store: 'classRecords', puts: classRecordsToUpdate });
+      }
+      if (gradingSheetsToUpdate.length > 0) {
+        changes.push({ store: 'gradingSheetRecords', puts: gradingSheetsToUpdate });
+      }
+      if (hpsRecordsToUpdate.length > 0) {
+        changes.push({ store: 'hpsRecords', puts: hpsRecordsToUpdate });
+      }
 
       await db.commitRecordChanges(changes);
 
       // Publish in-memory state only after successful commit
       const freshSubjects = await db.getAllRecords<Subject>('subjects');
       const freshSections = await db.getAllRecords<Section>('sections');
-      set({ subjects: freshSubjects, sections: freshSections });
+      const freshClassRecords = classRecordsToUpdate.length > 0 ? await db.getAllRecords<ClassRecord>('classRecords') : get().classRecords;
+      const freshGradingSheetRecords = gradingSheetsToUpdate.length > 0 ? await db.getAllRecords<ClassRecord>('gradingSheetRecords') : get().gradingSheetRecords;
+      const freshHpsRecords = hpsRecordsToUpdate.length > 0 ? await db.getAllRecords<HPSRecord>('hpsRecords') : get().hpsRecords;
+
+      set({
+        subjects: freshSubjects,
+        sections: freshSections,
+        classRecords: freshClassRecords,
+        gradingSheetRecords: freshGradingSheetRecords,
+        hpsRecords: freshHpsRecords,
+      });
 
       invalidateResolvedSubjectNameCache();
       get().showNotification('Subject updated and teaching loads synchronized', 'success');
@@ -1406,6 +1470,18 @@ export const useAppStore = create<AppState>((set, get) => ({
         const idx = updatedStudents.findIndex((s) => s.lrn === lrn);
         if (idx === -1) continue;
 
+        // Check if learner has recorded grades in sourceSchoolYear with a failing final average (< 75)
+        const learnerSourceGrades = [
+          ...state.gradingSheetRecords.filter((r: ClassRecord) => r.student_lrn === lrn && r.school_year === sourceSchoolYear && Number(r.final_grade) > 0),
+          ...state.classRecords.filter((r: ClassRecord) => r.student_lrn === lrn && r.school_year === sourceSchoolYear && Number(r.final_grade) > 0),
+        ];
+        if (learnerSourceGrades.length > 0) {
+          const avg = Math.round(
+            learnerSourceGrades.reduce((sum, r) => sum + Number(r.final_grade), 0) / learnerSourceGrades.length
+          );
+          if (avg < 75) continue; // Retained learners are not auto-promoted to the next grade level
+        }
+
         const promotedStudent = {
           ...updatedStudents[idx],
           grade_level: targetSection.section_grade_level,
@@ -1450,14 +1526,56 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   enrollReturningStudent: async (lrn, targetSectionId) => {
     try {
+      const state = get();
+      const targetSection = state.sections.find(
+        (s: Section) => s.id === targetSectionId || s.section_name === targetSectionId
+      );
+      if (!targetSection) {
+        throw new Error('Destination section not found.');
+      }
+      const existingStudent =
+        (await db.getRecord<Student>('students', lrn)) ||
+        state.students.find((s: Student) => s.lrn === lrn);
+      if (!existingStudent) {
+        throw new Error(`Learner with LRN ${lrn} was not found.`);
+      }
+
+      const targetSchoolYear = state.activeSchoolYear;
+      const updatedStudent: Student = {
+        ...existingStudent,
+        grade_level: targetSection.section_grade_level,
+        student_section: targetSection.section_name,
+      };
       const enrollment: Enrollment = {
-        id: `enroll-${lrn}-${targetSectionId}`,
+        id: `enroll-${lrn}-${targetSchoolYear}`,
         student_lrn: lrn,
-        school_year: get().activeSchoolYear,
-        student_section: targetSectionId,
+        school_year: targetSchoolYear,
+        grade_level: targetSection.section_grade_level,
+        student_section: targetSection.section_name,
         enrolled_at: new Date().toISOString(),
       };
-      await get().addEnrollment(enrollment);
+
+      await db.commitRecordChanges([
+        { store: 'students', puts: [updatedStudent] },
+        { store: 'enrollments', puts: [enrollment] },
+      ]);
+
+      const nextStudents = state.students.map((s: Student) =>
+        s.lrn === lrn ? updatedStudent : s
+      );
+      const nextEnrollments = [
+        ...state.enrollments.filter((e: Enrollment) => e.id !== enrollment.id),
+        enrollment,
+      ];
+      set({
+        students: nextStudents,
+        studentProfiles: nextStudents,
+        enrollments: nextEnrollments,
+      });
+      get().showNotification(
+        `Enrolled ${updatedStudent.last_name}, ${updatedStudent.first_name} in ${targetSection.section_grade_level} - ${targetSection.section_name}`,
+        'success'
+      );
     } catch (error) {
       console.error('Error enrolling student:', error);
       throw error;

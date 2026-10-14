@@ -136,15 +136,18 @@ export function LIRPage() {
         
         const studentSheets = sf2Sheets.filter(sheet => 
             sheet.school_year === activeSchoolYear &&
-            (sheet.section_id === selectedSectionObj?.id || sheet.section_id === selectedSection)
+            (sheet.section_id === selectedSectionObj?.id ||
+             sheet.section_id === selectedSectionObj?.section_name ||
+             sheet.section_id === selectedSection)
         );
 
         studentSheets.forEach(sheet => {
             const studentAttendance = sheet.attendance?.[student.lrn];
             if (studentAttendance) {
-                const absenceCount = Object.values(studentAttendance).filter(status => 
-                    status?.toLowerCase() === 'absent'
-                ).length;
+                const absenceCount = Object.values(studentAttendance).filter(status => {
+                    const s = (status || '').toString().toLowerCase().trim();
+                    return s === 'absent' || s === 'excused' || s === 'x' || s === 'a';
+                }).length;
                 
                 if (absenceCount > 0) {
                     monthlyAbsences[sheet.month.toUpperCase()] = absenceCount;
@@ -273,8 +276,8 @@ export function LIRPage() {
         );
     }, [sectionStudents, bulkSearchQuery]);
 
-    const filteredMales = useMemo(() => filteredBulkStudents.filter(s => (s.gender || '').toLowerCase() === 'male'), [filteredBulkStudents]);
-    const filteredFemales = useMemo(() => filteredBulkStudents.filter(s => (s.gender || '').toLowerCase() === 'female'), [filteredBulkStudents]);
+    const filteredMales = useMemo(() => filteredBulkStudents.filter(s => isMaleStudent(s)), [filteredBulkStudents]);
+    const filteredFemales = useMemo(() => filteredBulkStudents.filter(s => isFemaleStudent(s)), [filteredBulkStudents]);
 
     const handlePrintSingle = () => {
         if (!selectedStudent) return;

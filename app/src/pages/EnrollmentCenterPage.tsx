@@ -14,6 +14,8 @@ export function EnrollmentCenterPage() {
         sections,
         enrollments,
         studentProfiles,
+        gradingSheetRecords,
+        classRecords,
         promoteStudentsFromYear,
         enrollReturningStudent,
         setCurrentView,
@@ -41,15 +43,40 @@ export function EnrollmentCenterPage() {
     }, [schoolYears, enrollments, activeSchoolYear]);
 
     const eligibleCount = useMemo(() => {
-        const fromEnrollments = enrollments.filter((entry) => (
-            entry.school_year === sourceSchoolYear &&
-            entry.grade_level === sourceGradeLevel
-        )).length;
-        if (fromEnrollments > 0) return fromEnrollments;
-        // Fallback for installs without enrollment history: learners currently
-        // sitting on the source grade level (mirrors promoteStudentsFromYear).
-        return studentProfiles.filter((s) => s.grade_level === sourceGradeLevel).length;
-    }, [enrollments, studentProfiles, sourceSchoolYear, sourceGradeLevel]);
+        const candidateLrns = new Set(
+            enrollments
+                .filter((entry) => entry.school_year === sourceSchoolYear && entry.grade_level === sourceGradeLevel)
+                .map((entry) => entry.student_lrn)
+        );
+        if (candidateLrns.size === 0) {
+            studentProfiles
+                .filter((s) => s.grade_level === sourceGradeLevel)
+                .forEach((s) => candidateLrns.add(s.lrn));
+        }
+
+        const alreadyEnrolled = new Set(
+            enrollments
+                .filter((entry) => entry.school_year === activeSchoolYear)
+                .map((entry) => entry.student_lrn)
+        );
+
+        let count = 0;
+        for (const lrn of candidateLrns) {
+            if (alreadyEnrolled.has(lrn)) continue;
+            const learnerSourceGrades = [
+                ...(gradingSheetRecords || []).filter((r) => r.student_lrn === lrn && r.school_year === sourceSchoolYear && Number(r.final_grade) > 0),
+                ...(classRecords || []).filter((r) => r.student_lrn === lrn && r.school_year === sourceSchoolYear && Number(r.final_grade) > 0),
+            ];
+            if (learnerSourceGrades.length > 0) {
+                const avg = Math.round(
+                    learnerSourceGrades.reduce((sum, r) => sum + Number(r.final_grade), 0) / learnerSourceGrades.length
+                );
+                if (avg < 75) continue;
+            }
+            count++;
+        }
+        return count;
+    }, [enrollments, studentProfiles, gradingSheetRecords, classRecords, sourceSchoolYear, sourceGradeLevel, activeSchoolYear]);
 
     const expectedNextGrade = useMemo(() => {
         const match = sourceGradeLevel.match(/(\d+)/);

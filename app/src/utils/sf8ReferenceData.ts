@@ -141,8 +141,15 @@ export const HEIGHT_RANGES: HeightRange[] = [
   { age: 18, gender: 'Female', severelyStuntedMax: 143.2, stuntedMax: 149.8, normalMax: 176.3, tallMin: 176.3 },
 ];
 
-export const getBMICategoryForAge = (bmi: number, age: number, gender: 'Male' | 'Female'): string => {
-  const range = BMI_RANGES.find(r => r.age === age && r.gender === gender);
+function normalizeSf8Gender(gender: string): 'Male' | 'Female' {
+  const clean = (gender || '').trim().toLowerCase();
+  return clean === 'f' || clean === 'female' || clean === 'girl' || clean === 'babae' ? 'Female' : 'Male';
+}
+
+export const getBMICategoryForAge = (bmi: number, age: number, gender: 'Male' | 'Female' | string): string => {
+  const normGender = normalizeSf8Gender(gender);
+  const clampedAge = age > 0 ? Math.min(18, Math.max(5, Math.floor(age))) : 0;
+  const range = BMI_RANGES.find(r => r.age === clampedAge && r.gender === normGender);
 
   if (!range) {
     // Fallback for ages not in table
@@ -160,8 +167,10 @@ export const getBMICategoryForAge = (bmi: number, age: number, gender: 'Male' | 
   return 'Obese';
 };
 
-export const getHeightForAge = (heightCm: number, age: number, gender: 'Male' | 'Female'): string => {
-  const range = HEIGHT_RANGES.find(r => r.age === age && r.gender === gender);
+export const getHeightForAge = (heightCm: number, age: number, gender: 'Male' | 'Female' | string): string => {
+  const normGender = normalizeSf8Gender(gender);
+  const clampedAge = age > 0 ? Math.min(18, Math.max(5, Math.floor(age))) : 0;
+  const range = HEIGHT_RANGES.find(r => r.age === clampedAge && r.gender === normGender);
 
   if (!range) return 'Normal';
 

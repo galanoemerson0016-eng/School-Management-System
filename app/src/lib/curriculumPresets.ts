@@ -678,7 +678,8 @@ export function getAvailablePresetsForGrade(gradeLevel: string): CurriculumPrese
 export function getDepEdWeightsForSubject(
     subjectName: string,
     gradeLevel?: string | null,
-    track?: string | null
+    track?: string | null,
+    curriculumType?: string | null
 ): { written_weight: number; performance_weight: number; exam_weight: number } {
     const nameNorm = subjectName.toLowerCase();
     const cleanNorm = nameNorm.replace(/[^a-z0-9]/g, '');
@@ -687,10 +688,10 @@ export function getDepEdWeightsForSubject(
     const isSHS = isG11 || isG12;
 
     if (isSHS) {
-        const isExplicitSSHS = track ? (
+        const isExplicitSSHS = (curriculumType || '').toUpperCase() === 'SSHS' || (track ? (
             track.toLowerCase().includes('sshs') ||
             track.toLowerCase().includes('cluster')
-        ) : false;
+        ) : false);
 
         // Grade 12 Traditional K-12 fallback (DO 8, s. 2015)
         if (isG12 && !isExplicitSSHS) {
