@@ -45,6 +45,13 @@ const isKeyStage2To4 = (gradeLevel: string) => {
     return false;
 };
 
+const isExcludedFromGeneralAverage = (subj: Subject) =>
+    subj.counts_in_general_average === false ||
+    Boolean(subj.is_component) ||
+    subj.subject_name.startsWith('*') ||
+    subj.subject_name.toLowerCase().includes('arabic language') ||
+    subj.subject_name.toLowerCase().includes('islamic values');
+
 const getDescriptor = (grade: number | string, _gradeLevel?: string) => {
     if (!grade && grade !== 0) return '';
     
@@ -3011,33 +3018,26 @@ const groupedSections = useMemo(() => {
         }
     };
 
-    const isExcludedFromGeneralAverage = (subj: Subject) =>
-        subj.counts_in_general_average === false ||
-        Boolean(subj.is_component) ||
-        subj.subject_name.startsWith('*') ||
-        subj.subject_name.toLowerCase().includes('arabic language') ||
-        subj.subject_name.toLowerCase().includes('islamic values');
-
-    const getSubjectTermUnits = (subj: Subject & { _ecmkGroups?: { effectiveComm: Subject[]; mabisangKom: Subject[] } }): number => {
-        const gradeLvl = sectionObj?.section_grade_level || 'Grade 11';
-        if (subj._ecmkGroups) {
-            const ecSub = subj._ecmkGroups.effectiveComm[0];
-            const mkSub = subj._ecmkGroups.mabisangKom[0];
-            const ecUnits = (ecSub?.units && ecSub.units > 0) ? ecSub.units : getShsSubjectUnitInfo('Effective Communication', gradeLvl).unitsPerTerm;
-            const mkUnits = (mkSub?.units && mkSub.units > 0) ? mkSub.units : getShsSubjectUnitInfo('Mabisang Komunikasyon', gradeLvl).unitsPerTerm;
-            return ecUnits + mkUnits;
-        }
-        if (subj.units && subj.units > 0) return subj.units;
-        return getShsSubjectUnitInfo(subj.subject_name, gradeLvl).unitsPerTerm;
-    };
-
-    const getSubjectYearUnits = (subj: Subject & { _ecmkGroups?: { effectiveComm: Subject[]; mabisangKom: Subject[] } }, offeredTermsCount: number): number => {
-        const termUnits = getSubjectTermUnits(subj);
-        return termUnits * Math.max(1, offeredTermsCount);
-    };
-
     // GRADES COMPUTATION
     const gradesData = useMemo(() => {
+        const getSubjectTermUnits = (subj: Subject & { _ecmkGroups?: { effectiveComm: Subject[]; mabisangKom: Subject[] } }): number => {
+            const gradeLvl = sectionObj?.section_grade_level || 'Grade 11';
+            if (subj._ecmkGroups) {
+                const ecSub = subj._ecmkGroups.effectiveComm[0];
+                const mkSub = subj._ecmkGroups.mabisangKom[0];
+                const ecUnits = (ecSub?.units && ecSub.units > 0) ? ecSub.units : getShsSubjectUnitInfo('Effective Communication', gradeLvl).unitsPerTerm;
+                const mkUnits = (mkSub?.units && mkSub.units > 0) ? mkSub.units : getShsSubjectUnitInfo('Mabisang Komunikasyon', gradeLvl).unitsPerTerm;
+                return ecUnits + mkUnits;
+            }
+            if (subj.units && subj.units > 0) return subj.units;
+            return getShsSubjectUnitInfo(subj.subject_name, gradeLvl).unitsPerTerm;
+        };
+
+        const getSubjectYearUnits = (subj: Subject & { _ecmkGroups?: { effectiveComm: Subject[]; mabisangKom: Subject[] } }, offeredTermsCount: number): number => {
+            const termUnits = getSubjectTermUnits(subj);
+            return termUnits * Math.max(1, offeredTermsCount);
+        };
+
         const data: GradesData = {};
         const gradeCache = new Map<string, number>();
 
