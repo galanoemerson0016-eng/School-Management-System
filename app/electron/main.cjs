@@ -1304,7 +1304,12 @@ handleTrustedIpc('gdrive:download-backup', async (event, fileId) => {
 const os = require('os');
 
 async function saveHtmlAsPdf(payload) {
-  const tmpFile = path.join(os.tmpdir(), `html-export-${Date.now()}.html`);
+  const lic = licenseManager.getStatus();
+  if (!lic || !lic.activated) {
+    throw new Error('Product Activation Required. Please activate FormEase Pro to export PDF documents.');
+  }
+
+  const tmpFile = path.join(os.tmpdir(), `html-export-${crypto.randomUUID()}.html`);
   let pdfWin = null;
 
   const windowSizes = {
@@ -1352,10 +1357,6 @@ async function saveHtmlAsPdf(payload) {
         ),
       ])
     `);
-
-    if (payload.postLoadScript) {
-      await pdfWin.webContents.executeJavaScript(payload.postLoadScript);
-    }
 
     const printOptions = {
       printBackground: true,
@@ -1476,7 +1477,23 @@ handleTrustedIpc('get-attendance-updates', async (_event, sinceTimestamp) => {
 handleTrustedIpc('send-sms-http-request', async (event, { url, method, headers, body }) => {
   return new Promise((resolve) => {
     try {
+      const lic = licenseManager.getStatus();
+      if (!lic || !lic.activated) {
+        return resolve({ success: false, error: 'Product Activation Required. Please activate FormEase Pro to use SMS features.' });
+      }
+
       const urlObj = new URL(url);
+      if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+        return resolve({ success: false, error: 'Only HTTP/HTTPS requests are supported.' });
+      }
+
+      const hostname = urlObj.hostname.toLowerCase();
+      const isLoopback = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '0.0.0.0';
+      const isCloudMetadata = hostname === '169.254.169.254' || hostname.startsWith('169.254.');
+      if (isLoopback || isCloudMetadata) {
+        return resolve({ success: false, error: 'Loopback and link-local destinations are not permitted.' });
+      }
+
       const httpModule = urlObj.protocol === 'https:' ? require('https') : require('http');
       const payloadData = typeof body === 'string' ? body : JSON.stringify(body);
       const reqHeaders = Object.assign({

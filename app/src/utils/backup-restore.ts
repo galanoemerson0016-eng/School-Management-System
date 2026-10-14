@@ -1,4 +1,5 @@
 import { db } from '../services/database';
+import { APP_VERSION } from '../constants/version';
 import { useSF10Store } from '../stores/sf10-store';
 import type {
     SchoolProfile,
@@ -666,7 +667,7 @@ export function validateBackupPayloadStructure(rawBackupData: unknown): BackupVa
             if (major > MAXIMUM_SUPPORTED_BACKUP_MAJOR_VERSION) {
                 isFutureVersion = true;
                 issues.push(
-                    `Backup version "${versionStr}" is newer than this version of FormEase Pro (v3.5.20). Please update FormEase Pro to restore this backup.`
+                    `Backup version "${versionStr}" is newer than this version of FormEase Pro (v${APP_VERSION}). Please update FormEase Pro to restore this backup.`
                 );
             }
         }

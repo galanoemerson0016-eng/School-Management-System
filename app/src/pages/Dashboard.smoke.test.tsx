@@ -48,7 +48,7 @@ vi.mock('framer-motion', () => ({
 // Lucide icons: replace with simple spans to avoid SVG issues in jsdom
 vi.mock('lucide-react', () => {
     const mockIcon = (name: string) => (props: Record<string, unknown>) => React.createElement('span', { 'data-icon': name, ...props });
-    return {
+    const baseIcons: Record<string, unknown> = {
         Users: mockIcon('Users'),
         Calendar: mockIcon('Calendar'),
         Bell: mockIcon('Bell'),
@@ -64,7 +64,24 @@ vi.mock('lucide-react', () => {
         HelpCircle: mockIcon('HelpCircle'),
         Layers: mockIcon('Layers'),
         X: mockIcon('X'),
+        School: mockIcon('School'),
+        BookOpen: mockIcon('BookOpen'),
+        FileSpreadsheet: mockIcon('FileSpreadsheet'),
+        CheckCircle2: mockIcon('CheckCircle2'),
+        Circle: mockIcon('Circle'),
+        ArrowRight: mockIcon('ArrowRight'),
+        Sparkles: mockIcon('Sparkles'),
+        ChevronDown: mockIcon('ChevronDown'),
+        ChevronUp: mockIcon('ChevronUp'),
+        Check: mockIcon('Check'),
+        Compass: mockIcon('Compass'),
+        ShieldCheck: mockIcon('ShieldCheck'),
+        Info: mockIcon('Info'),
+        UserCheck: mockIcon('UserCheck'),
+        BookmarkCheck: mockIcon('BookmarkCheck'),
     };
+    return baseIcons;
+
 });
 
 import { Dashboard } from './Dashboard';

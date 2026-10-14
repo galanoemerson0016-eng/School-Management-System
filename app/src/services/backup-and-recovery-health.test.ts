@@ -152,7 +152,7 @@ describe('Phase 5 (Work Package F) - Trustworthy Backup & Recovery Health', () =
             const result = validateBackupPayloadStructure(futureBackup);
             expect(result.isValid).toBe(false);
             expect(result.isFutureVersion).toBe(true);
-            expect(result.issues.some(issue => issue.includes('newer than this version of FormEase Pro (v3.5.20)'))).toBe(true);
+            expect(result.issues.some(issue => issue.includes('newer than this version of FormEase Pro'))).toBe(true);
         });
 
         it('rejects a backup containing internal duplicate student LRNs before writing', () => {

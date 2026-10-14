@@ -17,6 +17,7 @@ import { generateDeterministicSubjectId } from '../utils/grade-reconciliation';
 import { createGradingSlice, type GradingSlice } from './slices/grading-slice';
 import { createAttendanceSlice, type AttendanceSlice } from './slices/attendance-slice';
 import { createAnnouncementsSlice, type AnnouncementsSlice } from './slices/announcements-slice';
+import { invalidateResolvedSubjectNameCache } from '../utils/grading-helpers';
 
 export type SF1RowStatus = 'imported' | 'updated' | 'skipped' | 'conflicted' | 'failed';
 
@@ -1046,6 +1047,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
 
       set((state) => ({ subjects: [...state.subjects, sanitizedSubject] }));
+      invalidateResolvedSubjectNameCache();
       await db.putRecord('subjects', sanitizedSubject);
 
       // Auto-sync: append to taught_subjects of matching advisory sections
@@ -1187,6 +1189,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const freshSections = await db.getAllRecords<Section>('sections');
       set({ subjects: freshSubjects, sections: freshSections });
 
+      invalidateResolvedSubjectNameCache();
       get().showNotification('Subject updated and teaching loads synchronized', 'success');
     } catch (error) {
       console.error('Error updating subject:', error);
@@ -1257,6 +1260,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         sections: freshSections,
         classRecords: freshClassRecords,
       });
+      invalidateResolvedSubjectNameCache();
 
       get().showNotification('Subject deleted and teaching loads updated', 'success');
     } catch (error) {
@@ -1626,6 +1630,7 @@ export async function initializeAppStore() {
       ...s,
       term: s.term !== undefined && s.term !== null ? s.term : getDefaultTermForSubject(s.subject_name, s.grade_level)
     }));
+    invalidateResolvedSubjectNameCache();
 
     // Load the school profile by fetching all records.
     // We do NOT use the hardcoded default school_id as the lookup key because

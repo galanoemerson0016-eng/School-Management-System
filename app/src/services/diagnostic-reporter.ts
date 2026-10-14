@@ -1,6 +1,7 @@
 import { collection, doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { getMachineId } from '../utils/machine-id';
+import { APP_VERSION } from '../constants/version';
 import type { SchoolProfile, User } from '../types';
 
 export interface DiagnosticSubmissionPayload {
@@ -40,7 +41,7 @@ export class DiagnosticReporter {
       ticket_id: ticketId,
       created_at: new Date().toISOString(),
       timestamp: Date.now(),
-      app_version: '3.5.14',
+      app_version: APP_VERSION,
       machine_id: machineId,
       status: 'open',
       category: payload.category,

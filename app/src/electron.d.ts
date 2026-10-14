@@ -72,7 +72,6 @@ declare global {
         paperSize: 'letter' | 'a4' | 'folio' | 'cr80';
         pageWidthPx?: number;
         pageHeightPx?: number;
-        postLoadScript?: string;
         landscape?: boolean;
       }) => Promise<{ success: boolean; filePath?: string; cancelled?: boolean; error?: string }>;
       sendSmsHttpRequest?: (options: {

@@ -3,6 +3,7 @@ import { useAuthStore, initializeAuthStore } from './stores/auth-store';
 import { useAppStore, initializeAppStore, initializePublicAppProfile } from './stores/app-store';
 import { getMachineId } from './utils/machine-id';
 import { OnboardingWizard } from './components/OnboardingWizard';
+import { SetupChecklistGuide } from './components/onboarding/SetupChecklistGuide';
 import { Sidebar, Header } from './components/layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AutoBackupManager } from './components/AutoBackupManager';
@@ -149,6 +150,7 @@ function App() {
   const resolveMergeConflict = useAppStore(state => state.resolveMergeConflict);
   const currentConflict = pendingConflicts[0];
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
   const [showGDriveOnboarding, setShowGDriveOnboarding] = useState(false);
   const [isClosingApp, setIsClosingApp] = useState(false);
   const [licenseVerdict, setLicenseVerdict] = useState<LicenseVerdict>(
@@ -307,8 +309,13 @@ function App() {
 
   useEffect(() => {
     const handleTrigger = () => setShowOnboarding(true);
+    const handleGuideTrigger = () => setShowSetupGuide(true);
     window.addEventListener('formease-trigger-onboarding', handleTrigger);
-    return () => window.removeEventListener('formease-trigger-onboarding', handleTrigger);
+    window.addEventListener('formease-open-setup-guide', handleGuideTrigger);
+    return () => {
+      window.removeEventListener('formease-trigger-onboarding', handleTrigger);
+      window.removeEventListener('formease-open-setup-guide', handleGuideTrigger);
+    };
   }, []);
 
   const selectedSectionObj = sections.find(s => s.id === selectedSection || s.section_name === selectedSection);
@@ -639,6 +646,9 @@ function App() {
       <AnimatePresence>
         {showOnboarding && (
           <OnboardingWizard onClose={() => setShowOnboarding(false)} />
+        )}
+        {showSetupGuide && (
+          <SetupChecklistGuide isModal onClose={() => setShowSetupGuide(false)} />
         )}
       </AnimatePresence>
 

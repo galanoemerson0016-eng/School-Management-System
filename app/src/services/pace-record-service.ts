@@ -444,6 +444,7 @@ export function renamePaceLrn(oldLrn: string, newLrn: string): Record<string, st
         throw new Error('The new LRN already has Grade 1 remarks for this school year.');
       }
       journalSettings[newKey] = localStorage.getItem(key)!;
+      localStorage.removeItem(key);
     }
   }
 

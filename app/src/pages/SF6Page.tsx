@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { ArrowLeft, Printer, Plus, Minus, ChevronDown, Download, ShieldCheck } from 'lucide-react';
 import { useAppStore } from '../stores/app-store';
 import type { Subject } from '../types';
-import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
+import { resolveStudentQuarterGrade, isMaleStudent, isFemaleStudent } from '../utils/grading-helpers';
 
 type PaperSize = 'a4' | 'folio';
 type GenderKey = 'male' | 'female' | 'total';
@@ -265,12 +265,20 @@ export function SF6Page() {
             const bucket = bucketMap.get(bucketDef.id);
             if (!bucket) return;
 
-            const genderValue = (student.gender || '').toLowerCase();
-            const gender: GenderKey = genderValue === 'male' ? 'male' : genderValue === 'female' ? 'female' : 'total';
+            const gender: GenderKey = isMaleStudent(student) ? 'male' : isFemaleStudent(student) ? 'female' : 'total';
 
             addToCounts(bucket.enrollment, gender);
 
-            const sectionSubjects = subjects.filter(s => (s.section_id === sectionMatch?.id || (s as Subject & { section_name?: string }).section_name === student.student_section) && s.term !== 'none');
+            const secGradeNum = parseInt((sectionMatch?.section_grade_level || (sectionMatch as any)?.grade_level || '').replace(/\D/g, '')) || 0;
+            const sectionSubjects = subjects.filter(s => {
+                if (s.term === 'none') return false;
+                if (s.section_id === sectionMatch?.id || (s as Subject & { section_name?: string }).section_name === student.student_section) return true;
+                if (!s.section_id && secGradeNum > 0) {
+                    const subGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
+                    return subGradeNum === secGradeNum;
+                }
+                return false;
+            });
 
             let finalGradesTotal = 0;
             let subjectsCount = 0;
@@ -303,7 +311,7 @@ export function SF6Page() {
                 }
             });
 
-            if (subjectsCount === 0) return;
+            if (subjectsCount === 0 || subjectsCount < sectionSubjects.length) return;
 
             const genAve = Math.round(finalGradesTotal / subjectsCount);
 

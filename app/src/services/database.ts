@@ -87,29 +87,30 @@ export interface QuarantinedRecord {
   rawEnvelope: unknown;
 }
 
-const quarantinedRecords: QuarantinedRecord[] = [];
+const quarantinedRecordsMap = new Map<string, QuarantinedRecord>();
 
 export function getQuarantinedRecords(): QuarantinedRecord[] {
-  return [...quarantinedRecords];
+  return Array.from(quarantinedRecordsMap.values());
 }
 
 export function clearQuarantinedRecords(): void {
-  quarantinedRecords.length = 0;
+  quarantinedRecordsMap.clear();
 }
 
 export function getQuarantineStats(): { total: number; byStore: Record<string, number> } {
   const byStore: Record<string, number> = {};
-  for (const q of quarantinedRecords) {
+  for (const q of quarantinedRecordsMap.values()) {
     byStore[q.storeName] = (byStore[q.storeName] || 0) + 1;
   }
-  return { total: quarantinedRecords.length, byStore };
+  return { total: quarantinedRecordsMap.size, byStore };
 }
 
 export function exportQuarantineArtifact(): string {
+  const records = Array.from(quarantinedRecordsMap.values());
   const payload = {
     exportedAt: new Date().toISOString(),
-    totalQuarantined: quarantinedRecords.length,
-    records: quarantinedRecords.map(q => ({
+    totalQuarantined: records.length,
+    records: records.map(q => ({
       id: q.id,
       storeName: q.storeName,
       key: q.key,
@@ -122,14 +123,17 @@ export function exportQuarantineArtifact(): string {
 }
 
 function recordQuarantinedEntry(storeName: string, raw: unknown, error: unknown): void {
-  const id = `quarantine-${crypto.randomUUID()}`;
   let key: string | undefined;
   if (raw && typeof raw === 'object') {
     const obj = raw as Record<string, unknown>;
     const k = obj.lrn ?? obj.id ?? obj.school_id;
     if (k !== undefined) key = String(k);
   }
-  quarantinedRecords.push({
+  const dedupKey = `${storeName}:${key || JSON.stringify(raw)}`;
+  if (quarantinedRecordsMap.has(dedupKey)) return;
+
+  const id = `quarantine-${crypto.randomUUID()}`;
+  quarantinedRecordsMap.set(dedupKey, {
     id,
     storeName,
     key,
@@ -205,7 +209,15 @@ async function decryptRecordIfNeeded<T>(storeName: string, record: unknown): Pro
   }
   
   try {
-    return await decryptWithAvailableKeys<T>(rawRecord.ciphertext as string, rawRecord.iv as string);
+    const decrypted = await decryptWithAvailableKeys<T>(rawRecord.ciphertext as string, rawRecord.iv as string);
+    if (decrypted && typeof decrypted === 'object') {
+      const keyField = storeName === 'students' ? 'lrn' : storeName === 'schoolProfile' ? 'school_id' : 'id';
+      const outerKey = rawRecord[keyField] ?? rawRecord.id ?? rawRecord.lrn;
+      if (outerKey !== undefined && (decrypted as Record<string, unknown>)[keyField] === undefined) {
+        (decrypted as Record<string, unknown>)[keyField] = outerKey;
+      }
+    }
+    return decrypted;
   } catch (error) {
     throw new Error(`Encrypted ${storeName} record could not be decrypted. Its stored data was not changed.`, { cause: error });
   }
@@ -918,10 +930,29 @@ async function readBackupSnapshot(): Promise<Awaited<ReturnType<typeof exportAll
       request.onsuccess = () => { snapshot[name] = request.result; };
     }
   });
-  const records = await Promise.all(stores.map(async store => [
-    store,
-    await Promise.all(rawSnapshot[store].map(item => decryptRecordIfNeeded(store, item))),
-  ] as const));
+  const records = await Promise.all(stores.map(async store => {
+    const rawItems = rawSnapshot[store] || [];
+    const decryptedItems: unknown[] = [];
+    let lastError: unknown;
+    for (const item of rawItems) {
+      try {
+        const decrypted = await decryptRecordIfNeeded(store, item);
+        decryptedItems.push(decrypted);
+      } catch (err) {
+        lastError = err;
+        recordQuarantinedEntry(store, item, err);
+        console.warn(`[FormEase Pro] Backup snapshot unreadable ${store} entry skipped.`, err);
+      }
+    }
+    if (rawItems.length > 0 && decryptedItems.length === 0) {
+      if (store !== 'automated_backups' && store !== 'gradingSheetRecords' && store !== 'observedValues') {
+        throw lastError instanceof Error
+          ? lastError
+          : new Error(`Encrypted ${store} record could not be decrypted for backup snapshot.`);
+      }
+    }
+    return [store, decryptedItems] as const;
+  }));
   return Object.fromEntries(records) as unknown as Awaited<ReturnType<typeof exportAllData>>;
 }
 
@@ -1794,9 +1825,9 @@ async function inspectDatabaseHealth(): Promise<DatabaseHealthReport> {
       stores: {},
       totalRawRecords: null,
       totalReadableRecords: null,
-      totalQuarantinedRecords: quarantinedRecords.length,
+      totalQuarantinedRecords: quarantinedRecordsMap.size,
       hasUnreadableStores: true,
-      hasQuarantinedRecords: quarantinedRecords.length > 0,
+      hasQuarantinedRecords: quarantinedRecordsMap.size > 0,
       pendingJournal: false,
       lastVerifiedBackup: null,
     };
@@ -1925,9 +1956,9 @@ async function inspectDatabaseHealth(): Promise<DatabaseHealthReport> {
     stores: storeReports,
     totalRawRecords: hasUnreadable ? null : totalRaw,
     totalReadableRecords: totalReadable,
-    totalQuarantinedRecords: quarantinedRecords.length,
+    totalQuarantinedRecords: quarantinedRecordsMap.size,
     hasUnreadableStores: hasUnreadable,
-    hasQuarantinedRecords: quarantinedRecords.length > 0,
+    hasQuarantinedRecords: quarantinedRecordsMap.size > 0,
     pendingJournal,
     lastVerifiedBackup,
     storageEstimate,

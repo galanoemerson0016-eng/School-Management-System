@@ -597,6 +597,10 @@ export function isSubjectInTeachingLoad(
  */
 const resolvedSubjectNameCache = new Map<string, string>();
 
+export function invalidateResolvedSubjectNameCache(): void {
+    resolvedSubjectNameCache.clear();
+}
+
 function getCachedSubjectName(
     subjectIdOrName: string,
     classRecords: ClassRecord[],
@@ -607,8 +611,10 @@ function getCachedSubjectName(
     }
 
     let name = '';
+    let dbSubjectsCount = 0;
     try {
         const allDbSubjects = useAppStore.getState().subjects || [];
+        dbSubjectsCount = allDbSubjects.length;
         const dbSub = allDbSubjects.find(s => s.id === subjectIdOrName || isMatchingSubject(subjectIdOrName, s.id, s.subject_name));
         if (dbSub?.subject_name) name = dbSub.subject_name;
     } catch {
@@ -625,7 +631,10 @@ function getCachedSubjectName(
         name = cleanSubjectQuery(subjectIdOrName);
     }
 
-    resolvedSubjectNameCache.set(subjectIdOrName, name);
+    // Only cache if store is already hydrated or a meaningful name was found
+    if (name && (dbSubjectsCount > 0 || name !== subjectIdOrName)) {
+        resolvedSubjectNameCache.set(subjectIdOrName, name);
+    }
     return name;
 }
 
@@ -1203,17 +1212,23 @@ export type HonorStudent = AwardStudent;
 export function computeStudentAverage(
     studentLrn: string,
     quarter: 1 | 2 | 3 | 4 | 'overall',
-    classRecords: ClassRecord[]
+    classRecords: ClassRecord[],
+    schoolYear?: string,
+    expectedSubjectCount?: number
 ): number {
     if (quarter === 'overall') {
-        return computeYearlyAverage(studentLrn, classRecords);
+        return computeYearlyAverage(studentLrn, classRecords, schoolYear, expectedSubjectCount);
     }
 
     const studentRecords = classRecords.filter(
-        r => r.student_lrn === studentLrn && r.quarter === quarter && (Number(r.final_grade) || 0) > 0
+        r => r.student_lrn === studentLrn &&
+             r.quarter === quarter &&
+             (!schoolYear || r.school_year === schoolYear) &&
+             (Number(r.final_grade) || 0) > 0
     );
 
     if (studentRecords.length === 0) return 0;
+    if (expectedSubjectCount && studentRecords.length < expectedSubjectCount) return 0;
 
     const total = studentRecords.reduce((sum, r) => sum + (Number(r.final_grade) || 0), 0);
     return Math.round((total / studentRecords.length) * 100) / 100;
@@ -1224,10 +1239,12 @@ export function computeStudentAverage(
  */
 export function computeYearlyAverage(
     studentLrn: string,
-    classRecords: ClassRecord[]
+    classRecords: ClassRecord[],
+    schoolYear?: string,
+    expectedSubjectCount?: number
 ): number {
     const termAverages = ACTIVE_TERMS
-        .map(q => computeStudentAverage(studentLrn, q, classRecords))
+        .map(q => computeStudentAverage(studentLrn, q, classRecords, schoolYear, expectedSubjectCount))
         .filter(avg => avg > 0);
 
     if (termAverages.length === 0) return 0;

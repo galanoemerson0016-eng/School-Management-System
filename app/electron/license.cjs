@@ -136,10 +136,11 @@ async function activate(serialInput, fullName, platform) {
   const remoteStatus = fields.status?.stringValue || '';
   const remoteExpiresAt = fields.expires_at?.timestampValue || '';
 
-  if (platform && licensePlatform !== platform) {
+  const runningPlatform = process.platform === 'darwin' ? 'mac' : 'windows';
+  if (licensePlatform && licensePlatform !== runningPlatform) {
     return {
       success: false,
-      error: `Invalid License: This is a ${licensePlatform.toUpperCase()} key, but you are running on ${platform.toUpperCase()}.`,
+      error: `Invalid License: This is a ${licensePlatform.toUpperCase()} key, but you are running on ${runningPlatform.toUpperCase()}.`,
     };
   }
   if (existingMachineId && existingMachineId !== machineId) {
@@ -147,11 +148,13 @@ async function activate(serialInput, fullName, platform) {
   }
 
   const now = new Date();
-  let expiresAt = remoteExpiresAt || new Date(now.getTime() + YEAR_MS).toISOString();
+  const durationMonths = parseInt(fields.duration_months?.integerValue || '12', 10) || 12;
+  const durationMs = durationMonths * 30 * 24 * 60 * 60 * 1000;
+  let expiresAt = remoteExpiresAt || new Date(now.getTime() + durationMs).toISOString();
 
   if (!existingMachineId) {
     // Claim the license for this machine
-    expiresAt = new Date(now.getTime() + YEAR_MS).toISOString();
+    expiresAt = remoteExpiresAt || new Date(now.getTime() + durationMs).toISOString();
     const patchUrl = `${LICENSE_BASE_URL}/${serial}?updateMask.fieldPaths=machine_id&updateMask.fieldPaths=activated_at&updateMask.fieldPaths=registered_to&updateMask.fieldPaths=status&updateMask.fieldPaths=expires_at`;
     try {
       const patchRes = await fetchWithTimeout(patchUrl, {
@@ -222,9 +225,11 @@ async function verifyOnline() {
     return { revoked: true };
   }
 
-  // Update last verified timestamp
+  // Update last verified timestamp and sync remote expiration date
+  const remoteExpiresAt = fields.expires_at?.timestampValue || '';
   writeLicenseRecord({
     ...record,
+    expiresAt: remoteExpiresAt || record.expiresAt,
     lastVerifiedAt: new Date().toISOString()
   });
 

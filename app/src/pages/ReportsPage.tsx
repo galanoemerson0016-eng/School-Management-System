@@ -142,8 +142,17 @@ export function ReportsPage() {
     // Filter subjects by section
     const filteredSubjects = useMemo(() => {
         if (selectedSectionFilter === 'all') return officialSubjects;
-        return officialSubjects.filter(s => s.section_id === selectedSectionFilter);
-    }, [officialSubjects, selectedSectionFilter]);
+        const sectionObj = officialSections.find(s => s.id === selectedSectionFilter || s.section_name === selectedSectionFilter);
+        const secGradeNum = parseInt((sectionObj?.section_grade_level || (sectionObj as any)?.grade_level || '').replace(/\D/g, '')) || 0;
+        return officialSubjects.filter(s => {
+            if (s.section_id === selectedSectionFilter) return true;
+            if (!s.section_id && secGradeNum > 0) {
+                const subGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
+                return subGradeNum === secGradeNum;
+            }
+            return false;
+        });
+    }, [officialSubjects, selectedSectionFilter, officialSections]);
 
     // Active Students ONLY (No Ghosts & No Orphaned Sections!)
     const validStudents = useMemo(() => {
@@ -196,26 +205,30 @@ export function ReportsPage() {
         const consolidatedMap = new Map<string, typeof gradingSheetRecords[0]>();
         
         baseRecords.forEach(r => {
-            const key = `${r.student_lrn}_${r.subject_id}_${r.quarter}`;
+            const key = `${r.student_lrn}_${r.subject_id}_${r.quarter}_${r.school_year || activeSchoolYear}`;
             const existing = consolidatedMap.get(key);
             
             if (!existing) {
                 consolidatedMap.set(key, r);
             } else {
-                const isNew = r.id.startsWith('grade_');
-                const isExistingNew = existing.id.startsWith('grade_');
+                const isNew = r.id.startsWith('grade:') || r.id.startsWith('official:grade:') || r.id.startsWith('grade_');
+                const isExistingNew = existing.id.startsWith('grade:') || existing.id.startsWith('official:grade:') || existing.id.startsWith('grade_');
 
                 if (isNew && !isExistingNew) {
-                    // Current is deterministic, existing is ghost. ALWAYS overwrite.
                     consolidatedMap.set(key, r);
                 } else if (!isNew && isExistingNew) {
-                    // Current is ghost, existing is deterministic. NEVER overwrite.
                     return;
                 } else {
-                    // Both are same type (either both 'grade_' or both 'rec-')
-                    // Pick the one with more content or higher grade as a fallback
-                    if (Number(r.final_grade || 0) > Number(existing.final_grade || 0)) {
+                    const rObj = r as unknown as Record<string, unknown>;
+                    const existingObj = existing as unknown as Record<string, unknown>;
+                    const rTime = rObj.updated_at ? new Date(rObj.updated_at as string).getTime() : 0;
+                    const existingTime = existingObj.updated_at ? new Date(existingObj.updated_at as string).getTime() : 0;
+                    if (rTime > existingTime) {
                         consolidatedMap.set(key, r);
+                    } else if (rTime === existingTime && rTime === 0) {
+                        if (Number(r.final_grade || 0) > Number(existing.final_grade || 0)) {
+                            consolidatedMap.set(key, r);
+                        }
                     }
                 }
             }

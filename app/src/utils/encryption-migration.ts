@@ -94,7 +94,7 @@ function identifierOf(storeName: string, record: unknown, index: number): string
     ? (item?.lrn ?? item?.id)
     : storeName === 'schoolProfile'
       ? (item?.school_id ?? item?.id)
-      : (item?.id ?? item?.lrn ?? (item?.student_lrn ? `${item.student_lrn}_${item.subject_id || ''}_${item.quarter || ''}` : undefined));
+      : (item?.id ?? item?.lrn ?? item?.enrollment_id ?? item?.key ?? (item?.student_lrn ? `${item.student_lrn}_${item.subject_id || ''}_${item.quarter || ''}` : undefined));
   return String(key ?? `position:${index}`);
 }
 
@@ -184,9 +184,9 @@ export async function migrateLegacyEncryptedDatabase(args: {
       const actual = snapshot(storeName, records);
       const before = expected.get(storeName)!;
       if (actual.count !== before.count || actual.identifiers.join('\u0000') !== before.identifiers.join('\u0000')) {
-        // If before had records and actual has 0 readable under DEK, the key derivation failed
-        if (before.count > 0 && actual.count === 0) {
-          throw new Error(`Migration integrity check failed for ${storeName}.`);
+        // If before had records and actual has fewer readable records under DEK, key derivation or migration failed
+        if (before.count > 0 && actual.count < before.count) {
+          throw new Error(`Migration integrity check failed for ${storeName}: expected ${before.count}, verified ${actual.count} under DEK.`);
         }
         console.warn(`[Migration] Non-fatal record count difference in ${storeName}: expected ${before.count}, verified ${actual.count} under DEK.`);
       }

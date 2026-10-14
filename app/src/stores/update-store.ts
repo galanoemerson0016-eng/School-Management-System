@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { db } from '../services/database';
+import { APP_VERSION } from '../constants/version';
 import { generatePreUpdateSafetyVault } from '../services/pre-update-safety';
 import { exportFullDatabaseBackup, savePreRestoreSafetySnapshot } from '../utils/backup-restore';
 import { embedChecksum } from '../utils/backup-integrity';
@@ -399,7 +400,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
           observedValues: await db.getStoreCount('observedValues')
         };
 
-        const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.6';
+        const currentVersion = APP_VERSION;
         const stateData = {
           fromVersion: currentVersion,
           toVersion: get().updateInfo?.version || 'Unknown',
@@ -460,7 +461,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.5.21';
+      const CURRENT_VERSION = APP_VERSION;
       const api = window.electronAPI;
 
       try {
@@ -540,7 +541,9 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
               },
             });
           }
-        } else if (lastVersion && lastVersion !== CURRENT_VERSION) {
+        }
+        
+        if (!get().reconciliationReport && lastVersion && lastVersion !== CURRENT_VERSION) {
           // Manual installer update detected (e.g. downloaded DMG or Setup directly)
           const studentCount = await db.getStoreCount('students');
           const sectionCount = await db.getStoreCount('sections');

@@ -688,27 +688,31 @@ export async function applyGrade1MasterImport(
   ) => {
     if (diffsForSubject.length === 0) return;
     const raw = localStorage.getItem(legacyKey);
-    const store: Record<string, { ratings?: Record<string, Record<string, string>> }> = raw ? JSON.parse(raw) : {};
+    const store: Record<string, { ratings?: Record<string, Record<string, string>>; schoolYear?: string }> = raw ? JSON.parse(raw) : {};
 
+    const studentDiffs = new Map<string, ImportDiffItem[]>();
     for (const d of diffsForSubject) {
-      if (!store[d.studentLrn]) {
-        store[d.studentLrn] = {
-          ratings: {}
-        };
+      if (!studentDiffs.has(d.studentLrn)) {
+        studentDiffs.set(d.studentLrn, []);
       }
-      if (!store[d.studentLrn].ratings) {
-        store[d.studentLrn].ratings = {};
-      }
-      const compId = d.field.split(' ')[0];
-      const term = (d.term || 't1') as 't1' | 't2' | 't3';
-      if (!store[d.studentLrn].ratings![compId]) {
-        store[d.studentLrn].ratings![compId] = {};
-      }
-      store[d.studentLrn].ratings![compId][term] = d.newValue;
+      studentDiffs.get(d.studentLrn)!.push(d);
+    }
 
-      // Also persist to versioned school-year scoped PACE service
-      const existing = getPaceRecord(subject, sy, d.studentLrn) || {
-        lrn: d.studentLrn,
+    for (const [lrn, diffs] of studentDiffs.entries()) {
+      if (!store[lrn]) {
+        store[lrn] = {
+          ratings: {},
+          schoolYear: sy,
+        };
+      } else if (!store[lrn].schoolYear) {
+        store[lrn].schoolYear = sy;
+      }
+      if (!store[lrn].ratings) {
+        store[lrn].ratings = {};
+      }
+
+      const existing = getPaceRecord(subject, sy, lrn) || {
+        lrn,
         studentName: '',
         gradeLevel: 'Grade 1',
         section: '',
@@ -717,15 +721,23 @@ export async function applyGrade1MasterImport(
         ratings: {},
       };
 
-      const compRating = existing.ratings[compId] || {};
-      const updatedCompRating = { ...compRating, [term]: d.newValue as PaceRatingDescriptor };
-      savePaceRecord(subject, sy, d.studentLrn, {
+      const updatedRatings = { ...existing.ratings };
+      for (const d of diffs) {
+        const compId = d.field.split(' ')[0];
+        const term = (d.term || 't1') as 't1' | 't2' | 't3';
+        if (!store[lrn].ratings![compId]) {
+          store[lrn].ratings![compId] = {};
+        }
+        store[lrn].ratings![compId][term] = d.newValue;
+
+        const compRating = updatedRatings[compId] || {};
+        updatedRatings[compId] = { ...compRating, [term]: d.newValue as PaceRatingDescriptor };
+      }
+
+      savePaceRecord(subject, sy, lrn, {
         ...existing,
         schoolYear: sy,
-        ratings: {
-          ...existing.ratings,
-          [compId]: updatedCompRating,
-        },
+        ratings: updatedRatings,
       });
     }
 

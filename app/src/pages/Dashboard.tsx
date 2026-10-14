@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Users, Calendar, Bell, Trophy, AlertTriangle, ChevronLeft, ChevronRight, Clock, ListChecks, Search, Plus, Activity, HelpCircle, Layers, X } from 'lucide-react';
 import type { CalendarEvent, Student } from '../types';
 import { OFFICIAL_CALENDAR_2026_2027 } from '../data/calendar-events';
+import { SetupChecklistGuide } from '../components/onboarding/SetupChecklistGuide';
 
 
 
@@ -407,21 +408,28 @@ export function Dashboard() {
                 continue;
             }
 
-            const key = `${r.student_lrn}_${r.subject_id}_${r.quarter}`;
+            const key = `${r.student_lrn}_${r.subject_id}_${r.quarter}_${r.school_year || ''}`;
             const existing = consolidatedMap.get(key);
             
             if (!existing) {
                 consolidatedMap.set(key, r);
             } else {
-                // Heuristic to pick the "best" record (latest or non-ghost)
-                const isNew = r.id.startsWith('grade_');
-                const isExistingNew = existing.id.startsWith('grade_');
+                const isNew = r.id.startsWith('grade:') || r.id.startsWith('official:grade:') || r.id.startsWith('grade_');
+                const isExistingNew = existing.id.startsWith('grade:') || existing.id.startsWith('official:grade:') || existing.id.startsWith('grade_');
 
                 if (isNew && !isExistingNew) {
                     consolidatedMap.set(key, r);
                 } else if (isNew === isExistingNew) {
-                    if (Number(r.final_grade || 0) > Number(existing.final_grade || 0)) {
+                    const rObj = r as unknown as Record<string, unknown>;
+                    const existingObj = existing as unknown as Record<string, unknown>;
+                    const rTime = rObj.updated_at ? new Date(rObj.updated_at as string).getTime() : 0;
+                    const existingTime = existingObj.updated_at ? new Date(existingObj.updated_at as string).getTime() : 0;
+                    if (rTime > existingTime) {
                         consolidatedMap.set(key, r);
+                    } else if (rTime === existingTime && rTime === 0) {
+                        if (Number(r.final_grade || 0) > Number(existing.final_grade || 0)) {
+                            consolidatedMap.set(key, r);
+                        }
                     }
                 }
             }
@@ -496,7 +504,15 @@ export function Dashboard() {
         let totalSlots = 0;
         officialSections.forEach(sec => {
             const studentCount = filteredStudents.filter(s => s.student_section === sec.id || s.student_section === sec.section_name).length;
-            const subjectCount = officialSubjects.filter(sub => sub.section_id === sec.id).length;
+            const secGradeNum = parseInt((sec.section_grade_level || (sec as any).grade_level || '').replace(/\D/g, '')) || 0;
+            const subjectCount = officialSubjects.filter(sub => {
+                if (sub.section_id === sec.id) return true;
+                if (!sub.section_id && secGradeNum > 0) {
+                    const subGradeNum = parseInt(sub.grade_level?.toString().replace(/\D/g, '') || '0');
+                    return subGradeNum === secGradeNum;
+                }
+                return false;
+            }).length;
             totalSlots += (studentCount * subjectCount);
         });
 
@@ -649,9 +665,10 @@ export function Dashboard() {
         .filter((item): item is { student: Student; average: number } => item !== null && item.average >= 90);
 
         return list.sort((a, b) => {
-            if (b.average !== a.average) {
-                return b.average - a.average;
-            }
+            // DepEd Order 36 s. 2016: Group by tier, then sort alphabetically by surname
+            const getTier = (avg: number) => avg >= 98 ? 3 : avg >= 95 ? 2 : 1;
+            const tierDiff = getTier(b.average) - getTier(a.average);
+            if (tierDiff !== 0) return tierDiff;
             const nameA = `${a.student.last_name}, ${a.student.first_name}`.toLowerCase();
             const nameB = `${b.student.last_name}, ${b.student.first_name}`.toLowerCase();
             return nameA.localeCompare(nameB);
@@ -763,24 +780,8 @@ export function Dashboard() {
 
     if (students.length === 0 && gradingSheetRecords.length === 0) {
         return (
-            <div className="min-h-[60vh] flex items-center justify-center">
-                <div className="max-w-xl w-full rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm flex flex-col items-center">
-                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-3xl">📭</div>
-                    <h3 className="text-2xl font-black text-slate-900">No records yet</h3>
-                    <p className="mt-2 mb-6 text-sm text-slate-500">
-                        The dashboard has finished syncing. Your school year currently has no student or grade records.
-                    </p>
-                    <button
-                        onClick={() => {
-                            const event = new CustomEvent('formease-trigger-onboarding');
-                            window.dispatchEvent(event);
-                        }}
-                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all duration-300 shadow-lg shadow-emerald-500/20 active:scale-95 cursor-pointer"
-                    >
-                        <HelpCircle className="w-4 h-4" />
-                        Start Onboarding Tour
-                    </button>
-                </div>
+            <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
+                <SetupChecklistGuide />
             </div>
         );
     }
@@ -2097,27 +2098,22 @@ export function Dashboard() {
                                                 const rank = index + 1;
                                                 const average = item.average;
                                                 
-                                                // Honors details
-                                                const honorsLabel = 'With Academic Excellence';
-                                                const badgeStyles = 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40';
+                                                // Honors details per DepEd Order 36 s. 2016
+                                                const honorsLabel = average >= 98 ? 'With Highest Honors' : average >= 95 ? 'With High Honors' : 'With Honors';
+                                                const badgeStyles = average >= 98
+                                                    ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-700/50'
+                                                    : average >= 95
+                                                        ? 'bg-blue-50 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-200 dark:border-blue-700/50'
+                                                        : 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-700/50';
                                                 const cardAccent = 'hover:border-emerald-200 dark:hover:border-emerald-800/50';
 
-                                                // Rank Badge styling
-                                                let rankBadge = null;
-                                                let avatarBg = 'bg-slate-50 dark:bg-slate-800';
-                                                
-                                                if (rank === 1) {
-                                                    rankBadge = <span className="text-xl">🥇</span>;
-                                                    avatarBg = 'bg-linear-to-tr from-yellow-100 via-amber-200 to-yellow-300 text-amber-900 dark:from-yellow-950 dark:to-amber-800';
-                                                } else if (rank === 2) {
-                                                    rankBadge = <span className="text-xl">🥈</span>;
-                                                    avatarBg = 'bg-linear-to-tr from-slate-100 via-slate-200 to-slate-300 text-slate-900 dark:from-slate-900 dark:to-slate-700';
-                                                } else if (rank === 3) {
-                                                    rankBadge = <span className="text-xl">🥉</span>;
-                                                    avatarBg = 'bg-linear-to-tr from-orange-100 via-orange-200 to-amber-300 text-orange-950 dark:from-orange-950 dark:to-amber-900';
-                                                } else {
-                                                    rankBadge = <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-tighter">#{rank}</span>;
-                                                }
+                                                // Honor Badge styling (no numerical ranking per DepEd MATATAG policy)
+                                                const rankBadge = <span className="text-xl">{average >= 98 ? '🥇' : average >= 95 ? '🥈' : '🥉'}</span>;
+                                                const avatarBg = average >= 98
+                                                    ? 'bg-linear-to-tr from-yellow-100 via-amber-200 to-yellow-300 text-amber-900 dark:from-yellow-950 dark:to-amber-800'
+                                                    : average >= 95
+                                                        ? 'bg-linear-to-tr from-blue-100 via-sky-200 to-indigo-300 text-indigo-900 dark:from-blue-950 dark:to-indigo-800'
+                                                        : 'bg-linear-to-tr from-emerald-100 via-teal-200 to-emerald-300 text-emerald-950 dark:from-emerald-950 dark:to-teal-800';
 
                                                 return (
                                                     <div 

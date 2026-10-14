@@ -5,7 +5,7 @@ import { useAuthStore } from '../stores/auth-store';
 import { ArrowLeft, FileText, Plus, Minus, Printer, ChevronDown, Layout as AppLogo, Download, ShieldCheck } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatLearnerName } from '../utils/student-name';
-import { resolveStudentQuarterGrade, isMatchingSubject } from '../utils/grading-helpers';
+import { resolveStudentQuarterGrade, isMatchingSubject, isMaleStudent, isFemaleStudent } from '../utils/grading-helpers';
 import { getShsSubjectUnitInfo } from '../lib/curriculum';
 
 export function SF5Page() {
@@ -221,10 +221,9 @@ export function SF5Page() {
                             : null;
 
                         // MATATAG Rule: MAPEH = (Music and Arts + Physical Education and Health) / 2
-                        const ma = maAvg || 0;
-                        const ph = phAvg || 0;
-                        if (ma > 0 || ph > 0) {
-                            const quarterAvg = Math.round((ma + ph) / 2);
+                        const activeComponents = [maAvg, phAvg].filter((v): v is number => typeof v === 'number' && v > 0);
+                        if (activeComponents.length > 0) {
+                            const quarterAvg = Math.round(activeComponents.reduce((sum, v) => sum + v, 0) / activeComponents.length);
                             mapehQuarterTotal += quarterAvg;
                             mapehQuarterCount++;
                         }
@@ -273,14 +272,16 @@ export function SF5Page() {
             });
 
             const genAve = subjectsCount > 0 ? Math.round(finalGradesTotal / subjectsCount) : 0;
-            let actionTaken = 'PROMOTED';
-            if (failedSubjects.length > 0 && failedSubjects.length <= 2) {
-                actionTaken = '*Conditional';
-            } else if (failedSubjects.length >= 3) {
-                actionTaken = 'RETAINED';
+            let actionTaken = '';
+            if (subjectsCount > 0 && subjectsCount >= effectiveSubjects.length) {
+                if (failedSubjects.length === 0) {
+                    actionTaken = 'PROMOTED';
+                } else if (failedSubjects.length <= 2) {
+                    actionTaken = '*Conditional';
+                } else {
+                    actionTaken = 'RETAINED';
+                }
             }
-
-            if (subjectsCount === 0) actionTaken = ''; // Not graded yet
 
             const uniqueFailedSubjects = Array.from(new Set(failedSubjects)).filter(Boolean);
 
@@ -293,8 +294,8 @@ export function SF5Page() {
         }).sort((a, b) => a.last_name.localeCompare(b.last_name));
     }, [sectionStudents, sectionSubjects, gradingSheetRecords, classRecords, hpsRecords, activeSchoolYear, currentSectionInfo]);
 
-    const males = studentData.filter(s => (s.gender || '').toLowerCase() === 'male');
-    const females = studentData.filter(s => (s.gender || '').toLowerCase() === 'female');
+    const males = studentData.filter(s => isMaleStudent(s));
+    const females = studentData.filter(s => isFemaleStudent(s));
 
     const summaryData = useMemo(() => {
         return {

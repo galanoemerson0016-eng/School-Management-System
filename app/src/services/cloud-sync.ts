@@ -23,9 +23,9 @@ const EMAIL_KEY = 'formease_gdrive_email';
 const LAST_SYNC_KEY = 'formease_gdrive_last_sync';
 const ONBOARDING_DISMISSED_KEY = 'formease_gdrive_onboarding_dismissed';
 
-// Default Client ID and Secret for FormEase Pro native backups
+// Default Client ID for FormEase Pro native backups (PKCE flow does not require embedded client secret)
 const DEFAULT_CLIENT_ID = '516385983931-jp8ga7v9v9t1oub9fgmu7d07b1r4crmu.apps.googleusercontent.com';
-const DEFAULT_CLIENT_SECRET = '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';
+const DEFAULT_CLIENT_SECRET = '';
 
 export const CloudSyncService = {
   getClientId(): string {

@@ -377,19 +377,19 @@ export async function exportDirectDatabaseToExcel(): Promise<{
         announcements,
         users
     ] = await Promise.all([
-        db.getAllRecords<Student>('students', { strict: true }),
-        db.getAllRecords<Section>('sections', { strict: true }),
-        db.getAllRecords<Subject>('subjects', { strict: true }),
-        db.getAllRecords<ClassRecord>('classRecords', { strict: true }),
-        db.getAllRecords<HPSRecord>('hpsRecords', { strict: true }),
-        db.getAllRecords<ClassRecord>('gradingSheetRecords', { strict: true }),
-        db.getAllRecords<AttendanceRecord>('attendanceRecords', { strict: true }),
-        db.getAllRecords<SF2Sheet>('sf2Sheets', { strict: true }),
-        db.getAllRecords<Enrollment>('enrollments', { strict: true }),
-        db.getAllRecords<SchoolProfile>('schoolProfile', { strict: true }),
-        db.getAllRecords<ObservedValues>('observedValues', { strict: true }),
-        db.getAllRecords<Announcement>('announcements', { strict: true }),
-        db.getAllRecords<BackupUser>('users', { strict: true })
+        db.getAllRecords<Student>('students'),
+        db.getAllRecords<Section>('sections'),
+        db.getAllRecords<Subject>('subjects'),
+        db.getAllRecords<ClassRecord>('classRecords'),
+        db.getAllRecords<HPSRecord>('hpsRecords'),
+        db.getAllRecords<ClassRecord>('gradingSheetRecords'),
+        db.getAllRecords<AttendanceRecord>('attendanceRecords'),
+        db.getAllRecords<SF2Sheet>('sf2Sheets'),
+        db.getAllRecords<Enrollment>('enrollments'),
+        db.getAllRecords<SchoolProfile>('schoolProfile'),
+        db.getAllRecords<ObservedValues>('observedValues'),
+        db.getAllRecords<Announcement>('announcements'),
+        db.getAllRecords<BackupUser>('users')
     ]);
 
     const activeSchoolYear =

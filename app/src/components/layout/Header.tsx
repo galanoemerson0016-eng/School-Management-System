@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppStore } from '../../stores/app-store';
 import { useAuthStore } from '../../stores/auth-store';
-import { Bell, X, Database, HelpCircle, Cloud, CloudUpload, Loader2, ChevronDown, HardDriveDownload, Bug, Shield } from 'lucide-react';
+import { Bell, X, Database, HelpCircle, Cloud, CloudUpload, Loader2, ChevronDown, HardDriveDownload, Bug, Shield, Compass } from 'lucide-react';
 import { UpdateStatus } from '../ui/UpdateStatus';
 import { CloudSyncService } from '../../services/cloud-sync';
 import { createComprehensiveBackup, validateBackup } from '../../utils/backup-restore';
@@ -422,6 +422,18 @@ export function Header() {
                         title="Grade Sync Inspector & Live Diagnostics"
                     >
                         <Bug className="w-4 h-4" />
+                    </button>
+
+                    {/* Master Setup Guide / Checklist Button */}
+                    <button
+                        id="btn-header-setup-guide"
+                        onClick={() => {
+                            window.dispatchEvent(new CustomEvent('formease-open-setup-guide'));
+                        }}
+                        className="flex items-center justify-center w-8 h-8 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                        title="Master Setup Checklist & First-Time User Guide"
+                    >
+                        <Compass className="w-4 h-4" />
                     </button>
 
                     {/* Help / Replay Onboarding Button */}

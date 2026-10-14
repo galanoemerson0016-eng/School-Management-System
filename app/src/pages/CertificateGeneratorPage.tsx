@@ -343,30 +343,53 @@ export function CertificateGeneratorPage() {
 
                 const subjectName = subjects.find(s => s.id === subId)?.subject_name || 'Subject';
                 let topGrade = 0;
-                let topLrn = '';
-                let topName = '';
+                let topLearners: Array<{ lrn: string; name: string }> = [];
+
+                const isSHS = (section?.section_grade_level || '').includes('11') || (section?.section_grade_level || '').includes('12');
+                const quarters = isSHS ? [1, 2] : [1, 2, 3, 4];
 
                 sectionStudents.forEach(s => {
-                    const grade = resolveStudentQuarterGrade(
-                        s.lrn, 
-                        subId, 
-                        term === 'EOSY' ? 3 : term, 
-                        activeSchoolYear, 
-                        classRecords, 
-                        gradingSheetRecords, 
-                        hpsRecords, 
-                        section?.section_grade_level, 
-                        section?.track
-                    );
+                    let grade = 0;
+                    if (term === 'EOSY') {
+                        const qGrades = quarters.map(q => resolveStudentQuarterGrade(
+                            s.lrn,
+                            subId,
+                            q,
+                            activeSchoolYear,
+                            classRecords,
+                            gradingSheetRecords,
+                            hpsRecords,
+                            section?.section_grade_level,
+                            section?.track
+                        )).filter(g => g > 0);
+                        grade = qGrades.length > 0 ? Math.round(qGrades.reduce((sum, g) => sum + g, 0) / qGrades.length) : 0;
+                    } else {
+                        grade = resolveStudentQuarterGrade(
+                            s.lrn,
+                            subId,
+                            term,
+                            activeSchoolYear,
+                            classRecords,
+                            gradingSheetRecords,
+                            hpsRecords,
+                            section?.section_grade_level,
+                            section?.track
+                        );
+                    }
+
+                    const sName = `${s.first_name} ${s.middle_name ? s.middle_name[0] + '.' : ''} ${s.last_name}`.toUpperCase();
                     if (grade > topGrade) {
                         topGrade = grade;
-                        topLrn = s.lrn;
-                        topName = `${s.first_name} ${s.middle_name ? s.middle_name[0] + '.' : ''} ${s.last_name}`.toUpperCase();
+                        topLearners = [{ lrn: s.lrn, name: sName }];
+                    } else if (grade > 0 && grade === topGrade) {
+                        topLearners.push({ lrn: s.lrn, name: sName });
                     }
                 });
 
                 if (topGrade >= 90) { // Only award for 90+
-                    awards.push({ subject: subjectName, student: topName, average: topGrade, lrn: topLrn, selected: true });
+                    topLearners.forEach(tl => {
+                        awards.push({ subject: subjectName, student: tl.name, average: topGrade, lrn: tl.lrn, selected: true });
+                    });
                 }
             });
 
