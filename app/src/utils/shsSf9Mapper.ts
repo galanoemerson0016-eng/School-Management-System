@@ -198,6 +198,8 @@ export function mapStudentToShsSf9Data({
     subjectCode: s.subject_code || '',
     term: s.term,
     units: s.units,
+    counts_in_general_average: s.counts_in_general_average,
+    is_component: s.is_component,
     grades: computeGradesForSubject(s.id, s.subject_name, s.term),
   }));
 
@@ -208,7 +210,9 @@ export function mapStudentToShsSf9Data({
   let genFinalTotal = 0, genFinalUnits = 0;
 
   subjectGrades.forEach(sg => {
-    const isExcluded = sg.subjectName.startsWith('*') || 
+    const isExcluded = sg.counts_in_general_average === false ||
+                      Boolean(sg.is_component) ||
+                      sg.subjectName.startsWith('*') || 
                       sg.subjectName.toLowerCase().includes('arabic language') || 
                       sg.subjectName.toLowerCase().includes('islamic values');
     if (isExcluded) return;

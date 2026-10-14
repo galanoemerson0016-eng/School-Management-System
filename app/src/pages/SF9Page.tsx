@@ -61,7 +61,7 @@ import { isGrade1, getStudentBoSyEoSyAge, formatDateToMMDDYYYY, type SF9Grade1Re
 import { isGrade11Academic } from '../services/sf9-g11-academic-excel-export';
 import type { SF9ExcelExportOptions } from '../services/sf9-excel-export';
 import { filterSF9Sections } from '../lib/rbac';
-import { formatGradeForDisplay } from '../lib/grading';
+import { formatGradeForDisplay, getDescriptor as getCanonicalDescriptor } from '../lib/grading';
 import { formatLearnerName } from '../utils/student-name';
 import { getShsSubjectUnitInfo, getCurriculumTemplatesForSection, getDefaultTermForSubject, resolveSubjectOfferedTerms } from '../lib/curriculum';
 import {
@@ -90,22 +90,10 @@ const isKeyStage1 = (gradeLevel: string) => {
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const getDescriptor = (grade: number, gradeLevel: string) => {
-    if (!grade || grade <= 0) return '';
-    
-    // Key Stage 1 (Grades 1-3)
-    if (isKeyStage1(gradeLevel)) {
-        if (grade >= 90) return 'Consistent';
-        if (grade >= 80) return 'Developing';
-        return 'Beginning';
-    }
-
-    // Key Stage 2 to 4 (Grades 4-12)
-    if (grade >= 90) return 'Advancing';
-    if (grade >= 80) return 'Benchmarking';
-    if (grade >= 75) return 'Connecting';
-    if (grade >= 65) return 'Developing';
-    return 'Emerging';
+const getDescriptor = (grade: number | string, gradeLevel?: string, schoolYear?: string): string => {
+    const num = typeof grade === 'string' ? parseFloat(grade) : grade;
+    if (isNaN(num) || num <= 0) return '';
+    return getCanonicalDescriptor(num, schoolYear, gradeLevel);
 };
 
 import { getSF9SubjectsForGrade, getSubjectsForGrade, normalizeSubjectName, getCanonicalSubjectKey, sortSubjects } from '../lib/subjectConfig';
@@ -579,12 +567,12 @@ function computeStudentGrades(
 
                 if (cores.some(c => {
                     const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
-                    return normName === cNorm || normName.includes(cNorm) || cNorm.includes(normName);
+                    return normName === cNorm || (cNorm.length >= 6 && normName.includes(cNorm));
                 })) {
                     coresList.push(s);
                 } else if (applied.some(a => {
                     const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
-                    return normName === aNorm || normName.includes(aNorm) || aNorm.includes(normName);
+                    return normName === aNorm || (aNorm.length >= 6 && normName.includes(aNorm));
                 })) {
                     appliedList.push(s);
                 } else {
@@ -653,8 +641,10 @@ function computeStudentGrades(
             if (commSubjs.length > 0) {
                 const effComm = commSubjs.find(s => normalizeSubjectName(s.name) === 'effectivecommunication');
                 const mabKom = commSubjs.find(s => normalizeSubjectName(s.name) === 'mabisangkomunikasyon');
+                const ecUnits = (effComm?.units && effComm.units > 0) ? effComm.units : 2;
+                const mkUnits = (mabKom?.units && mabKom.units > 0) ? mabKom.units : 2;
                 
-                finalCores.push({ name: 'Effective Communication / Mabisang Komunikasyon' });
+                finalCores.push({ name: 'Effective Communication / Mabisang Komunikasyon', units: ecUnits + mkUnits });
                 if (effComm) {
                     finalCores.push({ ...effComm, isComponent: true });
                 }
@@ -944,7 +934,8 @@ function getGeneralAverageRemarks(
     grades: Record<string, number[]> = {}, 
     currentSubjectsList: SF9SubjectItem[] = [],
     studentLrn?: string,
-    schoolYear?: string
+    schoolYear?: string,
+    gradeLevel?: string
 ): string[] {
     if (genAvg <= 0) return [''];
     if (genAvg < 75) return ['Retained'];
@@ -952,10 +943,13 @@ function getGeneralAverageRemarks(
     const remarks = ['Promoted'];
     
     // Check if qualifies for Academic Excellence Award
-    // Criteria: GA >= 90 AND no final grade below 80 in any of the averaged learning areas
+    // Criteria: GA >= 90 AND no final grade below 85 in any of the averaged learning areas
     if (genAvg >= 90) {
         const dbSubjects = useAppStore.getState().subjects;
-        let hasGradeBelow80 = false;
+        const student = studentLrn ? useAppStore.getState().students.find(s => s.lrn === studentLrn) : undefined;
+        const effectiveGradeLevel = gradeLevel || student?.grade_level || '';
+        let hasGradeBelow85 = false;
+        let hasMissingSubjectGrade = false;
         let hasGrades = false;
 
         Object.keys(grades).forEach(key => {
@@ -988,21 +982,31 @@ function getGeneralAverageRemarks(
                 const dbSubj = subjItem?.id 
                     ? dbSubjects.find(s => s.id === subjItem.id) 
                     : dbSubjects.find(s => s.subject_name.toLowerCase().trim() === key.toLowerCase().trim());
-                const term = dbSubj?.term;
+                const term = dbSubj?.term ?? subjItem?.term;
                 if (term === 'none') return;
                 if (dbSubj?.counts_in_general_average === false || dbSubj?.is_component) return;
+
+                const isShsGrade = effectiveGradeLevel ? (effectiveGradeLevel.includes('11') || effectiveGradeLevel.includes('12')) : false;
+                const offeredTerms = isShsGrade
+                    ? resolveSubjectOfferedTerms(dbSubj || { subject_name: key, term }, { section_grade_level: effectiveGradeLevel || 'Grade 11' }).filter(t => t <= 3)
+                    : [1, 2, 3];
+                const isSubComplete = offeredTerms.every(t => (gradeRow[t - 1] ?? 0) > 0);
+                if (!isSubComplete) {
+                    hasMissingSubjectGrade = true;
+                    return;
+                }
 
                 const finalGrade = calculateFinalGrade(gradeRow, term, key);
                 if (finalGrade > 0) {
                     hasGrades = true;
-                    if (finalGrade < 80) {
-                        hasGradeBelow80 = true;
+                    if (finalGrade < 85) {
+                        hasGradeBelow85 = true;
                     }
                 }
             }
         });
 
-        if (hasGrades && !hasGradeBelow80) {
+        if (!hasMissingSubjectGrade && hasGrades && !hasGradeBelow85) {
             remarks.push('with Academic');
             remarks.push('Excellence Award');
         }
@@ -1385,8 +1389,8 @@ function SF9Pages({
 
                                             {[
                                                 { term: '1', months: [{ name: 'June', idx: 0 }, { name: 'July', idx: 1 }, { name: 'August', idx: 2 }, { name: 'September', idx: 3 }] },
-                                                { term: '2', months: [{ name: 'September', idx: 4 }, { name: 'October', idx: 5 }, { name: 'November', idx: 6 }, { name: 'December', idx: 7 }] },
-                                                { term: '3', months: [{ name: 'January', idx: 8 }, { name: 'February', idx: 9 }, { name: 'March', idx: 10 }, { name: 'April', idx: 11 }] },
+                                                { term: '2', months: [{ name: 'October', idx: 4 }, { name: 'November', idx: 5 }, { name: 'December', idx: 6 }] },
+                                                { term: '3', months: [{ name: 'January', idx: 7 }, { name: 'February', idx: 8 }, { name: 'March', idx: 9 }, { name: 'April', idx: 10 }] },
                                             ].map((tg, tgIdx) => (
                                                 <View key={tgIdx} style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: '#000' }}>
                                                     <View style={{ width: '12%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
@@ -1882,7 +1886,7 @@ function SF9Pages({
                                             </View>
                                             <View style={[styles.singleLpCellLast, { width: '15%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }]}>
                                                 {!hideGrades && showFinalAndRemarks && generalAverage > 0 ? (
-                                                    getGeneralAverageRemarks(generalAverage, grades, currentSubjects, student.lrn, schoolYear).map((line, i) => (
+                                                    getGeneralAverageRemarks(generalAverage, grades, currentSubjects, student.lrn, schoolYear, student.grade_level).map((line, i) => (
                                                         <Text key={i} style={{ fontSize: 7, lineHeight: 1.1, fontFamily: 'BookmanOldStyle-Bold' }}>{line}</Text>
                                                     ))
                                                 ) : <Text></Text>}
@@ -1897,7 +1901,7 @@ function SF9Pages({
                                                 </Text>
                                             </View>
                                             <View style={[styles.singleLpCellLast, { width: '20%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }]}>
-                                                {!hideGrades && showFinalAndRemarks && generalAverage > 0 ? getGeneralAverageRemarks(generalAverage, grades, currentSubjects, student.lrn, schoolYear).map((line, i) => (
+                                                {!hideGrades && showFinalAndRemarks && generalAverage > 0 ? getGeneralAverageRemarks(generalAverage, grades, currentSubjects, student.lrn, schoolYear, student.grade_level).map((line, i) => (
                                                     <Text key={i} style={{ fontSize: 6.5, lineHeight: 1.1, fontFamily: 'BookmanOldStyle-Bold' }}>{line}</Text>
                                                 )) : <Text></Text>}
                                             </View>
@@ -3528,7 +3532,7 @@ export function SF9Page() {
         // 4. General Average + Remarks
         const genAvg = calculateGeneralAverage(studentGrades.grades, studentGrades.subjects, selectedStudent.grade_level, subjects);
         if (genAvg > 0) {
-            const remarksLines = getGeneralAverageRemarks(genAvg, studentGrades.grades, studentGrades.subjects, selectedStudent.lrn, activeSchoolYear);
+            const remarksLines = getGeneralAverageRemarks(genAvg, studentGrades.grades, studentGrades.subjects, selectedStudent.lrn, activeSchoolYear, selectedStudent.grade_level);
             const remarksText = remarksLines.filter(l => l).join(', ');
             textToSpeak += `General Average: ${genAvg}. ${remarksText}.`;
         }

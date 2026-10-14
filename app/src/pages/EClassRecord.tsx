@@ -14,7 +14,7 @@ import { exportDirectDatabaseToExcel } from '../services/database-rescue-export'
 import { isMatchingSubject, isSameSubject, findHpsRecord, resolveStudentQuarterGrade, computeLiveTransmutedGradeFromRecord, isStudentInSection, isMaleStudent, isFemaleStudent } from '../utils/grading-helpers';
 import { normalizeSubjectName } from '../lib/subjectConfig';
 
-import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore, normalizeWeightPercent, normalizeWeightFraction, type SubjectCluster } from '../lib/grading';
+import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore, normalizeWeightPercent, normalizeWeightFraction, computeGmrcBreakdown, type SubjectCluster } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
 
 const WW_COUNT = 5;
@@ -150,7 +150,7 @@ const getSubjectCategory = (subjectName: string, gradeLevel: string): string => 
         ];
         if (cores.some(c => {
             const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return norm === cNorm || norm.includes(cNorm) || cNorm.includes(norm);
+            return norm === cNorm || (cNorm.length >= 6 && norm.includes(cNorm));
         })) {
             return 'Core';
         }
@@ -174,7 +174,7 @@ const getSubjectCategory = (subjectName: string, gradeLevel: string): string => 
         ];
         if (applied.some(a => {
             const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return norm === aNorm || norm.includes(aNorm) || aNorm.includes(norm);
+            return norm === aNorm || (aNorm.length >= 6 && norm.includes(aNorm));
         })) {
             return 'Applied';
         }
@@ -369,31 +369,6 @@ const StudentGradeRow = memo(({
             const ptAffScores = ptScores.slice(3, 6);
             const ptBehScores = ptScores.slice(6, 9);
 
-            const wwCogTotalScore = wwCogScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
-            const wwCogTotalHPS = hps.ww.slice(0, 5).reduce<number>((a, b) => a + Number(b), 0);
-            const wwCogPS = wwCogTotalHPS === 0 ? 0 : (wwCogTotalScore / wwCogTotalHPS) * 100;
-            const wwCogWS = wwCogPS * 0.10;
-
-            const wwAffTotalScore = wwAffScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
-            const wwAffTotalHPS = hps.ww.slice(5, 10).reduce<number>((a, b) => a + Number(b), 0);
-            const wwAffPS = wwAffTotalHPS === 0 ? 0 : (wwAffTotalScore / wwAffTotalHPS) * 100;
-            const wwAffWS = wwAffPS * 0.10;
-
-            const ptCogTotalScore = ptCogScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
-            const ptCogTotalHPS = hps.pt.slice(0, 3).reduce<number>((a, b) => a + Number(b), 0);
-            const ptCogPS = ptCogTotalHPS === 0 ? 0 : (ptCogTotalScore / ptCogTotalHPS) * 100;
-            const ptCogWS = ptCogPS * 0.10;
-
-            const ptAffTotalScore = ptAffScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
-            const ptAffTotalHPS = hps.pt.slice(3, 6).reduce<number>((a, b) => a + Number(b), 0);
-            const ptAffPS = ptAffTotalHPS === 0 ? 0 : (ptAffTotalScore / ptAffTotalHPS) * 100;
-            const ptAffWS = ptAffPS * 0.10;
-
-            const ptBehTotalScore = ptBehScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
-            const ptBehTotalHPS = hps.pt.slice(6, 9).reduce<number>((a, b) => a + Number(b), 0);
-            const ptBehPS = ptBehTotalHPS === 0 ? 0 : (ptBehTotalScore / ptBehTotalHPS) * 100;
-            const ptBehWS = ptBehPS * 0.30;
-
             const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : (qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]));
             const st1HPS = Number(hps.qa[0]) || 0;
             const st2Score = typeof qaScores[1] === 'number' ? qaScores[1] : (qaScores[1] === '' || qaScores[1] === null || qaScores[1] === undefined ? null : Number(qaScores[1]));
@@ -401,9 +376,30 @@ const StudentGradeRow = memo(({
             const teScore = typeof qaScores[2] === 'number' ? qaScores[2] : (qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]));
             const teHPS = Number(hps.qa[2]) || 0;
 
-            const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) ? ((st1Score as number) / st1HPS) * 30 : null;
-            const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) ? ((st2Score as number) / st2HPS) * 30 : null;
-            const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) ? ((teScore as number) / teHPS) * 40 : null;
+            const gmrc = computeGmrcBreakdown(
+                wwScores,
+                hps.ww.map(Number),
+                ptScores,
+                hps.pt.map(Number),
+                st1Score,
+                st1HPS,
+                st2Score,
+                st2HPS,
+                teScore,
+                teHPS
+            );
+
+            const wwCogTotalScore = wwCogScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const wwCogTotalHPS = hps.ww.slice(0, 5).reduce<number>((a, b) => a + Number(b), 0);
+            const wwAffTotalScore = wwAffScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const wwAffTotalHPS = hps.ww.slice(5, 10).reduce<number>((a, b) => a + Number(b), 0);
+
+            const ptCogTotalScore = ptCogScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const ptCogTotalHPS = hps.pt.slice(0, 3).reduce<number>((a, b) => a + Number(b), 0);
+            const ptAffTotalScore = ptAffScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const ptAffTotalHPS = hps.pt.slice(3, 6).reduce<number>((a, b) => a + Number(b), 0);
+            const ptBehTotalScore = ptBehScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const ptBehTotalHPS = hps.pt.slice(6, 9).reduce<number>((a, b) => a + Number(b), 0);
 
             let qaScore = 0;
             let qaHPS = 0;
@@ -420,10 +416,7 @@ const StudentGradeRow = memo(({
                 qaScore += (teScore as number);
             }
 
-            const qaPS = (st1WS !== null || st2WS !== null || teWS !== null) ? ((st1WS || 0) + (st2WS || 0) + (teWS || 0)) : 0;
-            const qaWS = qaPS * 0.30;
-
-            const initialGrade = (wwCogWS || 0) + (wwAffWS || 0) + (ptCogWS || 0) + (ptAffWS || 0) + (ptBehWS || 0) + (qaWS || 0);
+            const initialGrade = gmrc.initialGrade;
             const quarterlyGrade = hasScores ? transmuteGrade(initialGrade, activeSchoolYear) : 0;
 
             return {
@@ -433,19 +426,19 @@ const StudentGradeRow = memo(({
                 hasScores,
                 wwTotalScore: 0,
                 wwTotalHPS: 0,
-                wwPS: 0,
-                wwWS: 0,
+                wwPS: gmrc.wwPS,
+                wwWS: gmrc.wwWS,
                 ptTotalScore: 0,
                 ptTotalHPS: 0,
-                ptPS: 0,
-                ptWS: 0,
-                wwCog: wwCogScores, wwCogTotalScore, wwCogTotalHPS, wwCogPS, wwCogWS,
-                wwAff: wwAffScores, wwAffTotalScore, wwAffTotalHPS, wwAffPS, wwAffWS,
-                ptCog: ptCogScores, ptCogTotalScore, ptCogTotalHPS, ptCogPS, ptCogWS,
-                ptAff: ptAffScores, ptAffTotalScore, ptAffTotalHPS, ptAffPS, ptAffWS,
-                ptBeh: ptBehScores, ptBehTotalScore, ptBehTotalHPS, ptBehPS, ptBehWS,
-                st1WS, st2WS, teWS,
-                qaScore, qaHPS, qaPS, qaWS,
+                ptPS: gmrc.ptPS,
+                ptWS: gmrc.ptWS,
+                wwCog: wwCogScores, wwCogTotalScore, wwCogTotalHPS, wwCogPS: gmrc.wwCogPS, wwCogWS: gmrc.wwCogWS,
+                wwAff: wwAffScores, wwAffTotalScore, wwAffTotalHPS, wwAffPS: gmrc.wwAffPS, wwAffWS: gmrc.wwAffWS,
+                ptCog: ptCogScores, ptCogTotalScore, ptCogTotalHPS, ptCogPS: gmrc.ptCogPS, ptCogWS: gmrc.ptCogWS,
+                ptAff: ptAffScores, ptAffTotalScore, ptAffTotalHPS, ptAffPS: gmrc.ptAffPS, ptAffWS: gmrc.ptAffWS,
+                ptBeh: ptBehScores, ptBehTotalScore, ptBehTotalHPS, ptBehPS: gmrc.ptBehPS, ptBehWS: gmrc.ptBehWS,
+                st1WS: gmrc.st1WS, st2WS: gmrc.st2WS, teWS: gmrc.teWS,
+                qaScore, qaHPS, qaPS: gmrc.qaPS, qaWS: gmrc.qaWS,
                 initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
                 quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
             };
@@ -1286,31 +1279,6 @@ export function EClassRecord() {
             const ptAffScores = ptScores.slice(3, 6);
             const ptBehScores = ptScores.slice(6, 9);
 
-            const wwCogTotalScore = wwCogScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
-            const wwCogTotalHPS = hps.ww.slice(0, 5).reduce<number>((a, b) => a + Number(b), 0);
-            const wwCogPS = wwCogTotalHPS === 0 ? 0 : (wwCogTotalScore / wwCogTotalHPS) * 100;
-            const wwCogWS = wwCogPS * 0.10;
-
-            const wwAffTotalScore = wwAffScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
-            const wwAffTotalHPS = hps.ww.slice(5, 10).reduce<number>((a, b) => a + Number(b), 0);
-            const wwAffPS = wwAffTotalHPS === 0 ? 0 : (wwAffTotalScore / wwAffTotalHPS) * 100;
-            const wwAffWS = wwAffPS * 0.10;
-
-            const ptCogTotalScore = ptCogScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
-            const ptCogTotalHPS = hps.pt.slice(0, 3).reduce<number>((a, b) => a + Number(b), 0);
-            const ptCogPS = ptCogTotalHPS === 0 ? 0 : (ptCogTotalScore / ptCogTotalHPS) * 100;
-            const ptCogWS = ptCogPS * 0.10;
-
-            const ptAffTotalScore = ptAffScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
-            const ptAffTotalHPS = hps.pt.slice(3, 6).reduce<number>((a, b) => a + Number(b), 0);
-            const ptAffPS = ptAffTotalHPS === 0 ? 0 : (ptAffTotalScore / ptAffTotalHPS) * 100;
-            const ptAffWS = ptAffPS * 0.10;
-
-            const ptBehTotalScore = ptBehScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
-            const ptBehTotalHPS = hps.pt.slice(6, 9).reduce<number>((a, b) => a + Number(b), 0);
-            const ptBehPS = ptBehTotalHPS === 0 ? 0 : (ptBehTotalScore / ptBehTotalHPS) * 100;
-            const ptBehWS = ptBehPS * 0.30;
-
             const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : (qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]));
             const st1HPS = Number(hps.qa[0]) || 0;
             const st2Score = typeof qaScores[1] === 'number' ? qaScores[1] : (qaScores[1] === '' || qaScores[1] === null || qaScores[1] === undefined ? null : Number(qaScores[1]));
@@ -1318,9 +1286,30 @@ export function EClassRecord() {
             const teScore = typeof qaScores[2] === 'number' ? qaScores[2] : (qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]));
             const teHPS = Number(hps.qa[2]) || 0;
 
-            const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) ? ((st1Score as number) / st1HPS) * 30 : null;
-            const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) ? ((st2Score as number) / st2HPS) * 30 : null;
-            const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) ? ((teScore as number) / teHPS) * 40 : null;
+            const gmrc = computeGmrcBreakdown(
+                wwScores,
+                hps.ww.map(Number),
+                ptScores,
+                hps.pt.map(Number),
+                st1Score,
+                st1HPS,
+                st2Score,
+                st2HPS,
+                teScore,
+                teHPS
+            );
+
+            const wwCogTotalScore = wwCogScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const wwCogTotalHPS = hps.ww.slice(0, 5).reduce<number>((a, b) => a + Number(b), 0);
+            const wwAffTotalScore = wwAffScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const wwAffTotalHPS = hps.ww.slice(5, 10).reduce<number>((a, b) => a + Number(b), 0);
+
+            const ptCogTotalScore = ptCogScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const ptCogTotalHPS = hps.pt.slice(0, 3).reduce<number>((a, b) => a + Number(b), 0);
+            const ptAffTotalScore = ptAffScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const ptAffTotalHPS = hps.pt.slice(3, 6).reduce<number>((a, b) => a + Number(b), 0);
+            const ptBehTotalScore = ptBehScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const ptBehTotalHPS = hps.pt.slice(6, 9).reduce<number>((a, b) => a + Number(b), 0);
 
             let qaScore = 0;
             let qaHPS = 0;
@@ -1337,10 +1326,7 @@ export function EClassRecord() {
                 qaScore += (teScore as number);
             }
 
-            const qaPS = (st1WS !== null || st2WS !== null || teWS !== null) ? ((st1WS || 0) + (st2WS || 0) + (teWS || 0)) : 0;
-            const qaWS = qaPS * 0.30;
-
-            const initialGrade = (wwCogWS || 0) + (wwAffWS || 0) + (ptCogWS || 0) + (ptAffWS || 0) + (ptBehWS || 0) + (qaWS || 0);
+            const initialGrade = gmrc.initialGrade;
             const quarterlyGrade = hasScores ? transmuteGrade(initialGrade, activeSchoolYear) : 0;
 
             return {
@@ -1348,12 +1334,12 @@ export function EClassRecord() {
                 pt: ptScores,
                 qa: qaScores,
                 hasScores,
-                wwCog: wwCogScores, wwCogTotalScore, wwCogTotalHPS, wwCogPS, wwCogWS,
-                wwAff: wwAffScores, wwAffTotalScore, wwAffTotalHPS, wwAffPS, wwAffWS,
-                ptCog: ptCogScores, ptCogTotalScore, ptCogTotalHPS, ptCogPS, ptCogWS,
-                ptAff: ptAffScores, ptAffTotalScore, ptAffTotalHPS, ptAffPS, ptAffWS,
-                ptBeh: ptBehScores, ptBehTotalScore, ptBehTotalHPS, ptBehPS, ptBehWS,
-                qaScore, qaHPS, qaPS, qaWS,
+                wwCog: wwCogScores, wwCogTotalScore, wwCogTotalHPS, wwCogPS: gmrc.wwCogPS, wwCogWS: gmrc.wwCogWS,
+                wwAff: wwAffScores, wwAffTotalScore, wwAffTotalHPS, wwAffPS: gmrc.wwAffPS, wwAffWS: gmrc.wwAffWS,
+                ptCog: ptCogScores, ptCogTotalScore, ptCogTotalHPS, ptCogPS: gmrc.ptCogPS, ptCogWS: gmrc.ptCogWS,
+                ptAff: ptAffScores, ptAffTotalScore, ptAffTotalHPS, ptAffPS: gmrc.ptAffPS, ptAffWS: gmrc.ptAffWS,
+                ptBeh: ptBehScores, ptBehTotalScore, ptBehTotalHPS, ptBehPS: gmrc.ptBehPS, ptBehWS: gmrc.ptBehWS,
+                qaScore, qaHPS, qaPS: gmrc.qaPS, qaWS: gmrc.qaWS,
                 initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
                 quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
             };
@@ -1447,8 +1433,8 @@ export function EClassRecord() {
                 sectionId: selectedSectionObj?.id || selectedSection,
             });
 
-            const subjCluster = getSubjectCluster(subj.subject_name, sectionGradeLevel);
-            const subjWeights = getWeights(subjCluster);
+            const subjCluster = getSubjectCluster(subj.subject_name, sectionGradeLevel, sectionTrack);
+            const subjWeights = getWeights(subjCluster, subj);
 
             let calculated = 0;
             if (record) {
@@ -1619,7 +1605,7 @@ export function EClassRecord() {
             descriptor,
             isMapeh: false
         };
-    }, [classRecords, gradingSheetRecords, hpsRecords, subjectName, selectedSubject, activeSchoolYear, quarter, mapehComponents, getGradeDescriptor, subjects, isMapehSelected, selectedSectionObj, selectedSection, sectionGradeLevel]);
+    }, [classRecords, gradingSheetRecords, hpsRecords, subjectName, selectedSubject, activeSchoolYear, quarter, mapehComponents, getGradeDescriptor, subjects, isMapehSelected, selectedSectionObj, selectedSection, sectionGradeLevel, sectionTrack]);
 
     const proficiencyDataCalc = useMemo(() => {
         const levels = [
@@ -1815,31 +1801,6 @@ export function EClassRecord() {
             let initialGrade = 0;
 
             if (isGMRCSubject) {
-                const sWwCogTotal = sWw.slice(0, 5).reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
-                const hpsWwCogTotal = currentHpsWw.slice(0, 5).reduce((a, b) => a + b, 0);
-                const wwCogPS = hpsWwCogTotal === 0 ? 0 : Math.min(100, Math.max(0, (sWwCogTotal / hpsWwCogTotal) * 100));
-                const wwCogWS = wwCogPS * 0.10;
-
-                const sWwAffTotal = sWw.slice(5, 10).reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
-                const hpsWwAffTotal = currentHpsWw.slice(5, 10).reduce((a, b) => a + b, 0);
-                const wwAffPS = hpsWwAffTotal === 0 ? 0 : Math.min(100, Math.max(0, (sWwAffTotal / hpsWwAffTotal) * 100));
-                const wwAffWS = wwAffPS * 0.10;
-
-                const sPtCogTotal = sPt.slice(0, 3).reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
-                const hpsPtCogTotal = currentHpsPt.slice(0, 3).reduce((a, b) => a + b, 0);
-                const ptCogPS = hpsPtCogTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtCogTotal / hpsPtCogTotal) * 100));
-                const ptCogWS = ptCogPS * 0.10;
-
-                const sPtAffTotal = sPt.slice(3, 6).reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
-                const hpsPtAffTotal = currentHpsPt.slice(3, 6).reduce((a, b) => a + b, 0);
-                const ptAffPS = hpsPtAffTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtAffTotal / hpsPtAffTotal) * 100));
-                const ptAffWS = ptAffPS * 0.10;
-
-                const sPtBehTotal = sPt.slice(6, 9).reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
-                const hpsPtBehTotal = currentHpsPt.slice(6, 9).reduce((a, b) => a + b, 0);
-                const ptBehPS = hpsPtBehTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtBehTotal / hpsPtBehTotal) * 100));
-                const ptBehWS = ptBehPS * 0.30;
-
                 const st1Score = sQa[0] === '' || sQa[0] === null || sQa[0] === undefined ? null : Number(sQa[0]);
                 const st1HPS = Number(currentHpsQa[0]) || 0;
                 const st2Score = sQa[1] === '' || sQa[1] === null || sQa[1] === undefined ? null : Number(sQa[1]);
@@ -1847,13 +1808,19 @@ export function EClassRecord() {
                 const teScore = sQa[2] === '' || sQa[2] === null || sQa[2] === undefined ? null : Number(sQa[2]);
                 const teHPS = Number(currentHpsQa[2]) || 0;
 
-                const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score)) ? (st1Score / st1HPS) * 30 : 0;
-                const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score)) ? (st2Score / st2HPS) * 30 : 0;
-                const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore)) ? (teScore / teHPS) * 40 : 0;
-                const qaPS = st1WS + st2WS + teWS;
-                const qaWS = qaPS * 0.30;
-
-                initialGrade = Math.min(100, Math.max(0, wwCogWS + wwAffWS + ptCogWS + ptAffWS + ptBehWS + qaWS));
+                const gmrc = computeGmrcBreakdown(
+                    sWw,
+                    currentHpsWw,
+                    sPt,
+                    currentHpsPt,
+                    st1Score,
+                    st1HPS,
+                    st2Score,
+                    st2HPS,
+                    teScore,
+                    teHPS
+                );
+                initialGrade = gmrc.initialGrade;
             } else {
                 const sWwTotal = sWw.reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
                 const sPtTotal = sPt.reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
@@ -1972,31 +1939,6 @@ export function EClassRecord() {
         let initialGrade = 0;
 
         if (isGMRCSubject) {
-            const wwCogTotal = normalizedWW.slice(0, 5).reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
-            const wwCogHPS = hps.ww.slice(0, 5).reduce<number>((a, b) => a + Number(b), 0);
-            const wwCogPS = wwCogHPS === 0 ? 0 : (wwCogTotal / wwCogHPS) * 100;
-            const wwCogWS = wwCogPS * 0.10;
-
-            const wwAffTotal = normalizedWW.slice(5, 10).reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
-            const wwAffHPS = hps.ww.slice(5, 10).reduce<number>((a, b) => a + Number(b), 0);
-            const wwAffPS = wwAffHPS === 0 ? 0 : (wwAffTotal / wwAffHPS) * 100;
-            const wwAffWS = wwAffPS * 0.10;
-
-            const ptCogTotal = normalizedPT.slice(0, 3).reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
-            const ptCogHPS = hps.pt.slice(0, 3).reduce<number>((a, b) => a + Number(b), 0);
-            const ptCogPS = ptCogHPS === 0 ? 0 : (ptCogTotal / ptCogHPS) * 100;
-            const ptCogWS = ptCogPS * 0.10;
-
-            const ptAffTotal = normalizedPT.slice(3, 6).reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
-            const ptAffHPS = hps.pt.slice(3, 6).reduce<number>((a, b) => a + Number(b), 0);
-            const ptAffPS = ptAffHPS === 0 ? 0 : (ptAffTotal / ptAffHPS) * 100;
-            const ptAffWS = ptAffPS * 0.10;
-
-            const ptBehTotal = normalizedPT.slice(6, 9).reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
-            const ptBehHPS = hps.pt.slice(6, 9).reduce<number>((a, b) => a + Number(b), 0);
-            const ptBehPS = ptBehHPS === 0 ? 0 : (ptBehTotal / ptBehHPS) * 100;
-            const ptBehWS = ptBehPS * 0.30;
-
             const st1Score = qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]);
             const st1HPS = Number(hps.qa[0]) || 0;
             const st2Score = qaScores[1] === '' || qaScores[1] === null || qaScores[1] === undefined ? null : Number(qaScores[1]);
@@ -2004,14 +1946,19 @@ export function EClassRecord() {
             const teScore = qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]);
             const teHPS = Number(hps.qa[2]) || 0;
 
-            const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score)) ? (st1Score / st1HPS) * 30 : null;
-            const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score)) ? (st2Score / st2HPS) * 30 : null;
-            const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore)) ? (teScore / teHPS) * 40 : null;
-
-            const qaPS = (st1WS !== null || st2WS !== null || teWS !== null) ? ((st1WS || 0) + (st2WS || 0) + (teWS || 0)) : 0;
-            const qaWS = qaPS * 0.30;
-
-            initialGrade = (wwCogWS || 0) + (wwAffWS || 0) + (ptCogWS || 0) + (ptAffWS || 0) + (ptBehWS || 0) + (qaWS || 0);
+            const gmrc = computeGmrcBreakdown(
+                normalizedWW,
+                hps.ww.map(Number),
+                normalizedPT,
+                hps.pt.map(Number),
+                st1Score,
+                st1HPS,
+                st2Score,
+                st2HPS,
+                teScore,
+                teHPS
+            );
+            initialGrade = gmrc.initialGrade;
         } else {
             const wwTotalScore = normalizedWW.reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
             const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b), 0);

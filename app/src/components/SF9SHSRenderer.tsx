@@ -260,7 +260,7 @@ export const SF9SHSPages: React.FC<SF9SHSPagesProps> = ({
             ];
             if (cores.some(c => {
                 const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
-                return norm === cNorm || norm.includes(cNorm) || cNorm.includes(norm);
+                return norm === cNorm || (cNorm.length >= 6 && norm.includes(cNorm));
             })) {
                 return 'Core Subjects';
             }
@@ -284,7 +284,7 @@ export const SF9SHSPages: React.FC<SF9SHSPagesProps> = ({
             ];
             if (applied.some(a => {
                 const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
-                return norm === aNorm || norm.includes(aNorm) || aNorm.includes(norm);
+                return norm === aNorm || (aNorm.length >= 6 && norm.includes(aNorm));
             })) {
                 return 'Applied Subjects';
             }

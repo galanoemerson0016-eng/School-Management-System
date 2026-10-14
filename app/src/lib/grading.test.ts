@@ -23,6 +23,7 @@ import {
   isKeyStage1,
   normalizeWeightFraction,
   normalizeWeightPercent,
+  computeGmrcBreakdown,
   type SubjectCluster,
 } from './grading';
 
@@ -450,4 +451,34 @@ describe('Weight Normalization & 100x Unnormalized Score Self-Healing', () => {
     expect(transmuteGrade(8489.50, TRANSITION_SY)).toBe(87);
   });
 });
+
+describe('v3.5.22 logic audit regressions', () => {
+  it('L-03: normalizes GMRC exam & sub-domain scores when ST1/ST2 or affective HPS are 0', () => {
+    const res = computeGmrcBreakdown(
+      [10, 10, 0, 0, 0, 0, 0, 0, 0, 0],
+      [10, 10, 0, 0, 0, 0, 0, 0, 0, 0], // WW Cognitive only (20/20 -> 20% WS)
+      [20, 0, 0, 0, 0, 0, 0, 0, 0],
+      [20, 0, 0, 0, 0, 0, 0, 0, 0],     // PT Cognitive only (20/20 -> 50% WS)
+      null, 0,
+      null, 0,
+      50, 50                            // Term Exam only (50/50 -> 30% WS)
+    );
+    expect(res.wwWS).toBeCloseTo(20, 5);
+    expect(res.ptWS).toBeCloseTo(50, 5);
+    expect(res.qaPS).toBeCloseTo(100, 5);
+    expect(res.qaWS).toBeCloseTo(30, 5);
+    expect(res.initialGrade).toBeCloseTo(100, 5);
+  });
+
+  it('L-08: does not misclassify short Grade 12 Specialized subjects as Core via reverse substring match', () => {
+    expect(getSubjectCluster('Arts', 'Grade 12', 'Academic')).toBe('g12_academic_other');
+    expect(getSubjectCluster('Creative Writing', 'Grade 12', 'Academic')).toBe('g12_academic_other');
+    expect(getSubjectCluster('Philippine Politics and Governance', 'Grade 12', 'Academic')).toBe('g12_academic_other');
+  });
+
+  it('L-09: closes the 24.0-24.99 transmutation gap for pre-2026 school years', () => {
+    expect(transmuteGrade(24.5, '2025-2026')).toBe(60);
+  });
+});
+
 

@@ -1537,7 +1537,7 @@ export function isTraditionalCoreSubject(subjectName: string): boolean {
         "understandingculturesocietyandpolitics"
     ];
 
-    return cores.some(c => norm === c || norm.includes(c) || c.includes(norm));
+    return cores.some(c => norm === c || (c.length >= 6 && norm.includes(c)));
 }
 
 /**
@@ -1562,7 +1562,7 @@ export function isTraditionalAppliedSubject(subjectName: string): boolean {
         "practicalresearch1",
         "practicalresearch2"
     ];
-    return applied.some(a => norm === a || norm.includes(a) || a.includes(norm));
+    return applied.some(a => norm === a || (a.length >= 6 && norm.includes(a)));
 }
 
 /**
@@ -1795,6 +1795,7 @@ export function getShsSubjectUnitInfo(subjectName: string, gradeLevel: string): 
     const norm = (subjectName || '').trim().toLowerCase();
 
     // 1. Grade 11 Core Subjects: 160 hrs across 3 terms = 2 units per term, 6 units per year
+
     const g11Cores = [
         'effective communication',
         'mabisang komunikasyon',
@@ -2031,7 +2032,7 @@ export const getShsCategoryForSubject = (subjectName: string, gradeLevel: string
         // Traditional K-12 Core match (e.g. Oral Comm, Reading & Writing, 21st Century Lit, Earth & Life Sci, etc.)
         if (traditionalCores.some(c => {
             const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return norm === cNorm || norm.includes(cNorm) || cNorm.includes(norm);
+            return norm === cNorm || (cNorm.length >= 6 && norm.includes(cNorm));
         })) {
             return 'Core Subjects';
         }
@@ -2039,7 +2040,7 @@ export const getShsCategoryForSubject = (subjectName: string, gradeLevel: string
         // Traditional K-12 Applied match (e.g. Practical Research 1, EAPP, etc.)
         if (traditionalApplied.some(a => {
             const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return norm === aNorm || norm.includes(aNorm) || aNorm.includes(norm);
+            return norm === aNorm || (aNorm.length >= 6 && norm.includes(aNorm));
         })) {
             return 'Applied Subjects';
         }

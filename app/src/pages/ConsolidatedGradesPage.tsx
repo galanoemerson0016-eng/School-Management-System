@@ -15,7 +15,7 @@ import { getDefaultTermForSubject, getShsSubjectUnitInfo, getCurriculumTemplates
 import { resolveStudentQuarterGrade, isMatchingSubject, isSameSubject, normalizeGrade12PESubjectName, cleanSubjectQuery, isQuarterMatch, isSubjectInTeachingLoad, extractSubjectSequence, isStudentInSection, isMaleStudent, isFemaleStudent } from '../utils/grading-helpers';
 import { autoRepairSectionCurriculum } from '../services/curriculumSync';
 import { getCurriculumPreset } from '../lib/curriculumPresets';
-import type { Subject, ClassRecord, Section } from '../types';
+import type { Subject, ClassRecord, Section, Student } from '../types';
 import { useTableCrosshair } from '../hooks/useTableCrosshair';
 
 type QuarterGrades = {
@@ -1502,23 +1502,15 @@ const groupedSections = useMemo(() => {
                     }
                 }
             }
-            if (sectionGradeNum === 11) {
-                if (isGrade11CoreSubject(s.subject_name)) {
-                    return 'all';
-                }
-                // For Grade 11 electives: if stored term is 1, 2, or 3, respect it
-                if (s.term === 1 || s.term === 2 || s.term === 3 || s.term === '1' || s.term === '2' || s.term === '3') {
-                    return Number(s.term) as 1 | 2 | 3;
-                }
-                // If stored term was corrupted as 'all' or 'none', fallback to intelligent default
-                const def = getDefaultTermForSubject(s.subject_name, 11);
-                if (def === 1 || def === 2 || def === 3) return def;
-                return 1;
+            if (sectionGradeNum === 11 && isGrade11CoreSubject(s.subject_name)) {
+                return 'all';
             }
-            if (s.term !== undefined && s.term !== null && s.term !== 'none') {
-                if (s.term === 1 || s.term === 2 || s.term === 3) return s.term;
-                if (s.term === 'all') return 'all';
-                if (s.term === '1' || s.term === '2' || s.term === '3') return Number(s.term) as 1 | 2 | 3;
+            if (s.term !== undefined && s.term !== null) {
+                const t = s.term;
+                if (t === 'all' || t === 'none' || t === 1 || t === 2 || t === 3) return t;
+                if (t === '1') return 1;
+                if (t === '2') return 2;
+                if (t === '3') return 3;
             }
             return getDefaultTermForSubject(s.subject_name, (s as Subject).grade_level || sectionObj.section_grade_level);
         };
@@ -1718,9 +1710,13 @@ const groupedSections = useMemo(() => {
                     const effTerm = getEffectiveTerm(s);
                     // Elementary & JHS subjects run all year
                     if (!isSHS) return true;
-                    // SSHS Grade 11 Core subjects span all 3 terms
-                    if (sectionGradeNum === 11 && (effTerm === 'all' || isGrade11CoreSubject(s.subject_name))) return true;
-                    // Grade 12 subjects and SHS electives strictly render in their designated offering term
+                    if (!effTerm || effTerm === 'all') return true;
+                    if (sectionGradeNum === 11 && isGrade11CoreSubject(s.subject_name)) {
+                        return true;
+                    }
+                    if (typeof effTerm === 'string' && effTerm.includes(',')) {
+                        return effTerm.split(',').map(Number).includes(termNum);
+                    }
                     return Number(effTerm) === termNum;
                 });
             }
@@ -3015,6 +3011,31 @@ const groupedSections = useMemo(() => {
         }
     };
 
+    const isExcludedFromGeneralAverage = (subj: Subject) =>
+        subj.counts_in_general_average === false ||
+        Boolean(subj.is_component) ||
+        subj.subject_name.startsWith('*') ||
+        subj.subject_name.toLowerCase().includes('arabic language') ||
+        subj.subject_name.toLowerCase().includes('islamic values');
+
+    const getSubjectTermUnits = (subj: Subject & { _ecmkGroups?: { effectiveComm: Subject[]; mabisangKom: Subject[] } }): number => {
+        const gradeLvl = sectionObj?.section_grade_level || 'Grade 11';
+        if (subj._ecmkGroups) {
+            const ecSub = subj._ecmkGroups.effectiveComm[0];
+            const mkSub = subj._ecmkGroups.mabisangKom[0];
+            const ecUnits = (ecSub?.units && ecSub.units > 0) ? ecSub.units : getShsSubjectUnitInfo('Effective Communication', gradeLvl).unitsPerTerm;
+            const mkUnits = (mkSub?.units && mkSub.units > 0) ? mkSub.units : getShsSubjectUnitInfo('Mabisang Komunikasyon', gradeLvl).unitsPerTerm;
+            return ecUnits + mkUnits;
+        }
+        if (subj.units && subj.units > 0) return subj.units;
+        return getShsSubjectUnitInfo(subj.subject_name, gradeLvl).unitsPerTerm;
+    };
+
+    const getSubjectYearUnits = (subj: Subject & { _ecmkGroups?: { effectiveComm: Subject[]; mabisangKom: Subject[] } }, offeredTermsCount: number): number => {
+        const termUnits = getSubjectTermUnits(subj);
+        return termUnits * Math.max(1, offeredTermsCount);
+    };
+
     // GRADES COMPUTATION
     const gradesData = useMemo(() => {
         const data: GradesData = {};
@@ -3086,9 +3107,7 @@ const groupedSections = useMemo(() => {
 
                     const offeredTerms = resolveSubjectOfferedTerms(subject, sectionObj).filter(term => term <= 3);
                     const finalGrade = calculateQuarterlyFinalGrade(virtualTermGrades, offeredTerms, offeredTerms, completeTermGrades);
-                    const isExcluded = subject.subject_name.startsWith('*') ||
-                        subject.subject_name.toLowerCase().includes('arabic language') ||
-                        subject.subject_name.toLowerCase().includes('islamic values');
+                    const isExcluded = isExcludedFromGeneralAverage(subject);
                     if (!isExcluded && offeredTerms.length > 0) finalAverageStatuses.push(finalGrade.status);
                     if (finalGrade.status !== 'missing') {
                         const finalRating = finalGrade.value;
@@ -3098,8 +3117,7 @@ const groupedSections = useMemo(() => {
 
                         if (!isExcluded) {
                             if (isSHSSection) {
-                                const unitInfo = getShsSubjectUnitInfo(subject.subject_name, sectionObj?.section_grade_level || 'Grade 11');
-                                const yearUnits = unitInfo.yearUnits;
+                                const yearUnits = getSubjectYearUnits(subject, offeredTerms.length);
                                 finalAverageEntries.push({ grade: finalRating, weight: yearUnits });
                             } else {
                                 finalAverageEntries.push({ grade: finalRating, weight: 1 });
@@ -3147,19 +3165,21 @@ const groupedSections = useMemo(() => {
 
                     const offeredTerms = resolveSubjectOfferedTerms(subject, sectionObj).filter(term => term <= 3);
                     const finalGrade = calculateQuarterlyFinalGrade(virtualTermGrades, offeredTerms, offeredTerms, completeTermGrades);
-                    if (offeredTerms.length > 0) finalAverageStatuses.push(finalGrade.status);
+                    const isExcluded = isExcludedFromGeneralAverage(subject);
+                    if (!isExcluded && offeredTerms.length > 0) finalAverageStatuses.push(finalGrade.status);
                     if (finalGrade.status !== 'missing') {
                         const finalRating = finalGrade.value;
                         subjectGrades.final = finalRating;
                         subjectGrades.finalStatus = finalGrade.status;
                         studentData[subject.id] = subjectGrades;
                         
-                        if (isSHSSection) {
-                            const ecUnitInfo = getShsSubjectUnitInfo('Effective Communication', sectionObj?.section_grade_level || 'Grade 11');
-                            const yearUnits = ecUnitInfo.yearUnits;
-                            finalAverageEntries.push({ grade: finalRating, weight: yearUnits });
-                        } else {
-                            finalAverageEntries.push({ grade: finalRating, weight: 1 });
+                        if (!isExcluded) {
+                            if (isSHSSection) {
+                                const yearUnits = getSubjectYearUnits(subject, offeredTerms.length);
+                                finalAverageEntries.push({ grade: finalRating, weight: yearUnits });
+                            } else {
+                                finalAverageEntries.push({ grade: finalRating, weight: 1 });
+                            }
                         }
                     } else {
                         studentData[subject.id] = {};
@@ -3180,9 +3200,7 @@ const groupedSections = useMemo(() => {
 
                     const offeredTerms = resolveSubjectOfferedTerms(subject, sectionObj).filter(term => term <= 3);
                     const finalGrade = calculateQuarterlyFinalGrade(subjectTermGrades, offeredTerms, offeredTerms);
-                    const isExcluded = subject.subject_name.startsWith('*') ||
-                        subject.subject_name.toLowerCase().includes('arabic language') ||
-                        subject.subject_name.toLowerCase().includes('islamic values');
+                    const isExcluded = isExcludedFromGeneralAverage(subject);
                     if (!isExcluded && offeredTerms.length > 0) finalAverageStatuses.push(finalGrade.status);
                     if (finalGrade.status !== 'missing') {
                         const finalRating = finalGrade.value;
@@ -3192,8 +3210,7 @@ const groupedSections = useMemo(() => {
 
                         if (!isExcluded) {
                             if (isSHSSection) {
-                                const unitInfo = getShsSubjectUnitInfo(subject.subject_name, sectionObj?.section_grade_level || 'Grade 11');
-                                const yearUnits = unitInfo.yearUnits;
+                                const yearUnits = getSubjectYearUnits(subject, offeredTerms.length);
                                 finalAverageEntries.push({ grade: finalRating, weight: yearUnits });
                             } else {
                                 finalAverageEntries.push({ grade: finalRating, weight: 1 });
@@ -3241,9 +3258,7 @@ const groupedSections = useMemo(() => {
 
                     const sData = studentData[subject.id] || {};
                     const val = getQuarterGradeValue(sData[activeTerm as QuarterKey]);
-                    const isExcluded = subject.subject_name.startsWith('*') ||
-                        subject.subject_name.toLowerCase().includes('arabic language') ||
-                        subject.subject_name.toLowerCase().includes('islamic values');
+                    const isExcluded = isExcludedFromGeneralAverage(subject);
                     const offeredTerms = resolveSubjectOfferedTerms(subject, sectionObj);
                     if (!isExcluded && offeredTerms.includes(activeTermNum)) {
                         const detail = sData[activeTerm as QuarterKey] as any;
@@ -3258,8 +3273,7 @@ const groupedSections = useMemo(() => {
 
                     if (val !== null && val > 0 && !isExcluded && offeredTerms.includes(activeTermNum)) {
                         if (isSHSSection) {
-                            const unitInfo = getShsSubjectUnitInfo(subject.subject_name, sectionObj?.section_grade_level || 'Grade 11');
-                            const termUnits = unitInfo.unitsPerTerm;
+                            const termUnits = getSubjectTermUnits(subject);
                             termAverageEntries.push({ grade: val, weight: termUnits });
                         } else {
                             termAverageEntries.push({ grade: val, weight: 1 });
@@ -3450,41 +3464,50 @@ const groupedSections = useMemo(() => {
         };
 
         const isQuarter = selectedTerm !== 'all';
+        const activeTerm = isQuarter ? (selectedTerm as QuarterKey) : null;
         
-        sectionStudents.forEach(student => {
+        const checkStudent = (student: Student) => {
             const sData = gradesData[student.lrn];
-            if (!sData) return;
+            if (!sData || !sData.generalAverage || sData.generalAverageStatus !== 'complete') return null;
 
-            const avgStr = isQuarter ? sData.termAverage : sData.generalAverage;
-            if (!avgStr || avgStr === '') return;
+            const avgStr = activeTerm ? sData.termAverage : sData.generalAverage;
+            if (!avgStr || avgStr === '') return null;
             const avg = Number(avgStr);
+            if (isNaN(avg) || avg < 90) return null;
 
-            if (avg >= 90) {
-                let hasGradeBelow80 = false;
-                let hasGrades = false;
-                
-                subjectColumns.forEach(({ subject }) => {
-                    const subGradeObj = sData[subject.id];
-                    if (subGradeObj) {
-                        const gradeVal = getQuarterGradeValue(isQuarter ? subGradeObj[selectedTerm as QuarterKey] : subGradeObj.final);
-                        if (typeof gradeVal === 'number' && gradeVal > 0) {
-                            hasGrades = true;
-                            if (gradeVal < 80) {
-                                hasGradeBelow80 = true;
-                            }
-                        }
-                    }
-                });
-
-                if (hasGrades && !hasGradeBelow80) {
-                    const studentName = `${student.last_name}, ${student.first_name} ${student.middle_name ? student.middle_name[0] + '.' : ''}`;
-                    const isMale = (student.gender || '').toLowerCase() === 'male';
-                    const record = { name: studentName, average: avg.toFixed(2), lrn: student.lrn };
-
-                    if (isMale) stats.male++;
-                    else stats.female++;
-                    stats.students.push(record);
+            // Verify no subject grade is below 85 (DepEd Order No. 36, s. 2016)
+            for (const { subject } of subjectColumns) {
+                if (isExcludedFromGeneralAverage(subject)) continue;
+                const subjEntry = sData[subject.id];
+                const gradeVal = activeTerm
+                    ? (typeof subjEntry?.[activeTerm] === 'object' ? subjEntry[activeTerm]?.value : subjEntry?.[activeTerm])
+                    : subjEntry?.final;
+                if (typeof gradeVal === 'number' && gradeVal > 0 && gradeVal < 85) {
+                    return null;
                 }
+            }
+
+            return avg;
+        };
+
+        const maleStudents = sectionStudents.filter(s => isMaleStudent(s));
+        const femaleStudents = sectionStudents.filter(s => isFemaleStudent(s));
+
+        maleStudents.forEach(student => {
+            const avg = checkStudent(student);
+            if (avg !== null) {
+                const studentName = `${student.last_name}, ${student.first_name} ${student.middle_name ? student.middle_name[0] + '.' : ''}`;
+                stats.male++;
+                stats.students.push({ name: studentName, average: avg.toFixed(2), lrn: student.lrn });
+            }
+        });
+
+        femaleStudents.forEach(student => {
+            const avg = checkStudent(student);
+            if (avg !== null) {
+                const studentName = `${student.last_name}, ${student.first_name} ${student.middle_name ? student.middle_name[0] + '.' : ''}`;
+                stats.female++;
+                stats.students.push({ name: studentName, average: avg.toFixed(2), lrn: student.lrn });
             }
         });
         

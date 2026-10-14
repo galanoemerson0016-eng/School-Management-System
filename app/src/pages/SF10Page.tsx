@@ -8,9 +8,10 @@ import type { Student, Section, Subject, ClassRecord } from '../types';
 import { getDefaultTermForSubject } from '../lib/curriculum';
 import { getCanonicalSubjectKey, normalizeSubjectName } from '../lib/subjectConfig';
 import { reconcileOrphanedGradesAndSubjects } from '../utils/grade-reconciliation';
-import { isMatchingSubject } from '../utils/grading-helpers';
+import { isMatchingSubject, isStudentInSection, isMaleStudent, isFemaleStudent } from '../utils/grading-helpers';
 import SF10SpecRenderer from '../components/SF10SpecRenderer';
 import SF10JHSRenderer from '../components/SF10JHSRenderer';
+import { SF10SHSRenderer } from '../components/SF10SHSRenderer';
 import { mapStudentToSpecData } from '../utils/sf10Mapper';
 import { mapStudentToShsSf10Data } from '../utils/shsSf10Mapper';
 import { ArrowLeft, Printer, FileText, Plus, Minus, ChevronDown, Bug, RefreshCcw, Clock3 } from 'lucide-react';
@@ -132,14 +133,11 @@ export function SF10Page() {
 
     const sectionStudents = useMemo(() => {
         if (!selectedSectionObj) return [];
-        return students.filter(s =>
-            s.student_section === selectedSectionObj.id ||
-            s.student_section === selectedSectionObj.section_name
-        );
+        return students.filter(s => isStudentInSection(s, selectedSectionObj));
     }, [students, selectedSectionObj]);
 
-    const males = sectionStudents.filter(s => (s.gender || '').toLowerCase() === 'male').sort((a, b) => a.last_name.localeCompare(b.last_name));
-    const females = sectionStudents.filter(s => (s.gender || '').toLowerCase() === 'female').sort((a, b) => a.last_name.localeCompare(b.last_name));
+    const males = sectionStudents.filter(s => isMaleStudent(s)).sort((a, b) => a.last_name.localeCompare(b.last_name));
+    const females = sectionStudents.filter(s => isFemaleStudent(s)).sort((a, b) => a.last_name.localeCompare(b.last_name));
 
     const studentKey = selectedStudent?.lrn || '';
 
@@ -419,10 +417,10 @@ export function SF10Page() {
                                 className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-2 pr-5 text-[9px] font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500/30 focus:border-blue-500 cursor-pointer max-w-30 sm:max-w-38 lg:max-w-46 truncate disabled:opacity-30"
                                 value={selectedStudent?.lrn || ''}
                                 onChange={(e) => setSelectedStudent(students.find(s => s.lrn === e.target.value) || null)}
-                                disabled={!selectedSection || isShsSection}
+                                disabled={!selectedSection}
                                 title="Select Student"
                             >
-                                <option value="">{isShsSection ? 'Template Locked' : 'Select Student'}</option>
+                                <option value="">Select Student</option>
                                 {males.length > 0 && (
                                     <optgroup label="MALE">
                                         {males.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
@@ -502,7 +500,7 @@ export function SF10Page() {
                         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                             <button
                                 onClick={handleResetOverrides}
-                                disabled={!selectedStudent || isShsSf10Selection}
+                                disabled={!selectedStudent}
                                 className="h-7.5 px-2 rounded-lg bg-slate-100 dark:bg-white/10 hover:bg-red-50 dark:hover:bg-red-500/20 text-slate-600 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400 font-black text-[8px] uppercase tracking-wider disabled:opacity-30 transition-all flex items-center gap-1 shadow-xs shrink-0 active:scale-95 border border-slate-200/40 dark:border-white/10"
                                 title="Reset all manual edits for this page"
                             >
@@ -527,7 +525,7 @@ export function SF10Page() {
 
                             <button
                                 onClick={handlePrintSF10}
-                                disabled={!selectedStudent || isShsSf10Selection}
+                                disabled={!selectedStudent}
                                 className="h-7.5 px-2.5 sm:px-3 rounded-lg bg-blue-600 text-white font-black text-[8px] uppercase tracking-wider shadow-sm hover:bg-blue-700 active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1 group whitespace-nowrap"
                                 title="Print Official SF10"
                             >
@@ -542,48 +540,7 @@ export function SF10Page() {
              {/* Workspace Container */}
              <div className="flex-1 overflow-auto relative bg-linear-to-b from-slate-100/70 to-blue-100/40 dark:from-[#080d1a] dark:to-[#0c142c] print:bg-white custom-scrollbar">
                 <div className="w-full min-h-full flex flex-col items-center justify-start py-6 sm:py-8 px-3 sm:px-6 lg:px-10 relative print:overflow-visible print:py-0 print:px-0">
-                    {isShsSection ? (
-                        <div className="flex-1 flex items-center justify-center py-8 w-full">
-                            <div className="relative w-full max-w-5xl rounded-3xl border border-slate-200/80 bg-white/85 backdrop-blur-xl shadow-[0_20px_50px_rgba(15,23,42,0.08)] px-6 sm:px-10 py-10 sm:py-12 overflow-hidden">
-                                <div className="absolute inset-0 bg-linear-to-br from-indigo-50/70 via-white/60 to-blue-50/60" />
-                                <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-96 h-40 bg-blue-300/20 blur-3xl rounded-full" />
-
-                                <div className="relative flex flex-col items-center gap-7">
-                                    <div className="relative group">
-                                        <div className="absolute -inset-10 bg-indigo-500/10 blur-3xl rounded-full opacity-70 group-hover:opacity-100 transition-all duration-700" />
-                                        <div className="relative w-52 h-52 sm:w-56 sm:h-56 bg-white rounded-[3rem] border border-slate-200 flex items-center justify-center transform group-hover:-translate-y-1 transition-all duration-500 shadow-xl">
-                                            <FileText className="w-24 h-24 text-slate-200" />
-                                            <div className="absolute -bottom-5 -right-5 w-22 h-22 bg-linear-to-br from-indigo-600 to-blue-600 rounded-3xl flex items-center justify-center shadow-2xl ring-8 ring-white">
-                                                <span className="text-3xl font-black text-white italic tracking-tighter">SF10</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-3 max-w-2xl text-center">
-                                        <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-blue-200 bg-blue-50 text-[10px] font-black uppercase tracking-[0.16em] text-blue-700 mx-auto">
-                                            <Clock3 className="w-3.5 h-3.5" />
-                                            Preparing Official DepEd-Compliant Template
-                                        </span>
-                                        <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight uppercase">Senior High School SF10 Template Coming Soon</h2>
-                                        <p className="text-slate-600 font-semibold leading-relaxed text-sm sm:text-base">
-                                            The Grade 11 and Grade 12 SF10 generation module is currently being finalized to align with the latest official DepEd formatting standards.
-                                        </p>
-                                        <p className="text-slate-600 font-medium leading-relaxed text-xs sm:text-sm">
-                                            All core processing logic and student data handling are already in place. The preview and export features will be re-enabled once the final template structure is completed.
-                                        </p>
-                                        <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] text-blue-700/75">
-                                            SF10 SHS Layout Queue
-                                        </p>
-                                        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3.5 py-1.5 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-500 shadow-sm mx-auto">
-                                            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                                            Status
-                                            <span className="text-blue-700">Template validation in progress</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    ) : selectedStudent && specData ? (
+                    {selectedStudent && specData ? (
                         <div
                             className="transition-all duration-700 ease-out origin-top print:scale-100"
                             style={{
@@ -598,65 +555,12 @@ export function SF10Page() {
                                 <div className="absolute -inset-1 bg-linear-to-br from-blue-500/5 to-indigo-500/5 blur-3xl opacity-0 group-hover:opacity-100 transition-all duration-1000" />
                                 <div className={`sf10-print-sheet relative bg-white shadow-[0_20px_50px_rgba(0,0,0,0.08)] rounded-sm print:shadow-none overflow-hidden mb-20 last:mb-0 print:mb-0 print:rounded-none ${currentPage === 1 ? 'sf10-force-single-page' : ''}`}>
                                     {isShsSf10Selection ? (
-                                        <div className="min-h-190 p-6 sm:p-8 md:p-12 flex items-center justify-center bg-linear-to-br from-slate-50 via-white to-blue-50/50">
-                                            <div className="relative w-full max-w-4xl overflow-hidden rounded-3xl border border-slate-200/80 bg-white/80 backdrop-blur-xl shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
-                                                <div className="absolute inset-0 bg-linear-to-br from-blue-100/45 via-transparent to-indigo-100/35" />
-                                                <div className="absolute -top-16 -left-12 w-56 h-56 rounded-full bg-blue-300/20 blur-3xl" />
-                                                <div className="absolute -bottom-20 -right-10 w-64 h-64 rounded-full bg-indigo-300/20 blur-3xl" />
-
-                                                <div className="relative grid lg:grid-cols-[1.05fr_0.95fr] gap-6 lg:gap-10 p-6 sm:p-8 lg:p-10 items-center">
-                                                    <div className="space-y-5 text-center lg:text-left">
-                                                        <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-blue-200 bg-blue-50 text-[10px] font-black uppercase tracking-[0.16em] text-blue-700">
-                                                            <Clock3 className="w-3.5 h-3.5" />
-                                                            Preparing Official DepEd-Compliant Template
-                                                        </span>
-
-                                                        <div className="space-y-3">
-                                                            <h3 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-slate-900 leading-[1.05]">
-                                                                Senior High School SF10 Template Coming Soon
-                                                            </h3>
-                                                            <p className="text-sm sm:text-base text-slate-700 leading-relaxed font-semibold max-w-2xl mx-auto lg:mx-0">
-                                                                The Grade 11 and Grade 12 SF10 generation module is currently being finalized to align with the latest official DepEd formatting standards.
-                                                            </p>
-                                                            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium max-w-2xl mx-auto lg:mx-0">
-                                                                All core processing logic and student data handling are already in place. The preview and export features will be re-enabled once the final template structure is completed.
-                                                            </p>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="relative h-64 sm:h-72 rounded-3xl border border-white/70 bg-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_12px_30px_rgba(15,23,42,0.08)] overflow-hidden">
-                                                        <div className="absolute inset-x-0 top-0 h-11 bg-linear-to-r from-blue-500/15 to-indigo-500/20 border-b border-slate-200/60" />
-                                                        <motion.div
-                                                            initial={{ y: 4, opacity: 0.85 }}
-                                                            animate={{ y: [-2, 4, -2], opacity: [0.8, 1, 0.8] }}
-                                                            transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-                                                            className="absolute top-6 left-6 right-6 rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm"
-                                                        >
-                                                            <div className="flex items-center gap-2 mb-3">
-                                                                <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
-                                                                    <FileText className="w-4 h-4" />
-                                                                </div>
-                                                                <div className="text-[11px] font-black text-slate-700 uppercase tracking-wider">SF10 SHS Layout Queue</div>
-                                                            </div>
-                                                            <div className="space-y-2">
-                                                                <div className="h-2 rounded-full bg-slate-200/80" />
-                                                                <div className="h-2 rounded-full bg-slate-200/80 w-10/12" />
-                                                                <div className="h-2 rounded-full bg-blue-200/70 w-8/12" />
-                                                            </div>
-                                                        </motion.div>
-                                                        <motion.div
-                                                            initial={{ y: -2, opacity: 0.8 }}
-                                                            animate={{ y: [4, -2, 4], opacity: [0.8, 1, 0.8] }}
-                                                            transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut', delay: 0.4 }}
-                                                            className="absolute bottom-5 right-5 w-36 rounded-2xl border border-blue-100 bg-blue-50/90 p-3 shadow-sm"
-                                                        >
-                                                            <div className="text-[9px] font-black uppercase tracking-wider text-blue-700">Status</div>
-                                                            <div className="mt-1 text-[11px] font-bold text-slate-700 leading-tight">Template validation in progress</div>
-                                                        </motion.div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
+                                        <SF10SHSRenderer
+                                            pageNumber={currentPage}
+                                            data={specData}
+                                            onUpdate={handleCellUpdate}
+                                            dbSubjects={subjects}
+                                        />
                                     ) : specData.isES ? (
                                         <SF10SpecRenderer
                                             pageNumber={currentPage}
@@ -676,44 +580,25 @@ export function SF10Page() {
                             </div>
                         </div>
                     ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
-                            <div className="relative w-full max-w-5xl rounded-3xl border border-slate-200/80 bg-white/85 backdrop-blur-xl shadow-[0_20px_50px_rgba(15,23,42,0.08)] px-6 sm:px-10 py-10 sm:py-12 overflow-hidden">
-                                <div className="absolute inset-0 bg-linear-to-br from-indigo-50/70 via-white/60 to-blue-50/60" />
-                                <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-96 h-40 bg-blue-300/20 blur-3xl rounded-full" />
-
-                                <div className="relative flex flex-col items-center gap-7">
-                                    <div className="relative group">
-                                        <div className="absolute -inset-10 bg-indigo-500/10 blur-3xl rounded-full opacity-70 group-hover:opacity-100 transition-all duration-700" />
-                                        <div className="relative w-52 h-52 sm:w-56 sm:h-56 bg-white rounded-[3rem] border border-slate-200 flex items-center justify-center transform group-hover:-translate-y-1 transition-all duration-500 shadow-xl">
-                                            <FileText className="w-24 h-24 text-slate-200" />
-                                            <div className="absolute -bottom-5 -right-5 w-22 h-22 bg-linear-to-br from-indigo-600 to-blue-600 rounded-3xl flex items-center justify-center shadow-2xl ring-8 ring-white">
-                                                <span className="text-3xl font-black text-white italic tracking-tighter">SF10</span>
-                                            </div>
-                                        </div>
+                        <div className="flex-1 flex flex-col items-center justify-center text-center space-y-10 py-10">
+                            <div className="relative group">
+                                <div className="absolute -inset-24 bg-blue-500/5 blur-[120px] rounded-full" />
+                                <div className="relative w-64 h-64 bg-white rounded-[5rem] border border-slate-200 flex items-center justify-center transform group-hover:scale-105 transition-all duration-700 shadow-xl">
+                                    <FileText className="w-28 h-28 text-slate-100" />
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                        <span className="text-7xl font-black text-slate-100 tracking-tighter leading-none italic">SF10</span>
+                                        <div className="w-20 h-1 bg-blue-500/10 rounded-full mt-4" />
                                     </div>
-
-                                    <div className="space-y-3 max-w-2xl">
-                                        <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-blue-200 bg-blue-50 text-[10px] font-black uppercase tracking-[0.16em] text-blue-700">
-                                            <Clock3 className="w-3.5 h-3.5" />
-                                            Preparing Official DepEd-Compliant Template
-                                        </span>
-                                        <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight uppercase">Senior High School SF10 Template Coming Soon</h2>
-                                        <p className="text-slate-600 font-semibold leading-relaxed text-sm sm:text-base">
-                                            The Grade 11 and Grade 12 SF10 generation module is currently being finalized to align with the latest official DepEd formatting standards.
-                                        </p>
-                                        <p className="text-slate-600 font-medium leading-relaxed text-xs sm:text-sm">
-                                            All core processing logic and student data handling are already in place. The preview and export features will be re-enabled once the final template structure is completed.
-                                        </p>
-                                        <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] text-blue-700/75">
-                                            SF10 SHS Layout Queue
-                                        </p>
-                                        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3.5 py-1.5 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-500 shadow-sm">
-                                            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                                            Status
-                                            <span className="text-blue-700">Template validation in progress</span>
-                                        </div>
+                                    <div className="absolute -bottom-8 -right-8 w-28 h-28 bg-blue-600 rounded-[2.5rem] flex items-center justify-center shadow-2xl ring-8 ring-slate-50 group-hover:rotate-12 transition-all duration-500">
+                                        <Printer className="w-10 h-10 text-white" />
                                     </div>
                                 </div>
+                            </div>
+                            <div className="space-y-4">
+                                <h2 className="text-4xl font-black text-slate-900 tracking-tight uppercase">Permanent Record</h2>
+                                <p className="text-slate-400 font-bold max-w-sm mx-auto leading-relaxed uppercase text-[10px] tracking-[0.3em] opacity-60">
+                                    Select a learner from the toolbar above to preview and edit their academic profile.
+                                </p>
                             </div>
                         </div>
                     )}

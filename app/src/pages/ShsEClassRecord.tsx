@@ -133,7 +133,7 @@ const getSubjectCategory = (subjectName: string, gradeLevel: string): string => 
         ];
         if (cores.some(c => {
             const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return normalized === cNorm || normalized.includes(cNorm) || cNorm.includes(normalized);
+            return normalized === cNorm || (cNorm.length >= 6 && normalized.includes(cNorm));
         })) {
             return 'Core';
         }
@@ -157,7 +157,7 @@ const getSubjectCategory = (subjectName: string, gradeLevel: string): string => 
         ];
         if (applied.some(a => {
             const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return normalized === aNorm || normalized.includes(aNorm) || aNorm.includes(normalized);
+            return normalized === aNorm || (aNorm.length >= 6 && normalized.includes(aNorm));
         })) {
             return 'Applied';
         }
@@ -339,33 +339,13 @@ const StudentGradeRow = memo(({
             return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
         });
 
-        // For Grade 12: relocate Summative Test 1 and 2 to Written Works 6 and 7 if empty
-        if (!useThreeExamLayout) {
-            if ((wwScores[5] === '' || wwScores[5] === undefined) && qaScores[0] !== '') {
-                wwScores[5] = qaScores[0];
-            }
-            if ((wwScores[6] === '' || wwScores[6] === undefined) && qaScores[1] !== '') {
-                wwScores[6] = qaScores[1];
-            }
-        }
-
         const ptScores = normalizeScores(sGrades.performance_tasks, activePtCount).map(s => {
             const n = Number(s);
             return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
         });
 
-        const effectiveHpsWw = [...hps.ww];
-        if (!useThreeExamLayout) {
-            if ((effectiveHpsWw[5] === '' || effectiveHpsWw[5] === undefined || effectiveHpsWw[5] === 0) && Number(hps.qa[0]) > 0) {
-                effectiveHpsWw[5] = hps.qa[0];
-            }
-            if ((effectiveHpsWw[6] === '' || effectiveHpsWw[6] === undefined || effectiveHpsWw[6] === 0) && Number(hps.qa[1]) > 0) {
-                effectiveHpsWw[6] = hps.qa[1];
-            }
-        }
-
         const wwTotalScore = wwScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
-        const wwTotalHPS = effectiveHpsWw.reduce<number>((a, b) => a + Number(b), 0);
+        const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b), 0);
         const wwPS = wwTotalHPS === 0 ? 0 : Math.round((wwTotalScore / wwTotalHPS) * 100 * 100) / 100;
         const wwWS = Math.round(wwPS * (normalizeWeightFraction(currentWeights.written_works) || 0) * 100) / 100;
 
@@ -769,7 +749,11 @@ export function ShsEClassRecord() {
         setOfferedTermsOverride(val);
         if (selectedSubjectObj) {
             const newTerm: 1 | 2 | 3 | 'all' | string = val === 'auto'
-                ? (activeTermsWithGrades.length === 1 ? (activeTermsWithGrades[0] as 1 | 2 | 3) : 'all')
+                ? (activeTermsWithGrades.length === 1
+                    ? (activeTermsWithGrades[0] as 1 | 2 | 3)
+                    : activeTermsWithGrades.length === 2
+                        ? activeTermsWithGrades.join(',')
+                        : 'all')
                 : val === '1' ? 1
                 : val === '2' ? 2
                 : val === '3' ? 3
@@ -778,7 +762,7 @@ export function ShsEClassRecord() {
 
             await updateSubject({
                 ...selectedSubjectObj,
-                term: (typeof newTerm === 'string' && newTerm.includes(',')) ? 'all' : (newTerm as Subject['term'])
+                term: newTerm as Subject['term']
             });
 
             if (selectedSectionObj) {
@@ -790,7 +774,7 @@ export function ShsEClassRecord() {
                         ...currentMeta,
                         subjectTerms: {
                             ...currentSubjectTerms,
-                            [selectedSubjectObj.subject_name]: (typeof newTerm === 'string' && newTerm.includes(',')) ? 'all' : (newTerm as 1 | 2 | 3 | 'all')
+                            [selectedSubjectObj.subject_name]: newTerm as 1 | 2 | 3 | 'all'
                         }
                     }
                 });
@@ -871,14 +855,17 @@ export function ShsEClassRecord() {
             : null;
 
         if (targetTermNum !== null) {
-            const subjectTermsMeta = (selectedSectionObj?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, 1 | 2 | 3 | 'all' | 'none'> | undefined;
+            const subjectTermsMeta = (selectedSectionObj?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, 1 | 2 | 3 | 'all' | 'none' | string> | undefined;
             base = base.filter(s => {
-                const effTerm = subjectTermsMeta?.[s.subject_name] || s.term;
-                if (sectionGradeLevel.includes('11') && (effTerm === 'all' || isGrade11CoreSubject(s.subject_name))) {
+                const effTerm = subjectTermsMeta?.[s.subject_name] ?? s.term;
+                if (!effTerm || effTerm === 'all') return true;
+                if (sectionGradeLevel.includes('11') && isGrade11CoreSubject(s.subject_name)) {
                     return true;
                 }
-                const num = effTerm ? Number(effTerm) : targetTermNum;
-                return num === targetTermNum;
+                if (typeof effTerm === 'string' && effTerm.includes(',')) {
+                    return effTerm.split(',').map(Number).includes(targetTermNum);
+                }
+                return Number(effTerm) === targetTermNum;
             });
         }
         return base.sort((a, b) => a.subject_name.localeCompare(b.subject_name));
@@ -1166,16 +1153,6 @@ export function ShsEClassRecord() {
             }
             return v === '' ? '' : Number(v);
         });
-
-        // For Grade 12: relocate Summative Test 1 and 2 HPS to Written Works 6 and 7 if empty
-        if (!useThreeExamLayout) {
-            if ((hps_ww[5] === '' || hps_ww[5] === undefined || hps_ww[5] === 0) && Number(hps_qa[0]) > 0) {
-                hps_ww[5] = hps_qa[0];
-            }
-            if ((hps_ww[6] === '' || hps_ww[6] === undefined || hps_ww[6] === 0) && Number(hps_qa[1]) > 0) {
-                hps_ww[6] = hps_qa[1];
-            }
-        }
 
         return {
             ww: hps_ww,
@@ -1722,7 +1699,7 @@ export function ShsEClassRecord() {
         const existingRecord = stateClassRecords.find(r =>
             r.student_lrn === lrn &&
             (!r.section_id || r.section_id === (selectedSectionObj?.id || selectedSection)) &&
-            r.subject_id === effectiveSubjectId &&
+            (r.subject_id === effectiveSubjectId || isSameSubject(r.subject_id, r.subject_name, effectiveSubjectId, subjectName)) &&
             Number(r.quarter) === (quarter as number) &&
             (!activeSchoolYear || !r.school_year || r.school_year === activeSchoolYear || r.school_year.includes(activeSchoolYear))
         );

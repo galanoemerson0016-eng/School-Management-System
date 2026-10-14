@@ -3,7 +3,7 @@
 
 import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet, HPSRecord } from '../types';
 import { ACTIVE_TERMS } from '../lib/terms';
-import { isDescriptiveGrading, getSubjectCluster, getWeights, computeExamsWeightedScore, transmuteGrade, normalizeScores, normalizeWeightFraction, type SubjectCluster } from '../lib/grading';
+import { isDescriptiveGrading, getSubjectCluster, getWeights, computeExamsWeightedScore, transmuteGrade, normalizeScores, normalizeWeightFraction, computeGmrcBreakdown, type SubjectCluster } from '../lib/grading';
 import { getCanonicalSubjectKey } from '../lib/subjectConfig';
 import { isGmrcVeSubject } from '../services/ecr-excel-export';
 import { isGrade11CoreSubject, resolveSubjectOfferedTerms } from '../lib/curriculum';
@@ -758,39 +758,19 @@ export function computeLiveTransmutedGradeFromRecord(
     let initialGrade = 0;
 
     if (isGmrc) {
-        // DepEd GMRC/VE Template 5-domain split matching ECR_Template_GMRC_VE_G2_G10.xlsx
-        const sWwCogTotal = rawWw.slice(0, 5).reduce<number>((a, b) => a + (isValidScore(b) ? Number(b) : 0), 0);
-        const hpsWwCogTotal = hps_ww.slice(0, 5).reduce((a, b) => a + b, 0);
-        const wwCogPS = hpsWwCogTotal === 0 ? 0 : Math.min(100, Math.max(0, (sWwCogTotal / hpsWwCogTotal) * 100));
-        const wwCogWS = wwCogPS * 0.10;
-
-        const sWwAffTotal = rawWw.slice(5, 10).reduce<number>((a, b) => a + (isValidScore(b) ? Number(b) : 0), 0);
-        const hpsWwAffTotal = hps_ww.slice(5, 10).reduce((a, b) => a + b, 0);
-        const wwAffPS = hpsWwAffTotal === 0 ? 0 : Math.min(100, Math.max(0, (sWwAffTotal / hpsWwAffTotal) * 100));
-        const wwAffWS = wwAffPS * 0.10;
-
-        const sPtCogTotal = rawPt.slice(0, 3).reduce<number>((a, b) => a + (isValidScore(b) ? Number(b) : 0), 0);
-        const hpsPtCogTotal = hps_pt.slice(0, 3).reduce((a, b) => a + b, 0);
-        const ptCogPS = hpsPtCogTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtCogTotal / hpsPtCogTotal) * 100));
-        const ptCogWS = ptCogPS * 0.10;
-
-        const sPtAffTotal = rawPt.slice(3, 6).reduce<number>((a, b) => a + (isValidScore(b) ? Number(b) : 0), 0);
-        const hpsPtAffTotal = hps_pt.slice(3, 6).reduce((a, b) => a + b, 0);
-        const ptAffPS = hpsPtAffTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtAffTotal / hpsPtAffTotal) * 100));
-        const ptAffWS = ptAffPS * 0.10;
-
-        const sPtBehTotal = rawPt.slice(6, 9).reduce<number>((a, b) => a + (isValidScore(b) ? Number(b) : 0), 0);
-        const hpsPtBehTotal = hps_pt.slice(6, 9).reduce((a, b) => a + b, 0);
-        const ptBehPS = hpsPtBehTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtBehTotal / hpsPtBehTotal) * 100));
-        const ptBehWS = ptBehPS * 0.30;
-
-        const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score)) ? (st1Score / st1HPS) * 30 : 0;
-        const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score)) ? (st2Score / st2HPS) * 30 : 0;
-        const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore)) ? (teScore / teHPS) * 40 : 0;
-        const qaPS = st1WS + st2WS + teWS;
-        const qaWS = qaPS * 0.30;
-
-        initialGrade = Math.min(100, Math.max(0, wwCogWS + wwAffWS + ptCogWS + ptAffWS + ptBehWS + qaWS));
+        const gmrc = computeGmrcBreakdown(
+            rawWw,
+            hps_ww,
+            rawPt,
+            hps_pt,
+            st1Score,
+            st1HPS,
+            st2Score,
+            st2HPS,
+            teScore,
+            teHPS
+        );
+        initialGrade = gmrc.initialGrade;
     } else {
         const cluster: SubjectCluster = (customCluster as SubjectCluster) || getSubjectCluster(subjectName, sectionGradeLevel, sectionTrack);
         const weights = customWeights || getWeights(cluster, { subject_name: subjectName } as Subject);

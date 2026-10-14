@@ -356,7 +356,7 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
                 ...cr,
                 subject_id: canonical.id,
                 subject_name: canonical.subject_name,
-                id: `grade_${cr.student_lrn}_${canonical.id}_Q${cr.quarter}`
+                id: cr.id || `grade_${cr.student_lrn}_${canonical.id}_${cr.school_year || ''}_Q${cr.quarter}`
             };
         }
 
@@ -389,7 +389,7 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
             ...cr,
             subject_id: matchedSub.id,
             subject_name: matchedSub.subject_name,
-            id: `grade_${cr.student_lrn}_${matchedSub.id}_Q${cr.quarter}`
+            id: cr.id || `grade_${cr.student_lrn}_${matchedSub.id}_${cr.school_year || ''}_Q${cr.quarter}`
         };
     });
 
@@ -410,7 +410,7 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
                 ...hps,
                 subject_id: canonical.id,
                 subject_name: canonical.subject_name,
-                id: `hps_${canonical.id}_${hps.section_id || 'all'}_${hps.school_year || ''}_Q${hps.quarter}`
+                id: hps.id || `hps_${canonical.id}_${hps.section_id || 'all'}_${hps.school_year || ''}_Q${hps.quarter}`
             };
         }
 
@@ -441,7 +441,7 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
             ...hps,
             subject_id: matchedSub.id,
             subject_name: matchedSub.subject_name,
-            id: `hps_${matchedSub.id}_${hps.section_id || 'all'}_${hps.school_year || ''}_Q${hps.quarter}`
+            id: hps.id || `hps_${matchedSub.id}_${hps.section_id || 'all'}_${hps.school_year || ''}_Q${hps.quarter}`
         };
     });
 
@@ -456,7 +456,7 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
                 ...gs,
                 subject_id: canonical.id,
                 subject_name: canonical.subject_name,
-                id: `${gs.student_lrn}_${canonical.id}_${gs.quarter}_${gs.school_year || ''}`
+                id: gs.id || `${gs.student_lrn}_${canonical.id}_${gs.quarter}_${gs.school_year || ''}`
             };
         }
 
@@ -486,7 +486,7 @@ export function reconcileOrphanedGradesAndSubjects(input: ReconciliationInput): 
             ...gs,
             subject_id: matchedSub.id,
             subject_name: matchedSub.subject_name,
-            id: `${gs.student_lrn}_${matchedSub.id}_${gs.quarter}_${gs.school_year || ''}`
+            id: gs.id || `${gs.student_lrn}_${matchedSub.id}_${gs.quarter}_${gs.school_year || ''}`
         };
     });
 

@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, type FormEvent, Fragment } from 'react';
 import { useAppStore } from '../stores/app-store';
 import { useAuthStore } from '../stores/auth-store';
+import { db } from '../services/database';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     BookOpen, Binary, Beaker, Globe, Compass, GraduationCap, 
@@ -2170,6 +2171,12 @@ export function SubjectsPage() {
                 gradingSheetRecords
             });
 
+            if (recon.deletedSubjectIds.length > 0) {
+                for (const delId of recon.deletedSubjectIds) {
+                    await deleteSubject(delId);
+                }
+            }
+
             if (recon.modified || recon.subjectsModified) {
                 for (const s of recon.subjects) {
                     const existing = subjects.find(cur => cur.id === s.id);
@@ -2179,6 +2186,17 @@ export function SubjectsPage() {
                         await addSubject(s);
                     }
                 }
+            }
+
+            if (recon.modified) {
+                await db.putRecordsBulk('classRecords', recon.classRecords);
+                await db.putRecordsBulk('hpsRecords', recon.hpsRecords);
+                await db.putRecordsBulk('gradingSheetRecords', recon.gradingSheetRecords);
+                useAppStore.setState({
+                    classRecords: recon.classRecords,
+                    hpsRecords: recon.hpsRecords,
+                    gradingSheetRecords: recon.gradingSheetRecords
+                });
             }
 
             if (recon.sectionsModified && recon.sections) {

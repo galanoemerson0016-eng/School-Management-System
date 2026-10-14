@@ -33,7 +33,8 @@ export type DepEdWeightCategory =
     | 'Immersion'
     | 'G12Core'
     | 'G12AcademicOther'
-    | 'G12AcademicImmersionResearch';
+    | 'G12AcademicImmersionResearch'
+    | 'G12TVL';
 
 export interface PresetSubjectItem {
     name: string;
@@ -98,7 +99,8 @@ export const DEPED_WEIGHT_PROFILES = {
     // Grade 12 Old K-12 Transitional Weights (DO 8, s. 2015)
     G12Core: { written_weight: 25, performance_weight: 50, exam_weight: 25 },
     G12AcademicOther: { written_weight: 25, performance_weight: 45, exam_weight: 30 },
-    G12AcademicImmersionResearch: { written_weight: 35, performance_weight: 40, exam_weight: 25 }
+    G12AcademicImmersionResearch: { written_weight: 35, performance_weight: 40, exam_weight: 25 },
+    G12TVL: { written_weight: 20, performance_weight: 60, exam_weight: 20 }
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -413,22 +415,22 @@ export const SHS_G12_STEM_PRESET: CurriculumPreset = {
     program: 'Regular',
     subjects: [
         // Term 1 (4 subjects)
-        { name: '21st Century Literature from the Philippines and the World', term: 1, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
-        { name: 'Practical Research 2', term: 1, category: 'Applied', weightCategory: 'SHSAcademicMathSci', ...DEPED_WEIGHT_PROFILES.SHSAcademicMathSci },
-        { name: 'General Chemistry 1', term: 1, category: 'Specialized', weightCategory: 'SHSAcademicMathSci', ...DEPED_WEIGHT_PROFILES.SHSAcademicMathSci },
-        { name: 'Physical Education and Health 3', term: 1, category: 'Core', weightCategory: 'MAPEH', ...DEPED_WEIGHT_PROFILES.MAPEH },
+        { name: '21st Century Literature from the Philippines and the World', term: 1, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
+        { name: 'Practical Research 2', term: 1, category: 'Applied', weightCategory: 'G12AcademicImmersionResearch', ...DEPED_WEIGHT_PROFILES.G12AcademicImmersionResearch },
+        { name: 'General Chemistry 1', term: 1, category: 'Specialized', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
+        { name: 'Physical Education and Health 3', term: 1, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
 
         // Term 2 (4 subjects)
-        { name: 'Contemporary Philippine Arts from the Regions', term: 2, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
-        { name: 'English for Academic and Professional Purposes', term: 2, category: 'Applied', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'General Physics 1', term: 2, category: 'Specialized', weightCategory: 'SHSAcademicMathSci', ...DEPED_WEIGHT_PROFILES.SHSAcademicMathSci },
-        { name: 'Empowerment Technologies', term: 2, category: 'Applied', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
+        { name: 'Contemporary Philippine Arts from the Regions', term: 2, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
+        { name: 'English for Academic and Professional Purposes', term: 2, category: 'Applied', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
+        { name: 'General Physics 1', term: 2, category: 'Specialized', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
+        { name: 'Empowerment Technologies', term: 2, category: 'Applied', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
 
         // Term 3 (4 subjects)
-        { name: 'Introduction to the Philosophy of the Human Person', term: 3, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
-        { name: 'Inquiries, Investigations, and Immersion', term: 3, category: 'Applied', weightCategory: 'SHSAcademicMathSci', ...DEPED_WEIGHT_PROFILES.SHSAcademicMathSci },
-        { name: 'General Physics 2', term: 3, category: 'Specialized', weightCategory: 'SHSAcademicMathSci', ...DEPED_WEIGHT_PROFILES.SHSAcademicMathSci },
-        { name: 'Physical Education and Health 4', term: 3, category: 'Core', weightCategory: 'MAPEH', ...DEPED_WEIGHT_PROFILES.MAPEH }
+        { name: 'Introduction to the Philosophy of the Human Person', term: 3, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
+        { name: 'Inquiries, Investigations, and Immersion', term: 3, category: 'Applied', weightCategory: 'G12AcademicImmersionResearch', ...DEPED_WEIGHT_PROFILES.G12AcademicImmersionResearch },
+        { name: 'General Physics 2', term: 3, category: 'Specialized', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
+        { name: 'Physical Education and Health 4', term: 3, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core }
     ]
 };
 
@@ -443,22 +445,22 @@ export const SHS_G12_ABM_PRESET: CurriculumPreset = {
     program: 'Regular',
     subjects: [
         // Term 1
-        { name: '21st Century Literature from the Philippines and the World', term: 1, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
-        { name: 'Practical Research 2', term: 1, category: 'Applied', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Applied Economics', term: 1, category: 'Specialized', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Physical Education and Health 3', term: 1, category: 'Core', weightCategory: 'MAPEH', ...DEPED_WEIGHT_PROFILES.MAPEH },
+        { name: '21st Century Literature from the Philippines and the World', term: 1, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
+        { name: 'Practical Research 2', term: 1, category: 'Applied', weightCategory: 'G12AcademicImmersionResearch', ...DEPED_WEIGHT_PROFILES.G12AcademicImmersionResearch },
+        { name: 'Applied Economics', term: 1, category: 'Specialized', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
+        { name: 'Physical Education and Health 3', term: 1, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
 
         // Term 2
-        { name: 'Contemporary Philippine Arts from the Regions', term: 2, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
-        { name: 'English for Academic and Professional Purposes', term: 2, category: 'Applied', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Business Ethics and Social Responsibility', term: 2, category: 'Specialized', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Fundamentals of Accountancy, Business and Management 2', term: 2, category: 'Specialized', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
+        { name: 'Contemporary Philippine Arts from the Regions', term: 2, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
+        { name: 'English for Academic and Professional Purposes', term: 2, category: 'Applied', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
+        { name: 'Business Ethics and Social Responsibility', term: 2, category: 'Specialized', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
+        { name: 'Fundamentals of Accountancy, Business and Management 2', term: 2, category: 'Specialized', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
 
         // Term 3
-        { name: 'Introduction to the Philosophy of the Human Person', term: 3, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
-        { name: 'Inquiries, Investigations, and Immersion', term: 3, category: 'Applied', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Business Finance', term: 3, category: 'Specialized', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Physical Education and Health 4', term: 3, category: 'Core', weightCategory: 'MAPEH', ...DEPED_WEIGHT_PROFILES.MAPEH }
+        { name: 'Introduction to the Philosophy of the Human Person', term: 3, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
+        { name: 'Inquiries, Investigations, and Immersion', term: 3, category: 'Applied', weightCategory: 'G12AcademicImmersionResearch', ...DEPED_WEIGHT_PROFILES.G12AcademicImmersionResearch },
+        { name: 'Business Finance', term: 3, category: 'Specialized', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
+        { name: 'Physical Education and Health 4', term: 3, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core }
     ]
 };
 
@@ -473,22 +475,22 @@ export const SHS_G12_HUMSS_PRESET: CurriculumPreset = {
     program: 'Regular',
     subjects: [
         // Term 1
-        { name: '21st Century Literature from the Philippines and the World', term: 1, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
-        { name: 'Practical Research 2', term: 1, category: 'Applied', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Creative Writing', term: 1, category: 'Specialized', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Physical Education and Health 3', term: 1, category: 'Core', weightCategory: 'MAPEH', ...DEPED_WEIGHT_PROFILES.MAPEH },
+        { name: '21st Century Literature from the Philippines and the World', term: 1, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
+        { name: 'Practical Research 2', term: 1, category: 'Applied', weightCategory: 'G12AcademicImmersionResearch', ...DEPED_WEIGHT_PROFILES.G12AcademicImmersionResearch },
+        { name: 'Creative Writing', term: 1, category: 'Specialized', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
+        { name: 'Physical Education and Health 3', term: 1, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
 
         // Term 2
-        { name: 'Contemporary Philippine Arts from the Regions', term: 2, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
-        { name: 'English for Academic and Professional Purposes', term: 2, category: 'Applied', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Disciplines and Ideas in the Social Sciences', term: 2, category: 'Specialized', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Trends, Networks, and Critical Thinking in the 21st Century Culture', term: 2, category: 'Specialized', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
+        { name: 'Contemporary Philippine Arts from the Regions', term: 2, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
+        { name: 'English for Academic and Professional Purposes', term: 2, category: 'Applied', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
+        { name: 'Disciplines and Ideas in the Social Sciences', term: 2, category: 'Specialized', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
+        { name: 'Trends, Networks, and Critical Thinking in the 21st Century Culture', term: 2, category: 'Specialized', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
 
         // Term 3
-        { name: 'Introduction to the Philosophy of the Human Person', term: 3, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
-        { name: 'Inquiries, Investigations, and Immersion', term: 3, category: 'Applied', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Community Engagement, Solidarity and Citizenship', term: 3, category: 'Specialized', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Physical Education and Health 4', term: 3, category: 'Core', weightCategory: 'MAPEH', ...DEPED_WEIGHT_PROFILES.MAPEH }
+        { name: 'Introduction to the Philosophy of the Human Person', term: 3, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
+        { name: 'Inquiries, Investigations, and Immersion', term: 3, category: 'Applied', weightCategory: 'G12AcademicImmersionResearch', ...DEPED_WEIGHT_PROFILES.G12AcademicImmersionResearch },
+        { name: 'Community Engagement, Solidarity and Citizenship', term: 3, category: 'Specialized', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
+        { name: 'Physical Education and Health 4', term: 3, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core }
     ]
 };
 
@@ -503,22 +505,22 @@ export const SHS_G12_GAS_PRESET: CurriculumPreset = {
     program: 'Regular',
     subjects: [
         // Term 1
-        { name: '21st Century Literature from the Philippines and the World', term: 1, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
-        { name: 'Practical Research 2', term: 1, category: 'Applied', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Humanities 1', term: 1, category: 'Specialized', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Physical Education and Health 3', term: 1, category: 'Core', weightCategory: 'MAPEH', ...DEPED_WEIGHT_PROFILES.MAPEH },
+        { name: '21st Century Literature from the Philippines and the World', term: 1, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
+        { name: 'Practical Research 2', term: 1, category: 'Applied', weightCategory: 'G12AcademicImmersionResearch', ...DEPED_WEIGHT_PROFILES.G12AcademicImmersionResearch },
+        { name: 'Humanities 1', term: 1, category: 'Specialized', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
+        { name: 'Physical Education and Health 3', term: 1, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
 
         // Term 2
-        { name: 'Contemporary Philippine Arts from the Regions', term: 2, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
-        { name: 'English for Academic and Professional Purposes', term: 2, category: 'Applied', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Social Science 1', term: 2, category: 'Specialized', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Applied Economics', term: 2, category: 'Specialized', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
+        { name: 'Contemporary Philippine Arts from the Regions', term: 2, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
+        { name: 'English for Academic and Professional Purposes', term: 2, category: 'Applied', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
+        { name: 'Social Science 1', term: 2, category: 'Specialized', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
+        { name: 'Applied Economics', term: 2, category: 'Specialized', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
 
         // Term 3
-        { name: 'Introduction to the Philosophy of the Human Person', term: 3, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
-        { name: 'Inquiries, Investigations, and Immersion', term: 3, category: 'Applied', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Organization and Management', term: 3, category: 'Specialized', weightCategory: 'SHSAcademicHumanities', ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Physical Education and Health 4', term: 3, category: 'Core', weightCategory: 'MAPEH', ...DEPED_WEIGHT_PROFILES.MAPEH }
+        { name: 'Introduction to the Philosophy of the Human Person', term: 3, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
+        { name: 'Inquiries, Investigations, and Immersion', term: 3, category: 'Applied', weightCategory: 'G12AcademicImmersionResearch', ...DEPED_WEIGHT_PROFILES.G12AcademicImmersionResearch },
+        { name: 'Organization and Management', term: 3, category: 'Specialized', weightCategory: 'G12AcademicOther', ...DEPED_WEIGHT_PROFILES.G12AcademicOther },
+        { name: 'Physical Education and Health 4', term: 3, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core }
     ]
 };
 
@@ -533,22 +535,22 @@ export const SHS_G12_TVL_PRESET: CurriculumPreset = {
     program: 'Regular',
     subjects: [
         // Term 1
-        { name: '21st Century Literature from the Philippines and the World', term: 1, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
-        { name: 'Practical Research 2', term: 1, category: 'Applied', weightCategory: 'SHSTVL', ...DEPED_WEIGHT_PROFILES.SHSTVL },
-        { name: 'Empowerment Technologies', term: 1, category: 'Applied', weightCategory: 'SHSTVL', ...DEPED_WEIGHT_PROFILES.SHSTVL },
-        { name: 'Physical Education and Health 3', term: 1, category: 'Core', weightCategory: 'MAPEH', ...DEPED_WEIGHT_PROFILES.MAPEH },
+        { name: '21st Century Literature from the Philippines and the World', term: 1, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
+        { name: 'Practical Research 2', term: 1, category: 'Applied', weightCategory: 'G12TVL', ...DEPED_WEIGHT_PROFILES.G12TVL },
+        { name: 'Empowerment Technologies', term: 1, category: 'Applied', weightCategory: 'G12TVL', ...DEPED_WEIGHT_PROFILES.G12TVL },
+        { name: 'Physical Education and Health 3', term: 1, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
 
         // Term 2
-        { name: 'Contemporary Philippine Arts from the Regions', term: 2, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
-        { name: 'English for Academic and Professional Purposes', term: 2, category: 'Applied', weightCategory: 'SHSTVL', ...DEPED_WEIGHT_PROFILES.SHSTVL },
-        { name: 'Entrepreneurship', term: 2, category: 'Applied', weightCategory: 'SHSTVL', ...DEPED_WEIGHT_PROFILES.SHSTVL },
-        { name: 'Filipino sa Piling Larang (Teknikal-Bokasyunal)', term: 2, category: 'Applied', weightCategory: 'SHSTVL', ...DEPED_WEIGHT_PROFILES.SHSTVL },
+        { name: 'Contemporary Philippine Arts from the Regions', term: 2, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
+        { name: 'English for Academic and Professional Purposes', term: 2, category: 'Applied', weightCategory: 'G12TVL', ...DEPED_WEIGHT_PROFILES.G12TVL },
+        { name: 'Entrepreneurship', term: 2, category: 'Applied', weightCategory: 'G12TVL', ...DEPED_WEIGHT_PROFILES.G12TVL },
+        { name: 'Filipino sa Piling Larang (Teknikal-Bokasyunal)', term: 2, category: 'Applied', weightCategory: 'G12TVL', ...DEPED_WEIGHT_PROFILES.G12TVL },
 
         // Term 3
-        { name: 'Introduction to the Philosophy of the Human Person', term: 3, category: 'Core', weightCategory: 'SHSCore', ...DEPED_WEIGHT_PROFILES.SHSCore },
-        { name: 'Inquiries, Investigations, and Immersion', term: 3, category: 'Applied', weightCategory: 'SHSTVL', ...DEPED_WEIGHT_PROFILES.SHSTVL },
-        { name: 'Work Immersion (TVL)', term: 3, category: 'Specialized', weightCategory: 'SHSTVL', ...DEPED_WEIGHT_PROFILES.SHSTVL },
-        { name: 'Physical Education and Health 4', term: 3, category: 'Core', weightCategory: 'MAPEH', ...DEPED_WEIGHT_PROFILES.MAPEH }
+        { name: 'Introduction to the Philosophy of the Human Person', term: 3, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core },
+        { name: 'Inquiries, Investigations, and Immersion', term: 3, category: 'Applied', weightCategory: 'G12TVL', ...DEPED_WEIGHT_PROFILES.G12TVL },
+        { name: 'Work Immersion (TVL)', term: 3, category: 'Specialized', weightCategory: 'G12TVL', ...DEPED_WEIGHT_PROFILES.G12TVL },
+        { name: 'Physical Education and Health 4', term: 3, category: 'Core', weightCategory: 'G12Core', ...DEPED_WEIGHT_PROFILES.G12Core }
     ]
 };
 

@@ -294,7 +294,7 @@ export function getSubjectCluster(subjectName: string, gradeLevel?: string, trac
                 ];
                 const isCore = cores.some(c => {
                     const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
-                    return norm === cNorm || norm.includes(cNorm) || cNorm.includes(norm);
+                    return norm === cNorm || (cNorm.length >= 6 && norm.includes(cNorm));
                 });
 
                 if (isCore) {
@@ -600,7 +600,7 @@ export function transmuteGrade(initialGrade: number, schoolYear?: string): numbe
         { min: 43.0, max: 45.99, grade: 62 },
         { min: 40.0, max: 42.99, grade: 61 },
         { min: 25.0, max: 39.99, grade: 60 },
-        { min: 0.0, max: 24.0, grade: 60 },
+        { min: 0.0, max: 24.99, grade: 60 },
     ];
     const matched = transmutationRanges.find((range) => score >= range.min && score <= range.max);
     return matched ? matched.grade : 60;
@@ -731,6 +731,26 @@ export function getGradeDescriptorWithFilipino(grade: number, gradeLevel: string
     return 'Emerging';
 }
 
+/**
+ * Canonical descriptor resolver, compatible with both (grade, schoolYear, gradeLevel)
+ * and (grade, gradeLevel, schoolYear) parameter orders.
+ */
+export function getDescriptor(grade: number, arg2?: string, arg3?: string): string {
+    if (!grade || grade <= 0) return '';
+    let schoolYear: string | undefined;
+    let gradeLevel: string | undefined;
+
+    if (arg2 && arg2.includes('-') && /\d{4}/.test(arg2)) {
+        schoolYear = arg2;
+        gradeLevel = arg3;
+    } else {
+        gradeLevel = arg2;
+        schoolYear = arg3;
+    }
+
+    return getGradeDescriptorWithFilipino(grade, gradeLevel || '', schoolYear);
+}
+
 // Formatter to display numerical grade as descriptive letter (for KS1) or rounded number (for KS2-KS4)
 export function formatGradeForDisplay(numericGrade: number | string | null | undefined, gradeLevel: string, schoolYear?: string): string {
     if (numericGrade === null || numericGrade === undefined || numericGrade === '') return '';
@@ -748,4 +768,101 @@ export function formatGradeForDisplay(numericGrade: number | string | null | und
     
     return String(Math.round(grade));
 }
+
+export interface GmrcBreakdown {
+    wwCogPS: number;
+    wwCogWS: number;
+    wwAffPS: number;
+    wwAffWS: number;
+    wwPS: number;
+    wwWS: number;
+    ptCogPS: number;
+    ptCogWS: number;
+    ptAffPS: number;
+    ptAffWS: number;
+    ptBehPS: number;
+    ptBehWS: number;
+    ptPS: number;
+    ptWS: number;
+    st1WS: number;
+    st2WS: number;
+    teWS: number;
+    qaPS: number;
+    qaWS: number;
+    initialGrade: number;
+}
+
+export function computeGmrcBreakdown(
+    rawWw: (number | string | null | undefined)[],
+    hpsWw: number[],
+    rawPt: (number | string | null | undefined)[],
+    hpsPt: number[],
+    st1Score: number | null,
+    st1HPS: number,
+    st2Score: number | null,
+    st2HPS: number,
+    teScore: number | null,
+    teHPS: number
+): GmrcBreakdown {
+    const validNum = (v: number | string | null | undefined, hps: number) =>
+        hps > 0 && v !== '' && v !== null && v !== undefined && !isNaN(Number(v)) ? Number(v) : 0;
+
+    const sWwCogTotal = rawWw.slice(0, 5).reduce<number>((a, b, i) => a + validNum(b, hpsWw[i] || 0), 0);
+    const hpsWwCogTotal = hpsWw.slice(0, 5).reduce((a, b) => a + (b || 0), 0);
+    const wwCogPS = hpsWwCogTotal === 0 ? 0 : Math.min(100, Math.max(0, (sWwCogTotal / hpsWwCogTotal) * 100));
+    const rawWwCogWS = wwCogPS * 0.10;
+
+    const sWwAffTotal = rawWw.slice(5, 10).reduce<number>((a, b, i) => a + validNum(b, hpsWw[i + 5] || 0), 0);
+    const hpsWwAffTotal = hpsWw.slice(5, 10).reduce((a, b) => a + (b || 0), 0);
+    const wwAffPS = hpsWwAffTotal === 0 ? 0 : Math.min(100, Math.max(0, (sWwAffTotal / hpsWwAffTotal) * 100));
+    const rawWwAffWS = wwAffPS * 0.10;
+
+    const activeWwWeight = (hpsWwCogTotal > 0 ? 0.10 : 0) + (hpsWwAffTotal > 0 ? 0.10 : 0);
+    const wwScale = activeWwWeight > 0 ? 0.20 / activeWwWeight : 0;
+    const wwCogWS = rawWwCogWS * wwScale;
+    const wwAffWS = rawWwAffWS * wwScale;
+    const wwWS = wwCogWS + wwAffWS;
+    const wwPS = wwWS / 0.20;
+
+    const sPtCogTotal = rawPt.slice(0, 3).reduce<number>((a, b, i) => a + validNum(b, hpsPt[i] || 0), 0);
+    const hpsPtCogTotal = hpsPt.slice(0, 3).reduce((a, b) => a + (b || 0), 0);
+    const ptCogPS = hpsPtCogTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtCogTotal / hpsPtCogTotal) * 100));
+    const rawPtCogWS = ptCogPS * 0.10;
+
+    const sPtAffTotal = rawPt.slice(3, 6).reduce<number>((a, b, i) => a + validNum(b, hpsPt[i + 3] || 0), 0);
+    const hpsPtAffTotal = hpsPt.slice(3, 6).reduce((a, b) => a + (b || 0), 0);
+    const ptAffPS = hpsPtAffTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtAffTotal / hpsPtAffTotal) * 100));
+    const rawPtAffWS = ptAffPS * 0.10;
+
+    const sPtBehTotal = rawPt.slice(6, 9).reduce<number>((a, b, i) => a + validNum(b, hpsPt[i + 6] || 0), 0);
+    const hpsPtBehTotal = hpsPt.slice(6, 9).reduce((a, b) => a + (b || 0), 0);
+    const ptBehPS = hpsPtBehTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtBehTotal / hpsPtBehTotal) * 100));
+    const rawPtBehWS = ptBehPS * 0.30;
+
+    const activePtWeight =
+        (hpsPtCogTotal > 0 ? 0.10 : 0) +
+        (hpsPtAffTotal > 0 ? 0.10 : 0) +
+        (hpsPtBehTotal > 0 ? 0.30 : 0);
+    const ptScale = activePtWeight > 0 ? 0.50 / activePtWeight : 0;
+    const ptCogWS = rawPtCogWS * ptScale;
+    const ptAffWS = rawPtAffWS * ptScale;
+    const ptBehWS = rawPtBehWS * ptScale;
+    const ptWS = ptCogWS + ptAffWS + ptBehWS;
+    const ptPS = ptWS / 0.50;
+
+    const st1WS = st1HPS > 0 && st1Score !== null && !isNaN(st1Score) ? (st1Score / st1HPS) * 30 : 0;
+    const st2WS = st2HPS > 0 && st2Score !== null && !isNaN(st2Score) ? (st2Score / st2HPS) * 30 : 0;
+    const teWS = teHPS > 0 && teScore !== null && !isNaN(teScore) ? (teScore / teHPS) * 40 : 0;
+    const activeExamWeight = (st1HPS > 0 ? 30 : 0) + (st2HPS > 0 ? 30 : 0) + (teHPS > 0 ? 40 : 0);
+    const qaPS = activeExamWeight > 0 ? ((st1WS + st2WS + teWS) / activeExamWeight) * 100 : 0;
+    const qaWS = qaPS * 0.30;
+
+    const initialGrade = Math.min(100, Math.max(0, wwWS + ptWS + qaWS));
+    return {
+        wwCogPS, wwCogWS, wwAffPS, wwAffWS, wwPS, wwWS,
+        ptCogPS, ptCogWS, ptAffPS, ptAffWS, ptBehPS, ptBehWS, ptPS, ptWS,
+        st1WS, st2WS, teWS, qaPS, qaWS, initialGrade
+    };
+}
+
 

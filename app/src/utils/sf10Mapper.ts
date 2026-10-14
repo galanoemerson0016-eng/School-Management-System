@@ -438,11 +438,17 @@ export function mapStudentToSpecData({
       studentRecords = allRecords.filter(r => {
         if (r.student_lrn !== student.lrn) return false;
         
-        const dbSubject = dbSubjects.find(s => s.id === r.subject_id);
-        if (!dbSubject || dbSubject.term === 'none') return false;
+        const dbSubject = dbSubjects.find(s =>
+          s.id === r.subject_id || isMatchingSubject(s.subject_name, r.subject_id, r.subject_name)
+        );
+        if (dbSubject && dbSubject.term === 'none') return false;
 
-        const subjectGradeNum = parseInt(dbSubject.grade_level.replace(/\D/g, '')) || 0;
-        if (subjectGradeNum !== gradeLevel) return false;
+        if (dbSubject) {
+          const subjectGradeNum = parseInt(dbSubject.grade_level.replace(/\D/g, '')) || 0;
+          if (subjectGradeNum !== gradeLevel) return false;
+        } else if (!r.subject_name) {
+          return false;
+        }
 
         // School Year Logic:
         // If this is the student's CURRENT grade level, ONLY show records for the active school year.
@@ -506,7 +512,9 @@ export function mapStudentToSpecData({
       }
 
       // Compute MAPEH from components
-      ['q1', 'q2', 'q3', 'q4'].forEach(qKey => {
+      let mapehTermsComplete = true;
+      const termsToCheck = is3Term ? ['q1', 'q2', 'q3'] as const : ['q1', 'q2', 'q3', 'q4'] as const;
+      termsToCheck.forEach(qKey => {
         const q = qKey as 'q1' | 'q2' | 'q3' | 'q4';
 
         const mapehRow = getSubjectGradeEntry(subjectsData, 'mapeh');
@@ -535,15 +543,20 @@ export function mapStudentToSpecData({
           if (hasIndividual) {
             // Old curriculum: average of individual components
             const components = [musicGrade, artsGrade, peIndivGrade, healthGrade].filter(v => v > 0);
-            if (components.length > 0) {
+            if (components.length === 4) {
               mapehRow[q] = String(Math.round(components.reduce((a: number, b: number) => a + b, 0) / components.length));
+            } else {
+              mapehTermsComplete = false;
+              if (components.length > 0) {
+                mapehRow[q] = String(Math.round(components.reduce((a: number, b: number) => a + b, 0) / components.length));
+              }
             }
           } else if (maGrade > 0 && peGrade > 0) {
             mapehRow[q] = String(Math.round((maGrade + peGrade) / 2));
-          } else if (maGrade > 0) {
-            mapehRow[q] = String(maGrade);
-          } else if (peGrade > 0) {
-            mapehRow[q] = String(peGrade);
+          } else {
+            mapehTermsComplete = false;
+            if (maGrade > 0) mapehRow[q] = String(maGrade);
+            else if (peGrade > 0) mapehRow[q] = String(peGrade);
           }
         }
       });
@@ -567,7 +580,7 @@ export function mapStudentToSpecData({
             ? [sub.q1, sub.q2, sub.q3].map(Number).filter(v => v > 0)
             : [sub.q1, sub.q2, sub.q3, sub.q4].map(Number).filter(v => v > 0);
         
-        const isComplete = is3Term ? terms.length === 3 : terms.length === 4;
+        const isComplete = (is3Term ? terms.length === 3 : terms.length === 4) && (s.key !== 'mapeh' || mapehTermsComplete);
 
         const isComponent = excludedFromGPA.includes(s.key) || s.indent || (s.code === 'MAPEH' && s.key !== 'mapeh');
 

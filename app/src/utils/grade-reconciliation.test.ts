@@ -625,4 +625,70 @@ describe('grade-reconciliation', () => {
         expect(gs.subject_name).toBe('Physical Education and Health');
         expect(gs.final_grade).toBe(89);
     });
+
+    it('L-17: preserves existing classRecord, HPS, and gradingSheetRecord IDs during reconciliation', () => {
+        const subjects: Subject[] = [
+            { id: 'subj-canonical', subject_name: 'Science', grade_level: 'Grade 7' }
+        ];
+        const sections: Section[] = [
+            { id: 'sec-1', section_name: 'Sampaguita', section_grade_level: 'Grade 7' }
+        ];
+        const classRecords: ClassRecord[] = [
+            {
+                id: 'custom_cr_id_123',
+                student_lrn: '123456789012',
+                section_id: 'sec-1',
+                subject_id: 'subject-17250000-Grade-7-3-old',
+                school_year: '2026-2027',
+                quarter: 1,
+                written_works: [20],
+                performance_tasks: [40],
+                quarterly_exam: 30,
+            }
+        ];
+        const hpsRecords: HPSRecord[] = [
+            {
+                id: 'custom_hps_id_456',
+                section_id: 'sec-1',
+                subject_id: 'subject-17250000-Grade-7-3-old',
+                quarter: 1,
+                school_year: '2026-2027',
+                written_works: [25],
+                performance_tasks: [50],
+                quarterly_exam: 40,
+            }
+        ];
+        const gradingSheetRecords: ClassRecord[] = [
+            {
+                id: 'custom_gs_id_789',
+                student_lrn: '123456789012',
+                section_id: 'sec-1',
+                subject_id: 'subject-17250000-Grade-7-3-old',
+                school_year: '2026-2027',
+                quarter: 1,
+                written_works: [],
+                performance_tasks: [],
+                quarterly_exam: 0,
+                final_grade: 88,
+            }
+        ];
+
+        const result = reconcileOrphanedGradesAndSubjects({
+            subjects,
+            sections,
+            students: [],
+            classRecords,
+            hpsRecords,
+            gradingSheetRecords,
+        });
+
+        expect(result.modified).toBe(true);
+        expect(result.classRecords[0].id).toBe('custom_cr_id_123');
+        expect(result.classRecords[0].subject_id).toBe('subj-canonical');
+        expect(result.hpsRecords[0].id).toBe('custom_hps_id_456');
+        expect(result.hpsRecords[0].subject_id).toBe('subj-canonical');
+        expect(result.gradingSheetRecords[0].id).toBe('custom_gs_id_789');
+        expect(result.gradingSheetRecords[0].subject_id).toBe('subj-canonical');
+    });
 });
+

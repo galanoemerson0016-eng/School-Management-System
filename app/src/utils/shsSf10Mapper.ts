@@ -227,6 +227,7 @@ export function mapStudentToShsSf10Data({
       }
 
       return {
+        id: dbSubject.id,
         subjectName: dbSubject.subject_name,
         subjectCode: dbSubject.subject_code || '',
         quarter1Grade: q1 > 0 ? String(q1) : '',
@@ -240,16 +241,23 @@ export function mapStudentToShsSf10Data({
 
   const createScholasticBlock = (gradeLevelNum: 11 | 12, semesterNum: 1 | 2) => {
     const semSubjects = buildSemesterAcademicRecord(gradeLevelNum, semesterNum);
-    let sum = 0;
-    let count = 0;
+    let totalWeighted = 0;
+    let totalUnits = 0;
     semSubjects.forEach(s => {
       const g = Number(s.finalGrade);
       if (g > 0) {
-        sum += g;
-        count++;
+        const actualSubj = subjects.find(sub => sub.id === s.id || isMatchingSubject(s.subjectName, sub.id, sub.subject_name));
+        if (actualSubj?.counts_in_general_average === false || actualSubj?.is_component) return;
+        if (s.subjectName.startsWith('*') || s.subjectName.toLowerCase().includes('arabic language') || s.subjectName.toLowerCase().includes('islamic values')) return;
+
+        const explicitUnits = actualSubj?.units && actualSubj.units > 0 ? actualSubj.units : undefined;
+        const unitInfo = getShsSubjectUnitInfo(s.subjectName, `Grade ${gradeLevelNum}`);
+        const weight = explicitUnits ?? unitInfo.unitsPerTerm;
+        totalWeighted += g * weight;
+        totalUnits += weight;
       }
     });
-    const genAvg = count > 0 ? String(Math.round(sum / count)) : '';
+    const genAvg = totalUnits > 0 ? String(Math.round(totalWeighted / totalUnits)) : '';
     const genAvgRem = genAvg ? (Number(genAvg) >= 75 ? 'PROMOTED' : 'RETAINED') : '';
 
     return {
