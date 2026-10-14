@@ -1,5 +1,5 @@
 import type { Student, SchoolProfile, Section, ClassRecord, Subject, User } from '../types';
-import { getShsSubjectUnitInfo, getStandardShsSemester } from '../lib/curriculum';
+import { getShsSubjectUnitInfo, getStandardShsSemester, resolveSubjectOfferedTerms } from '../lib/curriculum';
 import { isMatchingSubject, normalizeGrade12PESubjectName, isStudentEligibleForSectionSubject } from './grading-helpers';
 
 interface ShsMapperParams {
@@ -199,31 +199,43 @@ export function mapStudentToShsSf10Data({
         return 0;
       };
 
-      // Map quarter grades appropriately based on semester
+      const offeredTerms = resolveSubjectOfferedTerms(dbSubject, studentSection);
+      const t1 = getGrade(1);
+      const t2 = getGrade(2);
+      const t3 = getGrade(3);
+      const g4 = getGrade(4);
+
       let q1 = 0;
       let q2 = 0;
-      if (targetSemester === 1) {
-        q1 = getGrade(1);
-        q2 = getGrade(2);
-      } else {
-        // Semester 2: Quarter 3/4 in 4-quarter mode, or Term 2/3 in 3-term mode
-        const g4 = getGrade(4);
-        const g3 = getGrade(3);
-        const g2 = getGrade(2);
-        if (g4 > 0) {
-          q1 = g3 > 0 ? g3 : g2;
-          q2 = g4;
-        } else {
-          q1 = g2 > 0 ? g2 : g3;
-          q2 = g3 > 0 && q1 !== g3 ? g3 : 0;
-        }
-      }
-
+      let q3 = 0;
       let finalRating = 0;
-      if (q1 > 0 && q2 > 0) {
-        finalRating = Math.round((q1 + q2) / 2);
+
+      if (g4 === 0 && (offeredTerms.length === 3 || t3 > 0)) {
+        // 3-Term SY 2026-2027 SHS Mode (DO 009 & DO 017, s. 2026)
+        q1 = t1;
+        q2 = t2;
+        q3 = t3;
+        const activeTermGrades = (offeredTerms.length > 0 ? offeredTerms : [1, 2, 3])
+          .map(t => (t === 1 ? t1 : t === 2 ? t2 : t3))
+          .filter(g => g > 0);
+        const expectedCount = offeredTerms.length > 0 ? offeredTerms.length : activeTermGrades.length;
+        if (activeTermGrades.length > 0 && activeTermGrades.length === expectedCount) {
+          finalRating = Math.round(activeTermGrades.reduce((a, b) => a + b, 0) / activeTermGrades.length);
+        }
       } else {
-        finalRating = q1 || q2 || 0;
+        // Legacy 2-Semester Mode
+        if (targetSemester === 1) {
+          q1 = t1;
+          q2 = t2;
+        } else {
+          q1 = t3 > 0 ? t3 : t2;
+          q2 = g4 > 0 ? g4 : (t3 > 0 && q1 !== t3 ? t3 : 0);
+        }
+        if (q1 > 0 && q2 > 0) {
+          finalRating = Math.round((q1 + q2) / 2);
+        } else {
+          finalRating = q1 || q2 || 0;
+        }
       }
 
       return {
@@ -232,7 +244,7 @@ export function mapStudentToShsSf10Data({
         subjectCode: dbSubject.subject_code || '',
         quarter1Grade: q1 > 0 ? String(q1) : '',
         quarter2Grade: q2 > 0 ? String(q2) : '',
-        quarter3Grade: '',
+        quarter3Grade: q3 > 0 ? String(q3) : '',
         finalGrade: finalRating > 0 ? String(finalRating) : '',
         remarks: finalRating >= 75 ? 'PASSED' : finalRating > 0 ? 'FAILED' : '',
       };
@@ -252,7 +264,7 @@ export function mapStudentToShsSf10Data({
 
         const explicitUnits = actualSubj?.units && actualSubj.units > 0 ? actualSubj.units : undefined;
         const unitInfo = getShsSubjectUnitInfo(s.subjectName, `Grade ${gradeLevelNum}`);
-        const weight = explicitUnits ?? unitInfo.unitsPerTerm;
+        const weight = explicitUnits ?? unitInfo.yearUnits ?? unitInfo.unitsPerTerm;
         totalWeighted += g * weight;
         totalUnits += weight;
       }

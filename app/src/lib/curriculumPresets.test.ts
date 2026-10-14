@@ -76,29 +76,16 @@ describe('DepEd Curriculum Presets Engine (Universal 3-Term)', () => {
             const preset = getCurriculumPreset('Grade 11', 'Academic', 'Science, Technology, Engineering, and Mathematics');
             expect(preset?.id).toBe(SSHS_G11_STEM_PRESET.id);
 
-            // Term 1 electives: Chemistry 1, Pre-Calculus
-            const t1Electives = preset?.subjects.filter(s => s.term === 1).map(s => s.name);
-            expect(t1Electives).toContain('Chemistry 1');
-            expect(t1Electives).toContain('Pre-Calculus');
-
-            // Term 2 electives: Chemistry 2, Basic Calculus, Physics 1
-            const t2Electives = preset?.subjects.filter(s => s.term === 2).map(s => s.name);
-            expect(t2Electives).toContain('Chemistry 2');
-            expect(t2Electives).toContain('Basic Calculus');
-            expect(t2Electives).toContain('Physics 1');
-
-            // Term 3 electives: Physics 2, Advanced Mathematics
-            const t3Electives = preset?.subjects.filter(s => s.term === 3).map(s => s.name);
-            expect(t3Electives).toContain('Physics 2');
-            expect(t3Electives).toContain('Advanced Mathematics');
+            // 1 elective per term (W3-12): Pre-Calculus (T1), Basic Calculus (T2), Chemistry 1 (T3)
+            expect(preset?.subjects.find(s => s.term === 1)?.name).toBe('Pre-Calculus');
+            expect(preset?.subjects.find(s => s.term === 2)?.name).toBe('Basic Calculus');
+            expect(preset?.subjects.find(s => s.term === 3)?.name).toBe('Chemistry 1');
         });
 
         it('matches Grade 11 TechPro ICT preset', () => {
             const preset = getCurriculumPreset('Grade 11', 'Technical-Professional', 'ICT Support and Computer Programming Technologies');
             expect(preset?.id).toBe('sshs-g11-techpro-ict');
-            expect(preset?.subjects.some(s => s.name === 'Computer Systems Servicing' && s.term === 1)).toBe(true);
-            expect(preset?.subjects.some(s => s.name === 'Broadband Installation' && s.term === 2)).toBe(true);
-            expect(preset?.subjects.some(s => s.name === 'Computer Programming (.Net Technology)' && s.term === 3)).toBe(true);
+            expect(preset?.subjects.some(s => s.name === 'Computer Systems Servicing' && s.term === 'all')).toBe(true);
         });
 
         it('does not guess STEM or ICT when the Grade 11 SSHS cluster is unrecognised', () => {

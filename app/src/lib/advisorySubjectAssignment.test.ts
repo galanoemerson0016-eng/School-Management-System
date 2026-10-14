@@ -201,7 +201,7 @@ describe('Advisory Subject Assignment for SF9, SF10 & Grade Management', () => {
         expect(names).not.toContain('Chemistry 1');
     });
 
-    it('withholds conflicting Grade 11 elective choices from SF9 and SF10', () => {
+    it('allows multiple Grade 11 elective choices in the same term for SF9 and SF10 (W3-04)', () => {
         const biology: Subject = {
             id: 'biology-conflict', subject_name: 'Biology 1', grade_level: 'Grade 11',
             section_id: mockAdvisorySection.id, term: 1, enrolled_student_lrns: [mockStudent.lrn],
@@ -220,16 +220,16 @@ describe('Advisory Subject Assignment for SF9, SF10 & Grade Management', () => {
             student: mockStudent, profile: mockProfile, schoolYear: '2026-2027', sectionObj: section,
             subjects: allSubjects, gradingSheetRecords: [],
         });
-        expect(sf9.subjectGrades.map(subject => subject.subjectName)).not.toContain('Biology 1');
-        expect(sf9.subjectGrades.map(subject => subject.subjectName)).not.toContain('Chemistry 1');
+        expect(sf9.subjectGrades.map(subject => subject.subjectName)).toContain('Biology 1');
+        expect(sf9.subjectGrades.map(subject => subject.subjectName)).toContain('Chemistry 1');
 
         const sf10 = mapStudentToShsSf10Data({
             student: mockStudent, profile: mockProfile, schoolYear: '2026-2027', sections: [section],
             subjects: allSubjects, gradingSheetRecords: [],
         });
         const sf10Names = sf10.scholasticRecords.flatMap(record => record.subjects.map(subject => subject.subjectName));
-        expect(sf10Names).not.toContain('Biology 1');
-        expect(sf10Names).not.toContain('Chemistry 1');
+        expect(sf10Names).toContain('Biology 1');
+        expect(sf10Names).toContain('Chemistry 1');
     });
 
     it('filterSubjectsForSection strictly honors teaching_subjects for E-Class Record', () => {

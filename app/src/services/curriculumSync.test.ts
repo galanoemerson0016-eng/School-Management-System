@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { applyCurriculumPresetToSection, autoRepairSectionCurriculum, repairSectionOwnedSubjectOfferings } from './curriculumSync';
-import { getCurriculumPreset, SSHS_G11_CORE_SUBJECTS } from '../lib/curriculumPresets';
+import { getCurriculumPreset, SSHS_G11_STEM_PRESET } from '../lib/curriculumPresets';
 import type { Section, Subject } from '../types';
 
 describe('Curriculum Sync & In-Situ Auto-Repair Service', () => {
-    it('applies only the required SSHS G11 cores while keeping the STEM preset as an elective catalog', async () => {
+    it('applies the full SSHS G11 preset including term-sequenced electives per W3-06', async () => {
         const section: Section = {
             id: 'sec_g11_stem',
             section_name: 'Grade 11 - Einstein',
@@ -31,10 +31,10 @@ describe('Curriculum Sync & In-Situ Auto-Repair Service', () => {
 
         const result = await applyCurriculumPresetToSection(section, preset!, [], callbacks);
 
-        expect(result.createdSubjectsCount).toBe(SSHS_G11_CORE_SUBJECTS.length);
-        expect(result.updatedSection.taught_subjects?.length).toBe(SSHS_G11_CORE_SUBJECTS.length);
-        expect(result.updatedSection.taught_subjects).toEqual(SSHS_G11_CORE_SUBJECTS.map(subject => subject.name));
-        expect(result.updatedSection.taught_subjects).not.toContain('Chemistry 1');
+        expect(result.createdSubjectsCount).toBe(preset!.subjects.length);
+        expect(result.updatedSection.taught_subjects?.length).toBe(preset!.subjects.length);
+        expect(result.updatedSection.taught_subjects).toEqual(preset!.subjects.map(subject => subject.name));
+        expect(result.updatedSection.taught_subjects).toContain('Chemistry 1');
         expect(updatedSectionRecord).not.toBeNull();
         expect(updatedSectionRecord!.section_metadata?.subjectTerms).toBeDefined();
 
@@ -82,13 +82,15 @@ describe('Curriculum Sync & In-Situ Auto-Repair Service', () => {
         expect(repairResult.message).toContain('Grade 11 SSHS');
         expect(repairResult.updatedSection).toBeDefined();
 
-        // The six cores cover every term.  An auto-repair must not select
-        // elective subjects on the adviser's behalf.
+        // Per W3-06, applying the curriculum preset to a Grade 11 section includes
+        // the core subjects as well as preset electives and their terms.
         const terms = (repairResult.updatedSection!.section_metadata?.subjectTerms || {}) as Record<string, 1 | 2 | 3 | 'all'>;
         expect(terms).toBeDefined();
-        expect(repairResult.updatedSection?.taught_subjects).toEqual(SSHS_G11_CORE_SUBJECTS.map(subject => subject.name));
-        expect(Object.values(terms).every(term => term === 'all')).toBe(true);
-        expect(repairResult.updatedSection?.taught_subjects).not.toContain('Chemistry 1');
+        expect(repairResult.updatedSection?.taught_subjects).toEqual(SSHS_G11_STEM_PRESET.subjects.map(subject => subject.name));
+        expect(terms['Effective Communication']).toBe('all');
+        expect(terms['Pre-Calculus']).toBe(1);
+        expect(terms['Basic Calculus']).toBe(2);
+        expect(terms['Chemistry 1']).toBe(3);
     });
 
     it('identifies healthy Elementary section and skips redundant auto-repair', async () => {

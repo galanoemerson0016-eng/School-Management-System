@@ -342,7 +342,7 @@ export interface Subject {
     teacher_id?: string; // Assigned teacher
     order?: number; // Display order for reordering
     is_teaching_load?: boolean; // Flag for separate E-Class subjects
-    term?: 1 | 2 | 3 | 'all' | 'none'; // Legacy single-term representation
+    term?: 1 | 2 | 3 | 'all' | 'none' | '1,2' | '2,3'; // Term representation
     /** Explicit SSHS schedule; undefined lets the section configuration decide. */
     offered_terms?: (1 | 2 | 3)[];
     semester?: 1 | 2 | 'all' | 'none'; // The semester this subject is offered in (for 2-Semester SHS layout)

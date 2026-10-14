@@ -9,9 +9,10 @@ import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, U
 import * as XLSX from 'xlsx';
 import { assertSafeWorkbookFile, readSafeWorkbook } from '../utils/safe-workbook-reader';
 import { filterSF9Sections } from '../lib/rbac';
-import { formatGradeForDisplay } from '../lib/grading';
+import { formatGradeForDisplay, isDescriptiveGrading } from '../lib/grading';
+import { isThreeTermSchoolYear } from '../lib/terms';
 import { getSubjectsForGrade, normalizeSubjectName, sortSubjects, getCanonicalSubjectKey, getSubjectCategory, getStandardSubjectPriority } from '../lib/subjectConfig';
-import { getDefaultTermForSubject, getShsSubjectUnitInfo, getCurriculumTemplatesForSection, SPECIAL_SUBJECTS, isGrade11CoreSubject, resolveSubjectOfferedTerms } from '../lib/curriculum';
+import { getDefaultTermForSubject, getShsSubjectUnitInfo, getCurriculumTemplatesForSection, SPECIAL_SUBJECTS, isGrade11CoreSubject, resolveSubjectOfferedTerms, isGrade11TechProElective } from '../lib/curriculum';
 import { resolveStudentQuarterGrade, isMatchingSubject, isSameSubject, normalizeGrade12PESubjectName, cleanSubjectQuery, isQuarterMatch, isSubjectInTeachingLoad, extractSubjectSequence, isStudentInSection, isMaleStudent, isFemaleStudent } from '../utils/grading-helpers';
 import { autoRepairSectionCurriculum } from '../services/curriculumSync';
 import { getCurriculumPreset } from '../lib/curriculumPresets';
@@ -1496,8 +1497,8 @@ const groupedSections = useMemo(() => {
         const sectionGradeNum = parseInt(sectionObj.section_grade_level.replace(/\D/g, '')) || 0;
         const isSHS = sectionGradeNum === 11 || sectionGradeNum === 12;
         
-        const getEffectiveTerm = (s: Subject | { subject_name: string; grade_level?: string; term?: string | number | null; id?: string }): 1 | 2 | 3 | 'all' | 'none' => {
-            const sectionTermOverride = (sectionObj?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, 1 | 2 | 3 | 'all' | 'none'> | undefined;
+        const getEffectiveTerm = (s: Subject | { subject_name: string; grade_level?: string; term?: string | number | null; id?: string }): 1 | 2 | 3 | 'all' | 'none' | '1,2' | '2,3' => {
+            const sectionTermOverride = (sectionObj?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, 1 | 2 | 3 | 'all' | 'none' | '1,2' | '2,3'> | undefined;
             if (sectionTermOverride) {
                 if (sectionTermOverride[s.subject_name] !== undefined) {
                     return sectionTermOverride[s.subject_name];
@@ -1509,12 +1510,14 @@ const groupedSections = useMemo(() => {
                     }
                 }
             }
-            if (sectionGradeNum === 11 && isGrade11CoreSubject(s.subject_name)) {
-                return 'all';
+            if (sectionGradeNum === 11) {
+                if (isGrade11CoreSubject(s.subject_name) || isGrade11TechProElective(s.subject_name)) {
+                    return 'all';
+                }
             }
             if (s.term !== undefined && s.term !== null) {
                 const t = s.term;
-                if (t === 'all' || t === 'none' || t === 1 || t === 2 || t === 3) return t;
+                if (t === 'all' || t === 'none' || t === 1 || t === 2 || t === 3 || t === '1,2' || t === '2,3') return t;
                 if (t === '1') return 1;
                 if (t === '2') return 2;
                 if (t === '3') return 3;
@@ -1527,9 +1530,7 @@ const groupedSections = useMemo(() => {
         if (taughtRaw.length === 0 && sectionObj.is_advisory && (!sectionObj.program || sectionObj.program === 'Regular')) {
             const preset = getCurriculumPreset(sectionObj.section_grade_level, sectionObj.track, sectionObj.strand || sectionObj.cluster, 'Regular');
             if (preset && preset.subjects.length > 0) {
-                taughtRaw = isSHS && sectionGradeNum === 11
-                    ? preset.subjects.filter(s => isGrade11CoreSubject(s.name)).map(s => s.name)
-                    : preset.subjects.map(s => s.name);
+                taughtRaw = preset.subjects.map(s => s.name);
             }
         }
 
@@ -3020,14 +3021,22 @@ const groupedSections = useMemo(() => {
 
     // GRADES COMPUTATION
     const gradesData = useMemo(() => {
+        const hasBothSeparateEcAndMk = subjectColumns.some(
+            c => !c.subject._ecmkGroups && normalizeSubjectName(c.subject.subject_name) === 'effectivecommunication'
+        ) && subjectColumns.some(
+            c => !c.subject._ecmkGroups && normalizeSubjectName(c.subject.subject_name) === 'mabisangkomunikasyon'
+        );
+
         const getSubjectTermUnits = (subj: Subject & { _ecmkGroups?: { effectiveComm: Subject[]; mabisangKom: Subject[] } }): number => {
             const gradeLvl = sectionObj?.section_grade_level || 'Grade 11';
+            // DO 017 Table 1, Table 19 & Annex E: Combined Effective Communication / Mabisang Komunikasyon
+            // is ONE Core Subject (160 hours across 3 terms) = 2 units/term (6 units/year).
             if (subj._ecmkGroups) {
-                const ecSub = subj._ecmkGroups.effectiveComm[0];
-                const mkSub = subj._ecmkGroups.mabisangKom[0];
-                const ecUnits = (ecSub?.units && ecSub.units > 0) ? ecSub.units : getShsSubjectUnitInfo('Effective Communication', gradeLvl).unitsPerTerm;
-                const mkUnits = (mkSub?.units && mkSub.units > 0) ? mkSub.units : getShsSubjectUnitInfo('Mabisang Komunikasyon', gradeLvl).unitsPerTerm;
-                return ecUnits + mkUnits;
+                return 2;
+            }
+            const norm = normalizeSubjectName(subj.subject_name);
+            if ((norm === 'effectivecommunication' || norm === 'mabisangkomunikasyon') && hasBothSeparateEcAndMk) {
+                return 1; // 1 unit/term each when unmerged so EC + MK = 2 units/term (6 units/year) total
             }
             if (subj.units && subj.units > 0) return subj.units;
             return getShsSubjectUnitInfo(subj.subject_name, gradeLvl).unitsPerTerm;
@@ -3463,8 +3472,13 @@ const groupedSections = useMemo(() => {
             total: 0
         };
 
+        if (isDescriptiveGrading(sectionObj?.section_grade_level || '', activeSchoolYear)) {
+            return stats;
+        }
+
         const isQuarter = selectedTerm !== 'all';
         const activeTerm = isQuarter ? (selectedTerm as QuarterKey) : null;
+        const minHonorSubjectGrade = isThreeTermSchoolYear(activeSchoolYear) ? 80 : 85;
         
         const checkStudent = (student: Student) => {
             const sData = gradesData[student.lrn];
@@ -3475,14 +3489,14 @@ const groupedSections = useMemo(() => {
             const avg = Number(avgStr);
             if (isNaN(avg) || avg < 90) return null;
 
-            // Verify no subject grade is below 85 (DepEd Order No. 36, s. 2016)
+            // DO 015, s. 2026 Section 77 & Annex H Item 4: GA >= 90 with no Final Grade below 80 (85 for legacy pre-2026 SY)
             for (const { subject } of subjectColumns) {
                 if (isExcludedFromGeneralAverage(subject)) continue;
                 const subjEntry = sData[subject.id];
                 const gradeVal = activeTerm
                     ? (typeof subjEntry?.[activeTerm] === 'object' ? subjEntry[activeTerm]?.value : subjEntry?.[activeTerm])
                     : subjEntry?.final;
-                if (typeof gradeVal === 'number' && gradeVal > 0 && gradeVal < 85) {
+                if (typeof gradeVal === 'number' && gradeVal > 0 && gradeVal < minHonorSubjectGrade) {
                     return null;
                 }
             }
@@ -3517,7 +3531,7 @@ const groupedSections = useMemo(() => {
         stats.total = stats.male + stats.female;
 
         return stats;
-    }, [sectionStudents, gradesData, selectedTerm, subjectColumns]);
+    }, [sectionStudents, gradesData, selectedTerm, subjectColumns, activeSchoolYear, sectionObj?.section_grade_level]);
 
     const subjectPerformanceStats = useMemo(() => {
         const list: any[] = [];

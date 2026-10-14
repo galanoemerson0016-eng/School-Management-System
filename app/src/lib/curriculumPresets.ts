@@ -274,7 +274,7 @@ export const SSHS_G11_CORE_SUBJECTS: PresetSubjectItem[] = [
 export const SSHS_G11_STEM_PRESET: CurriculumPreset = {
     id: 'sshs-g11-stem',
     label: 'Grade 11 SSHS STEM (Science, Technology, Engineering, and Mathematics)',
-    description: '6 Core Subjects (Terms 1–3) + 7 Term-Sequenced STEM Electives (Annex E)',
+    description: '5 Core Subjects (Terms 1–3, 30 units) + 3 Term-Sequenced STEM Electives (1 per term, 9 units = 39 units/yr)',
     gradeLevel: 'Grade 11',
     curriculumType: 'SSHS',
     track: 'Academic',
@@ -282,25 +282,16 @@ export const SSHS_G11_STEM_PRESET: CurriculumPreset = {
     program: 'Regular',
     subjects: [
         ...SSHS_G11_CORE_SUBJECTS,
-        // Term 1 Electives (3 units each)
-        { name: 'Chemistry 1', term: 1, category: 'Academic Elective', weightCategory: 'SHSAcademicMathSci', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicMathSci },
-        { name: 'Pre-Calculus', term: 1, category: 'Academic Elective', weightCategory: 'SHSAcademicMathSci', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicMathSci },
-
-        // Term 2 Electives (3 units each)
-        { name: 'Chemistry 2', term: 2, category: 'Academic Elective', weightCategory: 'SHSAcademicMathSci', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicMathSci },
-        { name: 'Basic Calculus', term: 2, category: 'Academic Elective', weightCategory: 'SHSAcademicMathSci', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicMathSci },
-        { name: 'Physics 1', term: 2, category: 'Academic Elective', weightCategory: 'SHSAcademicMathSci', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicMathSci },
-
-        // Term 3 Electives (3 units each)
-        { name: 'Physics 2', term: 3, category: 'Academic Elective', weightCategory: 'SHSAcademicMathSci', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicMathSci },
-        { name: 'Advanced Mathematics', term: 3, category: 'Academic Elective', weightCategory: 'SHSAcademicMathSci', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicMathSci }
+        { name: 'Pre-Calculus', term: 1, category: 'Academic Elective', weightCategory: 'SHSAcademicMathSci', units: 3, hoursPerYear: 80, ...DEPED_WEIGHT_PROFILES.SHSAcademicMathSci },
+        { name: 'Basic Calculus', term: 2, category: 'Academic Elective', weightCategory: 'SHSAcademicMathSci', units: 3, hoursPerYear: 80, ...DEPED_WEIGHT_PROFILES.SHSAcademicMathSci },
+        { name: 'Chemistry 1', term: 3, category: 'Academic Elective', weightCategory: 'SHSAcademicMathSci', units: 3, hoursPerYear: 80, ...DEPED_WEIGHT_PROFILES.SHSAcademicMathSci }
     ]
 };
 
 export const SSHS_G11_ABM_PRESET: CurriculumPreset = {
     id: 'sshs-g11-abm',
     label: 'Grade 11 SSHS Business & Entrepreneurship (ABM)',
-    description: '6 Core Subjects (Terms 1–3) + Business Sequence Electives',
+    description: '5 Core Subjects (Terms 1–3, 30 units) + 3 Business Sequence Electives (1 per term, 9 units = 39 units/yr)',
     gradeLevel: 'Grade 11',
     curriculumType: 'SSHS',
     track: 'Academic',
@@ -308,24 +299,16 @@ export const SSHS_G11_ABM_PRESET: CurriculumPreset = {
     program: 'Regular',
     subjects: [
         ...SSHS_G11_CORE_SUBJECTS,
-        // Term 1
-        { name: 'Business 1 (Basic Accounting)', term: 1, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Contemporary Marketing', term: 1, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-
-        // Term 2
-        { name: 'Business 2 (Business Finance and Income Taxation)', term: 2, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Introduction to Organization and Management', term: 2, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-
-        // Term 3
-        { name: 'Business 3 (Business Economics)', term: 3, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Entrepreneurship', term: 3, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities }
+        { name: 'Business 1 (Basic Accounting)', term: 1, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, hoursPerYear: 80, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
+        { name: 'Business 2 (Business Finance and Income Taxation)', term: 2, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, hoursPerYear: 80, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
+        { name: 'Business 3 (Business Economics)', term: 3, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, hoursPerYear: 80, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities }
     ]
 };
 
 export const SSHS_G11_HUMSS_PRESET: CurriculumPreset = {
     id: 'sshs-g11-humss',
     label: 'Grade 11 SSHS Arts, Social Sciences, and Humanities (HUMSS)',
-    description: '6 Core Subjects (Terms 1–3) + Humanities & Social Sciences Electives',
+    description: '5 Core Subjects (Terms 1–3, 30 units) + 3 Humanities & Social Sciences Electives (1 per term, 9 units = 39 units/yr)',
     gradeLevel: 'Grade 11',
     curriculumType: 'SSHS',
     track: 'Academic',
@@ -333,26 +316,16 @@ export const SSHS_G11_HUMSS_PRESET: CurriculumPreset = {
     program: 'Regular',
     subjects: [
         ...SSHS_G11_CORE_SUBJECTS,
-        // Term 1
-        { name: 'Contemporary Literature 1', term: 1, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Philippine Governance (Philippine Politics and Governance)', term: 1, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Creative Composition 1', term: 1, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-
-        // Term 2
-        { name: 'Contemporary Literature 2', term: 2, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Social Sciences (Theory and Practice)', term: 2, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Creative Composition 2', term: 2, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-
-        // Term 3
-        { name: 'Introduction to the Philosophy of the Human Person', term: 3, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
-        { name: 'Malikhaing Pagsulat', term: 3, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities }
+        { name: 'Philippine Governance (Philippine Politics and Governance)', term: 1, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, hoursPerYear: 80, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
+        { name: 'Social Sciences (Theory and Practice)', term: 2, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, hoursPerYear: 80, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities },
+        { name: 'Introduction to the Philosophy of the Human Person', term: 3, category: 'Academic Elective', weightCategory: 'SHSAcademicHumanities', units: 3, hoursPerYear: 80, ...DEPED_WEIGHT_PROFILES.SHSAcademicHumanities }
     ]
 };
 
 export const SSHS_G11_TECHPRO_ICT_PRESET: CurriculumPreset = {
     id: 'sshs-g11-techpro-ict',
     label: 'Grade 11 SSHS TechPro: ICT Support & Computer Programming',
-    description: '6 Core Subjects (Terms 1–3) + 4 units/term TechPro Specialization (Annex E)',
+    description: '5 Core Subjects (Terms 1–3) + 1 TechPro Specialization across All 3 Terms (320 hrs, 4 units/term = 12 units/yr)',
     gradeLevel: 'Grade 11',
     curriculumType: 'SSHS',
     track: 'Technical-Professional',
@@ -360,16 +333,14 @@ export const SSHS_G11_TECHPRO_ICT_PRESET: CurriculumPreset = {
     program: 'Regular',
     subjects: [
         ...SSHS_G11_CORE_SUBJECTS,
-        { name: 'Computer Systems Servicing', term: 1, category: 'TechPro Elective', weightCategory: 'SHSTVL', units: 4, ...DEPED_WEIGHT_PROFILES.SHSTVL },
-        { name: 'Broadband Installation', term: 2, category: 'TechPro Elective', weightCategory: 'SHSTVL', units: 4, ...DEPED_WEIGHT_PROFILES.SHSTVL },
-        { name: 'Computer Programming (.Net Technology)', term: 3, category: 'TechPro Elective', weightCategory: 'SHSTVL', units: 4, ...DEPED_WEIGHT_PROFILES.SHSTVL }
+        { name: 'Computer Systems Servicing', term: 'all', category: 'TechPro Elective', weightCategory: 'SHSTVL', units: 4, hoursPerYear: 320, ...DEPED_WEIGHT_PROFILES.SHSTVL }
     ]
 };
 
 export const SSHS_G11_TECHPRO_AUTOMOTIVE_PRESET: CurriculumPreset = {
     id: 'sshs-g11-techpro-automotive',
     label: 'Grade 11 SSHS TechPro: Automotive & Small Engine Technologies',
-    description: '6 Core Subjects (Terms 1–3) + 4 units/term Automotive Specialization (Annex E)',
+    description: '5 Core Subjects (Terms 1–3) + 1 TechPro Specialization across All 3 Terms (320 hrs, 4 units/term = 12 units/yr)',
     gradeLevel: 'Grade 11',
     curriculumType: 'SSHS',
     track: 'Technical-Professional',
@@ -377,16 +348,14 @@ export const SSHS_G11_TECHPRO_AUTOMOTIVE_PRESET: CurriculumPreset = {
     program: 'Regular',
     subjects: [
         ...SSHS_G11_CORE_SUBJECTS,
-        { name: 'Driving and Automotive Servicing', term: 1, category: 'TechPro Elective', weightCategory: 'SHSTVL', units: 4, ...DEPED_WEIGHT_PROFILES.SHSTVL },
-        { name: 'Motorcycle and Small Engine Servicing', term: 2, category: 'TechPro Elective', weightCategory: 'SHSTVL', units: 4, ...DEPED_WEIGHT_PROFILES.SHSTVL },
-        { name: 'Automotive Servicing (Electrical Repair)', term: 3, category: 'TechPro Elective', weightCategory: 'SHSTVL', units: 4, ...DEPED_WEIGHT_PROFILES.SHSTVL }
+        { name: 'Driving and Automotive Servicing', term: 'all', category: 'TechPro Elective', weightCategory: 'SHSTVL', units: 4, hoursPerYear: 320, ...DEPED_WEIGHT_PROFILES.SHSTVL }
     ]
 };
 
 export const SSHS_G11_TECHPRO_HOSPITALITY_PRESET: CurriculumPreset = {
     id: 'sshs-g11-techpro-hospitality',
     label: 'Grade 11 SSHS TechPro: Hospitality & Tourism',
-    description: '6 Core Subjects (Terms 1–3) + 4 units/term Hospitality Specialization (Annex E)',
+    description: '5 Core Subjects (Terms 1–3) + 1 TechPro Specialization across All 3 Terms (320 hrs, 4 units/term = 12 units/yr)',
     gradeLevel: 'Grade 11',
     curriculumType: 'SSHS',
     track: 'Technical-Professional',
@@ -394,9 +363,7 @@ export const SSHS_G11_TECHPRO_HOSPITALITY_PRESET: CurriculumPreset = {
     program: 'Regular',
     subjects: [
         ...SSHS_G11_CORE_SUBJECTS,
-        { name: 'Food and Beverage Operation', term: 1, category: 'TechPro Elective', weightCategory: 'SHSTVL', units: 4, ...DEPED_WEIGHT_PROFILES.SHSTVL },
-        { name: 'Kitchen Operations', term: 2, category: 'TechPro Elective', weightCategory: 'SHSTVL', units: 4, ...DEPED_WEIGHT_PROFILES.SHSTVL },
-        { name: 'Bakery Operations', term: 3, category: 'TechPro Elective', weightCategory: 'SHSTVL', units: 4, ...DEPED_WEIGHT_PROFILES.SHSTVL }
+        { name: 'Food and Beverage Operation', term: 'all', category: 'TechPro Elective', weightCategory: 'SHSTVL', units: 4, hoursPerYear: 320, ...DEPED_WEIGHT_PROFILES.SHSTVL }
     ]
 };
 

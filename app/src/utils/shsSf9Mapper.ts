@@ -124,7 +124,7 @@ export function mapStudentToShsSf9Data({
   const sectionSubjects = uniqueShsSubjects;
 
   // Compute grades per Term
-  const computeGradesForSubject = (subjId: string, subjectName: string, subjectTerm?: 1 | 2 | 3 | 'all' | 'none') => {
+  const computeGradesForSubject = (subjId: string, subjectName: string, subjectTerm?: 1 | 2 | 3 | 'all' | 'none' | '1,2' | '2,3') => {
     const getGrade = (q: number) => {
       const matchRecord = (r: ClassRecord) =>
         (r.student_lrn === student.lrn || String(r.student_lrn).trim() === String(student.lrn).trim()) &&
@@ -178,6 +178,10 @@ export function mapStudentToShsSf9Data({
         final = t2;
       } else if (numericTerm === 3) {
         final = t3;
+      } else if (subjectTerm === '1,2') {
+        final = (t1 > 0 && t2 > 0) ? Math.round((t1 + t2) / 2) : 0;
+      } else if (subjectTerm === '2,3') {
+        final = (t2 > 0 && t3 > 0) ? Math.round((t2 + t3) / 2) : 0;
       } else {
         // Core subject (all terms) - average of all 3 terms
         let sum = 0;

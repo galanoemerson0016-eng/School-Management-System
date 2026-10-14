@@ -31,7 +31,8 @@ import {
     isTraditionalCoreSubject,
     isTraditionalAppliedSubject,
     isTraditionalImmersionSubject,
-    getTvlComponentForSubject
+    getTvlComponentForSubject,
+    getShsSubjectUnitInfo
 } from '../../lib/curriculum';
 import { auditGrade11ElectiveEnrollment, normalizeGrade12PESubjectName } from '../../utils/grading-helpers';
 import { normalizeSubjectName, sortSubjects } from '../../lib/subjectConfig';
@@ -133,10 +134,30 @@ const createGrade11CoreTerms = (): Record<string, SubjectTermSelection> =>
 const isGrade11CoreName = (name: string) =>
     grade11CoreNames.some(core => core.toLowerCase() === name.toLowerCase());
 
+const normalizeTermValue = (val: unknown): 1 | 2 | 3 | 'all' | 'none' | '1,2' | '2,3' => {
+    if (val === 'all' || val === 'none' || val === '1,2' || val === '2,3') return val;
+    if (Array.isArray(val)) {
+        const joined = val.map(Number).filter(n => n >= 1 && n <= 3).sort().join(',');
+        if (joined === '1,2,3') return 'all';
+        if (joined === '1,2' || joined === '2,3') return joined;
+        if (joined === '1') return 1;
+        if (joined === '2') return 2;
+        if (joined === '3') return 3;
+        return 'none';
+    }
+    const num = Number(val);
+    if (num === 1 || num === 2 || num === 3) return num;
+    return 'none';
+};
+
 const getGrade11ElectiveTerm = (name: string, terms: Record<string, SubjectTermSelection>) => {
     const configured = terms[name];
+    if (getShsSubjectUnitInfo(name, 'Grade 11').category === 'techpro_elective' || configured === 'all') {
+        return 'all';
+    }
     if (configured === 1 || configured === 2 || configured === 3) return configured;
     const defaultTerm = getDefaultTermForSubject(name, 11);
+    if (defaultTerm === 'all') return 'all';
     return defaultTerm === 2 || defaultTerm === 3 ? defaultTerm : 1;
 };
 
@@ -210,7 +231,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
 
     /** Adds a Grade 11 SSHS elective offering for a term.  Learner enrolment,
      * not the section roster, enforces one elective per learner per term. */
-    const setGrade11ElectiveForTerm = (subjectName: string, term: 1 | 2 | 3) => {
+    const setGrade11ElectiveForTerm = (subjectName: string, term: 1 | 2 | 3 | 'all') => {
         if (isGrade11CoreName(subjectName)) {
             showNotification('Grade 11 SSHS Core Subjects are required in all three terms.', 'info');
             return;
@@ -242,8 +263,8 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
         setSubjectTerms(nextTerms);
         showNotification(
             alreadyOffered
-                ? `Moved "${subjectName}" to Term ${term}.`
-                : `Added "${subjectName}" as a Term ${term} offering. Enrol each learner in only one Term ${term} elective.`,
+                ? `Moved "${subjectName}" to ${term === 'all' ? 'All Terms' : `Term ${term}`}.`
+                : `Added "${subjectName}" as a ${term === 'all' ? '3-term' : `Term ${term}`} offering.`,
             'info'
         );
     };
@@ -864,18 +885,25 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
         return auditGrade11ElectiveEnrollment(sectionForAudit, students, subjects);
     }, [isG11, section, formData, activeTaughtList, subjectTerms, students, subjects]);
 
-    const handleSetSubjectTerm = (subjName: string, term: 1 | 2 | 3 | 'all') => {
+    const handleSetSubjectTerm = (subjName: string, term: SubjectTermSelection) => {
         if (isGrade11SshsSection()) {
             if (isGrade11CoreName(subjName)) {
                 setSubjectTerms(prev => ({ ...prev, [subjName]: 'all' }));
                 return;
             }
-            if (term === 'all') {
-                showNotification('A Grade 11 SSHS elective can be offered in one term only.', 'info');
+            const isTechProSubj = getShsSubjectUnitInfo(subjName, 'Grade 11').category === 'techpro_elective';
+            if (term === 'all' && !isTechProSubj) {
+                showNotification('A Grade 11 Academic elective (80 hours) is offered in one term only (T1, T2, or T3). Tech-Pro electives (320 hours) run across All Terms.', 'info');
                 return;
             }
-            setGrade11ElectiveForTerm(subjName, term);
-            return;
+            if (term === 'all' && isTechProSubj) {
+                setSubjectTerms(prev => ({ ...prev, [subjName]: 'all' }));
+                return;
+            }
+            if (term === 1 || term === 2 || term === 3) {
+                setGrade11ElectiveForTerm(subjName, term);
+                return;
+            }
         }
         setSubjectTerms(prev => ({
             ...prev,
@@ -890,11 +918,23 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             return;
         }
         if (isGrade11SshsSection()) {
-            if (customSubjTerm === 'all') {
-                showNotification('A Grade 11 SSHS elective must be assigned to one term.', 'error');
+            const isTechProSubj = getShsSubjectUnitInfo(trimmed, 'Grade 11').category === 'techpro_elective';
+            if (customSubjTerm === 'all' && !isTechProSubj) {
+                showNotification('A Grade 11 Academic elective must be assigned to one term (T1, T2, or T3).', 'error');
                 return;
             }
-            setGrade11ElectiveForTerm(trimmed, customSubjTerm);
+            if (customSubjTerm === 'all' && isTechProSubj) {
+                setFormData(prev => ({
+                    ...prev,
+                    taught_subjects: Array.from(new Set([...(prev.taught_subjects || []), trimmed]))
+                }));
+                setSubjectTerms(prev => ({ ...prev, [trimmed]: 'all' }));
+                setCustomSubjName('');
+                setShowAddCustomModal(false);
+                showNotification(`Set Tech-Pro elective "${trimmed}" across All Terms (Terms 1–3).`, 'success');
+                return;
+            }
+            setGrade11ElectiveForTerm(trimmed, customSubjTerm as 1 | 2 | 3);
             setCustomSubjName('');
             setShowAddCustomModal(false);
             showNotification(`Set custom elective "${trimmed}" for Term ${customSubjTerm}.`, 'success');
@@ -1377,7 +1417,11 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             });
 
             if (section.section_metadata?.subjectTerms) {
-                setSubjectTerms(section.section_metadata.subjectTerms);
+                const normalized: Record<string, SubjectTermSelection> = {};
+                for (const [k, v] of Object.entries(section.section_metadata.subjectTerms)) {
+                    normalized[k] = normalizeTermValue(v);
+                }
+                setSubjectTerms(normalized);
             } else {
                 setSubjectTerms({});
             }
@@ -1487,10 +1531,12 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
 
             // Ensure every final taught subject has an assigned term in finalSubjectTerms
             finalTaughtSubjects.forEach(sName => {
-                if (finalSubjectTerms[sName] === undefined) {
+                if (!isSHS) {
+                    finalSubjectTerms[sName] = 'all';
+                } else if (finalSubjectTerms[sName] === undefined) {
                     const preset = getCurriculumPreset(gradeLevel, formData.track, formData.strand || formData.cluster, sectionProgram);
                     const match = preset?.subjects.find(s => s.name.toLowerCase() === sName.toLowerCase());
-                    finalSubjectTerms[sName] = match?.term ?? (isSHS ? 1 : 'all');
+                    finalSubjectTerms[sName] = match?.term ?? 1;
                 }
             });
 
@@ -2502,37 +2548,56 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                                                             )}
                                                                                             {isG11 && !isSelected && !isGrade11Core && (
                                                                                                 <div className="flex items-center gap-1 shrink-0" onClick={event => event.stopPropagation()}>
-                                                                                                    {([1, 2, 3] as const).map(term => (
+                                                                                                    {getShsSubjectUnitInfo(subj.name, 'Grade 11').category === 'techpro_elective' ? (
                                                                                                         <button
-                                                                                                            key={term}
                                                                                                             type="button"
-                                                                                                            onClick={() => setGrade11ElectiveForTerm(subj.name, term)}
+                                                                                                            onClick={() => handleSetSubjectTerm(subj.name, 'all')}
                                                                                                             className="px-1.5 py-0.5 rounded text-[8px] font-black bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white transition-colors cursor-pointer"
-                                                                                                            title={`Set as the Term ${term} elective`}
+                                                                                                            title="Offer across All Terms (Terms 1–3)"
                                                                                                         >
-                                                                                                            T{term}
+                                                                                                            All
                                                                                                         </button>
-                                                                                                    ))}
+                                                                                                    ) : (
+                                                                                                        ([1, 2, 3] as const).map(term => (
+                                                                                                            <button
+                                                                                                                key={term}
+                                                                                                                type="button"
+                                                                                                                onClick={() => setGrade11ElectiveForTerm(subj.name, term)}
+                                                                                                                className="px-1.5 py-0.5 rounded text-[8px] font-black bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white transition-colors cursor-pointer"
+                                                                                                                title={`Set as the Term ${term} elective`}
+                                                                                                            >
+                                                                                                                T{term}
+                                                                                                            </button>
+                                                                                                        ))
+                                                                                                    )}
                                                                                                 </div>
                                                                                             )}
                                                                                             {/* Inline offering term selector for SHS subjects */}
                                                                                             {isSHS && isSelected && !isGrade11Core && (
                                                                                                 <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                                                                                                    {(isG11 ? [1, 2, 3] : ['all', 1, 2, 3] as const).map(t => (
-                                                                                                        <button
-                                                                                                            key={t}
-                                                                                                            type="button"
-                                                                                                            onClick={() => handleSetSubjectTerm(subj.name, t as 1 | 2 | 3 | 'all')}
-                                                                                                            className={`px-1.5 py-0.5 rounded text-[8px] font-black transition-all cursor-pointer ${
-                                                                                                                effTerm === t
-                                                                                                                    ? 'bg-indigo-600 text-white shadow-xs'
-                                                                                                                    : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/20'
-                                                                                                            }`}
-                                                                                                            title={`Offer in ${t === 'all' ? 'All Terms' : `Term ${t}`}`}
-                                                                                                        >
-                                                                                                            {t === 'all' ? 'All' : `T${t}`}
-                                                                                                        </button>
-                                                                                                    ))}
+                                                                                                    {(() => {
+                                                                                                        const isTechPro = isG11 && getShsSubjectUnitInfo(subj.name, 'Grade 11').category === 'techpro_elective';
+                                                                                                        const isWorkImmersion = subj.name.toLowerCase().includes('work immersion');
+                                                                                                        const termOptions: SubjectTermSelection[] = isG11
+                                                                                                            ? (isTechPro ? ['all', 1, 2, 3] : [1, 2, 3])
+                                                                                                            : (isWorkImmersion ? ['all', 1, 2, 3, '1,2', '2,3'] : ['all', 1, 2, 3]);
+
+                                                                                                        return termOptions.map(t => (
+                                                                                                            <button
+                                                                                                                key={String(t)}
+                                                                                                                type="button"
+                                                                                                                onClick={() => handleSetSubjectTerm(subj.name, t)}
+                                                                                                                className={`px-1.5 py-0.5 rounded text-[8px] font-black transition-all cursor-pointer ${
+                                                                                                                    effTerm === t
+                                                                                                                        ? 'bg-indigo-600 text-white shadow-xs'
+                                                                                                                        : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/20'
+                                                                                                                }`}
+                                                                                                                title={`Offer in ${t === 'all' ? 'All Terms' : typeof t === 'string' && t.includes(',') ? `Terms ${t}` : `Term ${t}`}`}
+                                                                                                            >
+                                                                                                                {t === 'all' ? 'All' : typeof t === 'string' && t.includes(',') ? `T${t}` : `T${t}`}
+                                                                                                            </button>
+                                                                                                        ));
+                                                                                                    })()}
                                                                                                     <button
                                                                                                         type="button"
                                                                                                         onClick={(e) => {

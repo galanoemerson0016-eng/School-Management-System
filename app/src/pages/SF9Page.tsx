@@ -61,7 +61,8 @@ import { isGrade1, getStudentBoSyEoSyAge, formatDateToMMDDYYYY, type SF9Grade1Re
 import { isGrade11Academic } from '../services/sf9-g11-academic-excel-export';
 import type { SF9ExcelExportOptions } from '../services/sf9-excel-export';
 import { filterSF9Sections } from '../lib/rbac';
-import { formatGradeForDisplay, getDescriptor as getCanonicalDescriptor } from '../lib/grading';
+import { formatGradeForDisplay, getDescriptor as getCanonicalDescriptor, isDescriptiveGrading } from '../lib/grading';
+import { isThreeTermSchoolYear } from '../lib/terms';
 import { formatLearnerName } from '../utils/student-name';
 import { getShsSubjectUnitInfo, getCurriculumTemplatesForSection, getDefaultTermForSubject, resolveSubjectOfferedTerms } from '../lib/curriculum';
 import {
@@ -904,7 +905,7 @@ function computeStudentValues(student: Student, observedValues: ObservedValues[]
     return values;
 }
 
-function calculateFinalGrade(quarterGrades: number[], term?: 1 | 2 | 3 | 'all' | 'none', subjectName?: string): number {
+function calculateFinalGrade(quarterGrades: number[], term?: 1 | 2 | 3 | 'all' | 'none' | '1,2' | '2,3', subjectName?: string): number {
     return calculateSf9FinalGrade(quarterGrades, term, subjectName);
 }
 
@@ -935,12 +936,14 @@ function getGeneralAverageRemarks(
     const remarks = ['Promoted'];
     
     // Check if qualifies for Academic Excellence Award
-    // Criteria: GA >= 90 AND no final grade below 85 in any of the averaged learning areas
+    // Criteria: GA >= 90 AND no final grade below 80 (85 for legacy) in any of the averaged learning areas
     if (genAvg >= 90) {
         const dbSubjects = useAppStore.getState().subjects;
         const student = studentLrn ? useAppStore.getState().students.find(s => s.lrn === studentLrn) : undefined;
         const effectiveGradeLevel = gradeLevel || student?.grade_level || '';
-        let hasGradeBelow85 = false;
+        if (isDescriptiveGrading(effectiveGradeLevel, schoolYear)) return remarks;
+        const minHonorSubjectGrade = isThreeTermSchoolYear(schoolYear) ? 80 : 85;
+        let hasGradeBelowHonor = false;
         let hasMissingSubjectGrade = false;
         let hasGrades = false;
 
@@ -991,14 +994,14 @@ function getGeneralAverageRemarks(
                 const finalGrade = calculateFinalGrade(gradeRow, term, key);
                 if (finalGrade > 0) {
                     hasGrades = true;
-                    if (finalGrade < 85) {
-                        hasGradeBelow85 = true;
+                    if (finalGrade < minHonorSubjectGrade) {
+                        hasGradeBelowHonor = true;
                     }
                 }
             }
         });
 
-        if (!hasMissingSubjectGrade && hasGrades && !hasGradeBelow85) {
+        if (!hasMissingSubjectGrade && hasGrades && !hasGradeBelowHonor) {
             remarks.push('with Academic');
             remarks.push('Excellence Award');
         }
@@ -1737,20 +1740,30 @@ function SF9Pages({
                                                 if (normName === 'academicelective1') return tNum === 1;
                                                 if (normName === 'academicelective2') return tNum === 2;
                                                 if (normName === 'academicelective3') return tNum === 3;
-                                                if (normName === 'techproelective1') return true;
+                                                if (
+                                                    normName === 'techproelective1' ||
+                                                    term === 'all' ||
+                                                    getShsSubjectUnitInfo(subj.name, 'Grade 11').category === 'techpro_elective'
+                                                ) {
+                                                    return true;
+                                                }
+                                                if (typeof term === 'string' && term.includes(',')) {
+                                                    return term.split(',').map(Number).includes(tNum);
+                                                }
 
-                                                // Explicit term property on subject
+                                                // Explicit single-term property on subject
                                                 if (Number(term) === 1) return tNum === 1;
                                                 if (Number(term) === 2) return tNum === 2;
                                                 if (Number(term) === 3) return tNum === 3;
 
-                                                // Default term for subject (e.g. Biology 1 -> 1, Biology 2 -> 2, Biology 3 -> 3)
+                                                // Default term for subject
                                                 const defTerm = getDefaultTermForSubject(subj.name, student.grade_level || 'Grade 11');
+                                                if (defTerm === 'all') return true;
                                                 if (defTerm === 1) return tNum === 1;
                                                 if (defTerm === 2) return tNum === 2;
                                                 if (defTerm === 3) return tNum === 3;
 
-                                                // Fallback to elective order index in list
+                                                // Fallback to elective order index in list for unscheduled 1-term Academic Electives
                                                 const electiveSubjs = currentSubjects.filter(s => 
                                                     !s.isHeader && 
                                                     !s.isReserved && 
@@ -1761,13 +1774,15 @@ function SF9Pages({
                                                 if (elIdx === 1) return tNum === 2;
                                                 if (elIdx === 2) return tNum === 3;
 
-                                                if (defTerm === 'all') return true;
                                                 return false;
                                             }
 
                                             if (gradeRow[tNum - 1] > 0) return true;
                                             const effTerm = term || getDefaultTermForSubject(subj.name, student.grade_level);
                                             if (effTerm === 'all') return true;
+                                            if (typeof effTerm === 'string' && effTerm.includes(',')) {
+                                                return effTerm.split(',').map(Number).includes(tNum);
+                                            }
                                             const numTerm = Number(effTerm);
                                             if (numTerm === 1 || numTerm === 2 || numTerm === 3) {
                                                 return numTerm === tNum;

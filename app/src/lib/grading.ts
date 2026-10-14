@@ -128,6 +128,18 @@ export const EXS_TE_ONLY_CLUSTERS: SubjectCluster[] = [
     'shs_field_exposure'
 ];
 
+export function isSingleTermExamOnlyShsSubject(subjectName: string, cluster?: SubjectCluster): boolean {
+    if (cluster && EXS_TE_ONLY_CLUSTERS.includes(cluster)) return true;
+    const norm = (subjectName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    return (
+        norm.includes('fieldexposure') ||
+        norm.includes('artsapprenticeship') ||
+        norm.includes('creativeproduction') ||
+        norm.includes('basiccalculus') ||
+        norm.includes('advancedmathematics')
+    );
+}
+
 /**
  * Clusters that have NO EXs component (weight is already 0).
  * Applies to: Research Electives, Design and Innovation, Work Immersion.
@@ -148,13 +160,15 @@ export const EXS_NONE_CLUSTERS: SubjectCluster[] = ['shs_research', 'shs_immersi
  * @param teScore  - Student's raw score on Term Examination
  * @param teHPS    - Highest Possible Score for TE
  * @param cluster  - Subject cluster to determine EXs mode
+ * @param subjectName - Optional subject name to check for single-exam subjects (DO 015 Sec 46.a)
  * @returns A percentage score (0–100) for the EXs component
  */
 export function computeExamsWeightedScore(
     st1Score: number | string | null | undefined, st1HPS: number,
     st2Score: number | string | null | undefined, st2HPS: number,
     teScore: number | string | null | undefined, teHPS: number,
-    cluster: SubjectCluster
+    cluster: SubjectCluster,
+    subjectName?: string
 ): number {
     // No EXs component for these clusters
     if (EXS_NONE_CLUSTERS.includes(cluster)) return 0;
@@ -169,8 +183,8 @@ export function computeExamsWeightedScore(
     const s2 = parseVal(st2Score);
     const te = parseVal(teScore);
 
-    // TE-only EXs: TE gets 100% of the EXs percentage score
-    if (EXS_TE_ONLY_CLUSTERS.includes(cluster)) {
+    // DO 015 Section 46.a: TE-only EXs (TE carries 100% of the EXs percentage score)
+    if (isSingleTermExamOnlyShsSubject(subjectName || '', cluster)) {
         if (teHPS <= 0 || te === null) return 0;
         return Math.min(100, Math.max(0, (te / teHPS) * 100));
     }

@@ -10,7 +10,7 @@ import type { Student } from '../types';
 describe('Wave 2 Audit Regression Suite (A-01 to D-03)', () => {
   describe('A-01: Canonical School Calendar 2026-2027 Synchronization', () => {
     it('defines correct school days per month in SCHOOL_CALENDAR_2026_2027', () => {
-      expect(SCHOOL_CALENDAR_2026_2027.JUNE.length).toBe(21);
+      expect(SCHOOL_CALENDAR_2026_2027.JUNE.length).toBe(16);
       expect(SCHOOL_CALENDAR_2026_2027.JULY.length).toBe(23);
       expect(SCHOOL_CALENDAR_2026_2027.AUGUST.length).toBe(19);
       expect(SCHOOL_CALENDAR_2026_2027.SEPTEMBER.length).toBe(22);
@@ -39,7 +39,7 @@ describe('Wave 2 Audit Regression Suite (A-01 to D-03)', () => {
 
       const result = computeStudentAttendance(mockStudent, [], '2026-2027');
       // months: ['JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC', 'JAN', 'FEB', 'MAR', 'APR', 'TOTAL']
-      expect(result.schoolDays[0]).toBe(21); // June
+      expect(result.schoolDays[0]).toBe(16); // June
       expect(result.schoolDays[1]).toBe(23); // July
       expect(result.schoolDays[6]).toBe(13); // December
       expect(result.schoolDays[9]).toBe(21); // March

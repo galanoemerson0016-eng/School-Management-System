@@ -411,6 +411,13 @@ export const TeachingLoadMatrixModal: React.FC<TeachingLoadMatrixModalProps> = (
                                             {/* Matrix Subject Cells */}
                                             {relevantSubjects.map(subj => {
                                                 const isChecked = assigned.includes(subj.subject_name);
+                                                const secTerm = sec.section_metadata?.subjectTerms?.[subj.subject_name];
+                                                const rawTerm = secTerm !== undefined ? secTerm : subj.term;
+                                                const termBadge = (() => {
+                                                    if (!rawTerm || rawTerm === 'all') return 'All';
+                                                    if (typeof rawTerm === 'number') return `T${rawTerm}`;
+                                                    return `T${rawTerm}`;
+                                                })();
 
                                                 return (
                                                     <td
@@ -422,13 +429,18 @@ export const TeachingLoadMatrixModal: React.FC<TeachingLoadMatrixModalProps> = (
                                                                 : 'hover:bg-slate-50 dark:hover:bg-white/5 text-slate-300 dark:text-slate-600'
                                                         }`}
                                                     >
-                                                        <div className="flex items-center justify-center">
+                                                        <div className="flex flex-col items-center justify-center gap-1">
                                                             {isChecked ? (
                                                                 <div className="w-5 h-5 rounded-md bg-indigo-600 text-white flex items-center justify-center shadow-xs">
                                                                     <Check className="w-3.5 h-3.5 stroke-3" />
                                                                 </div>
                                                             ) : (
                                                                 <div className="w-5 h-5 rounded-md border border-slate-300 dark:border-slate-600 hover:border-indigo-400 transition" />
+                                                            )}
+                                                            {isChecked && (
+                                                                <span className="text-[9px] font-bold px-1 py-0.2 rounded bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 leading-none">
+                                                                    {termBadge}
+                                                                </span>
                                                             )}
                                                         </div>
                                                     </td>

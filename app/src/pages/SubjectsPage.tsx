@@ -121,7 +121,8 @@ import {
     SHS_G12_CORE_SUBJECTS,
     SHS_G12_APPLIED_SUBJECTS,
     SHS_OLD_STRAND_SUBJECTS,
-    SHS_G12_ALL_OLD_SUBJECTS
+    SHS_G12_ALL_OLD_SUBJECTS,
+    normalizeOfferedTerms
 } from '../lib/curriculum';
 
 export type CurriculumChoiceType = 
@@ -177,7 +178,7 @@ export function SubjectsPage() {
         grade_level: '',
         section_id: '',
         teacher_id: '',
-        term: 'all' as 1 | 2 | 3 | 'all' | 'none',
+        term: 'all' as 1 | 2 | 3 | 'all' | 'none' | '1,2' | '2,3',
         written_weight: '',
         performance_weight: '',
         exam_weight: ''
@@ -254,7 +255,8 @@ export function SubjectsPage() {
             elemOrJhsHiddenToFix.forEach(sub => {
                 void updateSubject({
                     ...sub,
-                    term: 'all'
+                    term: 'all',
+                    offered_terms: [1, 2, 3]
                 });
             });
         }
@@ -619,6 +621,9 @@ export function SubjectsPage() {
                 const isComponent = template.is_component ?? template.isComponent ?? (['music and arts', 'physical education and health'].some(c => template.name.toLowerCase().includes(c)));
                 const countsInGenAvg = (template.counts_in_general_average ?? template.countsInGeneralAverage) !== false && !isComponent && !template.name.startsWith('*');
                 const templateTerm = template.term;
+                const isShsGrade = /11|12/.test(String(gradeLevel || ''));
+                const resolvedTerm = isShsGrade ? (templateTerm !== undefined ? templateTerm : getDefaultTermForSubject(template.name, gradeLevel)) : 'all';
+                const resolvedOfferedTerms: (1 | 2 | 3)[] = isShsGrade ? (normalizeOfferedTerms(resolvedTerm) as (1 | 2 | 3)[]) : [1, 2, 3];
 
                 const newSubject: Subject = {
                     id: subjectId,
@@ -626,7 +631,8 @@ export function SubjectsPage() {
                     subject_code: template.code || '',
                     grade_level: gradeLevel,
                     section_id: sectionId,
-                    term: templateTerm !== undefined ? templateTerm : getDefaultTermForSubject(template.name, gradeLevel),
+                    term: resolvedTerm,
+                    offered_terms: resolvedOfferedTerms,
                     order: UNIVERSAL_SUBJECT_ORDER.findIndex((name) => normalizeSubjectLabel(name) === normalizeSubjectLabel(template.name)),
                     is_special_program: Boolean(template.program || template.is_special_program || template.isSpecialProgram),
                     program_type: template.program,
@@ -1947,9 +1953,13 @@ export function SubjectsPage() {
             examVal = ex / 100;
         }
 
-        const gNum = parseInt(grade.replace(/\D/g, '')) || 0;
-        const isElemOrJhs = (gNum >= 1 && gNum <= 10) || grade.toLowerCase().includes('kinder');
-        const finalTerm = isElemOrJhs ? 'all' : (formData.term === 'all' ? 'all' : (formData.term === 'none' ? 'none' : Number(formData.term) as 1 | 2 | 3));
+        const isShsGrade = /11|12/.test(String(grade || ''));
+        const finalTerm: Subject['term'] = isShsGrade
+            ? (formData.term === 'all' ? 'all' : (formData.term === 'none' ? 'none' : Number(formData.term) as 1 | 2 | 3))
+            : 'all';
+        const finalOfferedTerms: (1 | 2 | 3)[] = isShsGrade
+            ? normalizeOfferedTerms(finalTerm)
+            : [1, 2, 3];
 
         const subjectData: Subject = {
             id: editingSubjectId || generateDeterministicSubjectId(grade, cleanName, targetSection || undefined),
@@ -1959,6 +1969,7 @@ export function SubjectsPage() {
             section_id: targetSection || undefined,
             teacher_id: formData.teacher_id || undefined,
             term: finalTerm,
+            offered_terms: finalOfferedTerms,
             written_weight: writtenVal,
             performance_weight: performanceVal,
             exam_weight: examVal

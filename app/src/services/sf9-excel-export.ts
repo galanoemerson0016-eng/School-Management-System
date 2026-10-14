@@ -11,6 +11,7 @@ import { formatLearnerName } from '../utils/student-name';
 import { formatGradeForDisplay } from '../lib/grading';
 import { getShsSubjectUnitInfo } from '../lib/curriculum';
 import { calculateQuarterlyFinalGrade, calculateWeightedGradeAverage } from './grade-calculation';
+import { isThreeTermSchoolYear } from '../lib/terms';
 import type { PaceRatingDescriptor } from '../types/pace';
 import { isGrade1, fetchGrade1TemplateBuffer, populateGrade1TemplateBuffer, type SF9Grade1Remarks } from './sf9-g1-excel-export';
 import { isGrade2, fetchGrade2TemplateBuffer, populateGrade2TemplateBuffer } from './sf9-g2-excel-export';
@@ -75,7 +76,7 @@ export interface SF9ExcelExportOptions {
     math?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
     gmrcMakabansa?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
   } | undefined;
-  subjectTerm?: (subjectName: string, subjectId?: string) => 1 | 2 | 3 | 'all' | 'none' | undefined;
+  subjectTerm?: (subjectName: string, subjectId?: string) => 1 | 2 | 3 | 'all' | 'none' | '1,2' | '2,3' | undefined;
   pageSize?: 'A4' | 'LETTER';
 }
 
@@ -416,7 +417,8 @@ async function populateTemplate(buffer: ArrayBuffer, opts: SF9ExcelExportOptions
   const average = calculateWeightedGradeAverage(generalAverageEntries);
   if (average !== null && generalAverageEntries.length > 0) {
       const generalAvg = Math.round(average);
-      const hasLowGrade = generalAverageEntries.some(e => e.grade < 85);
+      const minHonorGrade = isThreeTermSchoolYear(schoolYear) ? 80 : 85;
+      const hasLowGrade = generalAverageEntries.some(e => e.grade < minHonorGrade);
       
       let genAvgRemarks = generalAvg >= 75 ? 'Promoted' : 'Retained';
       if (generalAvg >= 90 && !hasLowGrade) {

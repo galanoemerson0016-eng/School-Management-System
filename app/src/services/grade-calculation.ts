@@ -105,7 +105,7 @@ function isExcludedFromAverage(key: string, subject?: SF9SubjectItem): boolean {
 /** Computes an SF9 subject final using the existing three-term and SHS-elective rules. */
 export function calculateSf9FinalGrade(
   quarterGrades: number[],
-  term?: 1 | 2 | 3 | 'all' | 'none',
+  term?: 1 | 2 | 3 | 'all' | 'none' | '1,2' | '2,3',
   subjectName?: string,
 ): number {
   if (term === 'none') return 0;
@@ -124,6 +124,12 @@ export function calculateSf9FinalGrade(
   if (term === 1 || Number(term) === 1) return quarterGrades[0] || 0;
   if (term === 2 || Number(term) === 2) return quarterGrades[1] || 0;
   if (term === 3 || Number(term) === 3) return quarterGrades[2] || 0;
+  if (term === '1,2') {
+    return quarterGrades[0] > 0 && quarterGrades[1] > 0 ? Math.round((quarterGrades[0] + quarterGrades[1]) / 2) : 0;
+  }
+  if (term === '2,3') {
+    return quarterGrades[1] > 0 && quarterGrades[2] > 0 ? Math.round((quarterGrades[1] + quarterGrades[2]) / 2) : 0;
+  }
   if (quarterGrades.length !== 3 || !quarterGrades.every(grade => grade > 0)) return 0;
   return Math.round(quarterGrades.reduce((sum, grade) => sum + grade, 0) / 3);
 }
@@ -155,7 +161,16 @@ export function calculateSf9GeneralAverage(
     if (isShs) {
       const unitInfo = getShsSubjectUnitInfo(key, gradeLevel || 'Grade 11');
       const explicitUnits = Number(subject?.units ?? dbSubject?.units);
-      const unitsPerTerm = Number.isFinite(explicitUnits) && explicitUnits > 0 ? explicitUnits : unitInfo.unitsPerTerm;
+      let unitsPerTerm = Number.isFinite(explicitUnits) && explicitUnits > 0 ? explicitUnits : unitInfo.unitsPerTerm;
+      const normKey = normalizeSubjectName(key);
+      const hasBothSeparateEcAndMk = currentSubjects.some(
+        s => normalizeSubjectName(s.name) === 'effectivecommunication'
+      ) && currentSubjects.some(
+        s => normalizeSubjectName(s.name) === 'mabisangkomunikasyon'
+      );
+      if ((normKey === 'effectivecommunication' || normKey === 'mabisangkomunikasyon') && hasBothSeparateEcAndMk) {
+        unitsPerTerm = 1;
+      }
       const offeredTerms = resolveSubjectOfferedTerms({ subject_name: key, term }, { section_grade_level: gradeLevel || 'Grade 11' }).length;
       const yearUnits = unitsPerTerm * Math.max(1, offeredTerms);
       totalWeighted += finalGrade * yearUnits;

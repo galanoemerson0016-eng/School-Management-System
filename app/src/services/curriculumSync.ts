@@ -69,11 +69,15 @@ export async function repairSectionOwnedSubjectOfferings(
             : (getDefaultTermForSubject(subjectName, gradeLevel) || (isShs ? 1 : 'all'));
         const termSource = configuredTerm ?? libraryDefinition?.offered_terms ?? libraryDefinition?.term ?? fallbackTerm;
         const offeredTerms = normalizeOfferedTerms(termSource);
-        const term: Subject['term'] = offeredTerms.length === 3
+        const term: Subject['term'] = !isShs
             ? 'all'
-            : offeredTerms.length === 1
-                ? offeredTerms[0]
-                : isShs ? 'none' : 'all';
+            : offeredTerms.length === 3
+                ? 'all'
+                : offeredTerms.length === 2
+                    ? (offeredTerms.join(',') as Subject['term'])
+                    : offeredTerms.length === 1
+                        ? offeredTerms[0]
+                        : 'none';
 
         await callbacks.addSubject({
             id: generateUUID(),
@@ -115,13 +119,7 @@ export async function applyCurriculumPresetToSection(
         updateSection: (section: Section) => Promise<void>;
     }
 ): Promise<CurriculumSyncResult> {
-    const isGrade11Sshs = (section.section_grade_level || preset.gradeLevel || '').includes('11') && preset.curriculumType === 'SSHS';
-    // Grade 11 SSHS presets describe the permitted cluster catalog.  A section
-    // starts with the mandatory cores; its adviser deliberately adds the
-    // elective offerings that the section will run later.
-    const offeredPresetSubjects = isGrade11Sshs
-        ? preset.subjects.filter(subject => isGrade11CoreSubject(subject.name))
-        : preset.subjects;
+    const offeredPresetSubjects = preset.subjects;
     const subjectNames = offeredPresetSubjects.map(s => s.name);
     const subjectTerms: Record<string, 1 | 2 | 3 | 'all'> = {};
 
@@ -131,15 +129,10 @@ export async function applyCurriculumPresetToSection(
 
     const updatedMetadata = {
         ...(section.section_metadata || {}),
-        // Keep older term metadata for other curricula, but a Grade 11 repair
-        // deliberately returns to the core-only baseline and must remove stale
-        // elective entries that are no longer in the section offering.
-        subjectTerms: isGrade11Sshs
-            ? subjectTerms
-            : {
-                ...((section.section_metadata?.subjectTerms as Record<string, 1 | 2 | 3 | 'all'>) || {}),
-                ...subjectTerms
-            }
+        subjectTerms: {
+            ...((section.section_metadata?.subjectTerms as Record<string, 1 | 2 | 3 | 'all'>) || {}),
+            ...subjectTerms
+        }
     };
 
     const updatedSection: Section = {

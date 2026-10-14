@@ -1001,6 +1001,10 @@ export const SPECIAL_SUBJECTS: Record<string, SpecialSubjectItem[]> = {
 
 export type GradeLevel = keyof typeof STANDARD_SUBJECTS;
 
+export function isGrade11TechProElective(subjectName: string): boolean {
+    return getShsSubjectUnitInfo(subjectName, 'Grade 11').category === 'techpro_elective';
+}
+
 export function getDefaultTermForSubject(subjectName: string, gradeLevel: string | number): 1 | 2 | 3 | 'all' | 'none' {
     const gl = String(gradeLevel || '').toLowerCase().trim();
     const gNum = parseInt(gl.replace(/\D/g, '')) || 0;
@@ -1017,13 +1021,13 @@ export function getDefaultTermForSubject(subjectName: string, gradeLevel: string
         return 'none';
     }
     
-    // For Grade 11, Core subjects are offered in all terms
-    if (isGrade11CoreSubject(subjectName)) {
+    // DO 017, s. 2026 Table 3 & Table 10:
+    // In Grade 11, BOTH Core subjects (160 hrs) AND Tech-Pro Electives (320 hrs) are offered across all 3 terms ('all').
+    if (isGrade11CoreSubject(subjectName) || isGrade11TechProElective(subjectName)) {
         return 'all';
     }
     
-    // A non-Core SSHS subject's name must never decide its schedule.  The
-    // adviser explicitly selects its offered term(s) for this section.
+    // Academic Electives in Grade 11 (80 hrs) are 1-term offerings chosen by the adviser.
     return 'none';
 }
 
@@ -1063,10 +1067,12 @@ export function resolveSubjectOfferedTerms(
         return [1, 2, 3];
     }
 
-    // Grade 11 SSHS core learning areas are full-year offerings.  Older
-    // imports sometimes persisted a single term on the Subject row; allowing
-    // that stale value to win makes Grade Management and SF9 disagree.
-    if (gradeNum === 11 && isGrade11CoreSubject(sub.subject_name)) {
+    // Grade 11 SSHS core learning areas and Tech-Pro electives are full-year offerings.
+    if (gradeNum === 11 && (isGrade11CoreSubject(sub.subject_name) || isGrade11TechProElective(sub.subject_name))) {
+        const subjectTermsMeta = (sectionObj?.section_metadata as Record<string, unknown> | undefined)?.subjectTerms as Record<string, unknown> | undefined;
+        if (subjectTermsMeta && subjectTermsMeta[sub.subject_name] !== undefined) {
+            return normalizeOfferedTerms(subjectTermsMeta[sub.subject_name]);
+        }
         return [1, 2, 3];
     }
 

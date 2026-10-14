@@ -12,6 +12,7 @@ vi.mock('../stores', () => ({
 import {
   transmuteGrade,
   computeExamsWeightedScore,
+  isSingleTermExamOnlyShsSubject,
   getSubjectCluster,
   getWeights,
   isDescriptiveGrading,
@@ -478,6 +479,20 @@ describe('v3.5.22 logic audit regressions', () => {
 
   it('L-09: closes the 24.0-24.99 transmutation gap for pre-2026 school years', () => {
     expect(transmuteGrade(24.5, '2025-2026')).toBe(60);
+  });
+
+  it('W3-07: recognizes single-exam subjects and allocates 100% of EX weight to Term Exam', () => {
+    expect(isSingleTermExamOnlyShsSubject('Basic Calculus')).toBe(true);
+    expect(isSingleTermExamOnlyShsSubject('Advanced Mathematics')).toBe(true);
+    expect(isSingleTermExamOnlyShsSubject('Arts Apprenticeship')).toBe(true);
+    expect(isSingleTermExamOnlyShsSubject('Creative Production and Presentation')).toBe(true);
+    expect(isSingleTermExamOnlyShsSubject('Field Exposure')).toBe(true);
+    expect(isSingleTermExamOnlyShsSubject('General Mathematics')).toBe(false);
+
+    // Single exam subject with 40/50 on TE -> 80% PS = 80 WS
+    expect(computeExamsWeightedScore(null, 0, null, 0, 40, 50, 'shs_core_academic', 'Basic Calculus')).toBe(80);
+    // When ST1 and ST2 are present in row, single-exam subject overrides and still uses 100% TE
+    expect(computeExamsWeightedScore(10, 50, 10, 50, 40, 50, 'shs_core_academic', 'Basic Calculus')).toBe(80);
   });
 });
 

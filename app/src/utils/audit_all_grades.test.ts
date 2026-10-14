@@ -6,7 +6,7 @@ import {
   buildTestClassRecords
 } from './testSectionGenerator';
 import { computeLiveTransmutedGradeFromRecord } from './grading-helpers';
-import { getSubjectCluster, getWeights, normalizeWeightFraction } from '../lib/grading';
+import { getSubjectCluster, getWeights, normalizeWeightFraction, isSingleTermExamOnlyShsSubject } from '../lib/grading';
 
 describe('Comprehensive Grade Audit Across All Grade Levels & Curriculum Programs', () => {
   it('validates 100% mathematical parity between in-app live calculation and Excel formulas across all subjects', () => {
@@ -169,7 +169,7 @@ describe('Comprehensive Grade Audit Across All Grade Levels & Curriculum Program
         let qaWS = 0;
         if (qaWeight > 0) {
           let qaPS = 0;
-          if (cluster === 'shs_field_exposure') {
+          if (cluster === 'shs_field_exposure' || isSingleTermExamOnlyShsSubject(subj?.subject_name || '')) {
             qaPS = qa2Hps > 0 ? (qa2 / qa2Hps) * 100 : 0;
           } else {
             qaPS = (qa0 / qa0Hps) * 30 + (qa1 / qa1Hps) * 30 + (qa2 / qa2Hps) * 40;

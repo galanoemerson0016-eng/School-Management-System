@@ -785,7 +785,7 @@ export function computeLiveTransmutedGradeFromRecord(
         const ptWS = ptPS * (normalizeWeightFraction(weights.performance_tasks) || 0);
 
         const isZeroExam = (weights.quarterly_exam || 0) === 0;
-        const qaPS = isZeroExam ? 0 : computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, cluster);
+        const qaPS = isZeroExam ? 0 : computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, cluster, subjectName);
         const qaWS = isZeroExam ? 0 : qaPS * (normalizeWeightFraction(weights.quarterly_exam) || 0);
 
         const rawInitial = (wwWS || 0) + (ptWS || 0) + (qaWS || 0);
@@ -1802,33 +1802,9 @@ export function isStudentEligibleForSectionSubject(
     studentLrn: string,
     section: Section | null | undefined,
     subject: Subject,
-    allSectionSubjects: Subject[]
+    _allSectionSubjects?: Subject[]
 ): boolean {
     if (isGrade11CoreSubject(subject.subject_name)) return true;
     if (!section) return isStudentEnrolledInSubject(studentLrn, subject);
-    const gradeNumber = parseInt((section.section_grade_level || '').replace(/\D/g, ''), 10);
-    if (gradeNumber !== 11) return isStudentEnrolledInSubject(studentLrn, subject);
-
-    // If learner is not enrolled in this subject, not eligible
-    if (!isStudentEnrolledInSubject(studentLrn, subject)) return false;
-
-    // Check if enrolled in conflicting elective in same term
-    const subjectTerms = resolveSubjectOfferedTerms(subject, section);
-    const peerElectives = allSectionSubjects.filter(s =>
-        s.id !== subject.id &&
-        s.section_id === section.id &&
-        !isGrade11CoreSubject(s.subject_name)
-    );
-
-    for (const peer of peerElectives) {
-        if (isStudentEnrolledInSubject(studentLrn, peer)) {
-            const peerTerms = resolveSubjectOfferedTerms(peer, section);
-            const hasOverlappingTerm = subjectTerms.some(t => peerTerms.includes(t));
-            if (hasOverlappingTerm) {
-                return false;
-            }
-        }
-    }
-
-    return true;
+    return isStudentEnrolledInSubject(studentLrn, subject);
 }

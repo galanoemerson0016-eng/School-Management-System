@@ -5,6 +5,7 @@ import type { Section, Subject } from '../../types';
 import { getClassSizeLimit, isGrade11CoreSubject, resolveSubjectOfferedTerms } from '../../lib/curriculum';
 import { normalizeSubjectName } from '../../lib/subjectConfig';
 import { generateUUID } from '../../utils/idGenerator';
+import { isStudentInSection } from '../../utils/grading-helpers';
 
 interface SubjectEnrollmentModalProps {
     open: boolean;
@@ -55,7 +56,7 @@ export function SubjectEnrollmentModal({ open, subject, section, onClose, onSubj
         return students
             .filter(student =>
                 student.grade_level === enrollmentSubject.grade_level &&
-                (student.student_section === sectionName || student.student_section === parentSection?.id || student.student_section === enrollmentSubject.section_id)
+                isStudentInSection(student, parentSection, sectionName)
             )
             .map(student => student.lrn);
     }, [students, enrollmentSubject, sectionName, parentSection]);
@@ -89,7 +90,7 @@ export function SubjectEnrollmentModal({ open, subject, section, onClose, onSubj
                 return true;
             } else {
                 // Only students in the specific advisory section
-                return student.student_section === sectionName || student.student_section === parentSection?.id || student.student_section === enrollmentSubject.section_id;
+                return isStudentInSection(student, parentSection, sectionName);
             }
         });
     }, [students, enrollmentSubject, sectionName, parentSection, showAllGradeStudents]);

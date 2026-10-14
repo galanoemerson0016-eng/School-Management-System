@@ -13,7 +13,7 @@ import { exportSHSG12EClassRecord, resolveSHSG12Terms } from '../services/shs-g1
 import { exportDirectDatabaseToExcel } from '../services/database-rescue-export';
 import { isGrade11CoreSubject, getDefaultTermForSubject, getShsSubjectUnitInfo, SSHS_ELECTIVE_CATALOG, getSshsCategoryForSubject } from '../lib/curriculum';
 import { isMatchingSubject, isSameSubject, findHpsRecord, resolveStudentQuarterGrade, computeLiveTransmutedGradeFromRecord, isStudentInSection, isMaleStudent, isFemaleStudent } from '../utils/grading-helpers';
-import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore, normalizeWeightFraction, normalizeWeightPercent, type SubjectCluster } from '../lib/grading';
+import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore, isSingleTermExamOnlyShsSubject, normalizeWeightFraction, normalizeWeightPercent, type SubjectCluster } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
 import { useTableCrosshair } from '../hooks/useTableCrosshair';
 
@@ -294,6 +294,7 @@ interface StudentGradeRowProps {
     isZeroExam: boolean;
     isSSHS: boolean;
     useThreeExamLayout: boolean;
+    subjectName?: string;
 }
 
 const StudentGradeRow = memo(({
@@ -316,6 +317,7 @@ const StudentGradeRow = memo(({
     isZeroExam,
     isSSHS: _isSSHS,
     useThreeExamLayout,
+    subjectName,
 }: StudentGradeRowProps) => {
     const summary = useMemo(() => {
         const sGrades: Pick<ClassRecord, 'written_works' | 'performance_tasks' | 'quarterly_exam'> = record || {
@@ -361,9 +363,11 @@ const StudentGradeRow = memo(({
         const teScore = typeof qaScores[2] === 'number' ? qaScores[2] : (qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]));
         const teHPS = Number(hps.qa[2]) || 0;
 
-        const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) ? Math.round(((st1Score as number) / st1HPS) * 30 * 100) / 100 : null;
-        const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) ? Math.round(((st2Score as number) / st2HPS) * 30 * 100) / 100 : null;
-        const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) ? Math.round(((teScore as number) / teHPS) * 40 * 100) / 100 : null;
+        const isTeOnlyExam = isSingleTermExamOnlyShsSubject(subjectName || '', currentCluster);
+        const st1WS = (!isTeOnlyExam && st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) ? Math.round(((st1Score as number) / st1HPS) * 30 * 100) / 100 : null;
+        const st2WS = (!isTeOnlyExam && st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) ? Math.round(((st2Score as number) / st2HPS) * 30 * 100) / 100 : null;
+        const teSubWeight = isTeOnlyExam ? 100 : 40;
+        const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) ? Math.round(((teScore as number) / teHPS) * teSubWeight * 100) / 100 : null;
 
         let qaScore = 0;
         let qaHPS = 0;
@@ -387,7 +391,7 @@ const StudentGradeRow = memo(({
             }
         }
 
-        const qaPS = isZeroExam ? 0 : computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
+        const qaPS = isZeroExam ? 0 : computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster, subjectName);
         const qaWS = isZeroExam ? 0 : Math.round(qaPS * (normalizeWeightFraction(currentWeights.quarterly_exam) || 0) * 100) / 100;
 
         const rawInitial = Math.round(((wwWS || 0) + (ptWS || 0) + (qaWS || 0)) * 100) / 100;
@@ -414,7 +418,7 @@ const StudentGradeRow = memo(({
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
         };
-    }, [record, hps, currentWeights, currentCluster, activeSchoolYear, activeWwCount, activePtCount, isZeroExam, useThreeExamLayout]);
+    }, [record, hps, currentWeights, currentCluster, activeSchoolYear, activeWwCount, activePtCount, isZeroExam, useThreeExamLayout, subjectName]);
 
     const rowNum = (sectionIdx === 0 ? 1 : maleStudentsCount + 1) + idx;
 
@@ -1338,7 +1342,7 @@ export function ShsEClassRecord() {
             qaScore += (teScore as number);
         }
 
-        const qaPS = isZeroExam ? 0 : computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
+        const qaPS = isZeroExam ? 0 : computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster, selectedSubjectObj?.subject_name || subjectName);
         const qaWS = isZeroExam ? 0 : Math.round(qaPS * (normalizeWeightFraction(currentWeights.quarterly_exam) || 0) * 100) / 100;
 
         const rawInitial = Math.round(((wwWS || 0) + (ptWS || 0) + (qaWS || 0)) * 100) / 100;
@@ -1363,7 +1367,7 @@ export function ShsEClassRecord() {
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
         };
-    }, [studentRecordMap, hps, currentWeights, currentCluster, activeSchoolYear, activeWwCount, activePtCount, isZeroExam]);
+    }, [studentRecordMap, hps, currentWeights, currentCluster, activeSchoolYear, activeWwCount, activePtCount, isZeroExam, selectedSubjectObj?.subject_name, subjectName]);
 
     const getGradeDescriptor = useCallback((grade: number, hasScores: boolean) => {
         if (!hasScores || grade <= 0) return '';
@@ -1669,7 +1673,7 @@ export function ShsEClassRecord() {
             const teScore = sQa[2] === '' || sQa[2] === null || sQa[2] === undefined ? null : Number(sQa[2]);
             const teHPS = Number(currentHpsQa[2]) || 0;
 
-            const qaPS = isZeroExam ? 0 : computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
+            const qaPS = isZeroExam ? 0 : computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster, subjectName);
             const qaWS = isZeroExam ? 0 : Math.round(qaPS * (normalizeWeightFraction(currentWeights.quarterly_exam) || 0) * 100) / 100;
 
             const rawInitial = Math.round(((wwWS || 0) + (ptWS || 0) + (qaWS || 0)) * 100) / 100;
@@ -1773,7 +1777,7 @@ export function ShsEClassRecord() {
         const teScore = qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]);
         const teHPS = Number(hps.qa[2]) || 0;
 
-        const qaPS = isZeroExam ? 0 : computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
+        const qaPS = isZeroExam ? 0 : computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster, selectedSubjectObj?.subject_name || subjectName);
         const qaWS = isZeroExam ? 0 : Math.round(qaPS * (normalizeWeightFraction(currentWeights.quarterly_exam) || 0) * 100) / 100;
 
         const rawInitial = (wwWS || 0) + (ptWS || 0) + (qaWS || 0);
@@ -1793,7 +1797,7 @@ export function ShsEClassRecord() {
             record.subject_name = subjectName;
             void saveEClassChanges({ records: [record] }).catch(() => undefined);
         }
-    }, [selectedSection, effectiveSubjectId, subjectName, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, saveEClassChanges, showNotification, sections, activeWwCount, activePtCount, isZeroExam]);
+    }, [selectedSection, effectiveSubjectId, subjectName, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, saveEClassChanges, showNotification, sections, activeWwCount, activePtCount, isZeroExam, selectedSubjectObj?.subject_name]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
@@ -3243,9 +3247,9 @@ export function ShsEClassRecord() {
                                                 />
                                             </td>
                                         ))}
-                                        {!isZeroExam && useThreeExamLayout && <td data-col-key="ws-st1" className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">30</td>}
-                                        {!isZeroExam && useThreeExamLayout && <td data-col-key="ws-st2" className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">30</td>}
-                                        {!isZeroExam && useThreeExamLayout && <td data-col-key="ws-te" className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">40</td>}
+                                        {!isZeroExam && useThreeExamLayout && <td data-col-key="ws-st1" className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">{isSingleTermExamOnlyShsSubject(selectedSubjectObj?.subject_name || subjectName || '', currentCluster) ? 0 : 30}</td>}
+                                        {!isZeroExam && useThreeExamLayout && <td data-col-key="ws-st2" className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">{isSingleTermExamOnlyShsSubject(selectedSubjectObj?.subject_name || subjectName || '', currentCluster) ? 0 : 30}</td>}
+                                        {!isZeroExam && useThreeExamLayout && <td data-col-key="ws-te" className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">{isSingleTermExamOnlyShsSubject(selectedSubjectObj?.subject_name || subjectName || '', currentCluster) ? 100 : 40}</td>}
                                         {!isZeroExam && useThreeExamLayout && <td data-col-key="qa-ps" className="border border-black bg-yellow-100/80 font-bold">100</td>}
                                         {!isZeroExam && useThreeExamLayout && <td data-col-key="qa-ws" className="border border-black border-r-2 border-r-black bg-yellow-200/80 font-black italic">{normalizeWeightPercent(currentWeights.quarterly_exam)}%</td>}
                                         {/* G12 K-12: 1 exam HPS input (TE) + PS + WS = 3 cols */}
@@ -3298,6 +3302,7 @@ export function ShsEClassRecord() {
                                                 isZeroExam={isZeroExam}
                                                 isSSHS={isSSHS}
                                                 useThreeExamLayout={useThreeExamLayout}
+                                                subjectName={selectedSubjectObj?.subject_name || subjectName}
                                             />
                                         );
                                     })}

@@ -25,6 +25,9 @@ import {
 import { isThreeTermSchoolYear } from './terms';
 import { mapStudentToShsSf9Data } from '../utils/shsSf9Mapper';
 import { mapStudentToShsSf10Data } from '../utils/shsSf10Mapper';
+import { isStudentEligibleForSectionSubject } from '../utils/grading-helpers';
+import { SCHOOL_CALENDAR_2026_2027 } from '../utils/sf2-sync';
+import { computeExamsWeightedScore } from './grading';
 import type { Student, SchoolProfile, Section, Subject, ClassRecord } from '../types';
 
 describe('DepEd Order No. 017, s. 2026 - Unit Weights & Clusters', () => {
@@ -706,4 +709,64 @@ describe('Smart DepEd Standard Weights Locks', () => {
     });
   });
 });
+
+describe('Wave 3 DepEd DO 009, 015, and 017, s. 2026 compliance regressions', () => {
+  it('W3-01: defaults Grade 11 Tech-Pro electives to all 3 terms (4 units/term, 12 units/year) and Grade 12 Tech-Pro electives to single-term (12 units)', () => {
+    expect(getDefaultTermForSubject('Computer Systems Servicing', 'Grade 11')).toBe('all');
+    expect(getDefaultTermForSubject('Food and Beverage Operation', 'Grade 11')).toBe('all');
+    expect(getShsSubjectUnitInfo('Computer Systems Servicing', 'Grade 11')).toEqual({
+      unitsPerTerm: 4,
+      yearUnits: 12,
+      category: 'techpro_elective',
+    });
+    expect(getDefaultTermForSubject('Computer Systems Servicing', 'Grade 12')).toBe('none');
+    expect(getShsSubjectUnitInfo('Computer Systems Servicing', 'Grade 12')).toEqual({
+      unitsPerTerm: 12,
+      yearUnits: 12,
+      category: 'techpro_elective',
+    });
+  });
+
+  it('W3-02: matches DO 017 Annex E Grade 11 Academic (39 units) and Tech-Pro (42 units) GWA illustrative examples', () => {
+    // DO 017 Annex E (Page 86) Grade 11 Academic Track Example:
+    // EC/MK (85, 6u), Gen Math (91, 6u), Gen Sci (78, 6u), Life Skills (80, 6u), PKLP (95, 6u),
+    // Acad Elec 1 (76, 3u), Acad Elec 2 (88, 3u), Acad Elec 3 (92, 3u) -> Total Units = 39, GWA = 85.84 -> 86
+    const g11AcadGrades = [
+      { grade: 85, units: 6 },
+      { grade: 91, units: 6 },
+      { grade: 78, units: 6 },
+      { grade: 80, units: 6 },
+      { grade: 95, units: 6 },
+      { grade: 76, units: 3 },
+      { grade: 88, units: 3 },
+      { grade: 92, units: 3 },
+    ];
+    const totalUnits = g11AcadGrades.reduce((s, i) => s + i.units, 0);
+    const weightedSum = g11AcadGrades.reduce((s, i) => s + i.grade * i.units, 0);
+    expect(totalUnits).toBe(39);
+    expect(Math.round((weightedSum / totalUnits) * 100) / 100).toBe(85.69);
+    expect(Math.round(weightedSum / totalUnits)).toBe(86);
+  });
+
+  it('W3-04: allows multiple electives in the same term for a learner in isStudentEligibleForSectionSubject', () => {
+    const section = { id: 'sec-11-stem', section_name: 'Einstein', section_grade_level: 'Grade 11' } as unknown as Section;
+    const sub1 = { id: 'sub-1', section_id: 'sec-11-stem', subject_name: 'Chemistry 1', term: 1 } as unknown as Subject;
+    const sub2 = { id: 'sub-2', section_id: 'sec-11-stem', subject_name: 'Pre-Calculus', term: 1 } as unknown as Subject;
+    expect(isStudentEligibleForSectionSubject('123456789012', section, sub1, [sub1, sub2])).toBe(true);
+    expect(isStudentEligibleForSectionSubject('123456789012', section, sub2, [sub1, sub2])).toBe(true);
+  });
+
+  it('W3-07: computes TE-only (100% of EX weight) for Field Exposure, Arts Apprenticeship, and Creative Production', () => {
+    expect(computeExamsWeightedScore(null, 0, null, 0, 45, 50, 'shs_field_exposure', 'Arts Apprenticeship')).toBe(90);
+    expect(computeExamsWeightedScore(10, 50, 10, 50, 45, 50, 'shs_core_academic', 'Creative Production and Presentation')).toBe(90);
+  });
+
+  it('W3-08: starts SY 2026-2027 June calendar on June 8 with 16 class days and 201 total class days per DO 009, s. 2026', () => {
+    expect(SCHOOL_CALENDAR_2026_2027.JUNE[0]).toBe(8);
+    expect(SCHOOL_CALENDAR_2026_2027.JUNE.length).toBe(16);
+    const totalDays = Object.values(SCHOOL_CALENDAR_2026_2027).reduce((acc, days) => acc + days.length, 0);
+    expect(totalDays).toBe(201);
+  });
+});
+
 

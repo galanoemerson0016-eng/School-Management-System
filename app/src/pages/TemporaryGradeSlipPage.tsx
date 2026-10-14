@@ -1402,12 +1402,8 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
         });
 
         if (commSubjs.length > 0) {
-            const ecUnitInfo = getShsSubjectUnitInfo('Effective Communication', gradeLevel);
-            const ecSub = commSubjs.find(s => normalizeSubjectName(s.subject_name) === 'effectivecommunication');
-            const mkSub = commSubjs.find(s => normalizeSubjectName(s.subject_name) === 'mabisangkomunikasyon');
-            const ecTermUnits = (ecSub?.units && ecSub.units > 0) ? ecSub.units : ecUnitInfo.unitsPerTerm;
-            const mkTermUnits = (mkSub?.units && mkSub.units > 0) ? mkSub.units : ecUnitInfo.unitsPerTerm;
-            const combinedTermUnits = commSubjs.length > 1 ? (ecTermUnits + mkTermUnits) : ecTermUnits;
+            // DO 017 Annex E: Combined Effective Communication / Mabisang Komunikasyon = 2 units/term, 6 units/year
+            const combinedTermUnits = 2;
             const offeredTermsCount = [1, 2, 3].filter(q => !isOffTerm(parentTerm, q)).length || 3;
             const combinedYearUnits = combinedTermUnits * offeredTermsCount;
 
