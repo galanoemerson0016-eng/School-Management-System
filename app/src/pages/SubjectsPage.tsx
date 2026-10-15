@@ -10,7 +10,7 @@ import {
     Search, Eye, EyeOff, Users, Shield, ShieldCheck, ShieldAlert, Layers, Sparkles,
     AlertTriangle, Scale
 } from 'lucide-react';
-import type { Subject, ClassRecord, HPSRecord } from '../types';
+import type { Subject, ClassRecord, HPSRecord, Section } from '../types';
 import type { LucideIcon } from 'lucide-react';
 import { canEditClassesAndSubjects } from '../lib/rbac';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
@@ -95,14 +95,10 @@ const sectionMatchesGrade = (section: { section_grade_level?: string; section_na
 import { 
     STANDARD_SUBJECTS, 
     SPECIAL_SUBJECTS, 
-    SPSTEM_SUBJECTS,
-    JHS_STE_ELECTIVES,
     SPA_MAJORS,
     SPJ_SUBJECTS,
     SPS_SUBJECTS,
-    SPFL_LANGUAGES,
     SSES_SUBJECTS,
-    SPTVE_SPECIALIZATIONS,
     ALIVE_SUBJECTS,
     type SpecialSubjectItem,
     getCurriculumTemplatesForSection,
@@ -122,7 +118,13 @@ import {
     SHS_G12_APPLIED_SUBJECTS,
     SHS_OLD_STRAND_SUBJECTS,
     SHS_G12_ALL_OLD_SUBJECTS,
-    normalizeOfferedTerms
+    normalizeOfferedTerms,
+    getAllowedDepartmentCategories,
+    getAllowedGradeLevels,
+    STE_DEFAULT_SUBJECTS_BY_GRADE,
+    SPSTEM_DEFAULT_SUBJECTS_BY_GRADE,
+    CANONICAL_SPFL_OPTIONS,
+    CANONICAL_SPTVE_OPTIONS
 } from '../lib/curriculum';
 
 export type CurriculumChoiceType = 
@@ -196,6 +198,40 @@ export function SubjectsPage() {
     const [selectedCategory, setSelectedCategory] = useState<'Elementary' | 'JHS' | 'SHS' | null>(null);
     const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
     const [subjectSearchQuery, setSubjectSearchQuery] = useState('');
+
+    const existingGrades = useMemo(() => {
+        return Array.from(new Set(sections.map(s => s.section_grade_level).filter(Boolean)));
+    }, [sections]);
+
+    const allowedDepts = useMemo(() => {
+        return getAllowedDepartmentCategories(schoolProfile?.grade_levels_offered, 'AUTO', existingGrades);
+    }, [schoolProfile?.grade_levels_offered, existingGrades]);
+
+    const allowedGradesSet = useMemo(() => {
+        return new Set(getAllowedGradeLevels(schoolProfile?.grade_levels_offered, 'AUTO', existingGrades));
+    }, [schoolProfile?.grade_levels_offered, existingGrades]);
+
+    useEffect(() => {
+        if (allowedDepts.length === 1 && !selectedCategory) {
+            setSelectedCategory(allowedDepts[0]);
+        }
+    }, [allowedDepts, selectedCategory]);
+
+    const handleSectionClick = (sec: Section) => {
+        const grade = sec.section_grade_level;
+        const gradeNum = parseInt(grade?.replace(/\D/g, '') || '0') || 0;
+        if (gradeNum >= 1 && gradeNum <= 6) setSelectedCategory('Elementary');
+        else if (gradeNum >= 7 && gradeNum <= 10) setSelectedCategory('JHS');
+        else if (gradeNum >= 11 && gradeNum <= 12) setSelectedCategory('SHS');
+
+        setSelectedGrade(grade);
+        setSubjectSearchQuery('');
+        setSelectedSectionId(sec.id);
+        if (sec.is_advisory) {
+            setSelectedAdvisorySectionId(sec.id);
+        }
+        setViewMode('subjects');
+    };
 
     // Import Wizard states
     const [wizardStep, setWizardStep] = useState<'choice' | 'select' | null>(null);
@@ -339,12 +375,10 @@ export function SubjectsPage() {
             templates = [...SHS_G12_CORE_SUBJECTS, ...SHS_G12_APPLIED_SUBJECTS, ...SHS_OLD_STRAND_SUBJECTS['Arts and Design'], ...SHS_OLD_STRAND_SUBJECTS.Sports];
         } else if (type === 'shs_all_old') {
             templates = SHS_G12_ALL_OLD_SUBJECTS;
-        } else if (type === 'program_ste' || type === 'program_spstem') {
-            const gradeDefaults = SPSTEM_SUBJECTS[selectedGrade] || [];
-            const otherJhsElectives = JHS_STE_ELECTIVES.filter(e => 
-                !gradeDefaults.some(g => normalizeSubjectLabel(g.name) === normalizeSubjectLabel(e.name))
-            );
-            templates = [...gradeDefaults, ...otherJhsElectives];
+        } else if (type === 'program_ste') {
+            templates = STE_DEFAULT_SUBJECTS_BY_GRADE[selectedGrade] || [];
+        } else if (type === 'program_spstem') {
+            templates = SPSTEM_DEFAULT_SUBJECTS_BY_GRADE[selectedGrade] || [];
         } else if (type === 'program_spa') {
             templates = Object.values(SPA_MAJORS).flat();
         } else if (type === 'program_spj') {
@@ -352,9 +386,9 @@ export function SubjectsPage() {
         } else if (type === 'program_sps') {
             templates = SPS_SUBJECTS[selectedGrade] || [];
         } else if (type === 'program_spfl') {
-            templates = SPFL_LANGUAGES;
+            templates = CANONICAL_SPFL_OPTIONS;
         } else if (type === 'program_sptve') {
-            templates = SPTVE_SPECIALIZATIONS;
+            templates = CANONICAL_SPTVE_OPTIONS;
         } else if (type === 'program_sses') {
             templates = SSES_SUBJECTS[selectedGrade] || [];
         } else if (type === 'program_alive') {
@@ -381,22 +415,28 @@ export function SubjectsPage() {
         const existingNames = new Set(existingSectionSubjects.map((subject) => normalizeSubjectLabel(subject.subject_name)));
 
         // Pre-select logic:
-        // For SHS (Grade 11 & Grade 12), DO NOT pre-select all subjects!
-        // Allow the teacher to select themselves as requested.
+        // For SHS (Grade 11 & Grade 12) and multi-choice catalogs (SPA, SPFL, SPTVE),
+        // DO NOT pre-select all subjects! Default to empty or only section-matching specs.
         const isSHSGrade = (selectedGrade || '').includes('11') || (selectedGrade || '').includes('12');
+        const isMultiChoice = type === 'program_spa' || type === 'program_spfl' || type === 'program_sptve' || isSHSGrade || type.startsWith('shs_') || type.startsWith('sshs_');
         const initialSelected = new Set<string>();
 
-        if (!isSHSGrade) {
-            const gradeDefaults = (type === 'program_ste' || type === 'program_spstem') ? (SPSTEM_SUBJECTS[selectedGrade] || []) : templates;
-            templates.forEach(s => {
-                if (!existingNames.has(normalizeSubjectLabel(s.name))) {
-                    if (type === 'program_ste' || type === 'program_spstem') {
-                        if (gradeDefaults.some(g => normalizeSubjectLabel(g.name) === normalizeSubjectLabel(s.name))) {
+        if (isMultiChoice) {
+            const targetSec = (selectedSectionId && selectedSectionId !== 'all') ? sections.find(s => s.id === selectedSectionId) : null;
+            const chosenSpecs = targetSec?.spa_majors || [];
+            if (chosenSpecs.length > 0) {
+                templates.forEach(s => {
+                    if (chosenSpecs.some(spec => normalizeSubjectLabel(s.name).includes(normalizeSubjectLabel(spec)) || normalizeSubjectLabel(spec).includes(normalizeSubjectLabel(s.name)))) {
+                        if (!existingNames.has(normalizeSubjectLabel(s.name))) {
                             initialSelected.add(s.name);
                         }
-                    } else {
-                        initialSelected.add(s.name);
                     }
+                });
+            }
+        } else {
+            templates.forEach(s => {
+                if (!existingNames.has(normalizeSubjectLabel(s.name))) {
+                    initialSelected.add(s.name);
                 }
             });
         }
@@ -807,12 +847,12 @@ export function SubjectsPage() {
             });
 
             // Card 2: Science, Technology & Engineering / STEM (STE / SPSTEM)
-            const steList = SPSTEM_SUBJECTS[selectedGrade] || [];
+            const steList = STE_DEFAULT_SUBJECTS_BY_GRADE[selectedGrade] || [];
             cards.push({
                 id: 'program_ste',
                 title: 'Science, Tech & STEM',
-                subtitle: 'STE / SPSTEM Program',
-                description: 'Specialized STEM curriculum: Enhanced Science, Enhanced Math, Creative Technology, Research MIM/SIP, Scientific Investigation, and Robotics.',
+                subtitle: 'STE Program',
+                description: 'Specialized STEM curriculum: Research and specialized science/math electives.',
                 badge: 'Special Program',
                 badgeStyle: 'bg-cyan-100 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/60',
                 borderColor: 'border-cyan-200 dark:border-cyan-800/40',
@@ -883,7 +923,7 @@ export function SubjectsPage() {
             });
 
             // Card 6: Special Program in Foreign Language (SPFL)
-            const spflList = SPFL_LANGUAGES;
+            const spflList = CANONICAL_SPFL_OPTIONS;
             cards.push({
                 id: 'program_spfl',
                 title: 'Foreign Language (SPFL)',
@@ -902,7 +942,7 @@ export function SubjectsPage() {
             });
 
             // Card 7: Technical-Vocational Education (SPTVE)
-            const sptveList = SPTVE_SPECIALIZATIONS;
+            const sptveList = CANONICAL_SPTVE_OPTIONS;
             cards.push({
                 id: 'program_sptve',
                 title: 'Technical-Vocational (SPTVE)',
@@ -2454,6 +2494,81 @@ export function SubjectsPage() {
                         exit={{ opacity: 0, y: -20 }}
                         className="space-y-4 relative"
                     >
+                        {/* Quick Grid: My Active Sections & Subjects */}
+                        {sections.length > 0 && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 15 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="relative z-10 bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden mb-2"
+                            >
+                                <div className="flex items-center justify-between gap-3 mb-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                                            <Layers className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xs font-black uppercase tracking-widest text-slate-800 dark:text-slate-200">
+                                                My Active Sections & Subjects
+                                            </h3>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                                                Quick access to subjects configured for your active classes
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                        {sections.length} {sections.length === 1 ? 'Section' : 'Sections'}
+                                    </span>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                    {sections.map((sec) => {
+                                        const count = sec.taught_subjects && sec.taught_subjects.length > 0
+                                            ? sec.taught_subjects.length
+                                            : new Set(subjects.filter(s => (s.section_id === sec.id || (!s.section_id && s.grade_level === sec.section_grade_level)) && !s.is_teaching_load).map(s => s.subject_name)).size;
+                                        const progBadge = sec.program && sec.program !== 'Regular' ? sec.program : (sec.track || null);
+
+                                        return (
+                                            <button
+                                                key={sec.id}
+                                                type="button"
+                                                onClick={() => handleSectionClick(sec)}
+                                                className="group flex flex-col justify-between p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 hover:border-indigo-400/60 dark:hover:border-indigo-500/50 hover:bg-white dark:hover:bg-slate-800/70 transition-all text-left shadow-2xs hover:shadow-md cursor-pointer"
+                                            >
+                                                <div className="flex items-start justify-between gap-2 mb-2">
+                                                    <div>
+                                                        <h4 className="text-xs font-black text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-1">
+                                                            {sec.section_name}
+                                                        </h4>
+                                                        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
+                                                            {sec.section_grade_level}
+                                                        </p>
+                                                    </div>
+                                                    <span className="shrink-0 p-1 rounded-lg bg-white dark:bg-slate-700/60 text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors">
+                                                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                                                    </span>
+                                                </div>
+
+                                                <div className="flex items-center justify-between gap-1 pt-2 border-t border-slate-200/40 dark:border-slate-700/40 text-[10px]">
+                                                    <span className="font-extrabold text-indigo-600 dark:text-indigo-400">
+                                                        {count} {count === 1 ? 'subject' : 'subjects'}
+                                                    </span>
+                                                    {progBadge ? (
+                                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200/40 dark:border-indigo-800/40 truncate max-w-[100px]">
+                                                            {progBadge}
+                                                        </span>
+                                                    ) : sec.is_advisory ? (
+                                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200/40 dark:border-emerald-800/40">
+                                                            Advisory
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </motion.div>
+                        )}
+
                         {!selectedCategory ? (
                             <>
                                 {/* Quick Guide Header — Compact Modern Workflow Banner */}
@@ -2533,7 +2648,9 @@ export function SubjectsPage() {
 
                                 {/* Category Cards Grid — Compact Viewport Layout */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5 relative z-10">
-                                    {(Object.entries(CATEGORIES) as [keyof typeof CATEGORIES, typeof CATEGORIES[keyof typeof CATEGORIES]][]).map(([key, category]) => {
+                                    {(Object.entries(CATEGORIES) as [keyof typeof CATEGORIES, typeof CATEGORIES[keyof typeof CATEGORIES]][])
+                                        .filter(([key]) => allowedDepts.includes(key as 'Elementary' | 'JHS' | 'SHS'))
+                                        .map(([key, category]) => {
                                         const gradeList = category.grades;
                                         const totalSubjectsInDept = subjects.filter(s => gradeList.includes(s.grade_level) && !s.is_teaching_load).length;
                                         const activeSectionsCount = sections.filter(sec => gradeList.some(g => sectionMatchesGrade(sec, g))).length;
@@ -2575,7 +2692,9 @@ export function SubjectsPage() {
 
                                                     {/* Grade Level Chips Preview */}
                                                     <div className="flex flex-wrap gap-1 mb-4">
-                                                        {category.grades.map((g) => {
+                                                        {category.grades
+                                                            .filter(g => allowedGradesSet.has(g))
+                                                            .map((g) => {
                                                             const shortLabel = g.replace('Grade ', 'G');
                                                             return (
                                                                 <span 
@@ -2617,12 +2736,15 @@ export function SubjectsPage() {
                             <div className="space-y-6">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-4">
-                                        <button 
-                                            onClick={handleBackToCategories}
-                                            className="w-11 h-11 rounded-2xl bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-500 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition-all shadow-xs active:scale-95 cursor-pointer"
-                                        >
-                                            <ChevronLeft className="w-5 h-5" />
-                                        </button>
+                                        {allowedDepts.length > 1 && (
+                                            <button 
+                                                onClick={handleBackToCategories}
+                                                className="w-11 h-11 rounded-2xl bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-500 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition-all shadow-xs active:scale-95 cursor-pointer"
+                                                title="Back to Departments"
+                                            >
+                                                <ChevronLeft className="w-5 h-5" />
+                                            </button>
+                                        )}
                                         <div>
                                             <h2 className="text-2xl font-black text-slate-900 dark:text-white leading-tight">{CATEGORIES[selectedCategory].title}</h2>
                                             <p className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-widest">{CATEGORIES[selectedCategory].range}</p>
@@ -2631,7 +2753,9 @@ export function SubjectsPage() {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                    {CATEGORIES[selectedCategory].grades.map((grade) => {
+                                    {CATEGORIES[selectedCategory].grades
+                                        .filter(grade => allowedGradesSet.has(grade))
+                                        .map((grade) => {
                                         const meta = GRADE_METADATA[grade];
                                         const Icon = meta.icon;
                                         const count = new Set(subjects.filter(s => s.grade_level === grade && !s.is_teaching_load).map(s => s.subject_name)).size;

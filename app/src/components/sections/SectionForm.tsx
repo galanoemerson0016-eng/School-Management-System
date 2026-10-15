@@ -12,6 +12,7 @@ import {
     SHS_OLD_STRAND_SUBJECTS,
     SSHS_ACADEMIC_CLUSTERS,
     SSHS_ACADEMIC_CLUSTERS_LIST,
+    SSHS_TECHPRO_CLUSTERS,
     SSHS_TECHPRO_CLUSTERS_LIST,
     SPA_MAJORS,
     getCurriculumTemplatesForSection,
@@ -32,7 +33,10 @@ import {
     isTraditionalAppliedSubject,
     isTraditionalImmersionSubject,
     getTvlComponentForSubject,
-    getShsSubjectUnitInfo
+    getShsSubjectUnitInfo,
+    getAllowedGradeLevels,
+    CANONICAL_SPFL_OPTIONS,
+    CANONICAL_SPTVE_OPTIONS
 } from '../../lib/curriculum';
 import { auditGrade11ElectiveEnrollment, normalizeGrade12PESubjectName } from '../../utils/grading-helpers';
 import { normalizeSubjectName, sortSubjects } from '../../lib/subjectConfig';
@@ -56,11 +60,7 @@ interface SectionFormProps {
     onClose: () => void;
 }
 
-const GRADE_LEVELS = [
-    'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
-    'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10',
-    'Grade 11', 'Grade 12'
-];
+
 
 const STRANDS: Record<string, string[]> = {
     Academic: [
@@ -167,12 +167,31 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
     const [isLoading, setIsLoading] = useState(false);
     const lastInitializedSectionIdRef = useRef<string | null>(null);
 
+    const [showAllGradesOverride, setShowAllGradesOverride] = useState(false);
+    const allowedGradeLevels = useMemo(() => {
+        const existingGrades = sections.map(s => s.section_grade_level).filter(Boolean);
+        if (section?.section_grade_level) existingGrades.push(section.section_grade_level);
+        return getAllowedGradeLevels(
+            schoolProfile?.grade_levels_offered,
+            showAllGradesOverride ? 'ALL' : 'AUTO',
+            existingGrades
+        ) as GradeLevel[];
+    }, [schoolProfile?.grade_levels_offered, showAllGradesOverride, sections, section?.section_grade_level]);
+
+    const defaultInitialGrade: GradeLevel = useMemo(() => {
+        if (section?.section_grade_level) return section.section_grade_level as GradeLevel;
+        if (allowedGradeLevels.length > 0) {
+            return (allowedGradeLevels.find(g => (g as string) !== 'Kindergarten') || allowedGradeLevels[0]) as GradeLevel;
+        }
+        return 'Grade 7';
+    }, [section?.section_grade_level, allowedGradeLevels]);
+
     // Initial default name logic
     const getDefaultTeacherName = () => {
         return schoolProfile?.adviser_name || user?.displayName || '';
     };
 
-    const initialGradePreset = !section ? getCurriculumPreset('Grade 7', '', '', 'Regular') : null;
+    const initialGradePreset = !section ? getCurriculumPreset(defaultInitialGrade, '', '', 'Regular') : null;
     const initialPresetSubjects = initialGradePreset ? initialGradePreset.subjects.map(s => s.name) : [];
     const initialPresetTerms: Record<string, SubjectTermSelection> = {};
     if (initialGradePreset) {
@@ -182,7 +201,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
     const [formData, setFormData] = useState<Partial<Section>>({
         id: '',
         section_name: '',
-        section_grade_level: 'Grade 7',
+        section_grade_level: section?.section_grade_level || defaultInitialGrade,
         adviser_id: user?.uid || '',
         adviser_name: getDefaultTeacherName(),
         subject_name: '',
@@ -199,6 +218,51 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             subjectTerms: initialPresetTerms
         }
     });
+
+    const sameGradeOtherSections = useMemo(() => {
+        return sections.filter(
+            s => s.id !== formData.id &&
+                 s.section_grade_level === formData.section_grade_level &&
+                 (s.taught_subjects?.length || 0) > 0
+        );
+    }, [sections, formData.id, formData.section_grade_level]);
+
+    const handleCopyCurriculumFromSection = (sourceSectionId: string) => {
+        const sourceSec = sections.find(s => s.id === sourceSectionId);
+        if (!sourceSec) return;
+        const copiedTaught = [...(sourceSec.taught_subjects || [])];
+        const copiedTerms = {
+            ...((sourceSec.section_metadata?.subjectTerms as Record<string, SubjectTermSelection>) || {})
+        };
+        setSubjectTerms(copiedTerms);
+        setFormData(prev => ({
+            ...prev,
+            program: sourceSec.program || prev.program,
+            track: sourceSec.track || prev.track,
+            strand: sourceSec.strand || prev.strand,
+            cluster: sourceSec.cluster || prev.cluster,
+            spa_majors: sourceSec.spa_majors ? [...sourceSec.spa_majors] : prev.spa_majors,
+            taught_subjects: copiedTaught,
+            section_metadata: {
+                ...(prev.section_metadata || {}),
+                subjectTerms: copiedTerms
+            }
+        }));
+        showNotification(`Copied ${copiedTaught.length} subjects and term assignments from ${sourceSec.section_name}.`, 'success');
+    };
+
+    const togglePersonalTeachingSubject = (subjectName: string) => {
+        const current = formData.teaching_subjects || [];
+        const exists = current.includes(subjectName);
+        const nextTeaching = exists
+            ? current.filter(s => s !== subjectName)
+            : [...current, subjectName];
+        setFormData(prev => ({
+            ...prev,
+            teaching_subjects: nextTeaching,
+            is_teaching_load: prev.is_advisory ? nextTeaching.length > 0 : true
+        }));
+    };
 
     const [subjectTerms, setSubjectTerms] = useState<Record<string, SubjectTermSelection>>(() => {
         return section?.section_metadata?.subjectTerms || initialPresetTerms;
@@ -401,76 +465,66 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
 
         // 3. Standard curriculum templates (Core & Track-specific subjects)
         if (grade === 'Grade 11') {
-            // Always add the universal 6 Core Learning Areas
+            // Always add the universal Core Learning Areas
             SSHS_G11_CORE_SUBJECTS.forEach(s => addToList(s.name, s.code || ''));
 
-            const isTechPro = formData.track === 'TechPro';
-            const isAcademic = formData.track === 'Academic';
-
-            if (isAcademic || !formData.track) {
-                const clusterKey = formData.cluster || formData.strand;
+            const clusterKey = formData.cluster || formData.strand;
+            if (formData.track === 'Academic') {
                 if (clusterKey && SSHS_ACADEMIC_CLUSTERS[clusterKey]) {
+                    // Show ONLY the electives in the selected Academic Cluster!
                     SSHS_ACADEMIC_CLUSTERS[clusterKey].forEach(name => addToList(name, ''));
                 } else {
-                    // If no cluster selected yet, provide academic cluster choices
-                    Object.values(SSHS_ACADEMIC_CLUSTERS).flat().forEach(name => addToList(name, ''));
+                    // Default to STEM cluster if no cluster is chosen yet so we never dump 140 subjects at once
+                    (SSHS_ACADEMIC_CLUSTERS['Science, Technology, Engineering, and Mathematics'] || []).forEach(name => addToList(name, ''));
                 }
-            }
-
-            if (isTechPro || !formData.track) {
-                const clusterKey = formData.cluster || formData.strand;
-                if (clusterKey && (SSHS_TECHPRO_CLUSTERS_LIST as readonly string[]).includes(clusterKey)) {
-                    const techProList = SPECIAL_SUBJECTS['Grade 11'] || [];
-                    techProList.forEach(s => {
-                        if (isSubjectMatchingSectionTrackAndStrand(s.name, grade, 'TechPro', clusterKey)) {
-                            addToList(s.name, s.code || '');
-                        }
-                    });
+            } else if (formData.track === 'TechPro') {
+                if (clusterKey && SSHS_TECHPRO_CLUSTERS[clusterKey]) {
+                    SSHS_TECHPRO_CLUSTERS[clusterKey].forEach(name => addToList(name, ''));
                 } else {
-                    const techPro11 = SPECIAL_SUBJECTS['Grade 11'] || [];
-                    techPro11.forEach(s => addToList(s.name, s.code || ''));
+                    const techProList = SPECIAL_SUBJECTS['Grade 11'] || [];
+                    techProList.slice(0, 12).forEach(s => addToList(s.name, s.code || ''));
                 }
             }
         } else if (grade === 'Grade 12') {
-            const isExplicitSSHS = (formData.track || '').toLowerCase().includes('techpro') ||
+            const isExplicitSSHS = (formData.curriculum_type || '').toUpperCase() === 'SSHS' ||
+                                   (formData.track || '').toLowerCase().includes('techpro') ||
                                    (formData.track || '').toLowerCase().includes('sshs') ||
                                    Boolean(formData.cluster && (SSHS_TECHPRO_CLUSTERS_LIST as readonly string[]).includes(formData.cluster));
 
             if (isExplicitSSHS) {
-                // Grade 12 SSHS Curriculum (DO 017, s. 2026)
-                SSHS_G11_CORE_SUBJECTS.forEach(s => addToList(s.name, s.code || ''));
-                SHS_G12_CORE_SUBJECTS.forEach(s => addToList(s.name, s.code || ''));
-
+                // DO 017, s. 2026 Table 3 & Table 9-10: Grade 12 SSHS has ZERO Core Subjects!
+                // Load ONLY the electives matching the chosen Track and Cluster + Work Immersion.
+                const clusterKey = formData.cluster || formData.strand;
                 if (formData.track === 'TechPro') {
-                    SSHS_G12_TECHPRO_SUBJECTS.forEach(s => {
-                        if (isSubjectMatchingSectionTrackAndStrand(s.name, grade, formData.track, formData.strand || formData.cluster)) {
-                            addToList(s.name, s.code || '');
-                        }
-                    });
+                    if (clusterKey && SSHS_TECHPRO_CLUSTERS[clusterKey]) {
+                        SSHS_TECHPRO_CLUSTERS[clusterKey].forEach(name => addToList(name, ''));
+                    } else {
+                        SSHS_G12_TECHPRO_SUBJECTS.forEach(s => {
+                            if (isSubjectMatchingSectionTrackAndStrand(s.name, grade, formData.track, clusterKey)) {
+                                addToList(s.name, s.code || '');
+                            }
+                        });
+                    }
                 } else {
-                    SSHS_G12_ACADEMIC_SUBJECTS.forEach(s => {
-                        if (isSubjectMatchingSectionTrackAndStrand(s.name, grade, formData.track, formData.strand || formData.cluster)) {
-                            addToList(s.name, s.code || '');
-                        }
-                    });
+                    if (clusterKey && SSHS_ACADEMIC_CLUSTERS[clusterKey]) {
+                        SSHS_ACADEMIC_CLUSTERS[clusterKey].forEach(name => addToList(name, ''));
+                    } else {
+                        SSHS_G12_ACADEMIC_SUBJECTS.forEach(s => {
+                            if (isSubjectMatchingSectionTrackAndStrand(s.name, grade, formData.track, clusterKey)) {
+                                addToList(s.name, s.code || '');
+                            }
+                        });
+                    }
                 }
+                addToList('Work Immersion', 'WI-320');
             } else {
-                // Traditional SHS Grade 12 Curriculum (DO 8, s. 2015)
-                // 1. Core Subjects (All Tracks)
+                // Traditional SHS Grade 12 Curriculum (DO 8, s. 2015 Adapted to 3 Terms per DO 017 Annex D.2)
                 SHS_G12_CORE_SUBJECTS.forEach(s => addToList(s.name, s.code || ''));
-
-                // 2. Applied Subjects (Universal for Academic/TVL tracks)
                 SHS_G12_APPLIED_SUBJECTS.forEach(s => addToList(s.name, s.code || ''));
 
-                // 3. Specialized subjects for chosen track and strand
                 const strandKey = formData.strand;
                 if (strandKey && SHS_OLD_STRAND_SUBJECTS[strandKey]) {
                     SHS_OLD_STRAND_SUBJECTS[strandKey].forEach(s => addToList(s.name, s.code || ''));
-                } else if (formData.track === 'Academic') {
-                    (SHS_OLD_STRAND_SUBJECTS.ABM || []).forEach(s => addToList(s.name, s.code || ''));
-                    (SHS_OLD_STRAND_SUBJECTS.STEM || []).forEach(s => addToList(s.name, s.code || ''));
-                    (SHS_OLD_STRAND_SUBJECTS.HUMSS || []).forEach(s => addToList(s.name, s.code || ''));
-                    (SHS_OLD_STRAND_SUBJECTS.GAS || []).forEach(s => addToList(s.name, s.code || ''));
                 } else if (formData.track === 'TVL') {
                     (SHS_OLD_STRAND_SUBJECTS.TVL || []).forEach(s => addToList(s.name, s.code || ''));
                 } else if (formData.track === 'Sports') {
@@ -478,7 +532,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                 } else if (formData.track === 'Arts and Design') {
                     (SHS_OLD_STRAND_SUBJECTS['Arts and Design'] || []).forEach(s => addToList(s.name, s.code || ''));
                 } else {
-                    Object.values(SHS_OLD_STRAND_SUBJECTS).flat().forEach(s => addToList(s.name, s.code || ''));
+                    (SHS_OLD_STRAND_SUBJECTS.GAS || []).forEach(s => addToList(s.name, s.code || ''));
                 }
             }
         } else {
@@ -525,7 +579,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             if (indexB !== -1) return 1;
             return a.name.localeCompare(b.name);
         });
-    }, [formData.section_grade_level, formData.id, formData.program, formData.spa_majors, formData.taught_subjects, formData.track, formData.strand, formData.cluster, subjects]);
+    }, [formData.section_grade_level, formData.id, formData.program, formData.spa_majors, formData.taught_subjects, formData.track, formData.strand, formData.cluster, formData.curriculum_type, subjects]);
 
     // Standard DepEd curriculum names for this section's grade level and program
     const standardCurriculumSubjectNames = useMemo(() => {
@@ -948,7 +1002,10 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
         }
         setFormData(prev => ({
             ...prev,
-            taught_subjects: [...current, trimmed]
+            taught_subjects: [...current, trimmed],
+            teaching_subjects: !prev.is_advisory 
+                ? Array.from(new Set([...(prev.teaching_subjects || []), trimmed]))
+                : prev.teaching_subjects
         }));
         setSubjectTerms(prev => ({
             ...prev,
@@ -1286,9 +1343,8 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
         }
     };
 
-    const chooseSectionRole = (role: 'advisory' | 'teaching' | 'both') => {
-        const isAdvisory = role === 'advisory' || role === 'both';
-        const isTeaching = role === 'teaching' || role === 'both';
+    const chooseSectionRole = (role: 'advisory' | 'teaching') => {
+        const isAdvisory = role === 'advisory';
         setHasExplicitlyClearedTaught(false);
 
         let nextTaught = formData.taught_subjects || [];
@@ -1298,8 +1354,14 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             const grade = formData.section_grade_level || 'Grade 7';
             const isG11 = grade.includes('11');
             if (isG11) {
-                nextTaught = [...grade11CoreNames];
-                Object.assign(newTerms, createGrade11CoreTerms());
+                const preset = getCurriculumPreset(grade, formData.track, formData.strand || formData.cluster, formData.program || 'Regular');
+                if (preset && preset.subjects.length > 0) {
+                    nextTaught = preset.subjects.map(s => s.name);
+                    preset.subjects.forEach(s => { newTerms[s.name] = s.term; });
+                } else {
+                    nextTaught = [...grade11CoreNames];
+                    Object.assign(newTerms, createGrade11CoreTerms());
+                }
             } else {
                 const preset = getCurriculumPreset(grade, formData.track, formData.strand || formData.cluster, formData.program || 'Regular');
                 if (preset && preset.subjects.length > 0) {
@@ -1314,13 +1376,21 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             }
         }
 
+        // For self-contained Elementary advisory classes, pre-select all subjects as taught by the adviser if empty
+        const isElemGrade = /^(Kindergarten|Kinder|Grade\s*[1-6])\b/i.test(formData.section_grade_level || '');
+        const nextTeaching = isAdvisory
+            ? ((formData.teaching_subjects && formData.teaching_subjects.length > 0)
+                ? formData.teaching_subjects
+                : (isElemGrade ? [...nextTaught] : []))
+            : (formData.teaching_subjects || []);
+
         setFormData(prev => ({
             ...prev,
             is_advisory: isAdvisory,
-            is_teaching_load: isTeaching,
+            is_teaching_load: isAdvisory ? nextTeaching.length > 0 : true,
             adviser_name: isAdvisory ? (schoolProfile?.adviser_name || user?.displayName || '') : '',
-            taught_subjects: isAdvisory ? nextTaught : (prev.taught_subjects || []),
-            teaching_subjects: isTeaching ? (prev.teaching_subjects || []) : [],
+            taught_subjects: isAdvisory ? nextTaught : [],
+            teaching_subjects: nextTeaching,
             section_metadata: {
                 ...(prev.section_metadata || {}),
                 subjectTerms: Object.keys(newTerms).length > 0
@@ -1585,8 +1655,9 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
             }
 
             // Auto-sync Subject database records with DepEd weights
-            if (isAdvisory && finalTaughtSubjects.length > 0) {
-                for (const subName of finalTaughtSubjects) {
+            const subjectsToSync = isAdvisory ? finalTaughtSubjects : validTeachingSubjects;
+            if (subjectsToSync.length > 0) {
+                for (const subName of subjectsToSync) {
                     const norm = normalizeSubjectName(subName);
                     // A subject in the library is only a reusable definition.
                     // Every official section needs its own offering record so
@@ -1648,11 +1719,14 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                         section: sectionData.section_name
                     });
                 } else if (section && (section.is_advisory ?? !section.is_teaching_load)) {
-                    // If it WAS an advisory class but is now NOT, clear the profile fields
+                    // Fall back to another remaining advisory section if the teacher has multiple advisory classes
+                    const remainingAdvisory = sections.find(
+                        s => s.id !== sectionData.id && s.is_advisory
+                    );
                     await updateSchoolProfile({
                         ...schoolProfile!,
-                        grade_level: '',
-                        section: ''
+                        grade_level: remainingAdvisory ? remainingAdvisory.section_grade_level : '',
+                        section: remainingAdvisory ? remainingAdvisory.section_name : ''
                     });
                 }
             }
@@ -1706,14 +1780,23 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                     <div className="grid grid-cols-2 gap-5">
                         {/* Grade Level First */}
                         <div className="col-span-2 md:col-span-1">
-                            <label className="block text-[9px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest mb-2.5 ml-1">Grade Level *</label>
+                            <div className="flex items-center justify-between mb-2.5 ml-1">
+                                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest">Grade Level *</label>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAllGradesOverride(!showAllGradesOverride)}
+                                    className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                                >
+                                    {showAllGradesOverride ? 'Show School Scope' : 'Show All Grades'}
+                                </button>
+                            </div>
                             <select 
                                 required
                                 className="w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white border-2 border-transparent focus:border-blue-500/20 focus:bg-white dark:focus:bg-[#0d1225] rounded-2xl px-5 py-3.5 text-sm font-bold transition-all outline-none cursor-pointer"
                                 value={formData.section_grade_level}
                                 onChange={(e) => handleGradeLevelChange(e.target.value)}
                             >
-                                {GRADE_LEVELS.map(g => <option key={g} value={g} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">{g}</option>)}
+                                {allowedGradeLevels.map(g => <option key={g} value={g} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">{g}</option>)}
                             </select>
                         </div>
 
@@ -1745,6 +1828,15 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                         let cleanNames: string[] = [];
                                         const newTerms: Record<string, SubjectTermSelection> = {};
 
+                                        let initialSpecs: string[] = [];
+                                        if (p === 'SPA') {
+                                            initialSpecs = formData.spa_majors && formData.spa_majors.length > 0 ? formData.spa_majors : ['Visual Arts'];
+                                        } else if (p === 'SPFL') {
+                                            initialSpecs = formData.spa_majors && formData.spa_majors.length > 0 ? formData.spa_majors : [CANONICAL_SPFL_OPTIONS[0].name];
+                                        } else if (p === 'SPTVE') {
+                                            initialSpecs = formData.spa_majors && formData.spa_majors.length > 0 ? formData.spa_majors : [CANONICAL_SPTVE_OPTIONS[0].name];
+                                        }
+
                                         if (p === 'Regular') {
                                             const preset = getCurriculumPreset(grade, formData.track, formData.strand || formData.cluster, 'Regular');
                                             if (preset && preset.subjects.length > 0) {
@@ -1754,7 +1846,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                 cleanNames = (STANDARD_SUBJECTS[grade] || []).map(s => s.name);
                                             }
                                         } else {
-                                            const templates = getCurriculumTemplatesForSection(grade, p, p === 'SPA' ? (formData.spa_majors && formData.spa_majors.length > 0 ? formData.spa_majors : Object.keys(SPA_MAJORS)) : []);
+                                            const templates = getCurriculumTemplatesForSection(grade, p, initialSpecs);
                                             cleanNames = templates
                                                 .map(t => t.name)
                                                 .filter(name => isSubjectAllowedForProgram(name, grade, p));
@@ -1768,7 +1860,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                             ...formData,
                                             program: p,
                                             taught_subjects: cleanNames,
-                                            spa_majors: p === 'SPA' ? (formData.spa_majors && formData.spa_majors.length > 0 ? formData.spa_majors : Object.keys(SPA_MAJORS)) : [],
+                                            spa_majors: initialSpecs,
                                             section_metadata: {
                                                 ...(formData.section_metadata || {}),
                                                 subjectTerms: Object.keys(newTerms).length > 0
@@ -1806,44 +1898,66 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                             </div>
                         )}
 
-                        {/* SPA Majors Selection (If SPA program is selected) */}
-                        {(isJHS && formData.program === 'SPA') && (
-                            <div className="col-span-2 bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-800/30 rounded-2xl p-4">
-                                <label className="block text-[9px] font-black text-purple-700 dark:text-purple-300 uppercase tracking-widest mb-1.5">
-                                    Offered SPA Art Majors / Disciplines
-                                </label>
-                                <p className="text-[10px] text-purple-600/80 dark:text-purple-300/80 mb-3">
-                                    Select which art specializations are offered in this section. Students will be enrolled in their specific major elective.
-                                </p>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                    {Object.keys(SPA_MAJORS).map((major) => {
-                                        const isSelected = (formData.spa_majors || []).includes(major);
-                                        return (
-                                            <div 
-                                                key={major}
-                                                onClick={() => {
-                                                    const current = formData.spa_majors || [];
-                                                    const next = isSelected 
-                                                        ? current.filter(m => m !== major)
-                                                        : [...current, major];
-                                                    setFormData({ ...formData, spa_majors: next });
-                                                }}
-                                                className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
-                                                    isSelected 
-                                                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs' 
-                                                        : 'bg-white dark:bg-white/5 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:border-purple-300'
-                                                }`}
-                                            >
-                                                <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'border-white bg-white/20' : 'border-slate-300 dark:border-white/20'}`}>
-                                                    {isSelected && <Check className="w-3 h-3 text-white stroke-3" />}
+                        {/* Specialization Selection (SPA, SPFL, SPTVE) */}
+                        {(isJHS && (formData.program === 'SPA' || formData.program === 'SPFL' || formData.program === 'SPTVE')) && (() => {
+                            const prog = formData.program;
+                            const title = prog === 'SPA' 
+                                ? 'Offered SPA Art Majors / Disciplines' 
+                                : prog === 'SPFL' 
+                                    ? 'Offered SPFL Foreign Language(s)' 
+                                    : 'Offered SPTVE Technical-Vocational Specialization(s)';
+                            const desc = prog === 'SPA'
+                                ? 'Select which art specializations are offered in this section. Students will be enrolled in their specific major elective.'
+                                : prog === 'SPFL'
+                                    ? 'Select the foreign language course(s) offered in this section (DO 46, s. 2012).'
+                                    : 'Applied Technical Drawing is included automatically. Select the vocational course(s) offered in this section.';
+                            const options = prog === 'SPA'
+                                ? Object.keys(SPA_MAJORS)
+                                : prog === 'SPFL'
+                                    ? CANONICAL_SPFL_OPTIONS.map(o => o.name)
+                                    : CANONICAL_SPTVE_OPTIONS.map(o => o.name);
+
+                            return (
+                                <div className="col-span-2 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/60 dark:border-indigo-800/30 rounded-2xl p-4">
+                                    <label className="block text-[9px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest mb-1.5">
+                                        {title}
+                                    </label>
+                                    <p className="text-[10px] text-indigo-600/80 dark:text-indigo-300/80 mb-3">
+                                        {desc}
+                                    </p>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                        {options.map((optName) => {
+                                            const isSelected = (formData.spa_majors || []).includes(optName);
+                                            return (
+                                                <div 
+                                                    key={optName}
+                                                    onClick={() => {
+                                                        const current = formData.spa_majors || [];
+                                                        const next = isSelected 
+                                                            ? current.filter(m => m !== optName)
+                                                            : [...current, optName];
+                                                        const grade = (formData.section_grade_level || 'Grade 7') as GradeLevel;
+                                                        const nextTemplates = getCurriculumTemplatesForSection(grade, prog, next);
+                                                        const nextClean = nextTemplates.map(t => t.name).filter(name => isSubjectAllowedForProgram(name, grade, prog));
+                                                        setFormData({ ...formData, spa_majors: next, taught_subjects: nextClean });
+                                                    }}
+                                                    className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
+                                                        isSelected 
+                                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs' 
+                                                            : 'bg-white dark:bg-white/5 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:border-indigo-300'
+                                                    }`}
+                                                >
+                                                    <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'border-white bg-white/20' : 'border-slate-300 dark:border-white/20'}`}>
+                                                        {isSelected && <Check className="w-3 h-3 text-white stroke-3" />}
+                                                    </div>
+                                                    <span className="truncate text-[11px]">{optName}</span>
                                                 </div>
-                                                <span className="truncate text-[11px]">{major}</span>
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            );
+                        })()}
 
                         {/* Track Selection (SHS only: Grade 11 or Grade 12) */}
                         {(formData.section_grade_level?.includes('Grade 11') || formData.section_grade_level?.includes('Grade 12')) && (
@@ -1902,17 +2016,17 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                         {/* ROLE CONFIGURATION */}
                         <div className="col-span-2 bg-slate-50/50 dark:bg-white/5 rounded-2.5xl p-5 border border-slate-100 dark:border-white/10">
                             <label className="block text-[9px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest mb-1 ml-1">How will you use this section?</label>
-                            <p className="text-[9.5px] text-slate-500 dark:text-slate-400 mb-4 ml-1">Choose one setup. You can add your personal E-Class subjects after the official advisory curriculum is ready.</p>
+                            <p className="text-[9.5px] text-slate-500 dark:text-slate-400 mb-4 ml-1">Choose your role for this class. Advisory teachers configure official section subjects and their personal teaching load in one place.</p>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <button
                                     type="button"
                                     onClick={() => chooseSectionRole('advisory')}
-                                    className={`text-left p-4 rounded-2xl transition-all border-2 cursor-pointer ${formData.is_advisory && !formData.is_teaching_load ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700 shadow-xs' : 'bg-white dark:bg-white/5 border-transparent hover:border-slate-200 dark:hover:border-white/10'}`}
+                                    className={`text-left p-4 rounded-2xl transition-all border-2 cursor-pointer ${formData.is_advisory ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700 shadow-xs' : 'bg-white dark:bg-white/5 border-transparent hover:border-slate-200 dark:hover:border-white/10'}`}
                                 >
                                     <Shield className="w-5 h-5 text-indigo-600 dark:text-indigo-300 mb-2" />
-                                    <p className="text-xs font-black text-slate-800 dark:text-white">My advisory class</p>
-                                    <p className="text-[8.5px] text-slate-500 dark:text-slate-400 mt-1">Set official subjects, school forms, and learner grades.</p>
+                                    <p className="text-xs font-black text-slate-800 dark:text-white">Advisory Class</p>
+                                    <p className="text-[8.5px] text-slate-500 dark:text-slate-400 mt-1">Setup official section curriculum (SF9, SF10, grade slips) and assign your personal teaching load.</p>
                                 </button>
                                 <button
                                     type="button"
@@ -1920,26 +2034,17 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                     className={`text-left p-4 rounded-2xl transition-all border-2 cursor-pointer ${!formData.is_advisory && formData.is_teaching_load ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 shadow-xs' : 'bg-white dark:bg-white/5 border-transparent hover:border-slate-200 dark:hover:border-white/10'}`}
                                 >
                                     <BookOpen className="w-5 h-5 text-amber-600 dark:text-amber-300 mb-2" />
-                                    <p className="text-xs font-black text-slate-800 dark:text-white">A class I teach</p>
-                                    <p className="text-[8.5px] text-slate-500 dark:text-slate-400 mt-1">Choose only personal E-Class Record and LIR subjects.</p>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => chooseSectionRole('both')}
-                                    className={`text-left p-4 rounded-2xl transition-all border-2 cursor-pointer ${formData.is_advisory && formData.is_teaching_load ? 'bg-violet-50 dark:bg-violet-950/40 border-violet-300 dark:border-violet-700 shadow-xs' : 'bg-white dark:bg-white/5 border-transparent hover:border-slate-200 dark:hover:border-white/10'}`}
-                                >
-                                    <Layers className="w-5 h-5 text-violet-600 dark:text-violet-300 mb-2" />
-                                    <p className="text-xs font-black text-slate-800 dark:text-white">Both</p>
-                                    <p className="text-[8.5px] text-slate-500 dark:text-slate-400 mt-1">Finish the advisory setup first, then choose the subjects you teach.</p>
+                                    <p className="text-xs font-black text-slate-800 dark:text-white">Subject Load Only (Non-Advisory)</p>
+                                    <p className="text-[8.5px] text-slate-500 dark:text-slate-400 mt-1">You teach subjects in another teacher's class. Quick-pick your subjects for E-Class Record.</p>
                                 </button>
                             </div>
 
                             {(formData.is_advisory || formData.is_teaching_load) && (
                                 <div className="mt-5 pt-4 border-t border-slate-200/70 dark:border-white/10 flex flex-wrap gap-2">
                                     <button type="button" onClick={() => setActiveSetupPanel('details')} className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider cursor-pointer ${activeSetupPanel === 'details' ? 'bg-slate-800 dark:bg-white text-white dark:text-slate-900' : 'bg-white dark:bg-white/5 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-white/10'}`}>1. Details</button>
-                                    {formData.is_advisory && <button type="button" onClick={() => setActiveSetupPanel('curriculum')} className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider cursor-pointer ${activeSetupPanel === 'curriculum' ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-white/5 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-white/10'}`}>2. Official curriculum</button>}
-                                    {formData.is_teaching_load && <button type="button" onClick={() => setActiveSetupPanel('teaching')} className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider cursor-pointer ${activeSetupPanel === 'teaching' ? 'bg-amber-500 text-white' : 'bg-white dark:bg-white/5 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-white/10'}`}>{formData.is_advisory ? '3. My E-Class subjects' : '2. My E-Class subjects'}</button>}
-                                    <button type="button" onClick={() => setActiveSetupPanel('review')} className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider cursor-pointer ${activeSetupPanel === 'review' ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-white/5 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-white/10'}`}>Review & save</button>
+                                    {formData.is_advisory && <button type="button" onClick={() => setActiveSetupPanel('curriculum')} className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider cursor-pointer ${activeSetupPanel === 'curriculum' ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-white/5 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-white/10'}`}>2. Section Subjects & Teaching Load</button>}
+                                    {!formData.is_advisory && formData.is_teaching_load && <button type="button" onClick={() => setActiveSetupPanel('teaching')} className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider cursor-pointer ${activeSetupPanel === 'teaching' ? 'bg-amber-500 text-white' : 'bg-white dark:bg-white/5 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-white/10'}`}>2. Subjects I Teach in This Class</button>}
+                                    <button type="button" onClick={() => setActiveSetupPanel('review')} className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider cursor-pointer ${activeSetupPanel === 'review' ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-white/5 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-white/10'}`}>3. Review & Save</button>
                                 </div>
                             )}
 
@@ -1974,6 +2079,45 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                         </div>
 
                                         <div className="flex flex-wrap items-center gap-2">
+                                            {/* Quick Teaching Load assignment buttons */}
+                                            <button
+                                                type="button"
+                                                onClick={() => setFormData(prev => ({ ...prev, teaching_subjects: [...activeTaughtList], is_teaching_load: true }))}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40 hover:bg-amber-100 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer shadow-xs"
+                                                title="Assign all section subjects to your personal teaching load"
+                                            >
+                                                <Check className="w-3 h-3 stroke-3" />
+                                                ✓ I Teach All
+                                            </button>
+                                            {(formData.teaching_subjects?.length || 0) > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData(prev => ({ ...prev, teaching_subjects: [] }))}
+                                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 hover:bg-slate-200 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer shadow-xs"
+                                                    title="Clear personal teaching load"
+                                                >
+                                                    Clear Load
+                                                </button>
+                                            )}
+
+                                            {/* Copy from existing same-grade section */}
+                                            {sameGradeOtherSections.length > 0 && (
+                                                <select
+                                                    value=""
+                                                    onChange={(e) => {
+                                                        if (e.target.value) handleCopyCurriculumFromSection(e.target.value);
+                                                    }}
+                                                    className="inline-flex items-center px-2.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer shadow-xs outline-none"
+                                                >
+                                                    <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Copy From Section...</option>
+                                                    {sameGradeOtherSections.map(s => (
+                                                        <option key={s.id} value={s.id} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">
+                                                            {s.section_name} ({s.taught_subjects?.length || 0} subjs)
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            )}
+
                                             {/* View Mode Switcher */}
                                             <div className="flex items-center bg-slate-100 dark:bg-white/5 p-0.5 rounded-xl border border-slate-200/60 dark:border-white/10 text-[9px] font-bold">
                                                 <button
@@ -2184,6 +2328,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                                                         {activeTaughtList.map(subjName => {
                                                             const weights = getDepEdWeightsForSubject(subjName, formData.section_grade_level, formData.track);
+                                                            const isPersonallyTeaching = (formData.teaching_subjects || []).includes(subjName);
                                                             return (
                                                                 <div
                                                                     key={`mat-elem-${subjName}`}
@@ -2197,14 +2342,28 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                                             WW {weights.written_weight}% · PT {weights.performance_weight}% · QA {weights.exam_weight}%
                                                                         </div>
                                                                     </div>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => toggleTaughtSubject(subjName)}
-                                                                        className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer shrink-0"
-                                                                        title="Remove from section curriculum"
-                                                                    >
-                                                                        <X className="w-3.5 h-3.5" />
-                                                                    </button>
+                                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => togglePersonalTeachingSubject(subjName)}
+                                                                            className={`px-2 py-1 rounded-lg text-[8.5px] font-black tracking-wider transition-all cursor-pointer ${
+                                                                                isPersonallyTeaching
+                                                                                    ? 'bg-amber-500 text-white shadow-xs'
+                                                                                    : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/20'
+                                                                            }`}
+                                                                            title={isPersonallyTeaching ? 'You are teaching this subject in your E-Class Record' : 'Click to teach this subject'}
+                                                                        >
+                                                                            {isPersonallyTeaching ? '✓ I Teach' : 'Co-Teacher'}
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => toggleTaughtSubject(subjName)}
+                                                                            className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer shrink-0"
+                                                                            title="Remove from section curriculum"
+                                                                        >
+                                                                            <X className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
                                                             );
                                                         })}
@@ -2235,6 +2394,7 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                                                                 {termMatrixData.allTerms.map(subjName => {
                                                                     const weights = getDepEdWeightsForSubject(subjName, formData.section_grade_level, formData.track);
+                                                                    const isPersonallyTeaching = (formData.teaching_subjects || []).includes(subjName);
                                                                     return (
                                                                         <div
                                                                             key={`mat-core-${subjName}`}
@@ -2249,6 +2409,18 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                                                 </div>
                                                                             </div>
                                                                             <div className="flex items-center gap-1 shrink-0">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => togglePersonalTeachingSubject(subjName)}
+                                                                                    className={`px-1.5 py-0.5 rounded text-[8px] font-black tracking-wider transition-all cursor-pointer ${
+                                                                                        isPersonallyTeaching
+                                                                                            ? 'bg-amber-500 text-white shadow-xs'
+                                                                                            : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/20'
+                                                                                    }`}
+                                                                                    title={isPersonallyTeaching ? 'You are teaching this subject in your E-Class Record' : 'Click to teach this subject'}
+                                                                                >
+                                                                                    {isPersonallyTeaching ? '✓ I Teach' : 'Co-Teacher'}
+                                                                                </button>
                                                                                 {isG11 ? (
                                                                                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[8px] font-black bg-indigo-600 text-white">
                                                                                         <Shield className="w-3 h-3" /> Required T1–T3
@@ -2360,14 +2532,28 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                                                                                 {isG11 ? `Candidate for Term ${termNum}` : `WW ${weights.written_weight}% · PT ${weights.performance_weight}% · QA ${weights.exam_weight}%`}
                                                                                             </span>
                                                                                         </div>
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            onClick={() => toggleTaughtSubject(subjName)}
-                                                                                            className="p-1 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer shrink-0"
-                                                                                            title="Remove from curriculum"
-                                                                                        >
-                                                                                            <X className="w-3 h-3" />
-                                                                                        </button>
+                                                                                        <div className="flex items-center gap-1 shrink-0">
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={() => togglePersonalTeachingSubject(subjName)}
+                                                                                                className={`px-1.5 py-0.5 rounded text-[8px] font-black transition-all cursor-pointer ${
+                                                                                                    (formData.teaching_subjects || []).includes(subjName)
+                                                                                                        ? 'bg-amber-500 text-white shadow-xs'
+                                                                                                        : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/20'
+                                                                                                }`}
+                                                                                                title={(formData.teaching_subjects || []).includes(subjName) ? 'You teach this subject' : 'Click to teach this'}
+                                                                                            >
+                                                                                                {(formData.teaching_subjects || []).includes(subjName) ? '✓ I Teach' : 'Co-Teacher'}
+                                                                                            </button>
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={() => toggleTaughtSubject(subjName)}
+                                                                                                className="p-1 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer shrink-0"
+                                                                                                title="Remove from curriculum"
+                                                                                            >
+                                                                                                <X className="w-3 h-3" />
+                                                                                            </button>
+                                                                                        </div>
                                                                                     </div>
 
                                                                                     {isG11 && list.length > 1 && (
@@ -2635,156 +2821,282 @@ export function SectionForm({ section, isClone, onClose }: SectionFormProps) {
                                     animate={{ opacity: 1, height: 'auto' }}
                                     className="mt-6 border-t border-slate-100 dark:border-white/10 pt-6"
                                 >
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 ml-1">
-                                        <div>
-                                            <label className="block text-[9px] font-black text-amber-500 dark:text-amber-400 uppercase tracking-widest">
-                                                My E-Class Record subjects ({formData.teaching_subjects?.length || 0})
-                                            </label>
-                                            <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500">
-                                                Choose only subjects you personally teach. This does not change SF9, SF10, or grade slips.
-                                            </span>
-                                        </div>
-                                        {formData.is_advisory && activeTaughtList.length > 0 && (
-                                            <div className="flex items-center gap-2">
+                                    {!formData.is_advisory ? (
+                                        /* Compact Quick Pick for Non-Advisory Classes (UX-05) */
+                                        <div className="space-y-4">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 ml-1">
+                                                <div>
+                                                    <label className="block text-[9px] font-black text-amber-500 dark:text-amber-400 uppercase tracking-widest">
+                                                        Subjects I Teach in This Class ({formData.teaching_subjects?.length || 0})
+                                                    </label>
+                                                    <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500">
+                                                        Quickly pick the subject(s) you teach. FormEase will create your personal E-Class Record.
+                                                    </span>
+                                                </div>
                                                 <button
                                                     type="button"
-                                                    onClick={() => setFormData({ ...formData, teaching_subjects: [...activeTaughtList] })}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40 hover:bg-amber-100 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer shadow-xs"
-                                                    title="Quickly select all official section subjects as your teaching load"
+                                                    onClick={() => {
+                                                        setCustomSubjTerm(1);
+                                                        setShowAddCustomModal(true);
+                                                    }}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[9.5px] font-bold transition-all cursor-pointer shadow-xs shrink-0"
                                                 >
-                                                    <Check className="w-3 h-3 stroke-3" />
-                                                    Teach All ({activeTaughtList.length})
+                                                    <Plus className="w-3 h-3" />
+                                                    + Custom Subject Name
                                                 </button>
-                                                {(formData.teaching_subjects?.length || 0) > 0 && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setFormData({ ...formData, teaching_subjects: [] })}
-                                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer shadow-xs"
-                                                    >
-                                                        Clear
-                                                    </button>
-                                                )}
                                             </div>
-                                        )}
-                                    </div>
-                                        
-                                    {availableSubjects.length > 0 ? (
-                                        <div className="space-y-4">
-                                            {Object.entries(groupedSubjects).map(([category, list]) => {
-                                                const grade = formData.section_grade_level || 'Grade 11';
-                                                const isSHS = grade.includes('11') || grade.includes('12');
-                                                const isCollapsed = category ? (collapsedCategories[category] ?? isSHS) : false;
-                                                
-                                                return (
-                                                    <div key={category} className="bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/10 rounded-2xl overflow-hidden shadow-xs">
-                                                        {/* Category Header */}
-                                                        {category && (
-                                                            <div className="bg-slate-100/80 dark:bg-white/10 px-4 py-3 flex items-center justify-between border-b border-slate-200/50 dark:border-white/10">
-                                                                <div 
-                                                                    onClick={() => toggleCategory(category)}
-                                                                    className="flex items-center gap-2 cursor-pointer select-none flex-1 min-w-0"
-                                                                >
-                                                                    <ChevronRight className={`w-4 h-4 text-slate-400 transform transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}`} />
-                                                                    <span className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-wider truncate">
-                                                                        {category}
-                                                                    </span>
-                                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-300">
-                                                                        {list.length}
-                                                                    </span>
-                                                                </div>
-                                                                <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider select-none shrink-0 pl-4">
-                                                                    <button 
-                                                                        type="button"
-                                                                        onClick={() => selectAllInCategory(list)}
-                                                                        className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors font-bold cursor-pointer"
-                                                                    >
-                                                                        Select All
-                                                                    </button>
-                                                                    <span className="text-slate-300 dark:text-slate-600">|</span>
-                                                                    <button 
-                                                                        type="button"
-                                                                        onClick={() => clearAllInCategory(list)}
-                                                                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors font-bold cursor-pointer"
-                                                                    >
-                                                                        Clear All
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        )}
 
-                                                        {/* Category Grid */}
-                                                        {!isCollapsed && (
-                                                            <div className="p-4 space-y-3 bg-white dark:bg-[#0f172a]">
-                                                                {Object.entries(groupSubjectsByCluster(list)).map(([clusterName, clusterItems]) => (
-                                                                    <div key={clusterName || 'all'} className="space-y-1.5">
-                                                                        {clusterName && (
-                                                                            <div className="flex items-center gap-2 pt-1 pb-0.5 px-1">
-                                                                                <span className="text-[8.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-100/70 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200">
-                                                                                    {clusterName}
-                                                                                </span>
-                                                                                <span className="text-[8px] font-bold text-slate-400">
-                                                                                    ({clusterItems.length})
-                                                                                </span>
+                                            {/* Quick Pick Dropdown */}
+                                            <div className="bg-slate-50 dark:bg-white/5 border border-slate-200/70 dark:border-white/10 rounded-2xl p-4">
+                                                <label className="block text-[8.5px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                                                    Select Subject to Add to Teaching Load:
+                                                </label>
+                                                <select
+                                                    value=""
+                                                    onChange={(e) => {
+                                                        const s = e.target.value;
+                                                        if (s) {
+                                                            const current = formData.teaching_subjects || [];
+                                                            if (!current.includes(s)) {
+                                                                setFormData(prev => ({
+                                                                    ...prev,
+                                                                    teaching_subjects: [...current, s],
+                                                                    taught_subjects: [...(prev.taught_subjects || []), s]
+                                                                }));
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="w-full bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white border-2 border-slate-200 dark:border-white/10 focus:border-amber-500 rounded-xl px-4 py-2.5 text-xs font-bold outline-none cursor-pointer"
+                                                >
+                                                    <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Choose a subject to add...</option>
+                                                    {availableSubjects
+                                                        .filter(subj => !(formData.teaching_subjects || []).includes(subj.name))
+                                                        .map(subj => (
+                                                            <option key={subj.name} value={subj.name} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">
+                                                                {subj.name}
+                                                            </option>
+                                                        ))
+                                                    }
+                                                </select>
+                                            </div>
+
+                                            {/* Assigned Subjects Chips / Cards */}
+                                            {(formData.teaching_subjects?.length || 0) > 0 ? (
+                                                <div className="space-y-2">
+                                                    <span className="text-[8.5px] font-black uppercase tracking-wider text-slate-400 ml-1">
+                                                        Assigned Teaching Load:
+                                                    </span>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                                        {formData.teaching_subjects?.map(subjName => {
+                                                            const effTerm = subjectTerms[subjName] || 'all';
+                                                            return (
+                                                                <div
+                                                                    key={`non-adv-${subjName}`}
+                                                                    className="p-3 rounded-xl border border-amber-300 dark:border-amber-700/60 bg-amber-50/40 dark:bg-amber-950/20 shadow-xs flex items-center justify-between gap-2"
+                                                                >
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <div className="text-[10.5px] font-black uppercase tracking-tight text-slate-900 dark:text-white truncate">
+                                                                            {subjName}
+                                                                        </div>
+                                                                        {isSHS && (
+                                                                            <div className="flex items-center gap-1 mt-1.5">
+                                                                                <span className="text-[7.5px] font-black uppercase tracking-wider text-slate-400">Term:</span>
+                                                                                {(['all', 1, 2, 3] as const).map(t => (
+                                                                                    <button
+                                                                                        key={t}
+                                                                                        type="button"
+                                                                                        onClick={() => handleSetSubjectTerm(subjName, t)}
+                                                                                        className={`px-1.5 py-0.5 rounded text-[8px] font-black transition-all cursor-pointer ${
+                                                                                            effTerm === t
+                                                                                                ? 'bg-amber-500 text-white shadow-xs'
+                                                                                                : 'bg-white dark:bg-white/10 text-slate-500 dark:text-slate-400 hover:bg-slate-100'
+                                                                                        }`}
+                                                                                    >
+                                                                                        {t === 'all' ? 'All' : `T${t}`}
+                                                                                    </button>
+                                                                                ))}
                                                                             </div>
                                                                         )}
-                                                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                                                                            {clusterItems.map((subj) => {
-                                                                                const isSHS = (formData.section_grade_level || '').includes('11') || (formData.section_grade_level || '').includes('12');
-                                                                                const electiveInfo = isSHS ? findElectiveInCatalog(subj.name) : undefined;
-                                                                                const isSelected = formData.teaching_subjects?.includes(subj.name);
-                                                                                const isAdvisoryTaught = activeTaughtList.includes(subj.name);
-                                                                                return (
-                                                                                    <div 
-                                                                                        key={`teaching-${subj.name}`}
-                                                                                        onClick={() => toggleSubject(subj.name)}
-                                                                                        className={`group p-2.5 ps-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 min-h-11 ${isSelected ? 'bg-white dark:bg-amber-950/60 border-amber-400 dark:border-amber-500 shadow-xs' : 'bg-white/40 dark:bg-white/5 border-slate-200/50 dark:border-white/10 opacity-60 hover:opacity-100'}`}
-                                                                                    >
-                                                                                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                                                                            <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-amber-500 border-amber-500 text-white shadow-xs' : 'border-slate-300 dark:border-white/20'}`}>
-                                                                                                {isSelected && <Check className="w-3 h-3 stroke-3" />}
-                                                                                            </div>
-                                                                                            <div className="min-w-0 flex-1">
-                                                                                                <span className={`text-[9.5px] font-black uppercase tracking-tight block truncate ${isSelected ? 'text-amber-950 dark:text-amber-200' : 'text-slate-500 dark:text-slate-400'}`}>
-                                                                                                    {subj.name}
-                                                                                                </span>
-                                                                                                {electiveInfo?.prerequisites && electiveInfo.prerequisites.length > 0 && (
-                                                                                                    <span className="text-[8px] font-semibold text-slate-400 dark:text-slate-500 block truncate">
-                                                                                                        Prereq: {electiveInfo.prerequisites.join(', ')}
-                                                                                                    </span>
-                                                                                                )}
-                                                                                            </div>
-                                                                                        </div>
-                                                                                        <div className="flex items-center gap-1 shrink-0">
-                                                                                            {isAdvisoryTaught && (
-                                                                                                <span className="text-[7.5px] font-bold px-1 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/40 text-indigo-500 dark:text-indigo-400">
-                                                                                                    Section
-                                                                                                </span>
-                                                                                            )}
-                                                                                            {electiveInfo?.hours && (
-                                                                                                <span className="text-[7.5px] font-bold px-1 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400">
-                                                                                                    {electiveInfo.hours}h
-                                                                                                </span>
-                                                                                            )}
-                                                                                            {electiveInfo?.ncLevel && (
-                                                                                                <span className="text-[7.5px] font-bold px-1 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/40">
-                                                                                                    {electiveInfo.ncLevel}
-                                                                                                </span>
-                                                                                            )}
-                                                                                        </div>
-                                                                                    </div>
-                                                                                );
-                                                                            })}
-                                                                        </div>
                                                                     </div>
-                                                                ))}
-                                                            </div>
-                                                        )}
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            const next = (formData.teaching_subjects || []).filter(s => s !== subjName);
+                                                                            setFormData(prev => ({ ...prev, teaching_subjects: next, taught_subjects: next }));
+                                                                        }}
+                                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer shrink-0"
+                                                                        title="Remove subject"
+                                                                    >
+                                                                        <X className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </div>
+                                                            );
+                                                        })}
                                                     </div>
-                                                );
-                                            })}
+                                                </div>
+                                            ) : (
+                                                <div className="text-center py-8 px-4 bg-white/70 dark:bg-[#0d1225]/70 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-2xl">
+                                                    <BookOpen className="w-8 h-8 text-amber-500/60 mx-auto mb-2" />
+                                                    <p className="text-xs font-bold text-slate-600 dark:text-slate-300">No teaching subjects selected yet</p>
+                                                    <p className="text-[9.5px] text-slate-400 mt-1">Use the dropdown above to add the subject(s) you teach in this section.</p>
+                                                </div>
+                                            )}
                                         </div>
                                     ) : (
-                                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 italic">No standard subjects found.</p>
+                                        /* Advisory mode full catalog */
+                                        <div>
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 ml-1">
+                                                <div>
+                                                    <label className="block text-[9px] font-black text-amber-500 dark:text-amber-400 uppercase tracking-widest">
+                                                        My E-Class Record subjects ({formData.teaching_subjects?.length || 0})
+                                                    </label>
+                                                    <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500">
+                                                        Choose only subjects you personally teach. This does not change SF9, SF10, or grade slips.
+                                                    </span>
+                                                </div>
+                                                {activeTaughtList.length > 0 && (
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFormData({ ...formData, teaching_subjects: [...activeTaughtList] })}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40 hover:bg-amber-100 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer shadow-xs"
+                                                            title="Quickly select all official section subjects as your teaching load"
+                                                        >
+                                                            <Check className="w-3 h-3 stroke-3" />
+                                                            Teach All ({activeTaughtList.length})
+                                                        </button>
+                                                        {(formData.teaching_subjects?.length || 0) > 0 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setFormData({ ...formData, teaching_subjects: [] })}
+                                                                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer shadow-xs"
+                                                            >
+                                                                Clear
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                                
+                                            {availableSubjects.length > 0 ? (
+                                                <div className="space-y-4">
+                                                    {Object.entries(groupedSubjects).map(([category, list]) => {
+                                                        const grade = formData.section_grade_level || 'Grade 11';
+                                                        const isSHS = grade.includes('11') || grade.includes('12');
+                                                        const isCollapsed = category ? (collapsedCategories[category] ?? isSHS) : false;
+                                                        
+                                                        return (
+                                                            <div key={category} className="bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/10 rounded-2xl overflow-hidden shadow-xs">
+                                                                {/* Category Header */}
+                                                                {category && (
+                                                                    <div className="bg-slate-100/80 dark:bg-white/10 px-4 py-3 flex items-center justify-between border-b border-slate-200/50 dark:border-white/10">
+                                                                        <div 
+                                                                            onClick={() => toggleCategory(category)}
+                                                                            className="flex items-center gap-2 cursor-pointer select-none flex-1 min-w-0"
+                                                                        >
+                                                                            <ChevronRight className={`w-4 h-4 text-slate-400 transform transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}`} />
+                                                                            <span className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-wider truncate">
+                                                                                {category}
+                                                                            </span>
+                                                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-300">
+                                                                                {list.length}
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider select-none shrink-0 pl-4">
+                                                                            <button 
+                                                                                type="button"
+                                                                                onClick={() => selectAllInCategory(list)}
+                                                                                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors font-bold cursor-pointer"
+                                                                            >
+                                                                                Select All
+                                                                            </button>
+                                                                            <span className="text-slate-300 dark:text-slate-600">|</span>
+                                                                            <button 
+                                                                                type="button"
+                                                                                onClick={() => clearAllInCategory(list)}
+                                                                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors font-bold cursor-pointer"
+                                                                            >
+                                                                                Clear All
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Category Grid */}
+                                                                {!isCollapsed && (
+                                                                    <div className="p-4 space-y-3 bg-white dark:bg-[#0f172a]">
+                                                                        {Object.entries(groupSubjectsByCluster(list)).map(([clusterName, clusterItems]) => (
+                                                                            <div key={clusterName || 'all'} className="space-y-1.5">
+                                                                                {clusterName && (
+                                                                                    <div className="flex items-center gap-2 pt-1 pb-0.5 px-1">
+                                                                                        <span className="text-[8.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-100/70 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200">
+                                                                                            {clusterName}
+                                                                                        </span>
+                                                                                        <span className="text-[8px] font-bold text-slate-400">
+                                                                                            ({clusterItems.length})
+                                                                                        </span>
+                                                                                    </div>
+                                                                                )}
+                                                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                                                                    {clusterItems.map((subj) => {
+                                                                                        const isSHS = (formData.section_grade_level || '').includes('11') || (formData.section_grade_level || '').includes('12');
+                                                                                        const electiveInfo = isSHS ? findElectiveInCatalog(subj.name) : undefined;
+                                                                                        const isSelected = formData.teaching_subjects?.includes(subj.name);
+                                                                                        const isAdvisoryTaught = activeTaughtList.includes(subj.name);
+                                                                                        return (
+                                                                                            <div 
+                                                                                                key={`teaching-${subj.name}`}
+                                                                                                onClick={() => toggleSubject(subj.name)}
+                                                                                                className={`group p-2.5 ps-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 min-h-11 ${isSelected ? 'bg-white dark:bg-amber-950/60 border-amber-400 dark:border-amber-500 shadow-xs' : 'bg-white/40 dark:bg-white/5 border-slate-200/50 dark:border-white/10 opacity-60 hover:opacity-100'}`}
+                                                                                            >
+                                                                                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                                                                                    <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-amber-500 border-amber-500 text-white shadow-xs' : 'border-slate-300 dark:border-white/20'}`}>
+                                                                                                        {isSelected && <Check className="w-3 h-3 stroke-3" />}
+                                                                                                    </div>
+                                                                                                    <div className="min-w-0 flex-1">
+                                                                                                        <span className={`text-[9.5px] font-black uppercase tracking-tight block truncate ${isSelected ? 'text-amber-950 dark:text-amber-200' : 'text-slate-500 dark:text-slate-400'}`}>
+                                                                                                            {subj.name}
+                                                                                                        </span>
+                                                                                                        {electiveInfo?.prerequisites && electiveInfo.prerequisites.length > 0 && (
+                                                                                                            <span className="text-[8px] font-semibold text-slate-400 dark:text-slate-500 block truncate">
+                                                                                                                Prereq: {electiveInfo.prerequisites.join(', ')}
+                                                                                                            </span>
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                                <div className="flex items-center gap-1 shrink-0">
+                                                                                                    {isAdvisoryTaught && (
+                                                                                                        <span className="text-[7.5px] font-bold px-1 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/40 text-indigo-500 dark:text-indigo-400">
+                                                                                                            Section
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                    {electiveInfo?.hours && (
+                                                                                                        <span className="text-[7.5px] font-bold px-1 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400">
+                                                                                                            {electiveInfo.hours}h
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                    {electiveInfo?.ncLevel && (
+                                                                                                        <span className="text-[7.5px] font-bold px-1 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/40">
+                                                                                                            {electiveInfo.ncLevel}
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        );
+                                                                                    })}
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 italic">No standard subjects found.</p>
+                                            )}
+                                        </div>
                                     )}
                                 </motion.div>
                             )}

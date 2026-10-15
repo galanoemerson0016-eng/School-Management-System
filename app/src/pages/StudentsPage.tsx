@@ -22,6 +22,7 @@ import { parseSF1 } from '../utils/sf1-parser';
 import { downloadEnrollmentTemplate, parseEnrollmentTemplate } from '../utils/enrollment-template';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { isStudentInSection, isMaleStudent, isFemaleStudent } from '../utils/grading-helpers';
+import { getAllowedDepartmentCategories } from '../lib/curriculum';
 import { useRef } from 'react';
 
 export function StudentsPage() {
@@ -642,6 +643,20 @@ export function StudentsPage() {
 
     const _statsSectionsCount = officialSections.length;
 
+    const allowedDepts = useMemo(() => {
+        const existingGrades = officialSections.map(s => s.section_grade_level).filter(Boolean);
+        return getAllowedDepartmentCategories(schoolProfile?.grade_levels_offered, 'AUTO', existingGrades);
+    }, [schoolProfile?.grade_levels_offered, officialSections]);
+
+    const allowedDeptGroups = useMemo(() => {
+        const map: Record<'Elementary' | 'JHS' | 'SHS', string> = {
+            Elementary: 'ELEMENTARY',
+            JHS: 'JUNIOR HIGH SCHOOL',
+            SHS: 'SENIOR HIGH SCHOOL',
+        };
+        return new Set(allowedDepts.map(d => map[d]));
+    }, [allowedDepts]);
+
     const groupedSectionsByCategory = useMemo(() => {
         const groups: Record<string, typeof sections> = {
             'ELEMENTARY': [],
@@ -839,7 +854,9 @@ export function StudentsPage() {
                                     All Levels
                                 </button>
 
-                                {Object.entries(groupedSectionsByCategory).map(([group, groupSections]) => {
+                                {Object.entries(groupedSectionsByCategory)
+                                    .filter(([group, groupSections]) => allowedDeptGroups.has(group) || groupSections.length > 0)
+                                    .map(([group, groupSections]) => {
                                     const isActive = activeCategory === group;
                                     const label = group === 'ELEMENTARY' ? 'Elementary' :
                                                   group === 'JUNIOR HIGH SCHOOL' ? 'Junior High' : 'Senior High';

@@ -583,7 +583,88 @@ export const SPSTEM_SUBJECTS: Record<string, SpecialSubjectItem[]> = {
     ]
 };
 
-export const STE_SUBJECTS: Record<string, SpecialSubjectItem[]> = SPSTEM_SUBJECTS;
+export const STE_DEFAULT_SUBJECTS_BY_GRADE: Record<string, SpecialSubjectItem[]> = {
+    'Grade 7': [
+        { name: 'Environmental Science', code: 'STE-ES', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+        { name: 'Research I', code: 'STE-RES1', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true }
+    ],
+    'Grade 8': [
+        { name: 'Biotechnology', code: 'STE-BIO', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+        { name: 'Research II', code: 'STE-RES2', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true }
+    ],
+    'Grade 9': [
+        { name: 'Consumer Chemistry', code: 'STE-CHEM', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+        { name: 'Research III', code: 'STE-RES3', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true }
+    ],
+    'Grade 10': [
+        { name: 'Electronics and Robotics', code: 'STE-ROB', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+        { name: 'Research IV', code: 'STE-RES4', program: 'STE', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true }
+    ]
+};
+
+export const SPSTEM_DEFAULT_SUBJECTS_BY_GRADE: Record<string, SpecialSubjectItem[]> = {
+    'Grade 7': [
+        { name: 'Enhanced Science', code: 'SPSTEM-SCI7', program: 'SPSTEM', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+        { name: 'Enhanced Mathematics', code: 'SPSTEM-MTH7', program: 'SPSTEM', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+        { name: 'Creative Technology', code: 'SPSTEM-CT7', program: 'SPSTEM', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+        { name: 'Research MIM/SIP', code: 'SPSTEM-RES7', program: 'SPSTEM', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true }
+    ],
+    'Grade 8': [
+        { name: 'Enhanced Science', code: 'SPSTEM-SCI8', program: 'SPSTEM', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+        { name: 'Enhanced Mathematics', code: 'SPSTEM-MTH8', program: 'SPSTEM', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+        { name: 'Creative Technology', code: 'SPSTEM-CT8', program: 'SPSTEM', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+        { name: 'Research MIM/SIP', code: 'SPSTEM-RES8', program: 'SPSTEM', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true }
+    ],
+    'Grade 9': [
+        { name: 'Enhanced Science', code: 'SPSTEM-SCI9', program: 'SPSTEM', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+        { name: 'Enhanced Mathematics', code: 'SPSTEM-MTH9', program: 'SPSTEM', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+        { name: 'Creative Technology', code: 'SPSTEM-CT9', program: 'SPSTEM', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+        { name: 'Research MIM/SIP', code: 'SPSTEM-RES9', program: 'SPSTEM', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true }
+    ],
+    'Grade 10': [
+        { name: 'Enhanced Science', code: 'SPSTEM-SCI10', program: 'SPSTEM', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+        { name: 'Enhanced Mathematics', code: 'SPSTEM-MTH10', program: 'SPSTEM', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+        { name: 'Creative Technology', code: 'SPSTEM-CT10', program: 'SPSTEM', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true },
+        { name: 'Research MIM/SIP', code: 'SPSTEM-RES10', program: 'SPSTEM', is_special_program: true, isSpecialProgram: true, counts_in_general_average: true, countsInGeneralAverage: true }
+    ]
+};
+
+export const JHS_TLE_SPECIALIZATIONS: string[] = [
+    'Technology and Livelihood Education (TLE)',
+    'TLE - ICT (Computer Systems Servicing)',
+    'TLE - Cookery',
+    'TLE - Dressmaking / Tailoring',
+    'TLE - Beauty Care / Caregiving',
+    'TLE - Electrical Installation and Maintenance (EIM)',
+    'TLE - Technical Drafting',
+    'TLE - Carpentry / Shielded Metal Arc Welding (SMAW)',
+    'TLE - Automotive / Small Engine Servicing',
+    'TLE - Agricultural Crop / Animal Production',
+    'TLE - Fishery Arts'
+];
+
+export const CANONICAL_SPFL_OPTIONS: SpecialSubjectItem[] = [
+    { name: 'SPFL - Spanish', code: 'SPFL-ES', program: 'SPFL' },
+    { name: 'SPFL - Mandarin Chinese', code: 'SPFL-ZH', program: 'SPFL' },
+    { name: 'SPFL - Japanese (Nihongo)', code: 'SPFL-JA', program: 'SPFL' },
+    { name: 'SPFL - Korean', code: 'SPFL-KO', program: 'SPFL' },
+    { name: 'SPFL - French', code: 'SPFL-FR', program: 'SPFL' },
+    { name: 'SPFL - German', code: 'SPFL-DE', program: 'SPFL' }
+];
+
+export const CANONICAL_SPTVE_OPTIONS: SpecialSubjectItem[] = [
+    { name: 'SPTVE - Computer Systems Servicing (CSS)', code: 'SPTVE-CSS', program: 'SPTVE' },
+    { name: 'SPTVE - Cookery and Food Services', code: 'SPTVE-CK', program: 'SPTVE' },
+    { name: 'SPTVE - Electrical Installation and Maintenance (EIM)', code: 'SPTVE-EIM', program: 'SPTVE' },
+    { name: 'SPTVE - Technical Drafting', code: 'SPTVE-TD', program: 'SPTVE' },
+    { name: 'SPTVE - Automotive Servicing', code: 'SPTVE-AUTO', program: 'SPTVE' },
+    { name: 'SPTVE - Shielded Metal Arc Welding (SMAW)', code: 'SPTVE-SMAW', program: 'SPTVE' },
+    { name: 'SPTVE - Beauty Care and Wellness Services', code: 'SPTVE-BC', program: 'SPTVE' },
+    { name: 'SPTVE - Agricultural Crop and Animal Production', code: 'SPTVE-AGRI', program: 'SPTVE' },
+    { name: 'Special Program in Technical-Vocational Education (SPTVE)', code: 'SPTVE-GEN', program: 'SPTVE' }
+];
+
+export const STE_SUBJECTS: Record<string, SpecialSubjectItem[]> = STE_DEFAULT_SUBJECTS_BY_GRADE;
 
 /**
  * Master catalog of all Junior High School STE Electives.
@@ -813,39 +894,54 @@ export function getCurriculumTemplatesForSection(
         return result;
     }
 
-    if (program === 'STE' || program === 'SPSTEM') {
-        const ste = SPSTEM_SUBJECTS[gradeLevel] || [];
+    if (program === 'STE') {
+        const ste = STE_DEFAULT_SUBJECTS_BY_GRADE[gradeLevel] || [];
         ste.forEach(pushSpecial);
+    } else if (program === 'SPSTEM') {
+        const spstem = SPSTEM_DEFAULT_SUBJECTS_BY_GRADE[gradeLevel] || [];
+        spstem.forEach(pushSpecial);
     } else if (program === 'SPA') {
+        // Default to the explicitly selected major(s), or 'Visual Arts' (1 major) instead of dumping all 8 majors!
         const majorsToInclude = (spaMajors && spaMajors.length > 0)
             ? spaMajors
-            : Object.keys(SPA_MAJORS);
+            : ['Visual Arts'];
 
         majorsToInclude.forEach(majorKey => {
-            const items = SPA_MAJORS[majorKey] || [];
+            const items = SPA_MAJORS[majorKey] || [{ name: majorKey, code: 'SPA-SPEC', program: 'SPA' }];
             items.forEach(pushSpecial);
         });
     } else if (program === 'SPJ') {
         const spj = SPJ_SUBJECTS[gradeLevel] || [];
-        spj.forEach(pushSpecial);
+        // Load only the 2 canonical grade-level Journalism subjects (English + Filipino), not duplicate aliases
+        const canonicalSpj = spj.filter(s => /^Journalism\s+[I|V]+|^Pamamahayag\s+[I|V]+/i.test(s.name));
+        (canonicalSpj.length > 0 ? canonicalSpj : spj.slice(0, 2)).forEach(pushSpecial);
     } else if (program === 'SPS') {
         const sps = SPS_SUBJECTS[gradeLevel] || [];
-        sps.forEach(pushSpecial);
+        // Load only the 1 canonical grade-level Sports specialization subject, not duplicate aliases
+        const canonicalSps = sps.filter(s => s.name.startsWith('SPS -'));
+        (canonicalSps.length > 0 ? canonicalSps : sps.slice(0, 1)).forEach(pushSpecial);
     } else if (program === 'SPFL') {
-        SPFL_LANGUAGES.forEach(pushSpecial);
+        // Load only the selected foreign language(s) passed in spaMajors, or canonical list if general
+        const chosenLangs = (spaMajors && spaMajors.length > 0)
+            ? CANONICAL_SPFL_OPTIONS.filter(l => spaMajors.includes(l.name))
+            : CANONICAL_SPFL_OPTIONS;
+        chosenLangs.forEach(pushSpecial);
+    } else if (program === 'SPTVE') {
+        // SPTVE includes Applied Technical Drawing + Applied Entrepreneurship + 1 chosen TVE Specialization (not all 12!)
+        pushSpecial({ name: 'Applied Technical Drawing', code: 'SPTVE-ATD', program: 'SPTVE' });
+        pushSpecial({ name: 'Applied Entrepreneurship', code: 'SPTVE-AE', program: 'SPTVE' });
+        const chosenTve = (spaMajors && spaMajors.length > 0)
+            ? CANONICAL_SPTVE_OPTIONS.filter(t => spaMajors.includes(t.name))
+            : [{ name: 'TVE Specialization', code: 'SPTVE-SPEC', program: 'SPTVE' }];
+        (chosenTve.length > 0 ? chosenTve : [CANONICAL_SPTVE_OPTIONS[0]]).forEach(pushSpecial);
     } else if (program === 'SSES') {
         const sses = SSES_SUBJECTS[gradeLevel] || [];
         sses.forEach(pushSpecial);
-    } else if (program === 'SPTVE') {
-        SPTVE_SPECIALIZATIONS.forEach(pushSpecial);
     } else if (program === 'ALIVE') {
-        const isElementary = /^(Kindergarten|Kinder|Grade\s*[1-6])\b/i.test((gradeLevel || '').trim());
-        if (isElementary) {
-            const aliveSubjects: SpecialSubjectItem[] = [
-                { name: 'Arabic Language', code: 'ALIVE-AL', program: 'ALIVE', counts_in_general_average: false, countsInGeneralAverage: false },
-                { name: 'Islamic Values Education', code: 'ALIVE-IVE', program: 'ALIVE', counts_in_general_average: false, countsInGeneralAverage: false }
-            ];
-            aliveSubjects.forEach(pushSpecial);
+        const gNum = parseInt(gradeLevel.replace(/\D/g, '')) || 0;
+        if (gNum <= 6) {
+            pushSpecial({ name: 'Arabic Language', code: 'ALIVE-AL', program: 'ALIVE', counts_in_general_average: false, countsInGeneralAverage: false });
+            pushSpecial({ name: 'Islamic Values Education', code: 'ALIVE-IVE', program: 'ALIVE', counts_in_general_average: false, countsInGeneralAverage: false });
         }
     }
 
@@ -998,6 +1094,81 @@ export const SPECIAL_SUBJECTS: Record<string, SpecialSubjectItem[]> = {
     ],
     'Grade 12': SSHS_G12_TECHPRO_SUBJECTS
 };
+
+export const ALL_GRADE_LEVELS = [
+    'Kindergarten',
+    'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+    'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10',
+    'Grade 11', 'Grade 12'
+] as const;
+
+export type TeachingScopeOverride = 'AUTO' | 'ALL' | 'ELEMENTARY' | 'JHS' | 'SHS' | 'ELEM_JHS' | 'JHS_SHS';
+
+/**
+ * Resolves the list of Grade Levels offered by the school (or teacher scope) based on
+ * schoolProfile.grade_levels_offered and any active sections already created by the teacher.
+ */
+export function getAllowedGradeLevels(
+    gradeLevelsOffered?: string | null,
+    overrideScope: TeachingScopeOverride = 'AUTO',
+    existingSectionGrades: string[] = []
+): string[] {
+    if (overrideScope === 'ALL') return [...ALL_GRADE_LEVELS];
+    if (overrideScope === 'ELEMENTARY') return ['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
+    if (overrideScope === 'JHS') return ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
+    if (overrideScope === 'SHS') return ['Grade 11', 'Grade 12'];
+    if (overrideScope === 'ELEM_JHS') return ['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
+    if (overrideScope === 'JHS_SHS') return ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
+
+    const raw = (gradeLevelsOffered || '').trim().toLowerCase();
+    if (!raw || raw.includes('complete k-12') || raw === 'kinder to grade 12') {
+        return [...ALL_GRADE_LEVELS];
+    }
+
+    const allowed = new Set<string>();
+    const hasKinder = raw.includes('kinder');
+    const hasElem = raw.includes('1-6') || raw.includes('1–6') || raw.includes('to grade 6') || raw.includes('to g6') || raw.includes('elementary') || raw.includes('kinder to grade 10');
+    const hasJhs = raw.includes('7-10') || raw.includes('7–10') || raw.includes('to grade 10') || raw.includes('to g10') || raw.includes('junior high') || raw.includes('jhs') || raw.includes('7-12') || raw.includes('7–12');
+    const hasShs = raw.includes('11-12') || raw.includes('11–12') || raw.includes('to grade 12') || raw.includes('senior high') || raw.includes('shs') || raw.includes('7-12') || raw.includes('7–12') || raw.includes('grade 11') || raw.includes('grade 12');
+
+    if (hasKinder) allowed.add('Kindergarten');
+    if (hasElem) {
+        ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'].forEach(g => allowed.add(g));
+    }
+    if (hasJhs) {
+        ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'].forEach(g => allowed.add(g));
+    }
+    if (hasShs) {
+        ['Grade 11', 'Grade 12'].forEach(g => allowed.add(g));
+    }
+
+    for (let i = 1; i <= 12; i++) {
+        const regex = new RegExp(`\\bgrade\\s*${i}\\b`, 'i');
+        if (regex.test(raw)) allowed.add(`Grade ${i}`);
+    }
+
+    // Always include grade levels of any sections the teacher has already created
+    existingSectionGrades.forEach(g => {
+        if ((ALL_GRADE_LEVELS as readonly string[]).includes(g)) {
+            allowed.add(g);
+        }
+    });
+
+    return allowed.size > 0 ? ALL_GRADE_LEVELS.filter(g => allowed.has(g)) : [...ALL_GRADE_LEVELS];
+}
+
+export function getAllowedDepartmentCategories(
+    gradeLevelsOffered?: string | null,
+    overrideScope: TeachingScopeOverride = 'AUTO',
+    existingSectionGrades: string[] = []
+): ('Elementary' | 'JHS' | 'SHS')[] {
+    const grades = getAllowedGradeLevels(gradeLevelsOffered, overrideScope, existingSectionGrades);
+    const depts: ('Elementary' | 'JHS' | 'SHS')[] = [];
+    if (grades.some(g => g === 'Kindergarten' || /^Grade [1-6]$/.test(g))) depts.push('Elementary');
+    if (grades.some(g => /^Grade ([789]|10)$/.test(g))) depts.push('JHS');
+    if (grades.some(g => g === 'Grade 11' || g === 'Grade 12')) depts.push('SHS');
+    return depts.length > 0 ? depts : ['Elementary', 'JHS', 'SHS'];
+}
 
 export type GradeLevel = keyof typeof STANDARD_SUBJECTS;
 
@@ -2202,7 +2373,7 @@ export const getCategoryForSubject = (subjectName: string, gradeLevel: string): 
     // 3. Junior High School (JHS Grades 7 - 10) Special Curricular Programs
     const isJHS = /^Grade\s*(7|8|9|10)\b/i.test((gradeLevel || '').trim());
 
-    if (isJHS) {
+    if (isJHS || !gradeLevel) {
         // A. Science, Technology & Engineering / STEM (STE / SPSTEM)
         const steKeywords = [
             'ste -', 'ste-', 'spstem', 'special program in stem', 'enhanced science', 'enhanced math',
@@ -2356,10 +2527,18 @@ export * from './sshsEquivalency';
  * Regular sections should NEVER have special program subjects (SPA, SPJ, SPS, SPFL, SPTVE, STE, SSES, ALIVE).
  * Special program sections should only have core/regular subjects PLUS their specific program subjects.
  */
-export function isSubjectAllowedForProgram(subjectName: string, gradeLevel: string = '', program: string = 'Regular'): boolean {
+export function isSubjectAllowedForProgram(subjectName: string, gradeLevelOrProgram: string = '', programArg: string = 'Regular'): boolean {
     const normName = subjectName.toLowerCase().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)/g, '').trim();
     if (!normName || normName === 'specialization' || normName === 'mapeh') {
         return false;
+    }
+
+    const knownPrograms = ['regular', 'ste', 'spstem', 'spa', 'spj', 'sps', 'spfl', 'sptve', 'sses', 'alive', 'madrasah'];
+    let gradeLevel = gradeLevelOrProgram;
+    let program = programArg;
+    if (knownPrograms.includes((gradeLevelOrProgram || '').trim().toLowerCase()) && (programArg === 'Regular' || !programArg)) {
+        program = gradeLevelOrProgram;
+        gradeLevel = '';
     }
 
     const isSHS = gradeLevel.includes('11') || gradeLevel.includes('12');

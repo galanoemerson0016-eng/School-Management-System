@@ -11,7 +11,7 @@ import { db, type AtomicRecordChange } from '../services/database';
 import { backup } from '../services/backup';
 import { persistLearnerUpdate, persistLearnerDelete, persistLearnersDelete, withLearnerMutation } from '../services/learner-record-service';
 import { normalizeSubjectName } from '../lib/subjectConfig';
-import { STANDARD_SUBJECTS, getDefaultTermForSubject, isGrade11CoreSubject } from '../lib/curriculum';
+import { STANDARD_SUBJECTS, getDefaultTermForSubject, isGrade11CoreSubject, isSubjectAllowedForProgram } from '../lib/curriculum';
 import { getCurriculumPreset } from '../lib/curriculumPresets';
 import { generateDeterministicSubjectId } from '../utils/grade-reconciliation';
 import { createGradingSlice, type GradingSlice } from './slices/grading-slice';
@@ -1056,6 +1056,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       const currentSections = get().sections;
       const sectionsToUpdate = currentSections.filter((sec: Section) => {
         if (!sec.is_advisory || sec.section_grade_level !== sanitizedSubject.grade_level) return false;
+        // If sanitizedSubject is section-specific, ONLY sync to that exact section!
+        if (sanitizedSubject.section_id) {
+          return sec.id === sanitizedSubject.section_id;
+        }
+        // If the subject is not allowed for the section's curricular program, do not leak it across programs!
+        if (!isSubjectAllowedForProgram(sanitizedSubject.subject_name, sec.section_grade_level || '', sec.program)) {
+          return false;
+        }
         const gNum = parseInt(sec.section_grade_level?.replace(/\D/g, '') || '0');
         if (gNum === 11) {
           // For Grade 11: ONLY universal Core subjects can be auto-synced to all advisory sections.

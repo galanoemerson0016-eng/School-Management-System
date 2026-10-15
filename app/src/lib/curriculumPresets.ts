@@ -224,7 +224,7 @@ const createJHSSTEPreset = (grade: 'Grade 7' | 'Grade 8' | 'Grade 9' | 'Grade 10
     const electivesByGrade: Record<string, PresetSubjectItem[]> = {
         'Grade 7': [
             { name: 'Environmental Science', term: 'all', category: 'Program Elective', weightCategory: 'MathScience', ...DEPED_WEIGHT_PROFILES.MathScience },
-            { name: 'Research I (Scientific Investigation)', term: 'all', category: 'Program Elective', weightCategory: 'MathScience', ...DEPED_WEIGHT_PROFILES.MathScience }
+            { name: 'Research I', term: 'all', category: 'Program Elective', weightCategory: 'MathScience', ...DEPED_WEIGHT_PROFILES.MathScience }
         ],
         'Grade 8': [
             { name: 'Biotechnology', term: 'all', category: 'Program Elective', weightCategory: 'MathScience', ...DEPED_WEIGHT_PROFILES.MathScience },

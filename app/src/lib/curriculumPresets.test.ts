@@ -53,7 +53,7 @@ describe('DepEd Curriculum Presets Engine (Universal 3-Term)', () => {
             expect(preset?.program).toBe('STE');
             const names = preset?.subjects.map(s => s.name);
             expect(names).toContain('Environmental Science');
-            expect(names).toContain('Research I (Scientific Investigation)');
+            expect(names).toContain('Research I');
         });
     });
 

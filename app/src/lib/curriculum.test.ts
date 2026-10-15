@@ -20,7 +20,14 @@ import {
   getDepEdStandardWeights,
   getClustersForGrade11Track,
   SSHS_ACADEMIC_CLUSTERS_LIST,
-  SSHS_TECHPRO_CLUSTERS_LIST
+  SSHS_TECHPRO_CLUSTERS_LIST,
+  getAllowedGradeLevels,
+  getAllowedDepartmentCategories,
+  isSubjectAllowedForProgram,
+  STE_DEFAULT_SUBJECTS_BY_GRADE,
+  SPSTEM_DEFAULT_SUBJECTS_BY_GRADE,
+  CANONICAL_SPFL_OPTIONS,
+  CANONICAL_SPTVE_OPTIONS
 } from './curriculum';
 import { isThreeTermSchoolYear } from './terms';
 import { mapStudentToShsSf9Data } from '../utils/shsSf9Mapper';
@@ -766,6 +773,80 @@ describe('Wave 3 DepEd DO 009, 015, and 017, s. 2026 compliance regressions', ()
     expect(SCHOOL_CALENDAR_2026_2027.JUNE.length).toBe(16);
     const totalDays = Object.values(SCHOOL_CALENDAR_2026_2027).reduce((acc, days) => acc + days.length, 0);
     expect(totalDays).toBe(201);
+  });
+});
+
+describe('Wave 4: Subject & Section UX Simplification (UX-01 to UX-07)', () => {
+  it('UX-01: getAllowedGradeLevels scopes correctly per offered grade levels', () => {
+    expect(getAllowedGradeLevels('Junior High School (Grades 7-10)')).toEqual([
+      'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'
+    ]);
+    expect(getAllowedGradeLevels('Elementary (Kindergarten - Grade 6)')).toEqual([
+      'Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'
+    ]);
+    expect(getAllowedGradeLevels('Senior High School (Grades 11-12)')).toEqual([
+      'Grade 11', 'Grade 12'
+    ]);
+    expect(getAllowedGradeLevels('Junior High School (Grades 7-10)', 'ALL')).toEqual([
+      'Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+      'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'
+    ]);
+    expect(getAllowedGradeLevels('Junior High School', 'AUTO', ['Grade 11'])).toEqual([
+      'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11'
+    ]);
+  });
+
+  it('UX-01: getAllowedDepartmentCategories resolves active school departments', () => {
+    expect(getAllowedDepartmentCategories('Junior High School (Grades 7-10)')).toEqual(['JHS']);
+    expect(getAllowedDepartmentCategories('Elementary')).toEqual(['Elementary']);
+    expect(getAllowedDepartmentCategories('Senior High School')).toEqual(['SHS']);
+    expect(getAllowedDepartmentCategories('Integrated / Complete (K-12)')).toEqual(['Elementary', 'JHS', 'SHS']);
+    expect(getAllowedDepartmentCategories('Junior High School', 'AUTO', ['Grade 11'])).toEqual(['JHS', 'SHS']);
+  });
+
+  it('UX-02: canonical special program subject catalogs eliminate bloating', () => {
+    expect(STE_DEFAULT_SUBJECTS_BY_GRADE['Grade 7'].map(s => s.name)).toEqual(['Environmental Science', 'Research I']);
+    expect(STE_DEFAULT_SUBJECTS_BY_GRADE['Grade 8'].map(s => s.name)).toEqual(['Biotechnology', 'Research II']);
+    expect(STE_DEFAULT_SUBJECTS_BY_GRADE['Grade 9'].map(s => s.name)).toEqual(['Consumer Chemistry', 'Research III']);
+    expect(STE_DEFAULT_SUBJECTS_BY_GRADE['Grade 10'].map(s => s.name)).toEqual(['Electronics and Robotics', 'Research IV']);
+
+    expect(SPSTEM_DEFAULT_SUBJECTS_BY_GRADE['Grade 7'].map(s => s.name)).toEqual([
+      'Enhanced Science',
+      'Enhanced Mathematics',
+      'Creative Technology',
+      'Research MIM/SIP'
+    ]);
+    expect(CANONICAL_SPFL_OPTIONS.map(s => s.name)).toEqual([
+      'SPFL - Spanish',
+      'SPFL - Mandarin Chinese',
+      'SPFL - Japanese (Nihongo)',
+      'SPFL - Korean',
+      'SPFL - French',
+      'SPFL - German'
+    ]);
+    expect(CANONICAL_SPTVE_OPTIONS.length).toBe(9);
+  });
+
+  it('UX-03: getCurriculumTemplatesForSection returns only canonical subjects without duplicate dumps', () => {
+    const steG7 = getCurriculumTemplatesForSection('Grade 7', 'STE');
+    expect(steG7.map(s => s.name)).toContain('Research I');
+    expect(steG7.map(s => s.name)).toContain('Environmental Science');
+    expect(steG7.map(s => s.name)).not.toContain('Research II');
+
+    const spaVisual = getCurriculumTemplatesForSection('Grade 7', 'SPA', ['Visual Arts']);
+    expect(spaVisual.map(s => s.name)).toContain('SPA - Visual Arts');
+    expect(spaVisual.map(s => s.name)).not.toContain('SPA - Theater Arts');
+
+    const spflSpanish = getCurriculumTemplatesForSection('Grade 8', 'SPFL', ['SPFL - Spanish']);
+    expect(spflSpanish.map(s => s.name)).toContain('SPFL - Spanish');
+    expect(spflSpanish.map(s => s.name)).not.toContain('SPFL - French');
+  });
+
+  it('UX-06: isSubjectAllowedForProgram isolates specialized subjects from regular programs', () => {
+    expect(isSubjectAllowedForProgram('Research I', 'STE')).toBe(true);
+    expect(isSubjectAllowedForProgram('Research I', 'Regular')).toBe(false);
+    expect(isSubjectAllowedForProgram('Mathematics', 'Regular')).toBe(true);
+    expect(isSubjectAllowedForProgram('Mathematics', 'STE')).toBe(true);
   });
 });
 

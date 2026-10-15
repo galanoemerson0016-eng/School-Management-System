@@ -23,6 +23,7 @@ import { TestSectionGeneratorModal } from '../components/sections/TestSectionGen
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { AnimatePresence, motion } from 'framer-motion';
 import { isStudentInSection } from '../utils/grading-helpers';
+import { getAllowedDepartmentCategories } from '../lib/curriculum';
 import { getTestSectionStats } from '../utils/testSectionGenerator';
 import { isTestSection } from '../utils/testSectionGuards';
 import type { Section } from '../types';
@@ -234,11 +235,27 @@ export function SectionsPage() {
         setIsModalOpen(true);
     };
 
+    const allowedDepts = useMemo(() => {
+        const existingGrades = sections.map(s => s.section_grade_level).filter(Boolean);
+        return getAllowedDepartmentCategories(schoolProfile?.grade_levels_offered, 'AUTO', existingGrades);
+    }, [schoolProfile?.grade_levels_offered, sections]);
+
+    const allowedDeptGroups = useMemo(() => {
+        const map: Record<'Elementary' | 'JHS' | 'SHS', string> = {
+            Elementary: 'ELEMENTARY',
+            JHS: 'JUNIOR HIGH SCHOOL',
+            SHS: 'SENIOR HIGH SCHOOL',
+        };
+        return new Set(allowedDepts.map(d => map[d]));
+    }, [allowedDepts]);
+
     const visibleGroups = Object.entries(groupedSections).filter(
         ([group, groupSections]) => {
             if (searchTerm) return groupSections.length > 0;
-            if (activeCategory === 'ALL') return groupSections.length > 0;
-            return activeCategory === group;
+            if (groupSections.length > 0) {
+                return activeCategory === 'ALL' || activeCategory === group;
+            }
+            return allowedDeptGroups.has(group) && activeCategory === group;
         }
     );
 
@@ -259,7 +276,9 @@ export function SectionsPage() {
             {/* Toolbar */}
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between relative z-10">
                 <div className="flex items-center bg-slate-100 dark:bg-white/5 border border-transparent dark:border-white/5 rounded-lg p-0.5 sm:p-1 self-start overflow-x-auto max-w-full [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                    {Object.keys(GROUP_LABELS).map((group) => {
+                    {Object.keys(GROUP_LABELS)
+                        .filter(group => group === 'ALL' || allowedDeptGroups.has(group) || (groupedSections[group]?.length || 0) > 0)
+                        .map((group) => {
                         const isActive = !searchTerm && activeCategory === group;
                         const count = group === 'ALL'
                             ? filteredSections.length
