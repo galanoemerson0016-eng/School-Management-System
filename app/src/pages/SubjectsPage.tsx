@@ -2553,7 +2553,7 @@ export function SubjectsPage() {
                                                         {count} {count === 1 ? 'subject' : 'subjects'}
                                                     </span>
                                                     {progBadge ? (
-                                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200/40 dark:border-indigo-800/40 truncate max-w-[100px]">
+                                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200/40 dark:border-indigo-800/40 truncate max-w-25">
                                                             {progBadge}
                                                         </span>
                                                     ) : sec.is_advisory ? (
