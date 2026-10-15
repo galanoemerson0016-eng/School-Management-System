@@ -781,7 +781,7 @@ export function SF5Page() {
                                                                 </div>
                                                                 <span className="ml-0.5 shrink-0 text-[12px] whitespace-nowrap">Section</span>
                                                                 <div className="border border-black px-2 flex-1 h-5.5 flex items-center font-bold tracking-wide">
-                                                                    {currentSectionInfo?.section_name || 'Test Section'}
+                                                                    {currentSectionInfo?.section_name || ''}
                                                                 </div>
                                                             </div>
                                                         </div>
